@@ -13,8 +13,71 @@ start of every session.** This file is a pointer and a running log, not a summar
 **Phase 1 — Packaging spike.** Complete. A built NSIS installer installs
 per-user, launches, reaches the sidecar, and leaves zero processes behind.
 
-Next up: **Phase 2 — Event spine.** Do not start it before re-reading
-BUILD_SPEC §5 Phase 2.
+**Phase 2 — Event spine.** Complete. SQLite + migrations, `EventStore.append`
+with atomic per-run `seq`, an `EventBus`, and a resumable SSE stream. Verified
+against the acceptance criterion with a real `curl` client killed mid-stream —
+and, separately, from inside the webview.
+
+Next up: **Phase 3 — Providers, budget, keychain.** Do not start it before
+re-reading BUILD_SPEC §5 Phase 3.
+
+### What Phase 2 established, and how it was verified
+
+**The gap-free guarantee is a property of the stream, not of the bus.** The bus
+is an in-process hint that new rows exist; SQLite is the only authority. The SSE
+stream keeps its own cursor and, on *any* anomaly — a sequence gap, a repeat, a
+dropped buffer, a stale subscription — re-reads the range from the database
+rather than reasoning about the cause. Two things make that necessary rather
+than defensive:
+
+- Appends commit inside `asyncio.to_thread` and can resume in either order, so
+  events genuinely reach `publish` out of sequence under concurrency.
+- Subscriber queues are bounded. A wedged client is marked stale and its buffer
+  dropped, because the durable row makes the buffered copy worthless.
+
+Subscribe happens *before* the backlog read. The reverse order silently drops
+anything appended in between, and is invisible until the log is under load.
+
+**`seq` is assigned inside one SQL statement** (`SELECT MAX(seq)+1` within the
+`INSERT`, under `BEGIN IMMEDIATE`, with `UNIQUE(run_id, seq)` behind it), so
+atomicity is a database property rather than something application locking has
+to maintain. This was confirmed by mutation: rewriting the append as a
+read-then-write race makes
+`test_concurrent_appends_produce_a_gapless_sequence` fail, and the UNIQUE
+constraint fires as the second line of defence.
+
+**Migration 001 creates only `runs` and `events`.** §4 specifies three more
+tables; they arrive in the phases that use them. A migration runner whose
+second step never executes before release is untested machinery, so
+`test_store_db.py` applies a synthetic migration 002 to prove stepping and
+rollback-on-failure work.
+
+### The bug worth remembering (Phase 2)
+
+**A named SSE event never fires `EventSource.onmessage`.** Frames originally
+carried `event: llm.token`, which is the more idiomatic-looking SSE. A webview
+probe using `onmessage` then received **0 of 20** events while `fetch` against
+the same endpoint received all 20 — the server was blameless and every terminal
+test was green.
+
+Named events require `addEventListener` for that exact name, so any type the
+client has not registered is dropped with no error anywhere. With 26 event types
+and more arriving each phase, that converts "someone forgot to update the
+client" into invisible data loss in a UI whose entire contract is being a
+faithful projection of the event log. Frames are therefore **unnamed**; the type
+travels inside the JSON body, everything arrives on one `onmessage`, and an
+unrecognised type reaches the reducer where it can be logged loudly.
+
+This is the same lesson as Phase 1's CORS bug in a new costume: the failure was
+invisible from a terminal and obvious from inside the webview. `curl` satisfied
+the acceptance criterion perfectly while the webview received nothing.
+
+**CORS is now asserted, not assumed.** `test_stream_cors.py` covers the packaged
+app's `http://tauri.localhost` origin directly, including the preflight for
+`Last-Event-ID` — which matters because the *initial* EventSource connection is
+a simple GET and is not preflighted, while the *reconnect* is. Getting that
+wrong yields a stream that works once and then dies silently at the first
+resume, which from the UI is indistinguishable from a run that stopped emitting.
 
 ### What Phase 1 established, and how it was verified
 
@@ -148,13 +211,62 @@ Two things to keep straight:
   BUILD_SPEC §5 Phase 2 requires. Do not change that default to match the dev
   path — the end user has no repository.
 
-`packages/schemas/` (generated TS types) and `apps/desktop/src-tauri/` arrive in
-Phases 7 and 1 respectively. They are absent rather than stubbed, because
-BUILD_SPEC §5 says do not build ahead.
+`packages/schemas/` (generated TS types) arrives in Phase 7. It is absent rather
+than stubbed, because BUILD_SPEC §5 says do not build ahead.
+
+The backend now also holds `store/` (SQLite + migrations), `events/` (types,
+store, bus) and `api/` (runs, stream), per the §3 layout.
 
 ## Decisions made mid-build
 
 Recorded here as they happen, so a later session does not re-litigate them.
+
+- **2026-09-09 — the data directory is derived from the bundle identifier, not
+  `APP_NAME`.** Tauri's per-user NSIS installer installs into
+  `%LOCALAPPDATA%\<productName>` — `%LOCALAPPDATA%\AgentSpace` — which is
+  byte for byte where an `APP_NAME`-derived data directory resolved. The event
+  log would have lived *inside the installation*, to be deleted by an uninstall
+  and put at risk by every upgrade. Found empirically: a stray
+  `agentspace.sqlite3` turned up in the installed app's own directory. It now
+  resolves to `%LOCALAPPDATA%\dev.agentspace.desktop`, which is also exactly
+  what Tauri's `app_data_dir()` returns, so the injected value and the fallback
+  name the same place instead of differing by one directory. A test asserts the
+  identifier still matches `tauri.conf.json`.
+- **2026-09-09 — an autouse fixture isolates every test's data directory.**
+  The stray database above was written *by the test suite*: `create_app()` with
+  no explicit paths falls back to the real OS app-data directory, so any test
+  building an app without passing paths wrote to the developer's machine.
+
+- **2026-09-09 — migration 001 creates only `runs` and `events`.** §4 specifies
+  five tables. Creating `spend`, `agent_defs` and `approvals` now would satisfy
+  the data model in one step but leave the migration runner with exactly one
+  migration, forever — the second step would first execute on a user's machine
+  during an upgrade. They arrive in Phases 3, 5 and 6 as migrations 002+.
+- **2026-09-09 — SSE frames carry no `event:` field.** See "The bug worth
+  remembering (Phase 2)". The type is in the JSON body; a named SSE event would
+  silently bypass `onmessage` for any type the client had not registered.
+- **2026-09-09 — one SQLite connection behind a `threading.Lock`, not a
+  connection per thread.** Thread-local connections scale better and are wrong
+  here: pool-thread connections are never deterministically closed, and on
+  Windows an open handle keeps the database file locked, which breaks both test
+  teardown and installer replacement. Operations are sub-millisecond and every
+  async caller arrives via `asyncio.to_thread`, so the loop never blocks.
+- **2026-09-09 — the Tauri shell defers to an inherited `AGENTSPACE_DATA_DIR`.**
+  §5 Phase 2 asks for the data directory to come from Tauri's path API, and it
+  does — but only when the variable is unset. Overriding unconditionally would
+  have moved dev state out of `.dev/data` and quietly contradicted the layout
+  table above.
+- **2026-09-09 — `pytest-timeout` with a 60 s cap.** An SSE stream that fails to
+  terminate hangs the suite instead of failing it, and would hang the Phase 9 CI
+  job. It earned its place immediately: it caught a real defect where a client
+  resuming past the head of an already-completed run waited forever, because the
+  stream only learned a run was over by *seeing* its terminal event. The stream
+  now also checks the run's status.
+- **2026-09-09 — Vite's dev watcher ignores `src-tauri/**`.** `tauri dev` runs
+  cargo and Vite against the same tree; Vite's watcher opens `target/` files
+  while cargo is still writing them, and on Windows the resulting EBUSY is
+  raised as a fatal error that kills the dev server and takes `tauri dev` with
+  it. Nothing under there is a frontend source file.
 
 - **2026-09-09 — `eslint-plugin-import-x` instead of `eslint-plugin-import`.**
   Phase 0 requires a lint rule enforcing case-sensitive import paths. The
