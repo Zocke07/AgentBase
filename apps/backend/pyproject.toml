@@ -10,10 +10,12 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "anyio>=4.0.0",
     "httpx2>=0.28.0",
     "mypy>=1.18.2",
     "pyinstaller>=6.11.0",
     "pytest>=8.4.2",
+    "pytest-timeout>=2.3.1",
     "ruff>=0.14.0",
 ]
 
@@ -96,3 +98,10 @@ pretty = true
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-q --strict-markers --strict-config"
+# No single test should take this long. Without a cap, an SSE stream that
+# fails to terminate hangs the suite — and in Phase 9, the CI job — instead
+# of failing. anyio is declared explicitly because the async tests run on
+# its pytest plugin; it arrives under Starlette either way, but depending on
+# a transitive dependency for the test harness is how a suite breaks on an
+# unrelated upgrade.
+timeout = 60
