@@ -22,8 +22,104 @@ and, separately, from inside the webview.
 protocol, integer-micros pricing, a monthly cap that refuses before the call,
 and API keys delivered from the OS keychain over stdin.
 
-Next up: **Phase 4 — Orchestrator.** Do not start it before re-reading
-BUILD_SPEC §5 Phase 4.
+**Phase 4 — Orchestrator.** Code complete, `just ci` green at 350 tests. **One
+acceptance verification is outstanding: no real model call has been made yet.**
+Everything below was proved against a scripted provider, real SQLite, and a real
+HTTP server; the first real Anthropic request has still never happened, and
+CLAUDE.md has been predicting a shape bug there since Phase 3. Do not mark this
+phase complete until that run has happened.
+
+### What Phase 4 established, and how it was verified
+
+**The event log is load-bearing, not a record kept alongside the truth.** A
+worker's result reaches the supervisor by being appended as `agent.message` and
+read back **out of SQLite** by `Mailbox.collect` — not by being returned up the
+call stack. That is slower than passing a string and it is the point: the §5
+Phase 4 criterion ("the full event log alone is sufficient to reconstruct
+exactly what happened") stops being an aspiration and becomes a thing that
+breaks loudly. Confirmed by mutation: deleting the single `deliver` call in
+`Agent._finish` fails **seven** tests, including the run completing at all. A
+design where the log is written *and* the value returned would have passed
+every one of them with the log silently half-empty.
+
+**The reconstruction is asserted by a reducer that can only see events.**
+`reconstruct()` in `test_orchestrator.py` takes a list of event rows and has no
+access to the `runs` table, the orchestrator, or the provider. Every assertion
+about a run goes through it. The five `test_dropping_*` cases then remove one
+event type at a time and confirm the matching assertion actually fails — so
+none of them is quietly resting on live state. The reducer lives in the tests
+because §5 Phase 7 owns the real one, in TypeScript.
+
+**The limits are shaped by §4's closed event list, not by preference.** There
+is no `agent.failed`, so an agent that runs out of steps *completes* with
+`reason: "max_steps"`. Wall-clock fails the run. `max_agents_per_run` refuses
+the spawn, tells the supervisor through `tool.error`, and leaves the run alive —
+killing a run that is otherwise succeeding because its supervisor asked for one
+worker too many trades real work for strictness, and a supervisor that loops on
+retrying hits the step limit anyway. (Asked before deviating, per §6.)
+
+**The deadline is checked before the model call, and that ordering is pinned.**
+Moving `check_deadline()` after `_call_model` bills 100 input tokens on a run
+that should already have stopped, and
+`test_a_run_that_outlives_its_deadline_fails` fails on `input_tokens == 0`.
+Without that one assertion the mutation passes.
+
+**`BudgetedProvider` had to grow `stream()` or stop meaning anything.** The
+orchestrator streams by default. A guard that wrapped only `complete()` would
+have left the cap binding nothing that actually runs, while every Phase 3 test
+kept passing. Spend is recorded *before* the terminal completion is yielded,
+because a consumer that stops iterating the moment it has the completion would
+otherwise close the generator unbilled.
+
+**A token flood cannot gap a slow subscriber — now measured, not assumed.**
+This closes the Phase 2 note that said to revisit backpressure here. One
+streamed response of 900 words overflows the 512-event queue by a wide margin
+while the client reads nothing. The test holds a second subscriber purely to
+assert it was actually marked stale, because "more than 512 events arrived" is
+a different claim from "a subscriber was dropped and the stream recovered by
+re-reading SQLite". Both hold, and the client still receives a gapless 1..N.
+
+**Only calls that touch nothing are offered.** `finish`, `handoff`,
+`spawn_agent` — see `orchestrator/control.py`. Anything reaching the
+filesystem, shell or network needs Phase 6's approval gate, and shipping it now
+would create exactly the ungated path §1 constraint 5 forbids. The
+`tool.requested` → `tool.called` → `tool.result` sequence is nonetheless the
+real one, so Phase 6 inserts the approval events between the first two rather
+than reshaping what exists.
+
+### The bug worth remembering (Phase 4)
+
+**Two of them, and neither was in the product.**
+
+The first: `Path.write_text()` on Windows translates `\n` to `\r\n`. Editing
+source with a Python helper script silently converted six LF files to CRLF,
+against `.gitattributes`' `* text=auto eol=lf`. `ruff check`, `mypy` and
+`pytest` were all still green — only `ruff format --check` noticed, and it is
+**not** in `just check` (`lint` is `lint-backend` + `lint-desktop`;
+`lint-backend-format` is a separate recipe nothing depends on). Git would have
+normalized it at commit, so the damage was confined to the working tree — but
+the lesson is that the one check that catches this is the one the gate does not
+run. Use `newline="\n"` explicitly when writing files from a script.
+
+The second: `httpx`'s ASGI transport **buffers a response body to completion**
+before handing it back. The first version of the backpressure test opened an
+SSE stream over `ASGITransport` and then started the run that would fill it —
+which deadlocks, because the request cannot return until the response ends and
+the response cannot end until the run it is waiting on begins. It presented as
+a `pytest-timeout` kill with a stack in `GetQueuedCompletionStatus`, which
+looks exactly like a server-side hang and is not one. The stream is therefore
+consumed through `run_stream` directly; the HTTP framing above it is already
+covered by the Phase 2 tests, and what had never run under real overflow is the
+resync path.
+
+Also worth recording because it was *not* a bug: a `run.failed` payload read
+back over HTTP appeared to contain `â€"` mojibake. It did not. The stored
+codepoint is a clean U+2014 and the corruption was in the inspecting pipe —
+`json.load(sys.stdin)` decodes with the locale encoding, which is cp1252 in Git
+Bash on this machine. Checked with `ord()` before reporting anything.
+
+Next up: **Phase 5 — Agent registry.** Do not start it before re-reading
+BUILD_SPEC §5 Phase 5, and not before Phase 4's real model call has happened.
 
 ### What Phase 3 established, and how it was verified
 
@@ -214,11 +310,12 @@ Phase 2 specifically:
   supplying the header itself. The server cannot tell the two apart, but the
   browser's retry timing and its handling of a stream that closes normally are
   untested. Phase 7 writes the real client; force a mid-run disconnect there.
-- **Backpressure against a real client.** `mark_stale` and the resync path are
-  unit-tested on the bus, but no HTTP client has ever overflowed a 512-event
-  queue, because nothing yet emits events fast enough. Revisit when Phase 4
-  streams `llm.token` at model speed — that is the first thing that plausibly
-  outruns a subscriber.
+- ~~**Backpressure against a real client.**~~ **Closed in Phase 4.** A 900-word
+  streamed response overflows the 512-event queue while the client reads
+  nothing; the subscription is asserted to have actually gone stale, and the
+  client still receives a gapless 1..N. Consumed through `run_stream` rather
+  than over HTTP — see the Phase 4 bug note for why an in-process HTTP client
+  cannot do this.
 - **Two simultaneous SSE clients on one run.** Covered on the bus, not through
   the HTTP layer against a live server. It becomes real in Phase 8, when a run
   is watched from the dashboard and a chat channel at once.
@@ -229,7 +326,8 @@ Phase 3 specifically:
   `httpx2.MockTransport`. The request bodies are asserted against each vendor's
   documented shape, but no Anthropic, OpenAI or Ollama endpoint has actually
   answered one, so a wrong header name or a renamed field would pass the suite.
-  The first real call happens in Phase 4; expect at least one shape bug there.
+  Still true after Phase 4, and now the one thing blocking it — see the Phase 4
+  list below.
 - **Ollama has never been run.** No daemon was started. The provider exists to
   keep the abstraction free of cloud assumptions (§7), and it does that whether
   or not it works — but "it works" is not claimed.
@@ -255,6 +353,43 @@ Phase 3 specifically:
   from the bundled `claude-api` reference (checked 2026-06-24), OpenAI rows from
   `developers.openai.com` (checked 2026-09-09). A stale row mis-counts the
   user's own cap; it never affects what a provider actually bills.
+
+Phase 4 specifically:
+
+- **No real model call has still ever been made.** This is the big one, and it
+  is now the only thing between Phase 4 and complete. Every orchestrator test
+  runs against a `ScriptedProvider`; every provider test against an
+  `httpx2.MockTransport`. The streaming frame shapes for all three vendors were
+  written from their documented formats and asserted against handcrafted
+  fixtures, which proves the parser matches what was *written down*, not what a
+  server *sends*. Anthropic's two-frame token accounting and OpenAI's
+  `stream_options.include_usage` are the two most likely to be wrong, and both
+  fail silently in the direction of under-billing.
+- **The webview has never seen an orchestrated run.** Live SSE was verified with
+  `curl` against a real uvicorn sidecar — including the `tauri.localhost` CORS
+  preflight carrying `Last-Event-ID` — but the frontend is still the Phase 1
+  shell, so no `EventSource` has consumed orchestrator events. This is exactly
+  the shape of the Phase 1 CORS bug and the Phase 2 named-event bug, both of
+  which were invisible from a terminal. Phase 7 writes the real client; do the
+  check there rather than trusting the `curl` result.
+- **Concurrency between agents.** Delegation is strictly sequential: a worker
+  runs to completion before the supervisor's next turn. Nothing has ever
+  appended events for two agents at once, so `seq` ordering has not had to
+  carry any orchestration meaning. Parallel workers are a real feature and a
+  real risk to the reconstruction guarantee; they are not in this phase.
+- **The budget crossing race is still open, and is now reachable.** Phase 3
+  noted that two runs appending concurrently at the 80% threshold could both
+  observe the crossing. `POST /runs` now starts runs, so two concurrent runs is
+  an ordinary thing a user can do. Untested.
+- **Long transcripts.** `llm.request` carries the full message list, so a run
+  that goes many steps writes the conversation into the log repeatedly, growing
+  quadratically. Correct for reconstruction and untested for size. Nothing has
+  run long enough to care yet.
+- **A worker-initiated `handoff` does not re-delegate.** It records
+  `agent.handoff`, completes the worker, and hands the request back to the
+  supervisor as text for it to act on. The event is real; the automatic
+  follow-through is not implemented, and no test asserts the supervisor
+  actually does anything sensible with it.
 
 ## The constraints that get violated by accident
 
@@ -347,9 +482,58 @@ Anthropic/OpenAI/Ollama, factory), `budget/` (the monthly cap) and `api/`
 root because it is process-wide state, not storage — keys never reach the
 database.
 
+Phase 4 added `orchestrator/` — `run.py` (lifecycle, the event sequence, the
+mailbox), `supervisor.py`, `agent.py`, plus two modules §3 does not name:
+`limits.py` (the run ceilings) and `control.py` (the tool vocabulary an agent
+may call). `registry.py` is Phase 5 and is absent rather than stubbed.
+`tools/` is still empty: it belongs to Phase 6 with the approval gate.
+
 ## Decisions made mid-build
 
 Recorded here as they happen, so a later session does not re-litigate them.
+
+- **2026-09-09 — a worker's result travels through SQLite, not up the call
+  stack.** §5 Phase 4 says agents communicate via `agent.message` events and
+  never direct function calls, which taken literally is impossible — some
+  object has to call some other object. `Mailbox.deliver` appends the event and
+  `Mailbox.collect` reads it back out of the database, so the *content* never
+  moves in a Python variable. Slower than returning a string, and the reason
+  the acceptance criterion is structural rather than aspirational. See the
+  Phase 4 notes for the mutation that proves it.
+- **2026-09-09 — `max_agents_per_run` refuses the spawn instead of failing the
+  run.** §5 says every limit "emits a terminal event when hit", and the strict
+  reading would kill the run. Asked before deviating (§6): a supervisor asking
+  for one worker too many should not destroy work already done, and a
+  supervisor that loops on retrying hits the step limit anyway. The other two
+  limits are forced by §4's closed event list — no `agent.failed` exists, so
+  the step limit *completes* an agent with a reason.
+- **2026-09-09 — control-flow tools live in `orchestrator/control.py`, not in
+  `tools/`.** Phase 4 needs the agent loop to call *something*, and §1
+  constraint 5 forbids any filesystem/shell/network call that does not pass the
+  approval gate — which is Phase 6. So this phase offers only calls that touch
+  nothing: `finish`, `handoff`, `spawn_agent`. Building `tools/base.py` now
+  would pre-empt the risk model and sandbox that Phase 6 owns. The
+  `tool.requested` → `tool.called` → `tool.result` sequence is real, so Phase 6
+  adds approval events between the first two rather than reshaping it.
+- **2026-09-09 — `Provider` gained `stream()`, and `BudgetedProvider` wraps
+  it.** Deferring streaming would have left `llm.token` emitted by nothing but
+  the debug script, left the queue-overflow question untestable, and meant
+  rewriting the agent loop later rather than extending it. Wrapping only
+  `complete()` in the budget guard would have left the cap binding nothing the
+  orchestrator actually calls, with every Phase 3 test still green.
+- **2026-09-09 — streamed spend is recorded before the terminal completion is
+  yielded.** After would be the natural order, and it loses the charge whenever
+  a consumer stops iterating as soon as it has the completion — which is a
+  perfectly reasonable thing to write.
+- **2026-09-09 — the run limits are `settings` rows, not constants.** §5 says
+  "all configurable". The `settings` table already exists, so this is three new
+  keys and no migration. `RunLimits` is resolved once at run start, frozen, and
+  written into `run.started` — a run must not be held to different rules at
+  step 1 and step 12, and a replay has to be able to say what the rules were.
+- **2026-09-09 — `POST /runs` starts the orchestrator and returns immediately.**
+  Holding the request open for the length of a run would make the response a
+  second way to learn what the event stream already says, and would put a
+  proxy's idle timeout in charge of when a run ends.
 
 - **2026-09-09 — the data directory is derived from the bundle identifier, not
   `APP_NAME`.** Tauri's per-user NSIS installer installs into
