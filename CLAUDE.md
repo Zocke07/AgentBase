@@ -127,8 +127,29 @@ wildcard would let any page the user has open read from their agent workspace.
   machine has Python. Genuine proof needs a second machine, which is Phase 9's
   acceptance criterion.
 - **macOS.** Nothing has run there. CI is Phase 9.
-- **Reinstall-over-existing beyond one upgrade pass.** One `/S` reinstall over
-  an existing install worked; repeated upgrade cycles are untested.
+- **Reinstall-over-existing at scale.** Three `/S` reinstalls over an existing
+  install have now worked, each with a rebuilt sidecar. Still nothing like the
+  number of upgrade cycles a released app sees, and no reinstall has yet
+  happened across a *schema migration* — the case that matters once migration
+  002 exists.
+
+Phase 2 specifically:
+
+- **The browser's own EventSource reconnect.** Resume was verified three ways —
+  `curl` with an explicit `Last-Event-ID`, a webview `fetch` with the same
+  header (which exercises the CORS preflight), and the unit tests. What was not
+  forced is the browser *automatically* reconnecting a dropped EventSource and
+  supplying the header itself. The server cannot tell the two apart, but the
+  browser's retry timing and its handling of a stream that closes normally are
+  untested. Phase 7 writes the real client; force a mid-run disconnect there.
+- **Backpressure against a real client.** `mark_stale` and the resync path are
+  unit-tested on the bus, but no HTTP client has ever overflowed a 512-event
+  queue, because nothing yet emits events fast enough. Revisit when Phase 4
+  streams `llm.token` at model speed — that is the first thing that plausibly
+  outruns a subscriber.
+- **Two simultaneous SSE clients on one run.** Covered on the bus, not through
+  the HTTP layer against a live server. It becomes real in Phase 8, when a run
+  is watched from the dashboard and a chat channel at once.
 
 ## The constraints that get violated by accident
 
