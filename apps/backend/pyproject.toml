@@ -5,13 +5,17 @@ description = "Local-first autonomous agent co-working space — FastAPI sidecar
 requires-python = "==3.12.*"
 dependencies = [
     "fastapi>=0.115.0",
+    # The HTTP client the providers call model APIs with. A runtime dependency
+    # from Phase 3 on: it was previously dev-only, arriving under Starlette's
+    # TestClient. The distribution is `httpx2` and the module it provides is
+    # `httpx2` — not `httpx` — which is the httpx 2.x line.
+    "httpx2>=2.12.0",
     "uvicorn>=0.32.0",
 ]
 
 [dependency-groups]
 dev = [
     "anyio>=4.0.0",
-    "httpx2>=0.28.0",
     "mypy>=1.18.2",
     "pyinstaller>=6.11.0",
     "pytest>=8.4.2",
@@ -62,6 +66,11 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = [
     "S101",  # assert is the point of a test
+    # Test doubles implement a Protocol, so they must keep the parameter names
+    # they do not use — renaming them to `_x` would stop them conforming. This
+    # is scoped to ARG002 (method arguments) on purpose: ARG001 stays on, and
+    # promptly caught a genuinely unused parameter in `test_providers.py`.
+    "ARG002",
 ]
 
 [tool.ruff.lint.flake8-tidy-imports]
