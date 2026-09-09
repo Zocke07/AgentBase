@@ -7,6 +7,7 @@ than shipping.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -101,7 +102,7 @@ def test_data_dir_on_windows_uses_localappdata(monkeypatch: pytest.MonkeyPatch) 
 
     result = config.default_data_dir("win32")
 
-    assert result == Path("C:/Users/example/AppData/Local") / config.APP_NAME
+    assert result == Path("C:/Users/example/AppData/Local") / config.APP_IDENTIFIER
 
 
 def test_data_dir_on_windows_falls_back_when_localappdata_is_unset(
@@ -111,13 +112,13 @@ def test_data_dir_on_windows_falls_back_when_localappdata_is_unset(
 
     result = config.default_data_dir("win32")
 
-    assert result.parts[-3:] == ("AppData", "Local", config.APP_NAME)
+    assert result.parts[-3:] == ("AppData", "Local", config.APP_IDENTIFIER)
 
 
 def test_data_dir_on_macos_uses_application_support() -> None:
     result = config.default_data_dir("darwin")
 
-    assert result.parts[-3:] == ("Library", "Application Support", config.APP_NAME)
+    assert result.parts[-3:] == ("Library", "Application Support", config.APP_IDENTIFIER)
 
 
 def test_data_dir_on_linux_honours_xdg_data_home(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -125,7 +126,7 @@ def test_data_dir_on_linux_honours_xdg_data_home(monkeypatch: pytest.MonkeyPatch
 
     result = config.default_data_dir("linux")
 
-    assert result == Path("/home/example/.local/share") / config.APP_NAME.lower()
+    assert result == Path("/home/example/.local/share") / config.APP_IDENTIFIER
 
 
 def test_data_dir_on_linux_falls_back_when_xdg_is_unset(
@@ -135,9 +136,57 @@ def test_data_dir_on_linux_falls_back_when_xdg_is_unset(
 
     result = config.default_data_dir("linux")
 
-    assert result.parts[-3:] == (".local", "share", config.APP_NAME.lower())
+    assert result.parts[-3:] == (".local", "share", config.APP_IDENTIFIER)
 
 
 @pytest.mark.parametrize("platform_name", ["win32", "darwin", "linux", "freebsd"])
 def test_data_dir_is_always_absolute(platform_name: str) -> None:
     assert config.default_data_dir(platform_name).is_absolute()
+
+
+# --- the data directory must not land inside the installation ---------------
+
+
+def test_data_dir_is_derived_from_the_identifier_not_the_product_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    r"""Tauri's per-user NSIS installer installs into `%LOCALAPPDATA%\AgentSpace`.
+
+    That is byte for byte where an `APP_NAME`-derived data directory resolves,
+    so the SQLite event log would sit inside the installation — deleted by an
+    uninstall, at risk from an upgrade. This is not theoretical: a stray
+    `agentspace.sqlite3` was found in the installed application's own directory
+    during Phase 2, which is what prompted the change.
+    """
+    monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\someone\AppData\Local")
+
+    data_dir = config.default_data_dir("win32")
+
+    assert data_dir.name == config.APP_IDENTIFIER
+    assert data_dir.name != config.APP_NAME
+
+
+def test_data_dir_matches_what_tauri_would_inject(monkeypatch: pytest.MonkeyPatch) -> None:
+    r"""The fallback and the shell's injected value must name the same place.
+
+    The Tauri shell resolves `app_data_dir()` — `%LOCALAPPDATA%\<identifier>` on
+    Windows — and passes it at spawn time. If this fallback disagreed, a sidecar
+    started without the variable would silently read a different, empty database
+    than the one the app writes.
+    """
+    monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\someone\AppData\Local")
+
+    tauri_app_data_dir = Path(r"C:\Users\someone\AppData\Local") / config.APP_IDENTIFIER
+
+    assert config.default_data_dir("win32") == tauri_app_data_dir
+
+
+def test_identifier_matches_tauri_conf() -> None:
+    """`tauri.conf.json` is the source of truth; drift breaks the path above."""
+    conf = json.loads(
+        (
+            Path(__file__).resolve().parents[3] / "apps/desktop/src-tauri/tauri.conf.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert conf["identifier"] == config.APP_IDENTIFIER

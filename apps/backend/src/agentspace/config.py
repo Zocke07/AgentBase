@@ -35,6 +35,21 @@ __all__ = [
 
 APP_NAME: Final[str] = "AgentSpace"
 
+#: The Tauri bundle identifier, from ``tauri.conf.json``. Keep the two in step.
+#:
+#: This — not :data:`APP_NAME` — is what the data directory is derived from, and
+#: the reason is a collision that has already happened once. Tauri's per-user
+#: NSIS installer installs into ``%LOCALAPPDATA%\\<productName>``, which is
+#: ``%LOCALAPPDATA%\\AgentSpace`` — byte for byte the path an ``APP_NAME``-based
+#: data directory resolves to. The SQLite event log would then live *inside* the
+#: installation, where an uninstall deletes it and an upgrade may overwrite it.
+#:
+#: Deriving from the identifier instead puts the data in
+#: ``%LOCALAPPDATA%\\dev.agentspace.desktop``, which is also exactly what Tauri's
+#: ``app_data_dir()`` returns — so the value the shell injects at spawn time and
+#: the fallback computed here agree, rather than differing by one directory.
+APP_IDENTIFIER: Final[str] = "dev.agentspace.desktop"
+
 #: The only interface this application ever binds. Hardcoded on purpose — see
 #: BUILD_SPEC §1 constraint 3. Do not make this configurable.
 BIND_HOST: Final[str] = "127.0.0.1"
@@ -100,14 +115,14 @@ def default_data_dir(platform_name: str = sys.platform) -> Path:
     if platform_name == "win32":
         local_app_data = os.environ.get("LOCALAPPDATA")
         base = Path(local_app_data) if local_app_data else Path.home() / "AppData" / "Local"
-        return base / APP_NAME
+        return base / APP_IDENTIFIER
 
     if platform_name == "darwin":
-        return Path.home() / "Library" / "Application Support" / APP_NAME
+        return Path.home() / "Library" / "Application Support" / APP_IDENTIFIER
 
     xdg_data_home = os.environ.get("XDG_DATA_HOME")
     base = Path(xdg_data_home) if xdg_data_home else Path.home() / ".local" / "share"
-    return base / APP_NAME.lower()
+    return base / APP_IDENTIFIER
 
 
 def resolve_app_paths(data_dir: Path | None = None) -> AppPaths:
