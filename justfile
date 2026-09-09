@@ -7,6 +7,35 @@
 set windows-shell := ["powershell.exe", "-NoLogo", "-NoProfile", "-Command"]
 set dotenv-load := false
 
+# ---------------------------------------------------------------------------
+# Everything that grows lives inside the repository.
+#
+# Tool *installations* stay where their installers put them (rustup toolchains,
+# VS Build Tools, uv's Python builds, Node). What is redirected here is the data
+# those tools generate — package caches and this application's own runtime state
+# — so that a clone on a roomy drive does not quietly fill the system drive.
+#
+# These are `just` exports, so they apply to this repository's recipes only and
+# need no shell profile edits. Your other projects keep using the shared
+# machine-wide caches.
+#
+# `target/`, `node_modules/` and `.venv/` are already inside the repo by virtue
+# of where they are created, so they need no redirection.
+# ---------------------------------------------------------------------------
+
+dev_dir := justfile_directory() / ".dev"
+
+export CARGO_HOME := dev_dir / "cache" / "cargo"
+export UV_CACHE_DIR := dev_dir / "cache" / "uv"
+export npm_config_cache := dev_dir / "cache" / "npm"
+
+# Dev-only override of the sidecar's data directory. The shipped application
+# still resolves the OS app-data dir (BUILD_SPEC §5 Phase 2) — see
+# `agentspace.config.default_data_dir`. This only affects `just` recipes, so a
+# dev run's SQLite file, logs and agent workspace stay in the working tree where
+# they can be inspected and deleted, instead of in %LOCALAPPDATA%.
+export AGENTSPACE_DATA_DIR := dev_dir / "data"
+
 # List every available recipe.
 default:
     @just --list --unsorted
@@ -147,8 +176,24 @@ build-desktop:
 versions:
     @just --version ; uv --version ; node --version ; npm --version
 
-# Delete every git-ignored file: node_modules, .venv, caches, dist, target.
-[confirm("Delete all git-ignored files (node_modules, .venv, dist, target)?")]
+# Show where every generated file goes.
+[group('misc')]
+paths:
+    @echo "cargo registry   {{ CARGO_HOME }}"
+    @echo "uv cache         {{ UV_CACHE_DIR }}"
+    @echo "npm cache        {{ npm_config_cache }}"
+    @echo "dev runtime data {{ AGENTSPACE_DATA_DIR }}"
+    @echo "backend venv     {{ justfile_directory() / 'apps' / 'backend' / '.venv' }}"
+    @echo "node_modules     {{ justfile_directory() / 'apps' / 'desktop' / 'node_modules' }}"
+
+# Delete the redirected caches and dev data, keeping installed dependencies.
+[confirm("Delete .dev/ (package caches and dev runtime data)?")]
+[group('misc')]
+clean-dev:
+    git clean -Xdf -- .dev
+
+# Delete every git-ignored file: node_modules, .venv, .dev caches, dist, target.
+[confirm("Delete ALL git-ignored files (node_modules, .venv, .dev, dist, target)?")]
 [group('misc')]
 clean:
     git clean -Xdf

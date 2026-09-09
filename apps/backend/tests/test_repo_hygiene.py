@@ -15,12 +15,14 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 
 PRUNED_DIRECTORIES = frozenset(
     {
+        ".dev",  # redirected package caches + dev runtime data (see the justfile)
         ".git",
         ".mypy_cache",
         ".pytest_cache",
         ".ruff_cache",
         ".venv",
         "__pycache__",
+        "build",
         "dist",
         "node_modules",
         "target",
@@ -107,3 +109,26 @@ def test_no_api_keys_in_tracked_files() -> None:
             offenders.append(str(path.relative_to(REPO_ROOT)).replace("\\", "/"))
 
     assert offenders == [], f"possible API key committed in: {offenders}"
+
+
+def test_generated_trees_are_pruned_not_scanned() -> None:
+    """The walker must never descend into `.dev`.
+
+    Package caches are full of vendored `.sh` files and would make
+    `test_no_shell_or_batch_scripts` fail for reasons that have nothing to do
+    with this repository — and walking gigabytes of cache would make the suite
+    slow enough that people stop running it.
+    """
+    assert ".dev" in PRUNED_DIRECTORIES
+
+    scanned = _walk_tracked_files()
+    dev_dir = REPO_ROOT / ".dev"
+
+    assert not any(dev_dir in path.parents for path in scanned)
+
+
+def test_dev_directory_is_git_ignored() -> None:
+    """Redirected caches and dev runtime state must never be committed."""
+    ignored = (REPO_ROOT / ".gitignore").read_text(encoding="utf-8")
+
+    assert ".dev/" in ignored

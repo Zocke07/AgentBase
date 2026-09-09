@@ -28,6 +28,8 @@ build/
 *.spec.bak
 
 # --- Local state (never commit; API keys live in the OS keychain) -------
+# Redirected package caches and dev runtime data — see the justfile header.
+.dev/
 *.sqlite
 *.sqlite3
 *.db

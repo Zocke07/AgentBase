@@ -59,7 +59,38 @@ just versions     # resolved toolchain versions
 ```
 apps/backend    Python 3.12 FastAPI sidecar (uv, ruff, mypy --strict)
 apps/desktop    React + TypeScript frontend (Vite, ESLint, tsc --noEmit)
+.dev/           git-ignored: package caches + dev runtime data (see below)
 ```
+
+## Where generated files go
+
+Everything that grows lives inside the repository, so a clone on a roomy drive
+does not fill the system drive. `just paths` prints the resolved locations.
+
+| What | Where | How |
+|---|---|---|
+| Rust build output | `apps/desktop/src-tauri/target/` | default |
+| Backend venv | `apps/backend/.venv/` | default |
+| Frontend deps | `apps/desktop/node_modules/` | default |
+| cargo registry | `.dev/cache/cargo/` | `CARGO_HOME`, exported by the justfile |
+| uv cache | `.dev/cache/uv/` | `UV_CACHE_DIR` |
+| npm cache | `.dev/cache/npm/` | `npm_config_cache` |
+| Dev SQLite / logs / agent workspace | `.dev/data/` | `AGENTSPACE_DATA_DIR` |
+
+Tool *installations* deliberately stay on the system drive at their default
+locations: rustup toolchains (`~/.rustup`), the rustup shims (`~/.cargo/bin`),
+VS Build Tools, uv's Python builds, Node.
+
+Two things to keep straight:
+
+- The exports live in the justfile, so they apply to **this repository's recipes
+  only**. Other projects on the machine keep using the shared machine-wide
+  caches. The trade is that a package needed by both is downloaded twice; the
+  point is containment of *this* project's growth, not a global saving.
+- `AGENTSPACE_DATA_DIR` is a **dev-only** override. The shipped application still
+  resolves the OS app-data dir via `agentspace.config.default_data_dir`, as
+  BUILD_SPEC §5 Phase 2 requires. Do not change that default to match the dev
+  path — the end user has no repository.
 
 `packages/schemas/` (generated TS types) and `apps/desktop/src-tauri/` arrive in
 Phases 7 and 1 respectively. They are absent rather than stubbed, because
@@ -84,3 +115,19 @@ Recorded here as they happen, so a later session does not re-litigate them.
 - **2026-09-09 — per-recipe `[working-directory(...)]` instead of `cd &&`.**
   `&&` is a parser error in Windows PowerShell 5.1, so chained-directory recipes
   would be shell-specific. Every recipe body is a single command instead.
+- **2026-09-09 — generated files redirected into `.dev/` via justfile exports.**
+  The system drive had 16 GB free and a Tauri `target/` directory alone can
+  reach 5-10 GB. Rather than edit shell profiles or move tool installations,
+  the justfile exports `CARGO_HOME`, `UV_CACHE_DIR`, `npm_config_cache` and
+  `AGENTSPACE_DATA_DIR` into the working tree. Verified by wiping `.venv`,
+  `node_modules` and `.dev`, re-running `just check`, and confirming a
+  `cargo build` of a crate with a dependency put `anyhow` in
+  `.dev/cache/cargo/registry/` while `~/.cargo/` kept only `bin`.
+  Side benefit: the uv cache now sits on the same volume as the venv, so uv
+  hardlinks instead of copying — the "Failed to hardlink files; falling back to
+  full copy" warning is gone.
+- **2026-09-09 — `.dev` added to the hygiene test's pruned directories.**
+  Package caches contain vendored `.sh` files, which would have failed
+  `test_no_shell_or_batch_scripts` for reasons unrelated to this repository, and
+  walking gigabytes of cache would make the suite slow enough to stop being run.
+  A test asserts the walker never descends into `.dev`.
