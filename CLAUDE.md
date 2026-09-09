@@ -8,10 +8,30 @@ start of every session.** This file is a pointer and a running log, not a summar
 
 ## Current phase
 
-**Phase 0 — Scaffold and cross-platform hygiene.** Complete.
-Next up: **Phase 1 — Packaging spike** (PyInstaller sidecar + Tauri `externalBin`
-+ a real NSIS installer). Do not start Phase 1 work until Phase 0's acceptance
-criterion (`just check` passes on a clean clone) is green.
+**Phase 0 — Scaffold and cross-platform hygiene.** Complete; `just check` passes
+on a clean clone.
+
+**Phase 1 — Packaging spike.** In progress. The sidecar half is done and
+verified; the Tauri bundle half is being built.
+
+The two Phase 1 traps that are already handled and tested:
+
+- **The `externalBin` filename.** Tauri resolves `binaries/agentspace-sidecar`
+  on disk as `agentspace-sidecar-<target triple>.exe`. Anything else is silently
+  not found at bundle time. The triple is computed once in the justfile from
+  `os()`/`arch()`, and `test_target_triple_matches_the_justfile` asserts the
+  Python side agrees — including the macOS rows, which only CI can execute.
+- **The orphaned sidecar.** `--onefile` means the PID Tauri holds is
+  PyInstaller's bootloader, not the server. Shutdown therefore never relies on
+  signals: the shell writes `shutdown` to stdin and then drops the handle,
+  closing the pipe. `agentspace.main._stop_on_stdin_close` stops the server on
+  either signal, from inside the process that really is the server.
+  `test_closing_stdin_leaves_no_orphan_process` asserts zero survivors.
+
+Still to verify before Phase 1 can be called done: the NSIS installer builds,
+installs per-user, launches, reaches the sidecar, and leaves nothing behind in
+Task Manager on quit — plus that the sidecar inside the produced installer is
+the freshly built one, not a stale cached copy.
 
 ## The constraints that get violated by accident
 
@@ -76,6 +96,8 @@ does not fill the system drive. `just paths` prints the resolved locations.
 | uv cache | `.dev/cache/uv/` | `UV_CACHE_DIR` |
 | npm cache | `.dev/cache/npm/` | `npm_config_cache` |
 | Dev SQLite / logs / agent workspace | `.dev/data/` | `AGENTSPACE_DATA_DIR` |
+| PyInstaller bootloader cache | `.dev/cache/pyinstaller/` | `PYINSTALLER_CONFIG_DIR` |
+| Frozen sidecar binary | `apps/desktop/src-tauri/binaries/` | `--distpath` |
 
 Tool *installations* deliberately stay on the system drive at their default
 locations: rustup toolchains (`~/.rustup`), the rustup shims (`~/.cargo/bin`),

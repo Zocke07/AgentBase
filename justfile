@@ -217,6 +217,31 @@ _hash path:
 dev-desktop:
     npm run --silent dev
 
+# Run the desktop app against the dev server. Rebuilds the sidecar first.
+[group('run')]
+dev-app: build-sidecar _dev-app
+
+[private]
+[working-directory('apps/desktop')]
+_dev-app:
+    npx --no-install tauri dev
+
+# Typecheck the Rust shell without producing a binary.
+[group('build')]
+[working-directory('apps/desktop/src-tauri')]
+check-tauri:
+    cargo clippy --all-targets -- -D warnings
+
+# Build the Windows NSIS installer. Rebuilds the sidecar first so the bundle
+# can never pick up a stale one (BUILD_SPEC §5 Phase 1).
+[group('build')]
+build-installer: build-sidecar _build-installer
+
+[private]
+[working-directory('apps/desktop')]
+_build-installer:
+    npx --no-install tauri build
+
 # Production build of the frontend bundle.
 [group('run')]
 [working-directory('apps/desktop')]
