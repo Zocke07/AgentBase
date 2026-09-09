@@ -15,6 +15,11 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+# BUILD_SPEC §5 Phase 3: keys are read from the OS keychain here and handed to
+# the sidecar over stdin. The plugin exposes `KeyringExt` to Rust (used at spawn
+# time, below) as well as JS commands for the Phase 7 settings UI, so one
+# dependency serves both halves.
+tauri-plugin-keyring = "0.1"
 tauri-plugin-shell = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

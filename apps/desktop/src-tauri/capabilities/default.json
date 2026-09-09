@@ -1,7 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Core permissions for the main window. The sidecar is spawned from Rust, not from JavaScript, so the webview needs no shell permission at all.",
-  "windows": ["main"],
-  "permissions": ["core:default"]
+  "description": "Core permissions for the main window. The sidecar is spawned from Rust, not from JavaScript, so the webview needs no shell permission at all. The keyring permission lets the settings UI store and clear API keys in the OS keychain; reading them back is done in Rust at spawn time, never by the webview.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "keyring:default"
+  ]
 }

@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 
 from agentspace import config, main
 from agentspace.config import BIND_HOST, DEFAULT_BIND_PORT
+from agentspace.secrets import SecretStore
 
 
 def _server() -> uvicorn.Server:
@@ -54,7 +55,7 @@ def test_stdin_eof_stops_the_server() -> None:
     server = _server()
     assert not server.should_exit
 
-    main._stop_on_stdin_close(server, iter([]))
+    main._read_stdin(server, iter([]), SecretStore())
 
     assert server.should_exit
 
@@ -62,7 +63,7 @@ def test_stdin_eof_stops_the_server() -> None:
 def test_shutdown_command_stops_the_server() -> None:
     server = _server()
 
-    main._stop_on_stdin_close(server, iter([f"{main.SHUTDOWN_COMMAND}\n"]))
+    main._read_stdin(server, iter([f"{main.SHUTDOWN_COMMAND}\n"]), SecretStore())
 
     assert server.should_exit
 
@@ -70,17 +71,21 @@ def test_shutdown_command_stops_the_server() -> None:
 def test_shutdown_command_tolerates_surrounding_whitespace() -> None:
     server = _server()
 
-    main._stop_on_stdin_close(server, iter([f"  {main.SHUTDOWN_COMMAND}  \r\n"]))
+    main._read_stdin(server, iter([f"  {main.SHUTDOWN_COMMAND}  \r\n"]), SecretStore())
 
     assert server.should_exit
 
 
 def test_unrelated_stdin_lines_do_not_stop_the_server_early() -> None:
-    """Only the command or EOF ends it — not arbitrary chatter on the pipe."""
+    """Only the command or EOF ends it — not arbitrary chatter on the pipe.
+
+    The first line is consumed as the secrets handshake, so the sentinel here
+    is deliberately not in first position.
+    """
     lines = iter(["hello\n", "ping\n", f"{main.SHUTDOWN_COMMAND}\n", "after\n"])
     server = _server()
 
-    main._stop_on_stdin_close(server, lines)
+    main._read_stdin(server, lines, SecretStore())
 
     assert server.should_exit
     # Stopped *at* the command, leaving the rest unread.
@@ -93,7 +98,7 @@ def test_a_closed_stdin_stops_the_server_rather_than_raising() -> None:
     stream.close()
     server = _server()
 
-    main._stop_on_stdin_close(server, stream)
+    main._read_stdin(server, stream, SecretStore())
 
     assert server.should_exit
 

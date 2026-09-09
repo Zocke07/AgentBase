@@ -20,6 +20,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Manager, RunEvent};
+use tauri_plugin_keyring::KeyringExt;
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
@@ -38,6 +39,14 @@ const SHUTDOWN_LINE: &[u8] = b"shutdown\n";
 
 /// How long to let the sidecar exit on its own before forcing the issue.
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(5);
+
+/// Keychain service name. Matches the bundle identifier so the entries are
+/// attributable to this app in the Windows Credential Manager UI.
+const KEYCHAIN_SERVICE: &str = "dev.agentspace.desktop";
+
+/// Keychain account names, which double as the JSON field names in the stdin
+/// handshake. Must match `agentspace.secrets.SECRET_KEYS`.
+const SECRET_NAMES: [&str; 2] = ["anthropic_api_key", "openai_api_key"];
 
 #[derive(Default)]
 struct SidecarState(Mutex<Option<CommandChild>>);
@@ -85,11 +94,22 @@ fn spawn_sidecar(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     };
     std::fs::create_dir_all(&data_dir)?;
 
-    let (mut rx, child) = app
+    let (mut rx, mut child) = app
         .shell()
         .sidecar(SIDECAR_NAME)?
         .env(DATA_DIR_ENV, data_dir.as_os_str())
         .spawn()?;
+
+    // The API-key handshake, written before anything else can reach the
+    // sidecar. See `send_secrets` for why this channel and not `argv`.
+    //
+    // A failure here is logged, not propagated: a missing key must not stop the
+    // app from starting. The sidecar reports it as a legible "no API key
+    // configured" on first use, which is a far better outcome than a window
+    // that never opens.
+    if let Err(error) = send_secrets(app, &mut child) {
+        eprintln!("[sidecar] could not send the key handshake: {error}");
+    }
 
     app.state::<SidecarState>()
         .0
@@ -115,6 +135,53 @@ fn spawn_sidecar(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     });
+
+    Ok(())
+}
+
+/// Read the API keys from the OS keychain and write them to the sidecar's stdin.
+///
+/// BUILD_SPEC §1 constraint 4 and §5 Phase 3. Two things about this are load
+/// bearing:
+///
+/// * **stdin, never `argv`.** A command-line argument is readable by any
+///   process on the machine — `Get-CimInstance Win32_Process` on Windows, `ps`
+///   elsewhere — for as long as the process lives. stdin is a private pipe
+///   between exactly these two processes.
+/// * **Exactly one line, first.** The sidecar consumes the first line as this
+///   handshake and then treats the stream as the shutdown watchdog it has been
+///   since Phase 1. `shutdown` is not valid JSON, so the two uses cannot be
+///   confused for one another.
+///
+/// A key that is absent from the keychain is simply omitted; the line is always
+/// written, even when empty, so the sidecar's handshake step always completes.
+fn send_secrets(
+    app: &AppHandle,
+    child: &mut CommandChild,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut secrets = serde_json::Map::new();
+
+    for name in SECRET_NAMES {
+        // A keychain miss is normal — it means the user has not set that key.
+        // Only an actual backend failure is worth reporting, and even then the
+        // caller logs rather than aborting startup.
+        match app.keyring().get_password(KEYCHAIN_SERVICE, name) {
+            Ok(Some(value)) if !value.is_empty() => {
+                secrets.insert(name.to_string(), serde_json::Value::String(value));
+            }
+            Ok(_) => {}
+            Err(error) => eprintln!("[keychain] could not read {name}: {error}"),
+        }
+    }
+
+    // Names only. Printing the map itself would put the keys in the Tauri
+    // console, which is the same leak the stdin channel exists to avoid.
+    let names: Vec<&str> = secrets.keys().map(String::as_str).collect();
+    eprintln!("[keychain] sending {} key(s): {:?}", names.len(), names);
+
+    let mut line = serde_json::to_vec(&serde_json::Value::Object(secrets))?;
+    line.push(b'\n');
+    child.write(&line)?;
 
     Ok(())
 }
@@ -172,6 +239,7 @@ fn port_is_open(port: u16) -> bool {
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_keyring::init())
         .manage(SidecarState::default())
         .invoke_handler(tauri::generate_handler![sidecar_base_url])
         .setup(|app| {
