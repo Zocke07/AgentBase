@@ -1,0 +1,86 @@
+# CLAUDE.md
+
+## Read this first
+
+The full specification is [BUILD_SPEC.md](BUILD_SPEC.md). **Read it in full at the
+start of every session.** This file is a pointer and a running log, not a summary
+— when the two disagree, BUILD_SPEC.md wins.
+
+## Current phase
+
+**Phase 0 — Scaffold and cross-platform hygiene.** Complete.
+Next up: **Phase 1 — Packaging spike** (PyInstaller sidecar + Tauri `externalBin`
++ a real NSIS installer). Do not start Phase 1 work until Phase 0's acceptance
+criterion (`just check` passes on a clean clone) is green.
+
+## The constraints that get violated by accident
+
+Restated from BUILD_SPEC §1 because these are the ones a well-meaning refactor
+erodes. The full list is in the spec.
+
+- **No agent framework.** The orchestration loop is hand-written. Owning the
+  event stream is the product.
+- **No Docker / Postgres / Redis / LiteLLM in the shipped product.** Two
+  sanctioned exceptions, neither of which changes what ships: the Phase 10
+  reviewer demo, and the Phase 6 container wrapper around `run_shell` on the
+  maintainer's own instance.
+- **`127.0.0.1` is hardcoded.** `agentspace.config.BIND_HOST` is a `Final`
+  constant and `assert_loopback_only()` guards every bind. There is a test that
+  fails if this becomes configurable.
+- **API keys live in the OS keychain.** Never `.env`, SQLite, a config file, a
+  log line, or `argv` — they reach the sidecar over stdin at spawn time.
+- **Every filesystem / shell / network tool call passes the approval gate.** No
+  privileged path for any channel, including Discord and Telegram.
+- **Chat channels trigger on explicit commands/mentions only.** Never ingest
+  ambient channel messages into agent context.
+
+And the idea the whole design hangs off (§2): **every agent action is an
+append-only event row, and the UI is a pure projection of the event log.** If you
+are about to send a message to the frontend that is not an event row, that is the
+bug — fix it rather than working around it.
+
+## Commands
+
+Everything goes through `just` — there are no `.sh` or `.bat` files in this repo,
+and a test enforces that.
+
+```
+just              # list every recipe
+just setup        # install backend + frontend dependencies
+just check        # lint + typecheck, both halves — the gate
+just ci           # check + test
+just test         # pytest
+just fmt          # ruff format + eslint --fix
+just versions     # resolved toolchain versions
+```
+
+## Layout
+
+```
+apps/backend    Python 3.12 FastAPI sidecar (uv, ruff, mypy --strict)
+apps/desktop    React + TypeScript frontend (Vite, ESLint, tsc --noEmit)
+```
+
+`packages/schemas/` (generated TS types) and `apps/desktop/src-tauri/` arrive in
+Phases 7 and 1 respectively. They are absent rather than stubbed, because
+BUILD_SPEC §5 says do not build ahead.
+
+## Decisions made mid-build
+
+Recorded here as they happen, so a later session does not re-litigate them.
+
+- **2026-09-09 — `eslint-plugin-import-x` instead of `eslint-plugin-import`.**
+  Phase 0 requires a lint rule enforcing case-sensitive import paths. The
+  canonical `eslint-plugin-import@2.32.0` caps its ESLint peer at 9 and will not
+  install against the ESLint 10 in this tree; its companion
+  `eslint-import-resolver-typescript` drags it back in as an optional peer.
+  `eslint-plugin-import-x` is the maintained fork, supports ESLint 10, ships the
+  same `no-unresolved` rule with `caseSensitiveStrict`, and bundles
+  `createNodeResolver` so the TypeScript resolver is not needed at all.
+- **2026-09-09 — `just check` depends on `just setup`.** The Phase 0 acceptance
+  criterion is that `check` passes *on a clean clone*, which it cannot do if the
+  venv and `node_modules` are missing. Both installers are no-ops when the trees
+  are already in sync.
+- **2026-09-09 — per-recipe `[working-directory(...)]` instead of `cd &&`.**
+  `&&` is a parser error in Windows PowerShell 5.1, so chained-directory recipes
+  would be shell-specific. Every recipe body is a single command instead.

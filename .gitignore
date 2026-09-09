@@ -1,0 +1,43 @@
+# --- Python -------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# --- Node ---------------------------------------------------------------
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.tsbuildinfo
+
+# --- Rust / Tauri -------------------------------------------------------
+target/
+apps/desktop/src-tauri/binaries/*
+!apps/desktop/src-tauri/binaries/.gitkeep
+
+# --- Build output -------------------------------------------------------
+build/
+*.spec.bak
+
+# --- Local state (never commit; API keys live in the OS keychain) -------
+*.sqlite
+*.sqlite3
+*.db
+.env
+.env.*
+!.env.example
+
+# --- Editors / OS -------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

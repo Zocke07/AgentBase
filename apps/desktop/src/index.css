@@ -1,0 +1,29 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.5;
+}
+
+body {
+  margin: 0;
+}
+
+.shell {
+  display: grid;
+  place-content: center;
+  gap: 0.25rem;
+  min-height: 100vh;
+  text-align: center;
+}
+
+.shell h1 {
+  margin: 0;
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+}
+
+.shell__phase {
+  margin: 0;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
