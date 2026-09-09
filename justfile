@@ -78,7 +78,14 @@ sidecar_dir := justfile_directory() / "apps" / "desktop" / "src-tauri" / "binari
 # --specpath, which points into .dev/cache, not against the recipe's working
 # directory.
 data_sep := if os() == "windows" { ";" } else { ":" }
-schema_sql := justfile_directory() / "apps" / "backend" / "src" / "agentspace" / "store" / "schema.sql"
+# Every migration, not just the first. A named `schema.sql` was correct while
+# migration 001 was the only one; naming files individually means each new
+# migration needs an edit here, and forgetting it produces a binary that starts
+# and then dies on a missing resource — a failure invisible to `just ci` and to
+# every dev run, because those read the file straight off the source tree.
+# `test_migration_sql_is_bundled` asserts this glob covers every MIGRATIONS
+# entry, so the omission fails a test instead of a release.
+migrations_sql := justfile_directory() / "apps" / "backend" / "src" / "agentspace" / "store" / "*.sql"
 sidecar_path := sidecar_dir / sidecar_file
 
 # List every available recipe.
@@ -205,10 +212,12 @@ test-backend-cov:
 # --add-data carries the migration SQL, which `--onefile` would otherwise omit:
 # bytecode is collected automatically, data files are not. The failure mode is
 # a binary that starts and then cannot create its database.
+#
+# The source is a glob so that adding a migration needs no edit here.
 [group('build')]
 [working-directory('apps/backend')]
 build-sidecar:
-    uv run pyinstaller --onefile --clean --noconfirm --name {{ sidecar_binary }} --distpath {{ sidecar_dir }} --workpath {{ dev_dir / "cache" / "pyinstaller" / "build" }} --specpath {{ dev_dir / "cache" / "pyinstaller" }} --add-data "{{ schema_sql }}{{ data_sep }}agentspace/store" src/agentspace/__main__.py
+    uv run pyinstaller --onefile --clean --noconfirm --name {{ sidecar_binary }} --distpath {{ sidecar_dir }} --workpath {{ dev_dir / "cache" / "pyinstaller" / "build" }} --specpath {{ dev_dir / "cache" / "pyinstaller" }} --add-data "{{ migrations_sql }}{{ data_sep }}agentspace/store" src/agentspace/__main__.py
 
 # Show the built sidecar's path, size and hash.
 [group('build')]

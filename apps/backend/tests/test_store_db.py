@@ -1,14 +1,20 @@
 """Tests for the SQLite connection and the migration runner.
 
 The migration runner is deliberately exercised as a *sequence*, not a one-shot
-schema load. Phase 2 only needs `runs` and `events`; `spend`, `agent_defs` and
-`approvals` arrive in the phases that use them (BUILD_SPEC §5 says do not build
-ahead). A runner whose second migration has never executed is not a runner, so
-the tests below apply a synthetic second migration to prove stepping works.
+schema load. Migration 001 creates `runs` and `events`; 002 adds `spend` and
+`settings` for Phase 3. `agent_defs` and `approvals` still arrive in the phases
+that use them (BUILD_SPEC §5 says do not build ahead), so the synthetic-
+migration tests below stay — they prove stepping works past whatever the
+current head happens to be.
+
+Migration 002 is the first one that runs against a database that already holds
+a user's data, which is the case that breaks in the field rather than on a
+fresh clone. `test_upgrade_preserves_an_existing_populated_database` covers it.
 """
 
 from __future__ import annotations
 
+import pathlib
 import sqlite3
 from typing import TYPE_CHECKING
 
@@ -87,14 +93,18 @@ def test_migration_creates_phase_two_tables(db: Database) -> None:
     assert {"runs", "events"} <= _table_names(db)
 
 
-def test_phase_two_does_not_create_later_phase_tables(db: Database) -> None:
+def test_migration_creates_phase_three_tables(db: Database) -> None:
+    """`spend` is §4 verbatim; `settings` backs the provider-switch criterion."""
+    assert {"spend", "settings"} <= _table_names(db)
+
+
+def test_later_phase_tables_are_not_created_yet(db: Database) -> None:
     """BUILD_SPEC §5: do not build ahead.
 
-    `spend`, `agent_defs` and `approvals` are specified in §4 but belong to
-    Phases 3, 5 and 6. Creating them now would mean the migration runner never
-    steps a second time before release.
+    `agent_defs` and `approvals` are specified in §4 but belong to Phases 5
+    and 6. They arrive as migrations 003+.
     """
-    assert _table_names(db).isdisjoint({"spend", "agent_defs", "approvals"})
+    assert _table_names(db).isdisjoint({"agent_defs", "approvals"})
 
 
 def test_schema_version_is_recorded(db: Database) -> None:
@@ -232,3 +242,117 @@ def test_write_rolls_back_on_error(db: Database) -> None:
         row = connection.execute("SELECT id FROM runs WHERE id = 'rollback-me'").fetchone()
 
     assert row is None
+
+
+# --- migration 002 -----------------------------------------------------------
+
+
+def test_upgrade_preserves_an_existing_populated_database(app_paths: AppPaths) -> None:
+    """Migration 002 must not disturb a v1 database that already has data.
+
+    This is the case CLAUDE.md records as never yet exercised: every migration
+    test before Phase 3 ran against a fresh file, and the shipped app upgrades
+    over a user's existing event log. A migration that drops or rewrites data
+    here is unrecoverable — there is no down-migration by design.
+
+    The v1 schema is built explicitly rather than by monkeypatching MIGRATIONS
+    down to one entry, so this keeps testing a real 1 -> 2 step even after
+    migration 003 exists.
+    """
+    first = Database(app_paths.db_path)
+    monkeyed = (db_module.MIGRATIONS[0],)
+    original = db_module.MIGRATIONS
+    db_module.MIGRATIONS = monkeyed
+    try:
+        first.connect()
+        assert first.schema_version == 1
+        with first.write() as connection:
+            connection.execute(
+                "INSERT INTO runs (id, goal, status, origin, created_at)"
+                " VALUES (?, ?, ?, ?, ?)",
+                ("keepme", "pre-existing goal", "completed", "ui", "2026-09-01T00:00:00+00:00"),
+            )
+            connection.execute(
+                "INSERT INTO events (run_id, seq, type, payload, ts) VALUES (?, ?, ?, ?, ?)",
+                ("keepme", 1, "run.started", '{"goal":"x"}', "2026-09-01T00:00:00+00:00"),
+            )
+    finally:
+        first.close()
+        db_module.MIGRATIONS = original
+
+    upgraded = Database(app_paths.db_path)
+    upgraded.connect()
+    try:
+        assert upgraded.schema_version == LATEST_SCHEMA_VERSION
+        assert {"spend", "settings"} <= _table_names(upgraded)
+
+        with upgraded.read() as connection:
+            run = connection.execute("SELECT goal FROM runs WHERE id = 'keepme'").fetchone()
+            events = connection.execute(
+                "SELECT seq, type FROM events WHERE run_id = 'keepme'"
+            ).fetchall()
+
+        assert run["goal"] == "pre-existing goal"
+        assert [(row["seq"], row["type"]) for row in events] == [(1, "run.started")]
+    finally:
+        upgraded.close()
+
+
+def test_spend_table_matches_the_specified_columns(db: Database) -> None:
+    """§4 specifies `spend` exactly; the ledger's integer-micros guarantee
+    depends on `cost_micros` being an INTEGER column, not a REAL one."""
+    with db.read() as connection:
+        columns = {
+            row["name"]: row["type"]
+            for row in connection.execute("PRAGMA table_info(spend)").fetchall()
+        }
+
+    assert set(columns) == {
+        "id",
+        "run_id",
+        "period",
+        "provider",
+        "model",
+        "input_tokens",
+        "output_tokens",
+        "cost_micros",
+        "ts",
+    }
+    assert columns["cost_micros"] == "INTEGER"
+    assert columns["input_tokens"] == "INTEGER"
+    assert columns["output_tokens"] == "INTEGER"
+
+
+def test_every_migration_file_is_bundled_by_the_packaging_glob() -> None:
+    """The frozen sidecar reads migration SQL from a PyInstaller data bundle.
+
+    `--add-data` in the justfile used to name `schema.sql` explicitly, so
+    adding migration 002 would have produced a binary that starts and then dies
+    on a missing resource — invisible to `just ci`, to every dev run, and to
+    every test, because all of those read the file straight off the source
+    tree. The glob fixes it; this asserts the glob stays.
+    """
+    justfile = pathlib.Path(__file__).resolve().parents[3] / "justfile"
+    text = justfile.read_text(encoding="utf-8")
+
+    assert 'migrations_sql := justfile_directory() / "apps" / "backend" / "src"' in text
+    assert '"store" / "*.sql"' in text
+    assert '--add-data "{{ migrations_sql }}{{ data_sep }}agentspace/store"' in text
+
+    store_dir = pathlib.Path(db_module.__file__).resolve().parent
+    on_disk = {path.name for path in store_dir.glob("*.sql")}
+    registered = {filename for _, filename in db_module.MIGRATION_FILES}
+
+    assert registered <= on_disk, (
+        f"MIGRATION_FILES names files that do not exist: {registered - on_disk}"
+    )
+    assert on_disk == registered, (
+        f"unregistered .sql files would still be bundled: {on_disk - registered}"
+    )
+
+
+def test_migration_files_and_migrations_agree() -> None:
+    assert [version for version, _ in db_module.MIGRATION_FILES] == [
+        migration.version for migration in db_module.MIGRATIONS
+    ]
+    assert all(migration.source is not None for migration in db_module.MIGRATIONS)

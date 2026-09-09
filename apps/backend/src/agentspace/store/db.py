@@ -39,6 +39,7 @@ if TYPE_CHECKING:
 __all__ = [
     "LATEST_SCHEMA_VERSION",
     "MIGRATIONS",
+    "MIGRATION_FILES",
     "Database",
     "Migration",
 ]
@@ -58,6 +59,12 @@ class Migration:
     version: int
     sql: str
 
+    #: Bundled filename this SQL came from, or ``None`` for a migration built
+    #: in a test. Recorded so a test can assert the packaging glob in the
+    #: justfile actually carries every file — a missing one is invisible until
+    #: the frozen binary runs.
+    source: str | None = None
+
 
 def _load_sql(filename: str) -> str:
     """Read a bundled ``.sql`` file.
@@ -70,8 +77,17 @@ def _load_sql(filename: str) -> str:
     return (resources.files("agentspace.store") / filename).read_text(encoding="utf-8")
 
 
+#: Version to bundled filename. Kept as data so the packaging test can walk it.
+MIGRATION_FILES: tuple[tuple[int, str], ...] = (
+    (1, "schema.sql"),
+    (2, "002_spend_and_settings.sql"),
+)
+
 #: Applied in order, each exactly once, lowest version first.
-MIGRATIONS: tuple[Migration, ...] = (Migration(version=1, sql=_load_sql("schema.sql")),)
+MIGRATIONS: tuple[Migration, ...] = tuple(
+    Migration(version=version, sql=_load_sql(filename), source=filename)
+    for version, filename in MIGRATION_FILES
+)
 
 LATEST_SCHEMA_VERSION: Final[int] = max(migration.version for migration in MIGRATIONS)
 
