@@ -73,7 +73,15 @@ fn spawn_sidecar(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     // no such variable set, so it takes Tauri's path.
     let data_dir = match std::env::var_os(DATA_DIR_ENV) {
         Some(inherited) => PathBuf::from(inherited),
-        None => app.path().app_data_dir()?,
+        // `app_local_data_dir()`, deliberately, not `app_data_dir()`. On
+        // Windows the latter is %APPDATA% — the *roaming* profile, which is
+        // copied to and from a server on every logon in a domain environment.
+        // Roaming a live SQLite database (plus its -wal and -shm files, an
+        // agent workspace and logs) invites corruption and bloats every logon.
+        // This one is %LOCALAPPDATA%, which is also what
+        // `agentspace.config.default_data_dir` computes, so the injected value
+        // and the sidecar's own fallback name the same directory.
+        None => app.path().app_local_data_dir()?,
     };
     std::fs::create_dir_all(&data_dir)?;
 

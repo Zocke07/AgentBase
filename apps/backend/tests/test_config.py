@@ -169,10 +169,16 @@ def test_data_dir_is_derived_from_the_identifier_not_the_product_name(
 def test_data_dir_matches_what_tauri_would_inject(monkeypatch: pytest.MonkeyPatch) -> None:
     r"""The fallback and the shell's injected value must name the same place.
 
-    The Tauri shell resolves `app_data_dir()` — `%LOCALAPPDATA%\<identifier>` on
+    The shell resolves `app_local_data_dir()` — `%LOCALAPPDATA%\<identifier>` on
     Windows — and passes it at spawn time. If this fallback disagreed, a sidecar
     started without the variable would silently read a different, empty database
     than the one the app writes.
+
+    Note `app_local_data_dir()`, not `app_data_dir()`: on Windows the latter is
+    `%APPDATA%`, the roaming profile, and a live SQLite database must not roam.
+    The first packaged build of this phase used `app_data_dir()` and put the
+    database in `%APPDATA%` — caught only by installing the app and looking at
+    where the file landed, which is why this test names the call explicitly.
     """
     monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\someone\AppData\Local")
 

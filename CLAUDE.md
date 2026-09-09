@@ -232,6 +232,15 @@ Recorded here as they happen, so a later session does not re-litigate them.
   what Tauri's `app_data_dir()` returns, so the injected value and the fallback
   name the same place instead of differing by one directory. A test asserts the
   identifier still matches `tauri.conf.json`.
+- **2026-09-09 — the shell calls `app_local_data_dir()`, not `app_data_dir()`.**
+  On Windows `app_data_dir()` is `%APPDATA%` — the *roaming* profile, copied to
+  and from a server on every logon in a domain environment. Roaming a live
+  SQLite database, its `-wal`/`-shm` files, an agent workspace and logs invites
+  corruption and bloats every logon. Caught by installing the packaged app and
+  looking at where the file actually landed: it was in `%APPDATA%`, while the
+  sidecar's own fallback computed `%LOCALAPPDATA%` — the exact silent
+  divergence the previous entry claims to prevent. Both are now
+  `%LOCALAPPDATA%\dev.agentspace.desktop`.
 - **2026-09-09 — an autouse fixture isolates every test's data directory.**
   The stray database above was written *by the test suite*: `create_app()` with
   no explicit paths falls back to the real OS app-data directory, so any test

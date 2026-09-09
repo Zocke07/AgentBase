@@ -45,9 +45,18 @@ APP_NAME: Final[str] = "AgentSpace"
 #: installation, where an uninstall deletes it and an upgrade may overwrite it.
 #:
 #: Deriving from the identifier instead puts the data in
-#: ``%LOCALAPPDATA%\\dev.agentspace.desktop``, which is also exactly what Tauri's
-#: ``app_data_dir()`` returns — so the value the shell injects at spawn time and
-#: the fallback computed here agree, rather than differing by one directory.
+#: ``%LOCALAPPDATA%\\dev.agentspace.desktop``, matching what the Tauri shell
+#: injects at spawn time — so the injected value and this fallback name the same
+#: directory rather than quietly differing.
+#:
+#: The shell calls ``app_local_data_dir()`` for that, *not* ``app_data_dir()``.
+#: On Windows the latter is ``%APPDATA%``, the roaming profile, which a domain
+#: environment copies to and from a server on every logon. Roaming a live SQLite
+#: database — with its ``-wal`` and ``-shm`` sidecars, an agent workspace and
+#: logs — invites corruption and bloats every logon. Not a theoretical
+#: distinction: the first packaged build of Phase 2 used ``app_data_dir()`` and
+#: put the database in ``%APPDATA%``, which was caught only by installing the
+#: app and looking at where the file landed.
 APP_IDENTIFIER: Final[str] = "dev.agentspace.desktop"
 
 #: The only interface this application ever binds. Hardcoded on purpose — see
