@@ -25,7 +25,9 @@ and API keys delivered from the OS keychain over stdin.
 **Phase 4 — Orchestrator.** Complete. A hand-written supervisor/worker loop, a
 run whose event log alone reconstructs it, three enforced limits, and streaming
 through the budget guard. Verified with a **real two-worker Anthropic run**:
-3 agents, 6 model calls, 50 events, `run.completed`, $0.0260 recorded.
+3 agents, 6 model calls, 50 events, `run.completed`, $0.0260 recorded — and
+against a **real local Ollama model**, which switched in as a settings change
+with no credentials and no cost.
 
 ### What the first real API call showed
 
@@ -61,7 +63,72 @@ never the value. The stdin handshake was performed by a stand-in for the Tauri
 shell, so this exercised sidecar-side secret handling end to end; the
 keychain→stdin half is still untested (see below).
 
-### The bug the real run found
+### What the first real Ollama run showed
+
+Run against a real daemon (Ollama 0.33.3, `gemma4:e4b`, 9.6 GB) — the first
+time §7's "optional and untested" local path has executed at all.
+
+**The abstraction held, with no code change.** `PATCH /settings` to
+`provider: "ollama"` was the entire switch. `/settings` then reported
+`configured_secrets: []` and `/settings/verify` returned ok — a provider with
+no API key, no cost and no remote host, which is the case the Ollama
+implementation exists to keep honest. Three runs recorded **$0.0000**: the
+`ollama/*` zero-price wildcard resolves, so the ledger neither charges nor
+refuses it as unpriced.
+
+**Both transports worked first try.** Tool calls parsed with their arguments
+intact on the blocking path *and* the NDJSON streaming path, and
+`prompt_eval_count`/`eval_count` came back as non-zero normalized usage. The
+streamed path specifically preserved a tool call through the final
+empty-message frame — the case `_merge_frame` exists for and
+`test_ollama_stream_keeps_a_tool_call_a_later_empty_message_would_erase`
+covers, now confirmed against a real server.
+
+**`llm.token` can be legitimately empty.** Every gemma response was a pure tool
+call with no prose, so the whole run emitted **zero** `llm.token` events. Taken
+with the Anthropic finding that deltas arrive 1–10 at a time, the rule for
+Phase 7 is: never treat token events as a liveness signal. `agent.thinking` and
+`llm.request` are what say an agent is working.
+
+**Three limit paths fired for real, and behaved.** The `max_agents_per_run`
+refusal fired six times in one run while the run stayed alive — exactly the
+behaviour chosen over failing the run, and the fallback in that reasoning ("a
+supervisor that loops on retrying hits the step limit anyway") is precisely
+what then happened. A worker-initiated `handoff` ran for the first time. And
+`register_agent` deduplicated a model that reused a name three times, producing
+`worker2`, `worker2-2`, `worker2-3` — two agents sharing an `agent_id` would
+have merged into one node on replay.
+
+**The model is not capable enough to finish a run.** gemma4:e4b never called
+`finish`: it spawned workers until it ran out of either agents or steps, across
+three attempts with limits from 4 to 10 steps. Its workers produced good text;
+the supervisor could not close the loop. So the local path is now verified at
+the *protocol* level and found wanting at the *capability* level, which is a
+more useful statement than §7's "untested". Nothing here suggests an
+orchestrator defect — every limit and every event behaved correctly around a
+model that would not converge.
+
+### The bug the Ollama run found
+
+**A failed run was reporting itself completed.** When the supervisor exhausted
+its steps, `execute_run` called `run.complete(outcome.result)` regardless of
+*why* the supervisor stopped, and the result was the out-of-steps placeholder.
+The user got status `completed` and the summary "supervisor stopped after 4
+steps with no result" — a terminal event asserting the run worked when it had
+not, while the workers' actual output sat in the log unmentioned.
+
+§4 has no `agent.failed`, so an agent out of steps *completes* with a reason.
+The mistake was treating that as a fact about the run. A supervisor that never
+called `finish` did not answer the goal; the run now fails with a reason that
+also says where the workers' output is. A *worker* hitting the same limit still
+completes the run, because the supervisor can finish around it.
+
+This was invisible to the whole test suite because every script ends by
+finishing, and the test that covered the step limit asserted
+`status == "completed"` — it encoded the bug rather than catching it. Both
+directions are now tested.
+
+### The bug the first Anthropic run found
 
 **A setting that could not be set, and said it could.** `PATCH /settings` with
 `max_steps_per_agent` returned `200 OK` and changed nothing:
@@ -411,12 +478,15 @@ Phase 3 specifically:
 
 Phase 4 specifically:
 
-- **OpenAI and Ollama have still never answered a real request.** Anthropic now
-  has, and its shapes were correct. OpenAI's `stream_options.include_usage` is
+- **OpenAI has still never answered a real request.** Anthropic and Ollama both
+  now have, and both were correct. OpenAI's `stream_options.include_usage` is
   the remaining one that fails silently in the direction of under-billing — if
   it is wrong, every streamed OpenAI call records as free and the cap stops
-  binding while the run works perfectly. Ollama has never had a daemon started
-  against it at all.
+  binding while the run works perfectly.
+- **No local model has completed a run.** gemma4:e4b works at the protocol
+  level but never calls `finish`, so whether the supervisor prompt can drive a
+  small local model at all is open. Try a tool-use-tuned model before
+  concluding anything about the prompt.
 - **The webview has never seen an orchestrated run.** Live SSE was verified with
   `curl` against a real uvicorn sidecar — including the `tauri.localhost` CORS
   preflight carrying `Last-Event-ID` — but the frontend is still the Phase 1
