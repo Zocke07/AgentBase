@@ -220,3 +220,61 @@ def test_budget_reports_the_current_period(client: TestClient) -> None:
 
     assert len(body["period"]) == 7
     assert body["period"][4] == "-"
+
+
+# --- the Phase 4 run limits --------------------------------------------------
+#
+# Found by running the app rather than by reading it: a PATCH carrying
+# `max_steps_per_agent` returned `200 OK` with the limit unchanged, because
+# `UpdateSettingsRequest` did not declare the field and Pydantic drops unknown
+# ones by default. §5 Phase 4 says the limits are "all configurable", and they
+# were — but only by writing to SQLite directly, which is not a capability the
+# product has.
+
+
+def test_run_limits_are_settable_over_http(client: TestClient) -> None:
+    """§5 Phase 4: "All configurable"."""
+    response = client.patch(
+        "/settings",
+        json={"max_steps_per_agent": 7, "max_agents_per_run": 3, "max_run_seconds": 45},
+    )
+
+    assert response.status_code == 200
+    settings = response.json()["settings"]
+    assert settings["max_steps_per_agent"] == 7
+    assert settings["max_agents_per_run"] == 3
+    assert settings["max_run_seconds"] == 45
+
+    # And they survive a round trip, rather than only appearing in the response.
+    assert client.get("/settings").json()["settings"]["max_steps_per_agent"] == 7
+
+
+def test_a_limit_of_zero_is_rejected(client: TestClient) -> None:
+    """Zero is not a stricter setting, it is a run that cannot do anything."""
+    response = client.patch("/settings", json={"max_steps_per_agent": 0})
+
+    assert response.status_code == 422
+
+
+def test_an_unknown_setting_is_rejected_rather_than_silently_ignored(
+    client: TestClient,
+) -> None:
+    """The bug above was silent, which is what made it survive.
+
+    A caller that misspells a field, or names one this version does not support
+    yet, must not be told the change succeeded. This is the test that would
+    have caught it.
+    """
+    response = client.patch("/settings", json={"max_steps": 7})
+
+    assert response.status_code == 422
+    assert "max_steps" in response.text
+
+
+def test_a_partial_update_leaves_the_other_limits_alone(client: TestClient) -> None:
+    client.patch("/settings", json={"max_steps_per_agent": 9, "max_run_seconds": 30})
+    client.patch("/settings", json={"max_run_seconds": 60})
+
+    settings = client.get("/settings").json()["settings"]
+    assert settings["max_steps_per_agent"] == 9
+    assert settings["max_run_seconds"] == 60

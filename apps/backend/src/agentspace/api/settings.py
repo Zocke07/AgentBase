@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from agentspace.budget.ledger import current_period
 from agentspace.providers.base import ProviderAuthError
@@ -50,12 +50,28 @@ class SettingsResponse(BaseModel):
 
 
 class UpdateSettingsRequest(BaseModel):
-    """A partial update. Every field optional; omitted fields are untouched."""
+    """A partial update. Every field optional; omitted fields are untouched.
+
+    **Unknown fields are rejected rather than ignored.** Pydantic's default is
+    to drop them, which turns a misspelled or not-yet-supported setting into a
+    `200 OK` that changed nothing — the caller is told it worked and it did
+    not. That is exactly how the Phase 4 run limits appeared configurable
+    through this endpoint for a while without being so.
+    """
+
+    model_config = ConfigDict(extra="forbid")
 
     provider: str | None = None
     model: str | None = Field(default=None, min_length=1)
     monthly_cap_micros: int | None = Field(default=None, ge=0)
     ollama_base_url: str | None = Field(default=None, min_length=1)
+
+    # §5 Phase 4: "All configurable". Bounds mirror `WorkspaceSettings`, where
+    # a limit of zero is a run that cannot do anything rather than a stricter
+    # setting.
+    max_steps_per_agent: int | None = Field(default=None, ge=1)
+    max_agents_per_run: int | None = Field(default=None, ge=1)
+    max_run_seconds: int | None = Field(default=None, ge=1)
 
 
 class BudgetResponse(BaseModel):
