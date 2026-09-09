@@ -27,10 +27,20 @@ from agentspace.budget.ledger import (
     estimate_usage,
 )
 from agentspace.events.types import EventType
-from agentspace.providers.base import Completion, Message, Role, TokenUsage, ToolSpec
+from agentspace.providers.base import (
+    Completion,
+    Message,
+    Role,
+    StreamEvent,
+    TextDelta,
+    TokenUsage,
+    ToolSpec,
+)
 from agentspace.store.settings import SettingsStore
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
     from agentspace.events.store import EventStore
     from agentspace.store.db import Database
 
@@ -66,6 +76,26 @@ class ExplodingProvider:
         msg = "the API call fired despite the budget cap — this is the bug"
         raise AssertionError(msg)
 
+    def stream(
+        self,
+        messages: list[Message],
+        tools: list[ToolSpec] | None = None,
+        *,
+        system: str | None = None,
+        max_tokens: int = 4096,
+    ) -> AsyncIterator[StreamEvent]:
+        """Both entry points explode.
+
+        The double implements the *whole* protocol on purpose. A double that
+        only had `complete` would still satisfy every test that used it, while
+        proving nothing about the path the orchestrator actually takes — and
+        `mypy --strict` would reject it the moment it was passed somewhere a
+        `Provider` is required.
+        """
+        self.calls += 1
+        msg = "the streamed API call fired despite the budget cap — this is the bug"
+        raise AssertionError(msg)
+
 
 class StubProvider:
     """A provider that succeeds and reports a fixed usage."""
@@ -75,6 +105,7 @@ class StubProvider:
     def __init__(self, model: str = "claude-opus-5", usage: TokenUsage | None = None) -> None:
         self.model = model
         self.calls = 0
+        self.stream_calls = 0
         self._usage = usage or TokenUsage(input_tokens=1_000, output_tokens=500)
 
     async def complete(
@@ -86,6 +117,22 @@ class StubProvider:
         max_tokens: int = 4096,
     ) -> Completion:
         self.calls += 1
+        return self._completion()
+
+    async def stream(
+        self,
+        messages: list[Message],
+        tools: list[ToolSpec] | None = None,
+        *,
+        system: str | None = None,
+        max_tokens: int = 4096,
+    ) -> AsyncIterator[StreamEvent]:
+        """Two text deltas, then the terminal completion the protocol promises."""
+        self.stream_calls += 1
+        yield TextDelta("ok")
+        yield self._completion()
+
+    def _completion(self) -> Completion:
         return Completion(
             provider=self.name,
             model=self.model,
@@ -458,3 +505,116 @@ async def test_the_estimate_counts_the_system_prompt() -> None:
     )
 
     assert with_system.input_tokens > without.input_tokens
+
+
+# --- the streamed path -------------------------------------------------------
+#
+# Written before `BudgetedProvider.stream` exists (§6). The wrapper is what
+# makes "check before the call" structural rather than a rule Phase 4 has to
+# remember — but that only holds for the methods it actually wraps. A `stream`
+# that reached the inner provider directly would reopen the exact hole
+# `BudgetedProvider` was built to close, and every existing test would still
+# pass, because they all go through `complete`.
+
+
+async def test_a_streamed_run_over_cap_is_refused_before_any_api_call_fires(
+    ledger: BudgetLedger, store: EventStore, settings: SettingsStore
+) -> None:
+    """The §5 Phase 3 ordering guarantee, on the path Phase 4 actually uses.
+
+    Streaming is the orchestrator's default, so if the cap only bound
+    `complete` it would in practice not bind at all.
+    """
+    run_id = await _run_id(store)
+    await settings.update({"monthly_cap_micros": 100})  # $0.0001
+    inner = ExplodingProvider()
+    guarded = BudgetedProvider(inner, ledger, run_id)
+
+    with pytest.raises(BudgetExceededError):
+        async for _ in guarded.stream([Message(role=Role.USER, content="hello" * 500)]):
+            pass
+
+    assert inner.calls == 0, "the provider was called despite the cap"
+
+
+async def test_the_refusal_happens_before_the_first_delta_is_yielded(
+    ledger: BudgetLedger, store: EventStore, settings: SettingsStore
+) -> None:
+    """An async generator does nothing until it is iterated.
+
+    That makes a subtle failure available: a `stream` that checks the budget
+    lazily still refuses, but only *after* the caller has started consuming —
+    by which point the orchestrator has already emitted `llm.request` and, on
+    a real provider, the HTTP request is in flight. Pinning the refusal to the
+    first `__anext__` keeps the guarantee observable.
+    """
+    run_id = await _run_id(store)
+    await settings.update({"monthly_cap_micros": 100})
+    inner = ExplodingProvider()
+    guarded = BudgetedProvider(inner, ledger, run_id)
+
+    iterator = guarded.stream([Message(role=Role.USER, content="hello" * 500)])
+
+    with pytest.raises(BudgetExceededError):
+        await iterator.__anext__()
+
+    assert inner.calls == 0
+
+
+async def test_a_permitted_stream_yields_deltas_then_records_the_terminal_usage(
+    ledger: BudgetLedger, store: EventStore
+) -> None:
+    run_id = await _run_id(store)
+    inner = StubProvider()
+    guarded = BudgetedProvider(inner, ledger, run_id)
+
+    events = [event async for event in guarded.stream([Message(role=Role.USER, content="hi")])]
+
+    assert inner.stream_calls == 1
+    assert [event.text for event in events if isinstance(event, TextDelta)] == ["ok"]
+
+    terminal = events[-1]
+    assert isinstance(terminal, Completion), "the last item must be the Completion"
+
+    # Same arithmetic as the blocking path: 1000 in @ $5/M + 500 out @ $25/M.
+    assert await ledger.spent_micros() == 5_000 + 12_500
+
+
+async def test_spend_is_recorded_once_not_once_per_delta(
+    ledger: BudgetLedger, store: EventStore
+) -> None:
+    """The deltas are not billable events; only the terminal completion is.
+
+    Recording per delta would multiply a run's cost by its token count, which
+    is the kind of error that only shows up as a cap that fires far too early.
+    """
+    run_id = await _run_id(store)
+    inner = StubProvider()
+    guarded = BudgetedProvider(inner, ledger, run_id)
+
+    async for _ in guarded.stream([Message(role=Role.USER, content="hi")]):
+        pass
+
+    rows = await ledger.spent_micros()
+    assert rows == 5_000 + 12_500
+
+
+async def test_an_abandoned_stream_records_nothing(
+    ledger: BudgetLedger, store: EventStore
+) -> None:
+    """A consumer that stops early never reaches the terminal completion.
+
+    Recording nothing is the honest outcome — the usage figures live on the
+    item that was never produced, so any number written here would be invented.
+    This is a documented consequence of the protocol, not an accident, and the
+    pre-flight check is what stops it becoming a way to spend past the cap.
+    """
+    run_id = await _run_id(store)
+    inner = StubProvider()
+    guarded = BudgetedProvider(inner, ledger, run_id)
+
+    async for event in guarded.stream([Message(role=Role.USER, content="hi")]):
+        if isinstance(event, TextDelta):
+            break
+
+    assert await ledger.spent_micros() == 0

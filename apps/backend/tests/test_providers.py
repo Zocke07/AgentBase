@@ -29,6 +29,7 @@ from agentspace.providers.base import (
     ProviderRateLimitedError,
     ProviderUnavailableError,
     Role,
+    TextDelta,
     TokenUsage,
     ToolSpec,
 )
@@ -584,3 +585,478 @@ async def test_the_supported_provider_table_matches_the_spec() -> None:
     """§5 Phase 3 names exactly these three."""
     assert set(SUPPORTED_PROVIDERS) == {"anthropic", "openai", "ollama"}
     assert SUPPORTED_PROVIDERS["ollama"] is None
+
+
+# --- streaming ---------------------------------------------------------------
+#
+# Phase 4 streams by default, so these shapes are the ones that actually run.
+# The recurring assertion is *equivalence*: the `Completion` that ends a stream
+# must equal the one `complete()` returns for the same logical response. If the
+# two diverge, choosing to stream becomes a behavioural change and the
+# orchestrator has to know which path it took — which is the Phase 3 acceptance
+# criterion failing by a side door.
+
+
+def mock_stream_client(
+    body: str,
+    status: int = 200,
+    captured: Captured | None = None,
+) -> httpx2.AsyncClient:
+    """A client whose response body is delivered as a stream."""
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        if captured is not None:
+            captured.request = request
+        return httpx2.Response(status, content=body.encode())
+
+    return httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+
+
+async def collect(provider: Provider, **kwargs: Any) -> tuple[list[str], Completion]:
+    """Drain a stream into its text deltas and its terminal completion."""
+    deltas: list[str] = []
+    terminal: Completion | None = None
+
+    async for event in provider.stream([Message(role=Role.USER, content="hi")], **kwargs):
+        if isinstance(event, TextDelta):
+            assert terminal is None, "a delta arrived after the terminal completion"
+            deltas.append(event.text)
+        else:
+            assert terminal is None, "more than one completion was yielded"
+            terminal = event
+
+    assert terminal is not None, "the stream ended without a terminal completion"
+    return deltas, terminal
+
+
+ANTHROPIC_STREAM = "\n".join(
+    [
+        "event: message_start",
+        'data: {"type":"message_start","message":{"id":"msg_1",'
+        '"model":"claude-opus-5","usage":{"input_tokens":25,"output_tokens":1}}}',
+        "",
+        "event: content_block_start",
+        'data: {"type":"content_block_start","index":0,'
+        '"content_block":{"type":"text","text":""}}',
+        "",
+        "event: ping",
+        'data: {"type":"ping"}',
+        "",
+        "event: content_block_delta",
+        'data: {"type":"content_block_delta","index":0,'
+        '"delta":{"type":"text_delta","text":"Hello"}}',
+        "",
+        "event: content_block_delta",
+        'data: {"type":"content_block_delta","index":0,'
+        '"delta":{"type":"text_delta","text":" there."}}',
+        "",
+        "event: content_block_stop",
+        'data: {"type":"content_block_stop","index":0}',
+        "",
+        "event: message_delta",
+        'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},'
+        '"usage":{"output_tokens":15}}',
+        "",
+        "event: message_stop",
+        'data: {"type":"message_stop"}',
+        "",
+    ]
+)
+
+
+async def test_anthropic_stream_yields_deltas_then_a_completion() -> None:
+    provider = AnthropicProvider(
+        api_key="test-key", model="claude-opus-5", client=mock_stream_client(ANTHROPIC_STREAM)
+    )
+
+    deltas, completion = await collect(provider)
+
+    assert deltas == ["Hello", " there."]
+    assert completion.text == "Hello there."
+    assert completion.stop_reason == "end_turn"
+
+
+async def test_anthropic_stream_takes_input_tokens_from_start_and_output_from_the_end() -> None:
+    """The counts live in two different frames.
+
+    `message_start` reports `output_tokens: 1` — a placeholder, not the answer.
+    Reading usage from that frame alone would bill 15 output tokens as 1 and
+    quietly under-count every streamed call against the cap.
+    """
+    provider = AnthropicProvider(
+        api_key="test-key", model="claude-opus-5", client=mock_stream_client(ANTHROPIC_STREAM)
+    )
+
+    _, completion = await collect(provider)
+
+    assert completion.usage == TokenUsage(input_tokens=25, output_tokens=15)
+
+
+async def test_anthropic_stream_sets_the_stream_flag_and_keeps_the_blocking_body() -> None:
+    captured = Captured()
+    provider = AnthropicProvider(
+        api_key="test-key",
+        model="claude-opus-5",
+        client=mock_stream_client(ANTHROPIC_STREAM, captured=captured),
+    )
+
+    await collect(provider, tools=[ToolSpec(name="read_file", description="Read a file")])
+
+    body = captured.body
+    assert body["stream"] is True
+    # Everything else must match what `complete` would have sent.
+    assert body["model"] == "claude-opus-5"
+    assert body["messages"] == [{"role": "user", "content": "hi"}]
+    assert body["tools"][0]["name"] == "read_file"
+    assert captured.headers["anthropic-version"] == ANTHROPIC_VERSION
+
+
+async def test_anthropic_stream_reassembles_a_tool_call_from_json_fragments() -> None:
+    """`input_json_delta` arrives as slices of a JSON string, not as an object.
+
+    A single fragment is never valid JSON on its own, so an adapter that tried
+    to parse each one would produce no tool call at all.
+    """
+    body = "\n".join(
+        [
+            'data: {"type":"message_start","message":{"model":"claude-opus-5",'
+            '"usage":{"input_tokens":10,"output_tokens":0}}}',
+            "",
+            'data: {"type":"content_block_start","index":0,"content_block":'
+            '{"type":"tool_use","id":"toolu_1","name":"read_file","input":{}}}',
+            "",
+            'data: {"type":"content_block_delta","index":0,"delta":'
+            '{"type":"input_json_delta","partial_json":"{\\"path\\":"}}',
+            "",
+            'data: {"type":"content_block_delta","index":0,"delta":'
+            '{"type":"input_json_delta","partial_json":" \\"q3.md\\"}"}}',
+            "",
+            'data: {"type":"message_delta","delta":{"stop_reason":"tool_use"},'
+            '"usage":{"output_tokens":20}}',
+            "",
+        ]
+    )
+    provider = AnthropicProvider(
+        api_key="test-key", model="claude-opus-5", client=mock_stream_client(body)
+    )
+
+    deltas, completion = await collect(provider)
+
+    assert deltas == [], "tool arguments are not text deltas"
+    assert len(completion.tool_calls) == 1
+    call = completion.tool_calls[0]
+    assert call.id == "toolu_1"
+    assert call.name == "read_file"
+    assert call.arguments == {"path": "q3.md"}
+    assert completion.stop_reason == "tool_use"
+
+
+async def test_anthropic_stream_matches_the_blocking_call() -> None:
+    """The protocol's equivalence guarantee, asserted rather than assumed."""
+    blocking = AnthropicProvider(
+        api_key="test-key",
+        model="claude-opus-5",
+        client=mock_client(
+            {
+                "model": "claude-opus-5",
+                "content": [{"type": "text", "text": "Hello there."}],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 25, "output_tokens": 15},
+            }
+        ),
+    )
+    streaming = AnthropicProvider(
+        api_key="test-key", model="claude-opus-5", client=mock_stream_client(ANTHROPIC_STREAM)
+    )
+
+    expected = await blocking.complete([Message(role=Role.USER, content="hi")])
+    _, actual = await collect(streaming)
+
+    assert actual == expected
+
+
+async def test_anthropic_raises_on_an_error_frame_after_a_200() -> None:
+    """Anthropic can fail *after* the status line.
+
+    Returning the truncated text instead would charge for a response that never
+    finished and hand the orchestrator a silently incomplete answer.
+    """
+    body = "\n".join(
+        [
+            'data: {"type":"message_start","message":{"model":"claude-opus-5",'
+            '"usage":{"input_tokens":10,"output_tokens":0}}}',
+            "",
+            'data: {"type":"content_block_delta","index":0,"delta":'
+            '{"type":"text_delta","text":"Partial"}}',
+            "",
+            'data: {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}',
+            "",
+        ]
+    )
+    provider = AnthropicProvider(
+        api_key="test-key", model="claude-opus-5", client=mock_stream_client(body)
+    )
+
+    with pytest.raises(ProviderError, match="Overloaded"):
+        await collect(provider)
+
+
+OPENAI_STREAM = "\n".join(
+    [
+        'data: {"id":"c1","model":"gpt-5","choices":[{"index":0,'
+        '"delta":{"role":"assistant","content":""},"finish_reason":null}]}',
+        "",
+        'data: {"id":"c1","model":"gpt-5","choices":[{"index":0,'
+        '"delta":{"content":"Hello"},"finish_reason":null}]}',
+        "",
+        'data: {"id":"c1","model":"gpt-5","choices":[{"index":0,'
+        '"delta":{"content":" there."},"finish_reason":null}]}',
+        "",
+        'data: {"id":"c1","model":"gpt-5","choices":[{"index":0,'
+        '"delta":{},"finish_reason":"stop"}]}',
+        "",
+        'data: {"id":"c1","model":"gpt-5","choices":[],'
+        '"usage":{"prompt_tokens":25,"completion_tokens":15}}',
+        "",
+        "data: [DONE]",
+        "",
+    ]
+)
+
+
+async def test_openai_stream_yields_deltas_then_a_completion() -> None:
+    provider = OpenAIProvider(
+        api_key="test-key", model="gpt-5", client=mock_stream_client(OPENAI_STREAM)
+    )
+
+    deltas, completion = await collect(provider)
+
+    assert deltas == ["Hello", " there."]
+    assert completion.text == "Hello there."
+    assert completion.stop_reason == "stop"
+    assert completion.usage == TokenUsage(input_tokens=25, output_tokens=15)
+
+
+async def test_openai_stream_requests_usage_explicitly() -> None:
+    """Without `stream_options.include_usage` a streamed response reports no
+    token counts at all — every call would be recorded as free and the monthly
+    cap would silently stop binding."""
+    captured = Captured()
+    provider = OpenAIProvider(
+        api_key="test-key",
+        model="gpt-5",
+        client=mock_stream_client(OPENAI_STREAM, captured=captured),
+    )
+
+    await collect(provider)
+
+    body = captured.body
+    assert body["stream"] is True
+    assert body["stream_options"] == {"include_usage": True}
+
+
+async def test_openai_stream_survives_the_usage_chunks_empty_choices() -> None:
+    """The frame carrying the token counts has `choices: []`.
+
+    Reading `choices[0]` unconditionally raises on precisely the one chunk the
+    budget ledger depends on.
+    """
+    provider = OpenAIProvider(
+        api_key="test-key", model="gpt-5", client=mock_stream_client(OPENAI_STREAM)
+    )
+
+    _, completion = await collect(provider)
+
+    assert completion.usage.total_tokens == 40
+
+
+async def test_openai_stream_accumulates_tool_calls_by_index() -> None:
+    """Only the first chunk of a tool call carries its id and name.
+
+    Later chunks have an `index` and another slice of the argument string, so
+    keying on anything but `index` loses the name or merges parallel calls.
+    """
+    body = "\n".join(
+        [
+            'data: {"id":"c1","model":"gpt-5","choices":[{"index":0,"delta":'
+            '{"tool_calls":[{"index":0,"id":"call_1","type":"function",'
+            '"function":{"name":"read_file","arguments":""}}]}}]}',
+            "",
+            'data: {"id":"c1","model":"gpt-5","choices":[{"index":0,"delta":'
+            '{"tool_calls":[{"index":0,"function":{"arguments":"{\\"path\\":"}}]}}]}',
+            "",
+            'data: {"id":"c1","model":"gpt-5","choices":[{"index":0,"delta":'
+            '{"tool_calls":[{"index":0,"function":{"arguments":" \\"q3.md\\"}"}}]}}]}',
+            "",
+            'data: {"id":"c1","model":"gpt-5","choices":[{"index":0,"delta":{},'
+            '"finish_reason":"tool_calls"}]}',
+            "",
+            'data: {"id":"c1","model":"gpt-5","choices":[],'
+            '"usage":{"prompt_tokens":30,"completion_tokens":20}}',
+            "",
+            "data: [DONE]",
+            "",
+        ]
+    )
+    provider = OpenAIProvider(
+        api_key="test-key", model="gpt-5", client=mock_stream_client(body)
+    )
+
+    _, completion = await collect(provider)
+
+    assert len(completion.tool_calls) == 1
+    call = completion.tool_calls[0]
+    assert call.id == "call_1"
+    assert call.name == "read_file"
+    assert call.arguments == {"path": "q3.md"}
+
+
+async def test_openai_stream_matches_the_blocking_call() -> None:
+    blocking = OpenAIProvider(
+        api_key="test-key",
+        model="gpt-5",
+        client=mock_client(
+            {
+                "model": "gpt-5",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "Hello there."},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 25, "completion_tokens": 15},
+            }
+        ),
+    )
+    streaming = OpenAIProvider(
+        api_key="test-key", model="gpt-5", client=mock_stream_client(OPENAI_STREAM)
+    )
+
+    expected = await blocking.complete([Message(role=Role.USER, content="hi")])
+    _, actual = await collect(streaming)
+
+    assert actual == expected
+
+
+OLLAMA_STREAM = "\n".join(
+    [
+        '{"model":"llama3","message":{"role":"assistant","content":"Hello"},"done":false}',
+        '{"model":"llama3","message":{"role":"assistant","content":" there."},"done":false}',
+        '{"model":"llama3","message":{"role":"assistant","content":""},"done":true,'
+        '"done_reason":"stop","prompt_eval_count":25,"eval_count":15}',
+        "",
+    ]
+)
+
+
+async def test_ollama_streams_newline_delimited_json_not_sse() -> None:
+    """Ollama has no `data:` prefix and no blank-line framing.
+
+    An SSE reader pointed at this body finds no lines it recognises and yields
+    an empty response — with no error anywhere, which is the failure mode this
+    test exists to prevent.
+    """
+    provider = OllamaProvider(model="llama3", client=mock_stream_client(OLLAMA_STREAM))
+
+    deltas, completion = await collect(provider)
+
+    assert deltas == ["Hello", " there."]
+    assert completion.text == "Hello there."
+    assert completion.usage == TokenUsage(input_tokens=25, output_tokens=15)
+    assert completion.stop_reason == "stop"
+
+
+async def test_ollama_stream_sets_the_stream_flag() -> None:
+    captured = Captured()
+    provider = OllamaProvider(
+        model="llama3", client=mock_stream_client(OLLAMA_STREAM, captured=captured)
+    )
+
+    await collect(provider)
+
+    assert captured.body["stream"] is True
+    assert captured.body["model"] == "llama3", "the namespace prefix must not reach the daemon"
+
+
+async def test_ollama_stream_matches_the_blocking_call() -> None:
+    blocking = OllamaProvider(
+        model="llama3",
+        client=mock_client(
+            {
+                "model": "llama3",
+                "message": {"role": "assistant", "content": "Hello there."},
+                "done": True,
+                "done_reason": "stop",
+                "prompt_eval_count": 25,
+                "eval_count": 15,
+            }
+        ),
+    )
+    streaming = OllamaProvider(model="llama3", client=mock_stream_client(OLLAMA_STREAM))
+
+    expected = await blocking.complete([Message(role=Role.USER, content="hi")])
+    _, actual = await collect(streaming)
+
+    assert actual == expected
+
+
+async def test_ollama_stream_keeps_a_tool_call_a_later_empty_message_would_erase() -> None:
+    """The final frame carries an empty message plus the token counts.
+
+    Folding it in naively overwrites the frame that held the tool call, and the
+    completion comes back with no tool calls and no error.
+    """
+    body = "\n".join(
+        [
+            '{"model":"llama3","message":{"role":"assistant","content":"",'
+            '"tool_calls":[{"function":{"name":"read_file",'
+            '"arguments":{"path":"q3.md"}}}]},"done":false}',
+            '{"model":"llama3","message":{"role":"assistant","content":""},"done":true,'
+            '"done_reason":"stop","prompt_eval_count":30,"eval_count":20}',
+            "",
+        ]
+    )
+    provider = OllamaProvider(model="llama3", client=mock_stream_client(body))
+
+    _, completion = await collect(provider)
+
+    assert len(completion.tool_calls) == 1
+    assert completion.tool_calls[0].name == "read_file"
+    assert completion.tool_calls[0].arguments == {"path": "q3.md"}
+
+
+@pytest.mark.parametrize(
+    "provider",
+    [
+        AnthropicProvider(api_key="k", model="claude-opus-5"),
+        OpenAIProvider(api_key="k", model="gpt-5"),
+        OllamaProvider(model="llama3"),
+    ],
+    ids=["anthropic", "openai", "ollama"],
+)
+def test_every_provider_satisfies_the_protocol_including_stream(provider: Provider) -> None:
+    """`runtime_checkable` only checks that the members exist — which is
+    exactly the check that matters when a method is added to the protocol and
+    one implementation is forgotten."""
+    assert isinstance(provider, Provider)
+    assert hasattr(provider, "stream")
+
+
+async def test_a_streamed_auth_failure_reports_the_vendors_reason() -> None:
+    """On a streamed response the body is unread when the status arrives.
+
+    Without an explicit read the error detail comes back empty, and a wrong API
+    key surfaces as a blank message instead of the vendor's explanation.
+    """
+    provider = AnthropicProvider(
+        api_key="bad-key",
+        model="claude-opus-5",
+        client=mock_stream_client(
+            '{"error":{"type":"authentication_error","message":"invalid x-api-key"}}',
+            status=401,
+        ),
+    )
+
+    with pytest.raises(ProviderAuthError, match="invalid x-api-key"):
+        await collect(provider)

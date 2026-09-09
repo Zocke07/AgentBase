@@ -17,6 +17,7 @@ Two shape details that are easy to get wrong:
 
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING, Any, Final
 
 import httpx2
@@ -25,15 +26,22 @@ from agentspace.providers.base import (
     Completion,
     Message,
     ProviderAuthError,
+    ProviderError,
     Role,
+    StreamEvent,
+    TextDelta,
     TokenUsage,
     ToolCall,
     ToolSpec,
 )
-from agentspace.providers.transport import DEFAULT_TIMEOUT_SECONDS, post_json
+from agentspace.providers.transport import (
+    DEFAULT_TIMEOUT_SECONDS,
+    post_json,
+    stream_sse,
+)
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import AsyncIterator, Iterable
 
 __all__ = ["ANTHROPIC_VERSION", "DEFAULT_BASE_URL", "AnthropicProvider"]
 
@@ -66,14 +74,20 @@ class AnthropicProvider:
     def model(self) -> str:
         return self._model
 
-    async def complete(
+    def _payload(
         self,
         messages: list[Message],
-        tools: list[ToolSpec] | None = None,
-        *,
-        system: str | None = None,
-        max_tokens: int = 4096,
-    ) -> Completion:
+        tools: list[ToolSpec] | None,
+        system: str | None,
+        max_tokens: int,
+    ) -> dict[str, Any]:
+        """The request body, shared by `complete` and `stream`.
+
+        Shared rather than duplicated on purpose: the two paths must send the
+        same request or streaming becomes a behavioural change instead of a
+        transport one, and a tool list that reached only one of them would be a
+        bug nothing above this module could diagnose.
+        """
         if not self._api_key:
             msg = "no Anthropic API key is configured"
             raise ProviderAuthError(msg)
@@ -96,20 +110,66 @@ class AnthropicProvider:
                 }
                 for tool in tools
             ]
+        return payload
 
+    def _headers(self) -> dict[str, str]:
+        return {
+            "x-api-key": self._api_key,
+            "anthropic-version": ANTHROPIC_VERSION,
+            "content-type": "application/json",
+        }
+
+    async def complete(
+        self,
+        messages: list[Message],
+        tools: list[ToolSpec] | None = None,
+        *,
+        system: str | None = None,
+        max_tokens: int = 4096,
+    ) -> Completion:
         body = await post_json(
             self._client,
             f"{self._base_url}/v1/messages",
-            payload,
-            {
-                "x-api-key": self._api_key,
-                "anthropic-version": ANTHROPIC_VERSION,
-                "content-type": "application/json",
-            },
+            self._payload(messages, tools, system, max_tokens),
+            self._headers(),
             self.name,
         )
 
         return self._to_completion(body)
+
+    async def stream(
+        self,
+        messages: list[Message],
+        tools: list[ToolSpec] | None = None,
+        *,
+        system: str | None = None,
+        max_tokens: int = 4096,
+    ) -> AsyncIterator[StreamEvent]:
+        """Stream `POST /v1/messages` with `stream: true`.
+
+        Anthropic splits a response across `message_start`,
+        `content_block_delta` and `message_delta` frames, and the token counts
+        arrive in *two* of them: input on `message_start`, output on
+        `message_delta` at the very end. Reading usage from either one alone
+        undercounts, which for a budget ledger means a cap that does not hold.
+        """
+        payload = self._payload(messages, tools, system, max_tokens)
+        payload["stream"] = True
+
+        state = _StreamState(self._model)
+
+        async for frame in stream_sse(
+            self._client,
+            f"{self._base_url}/v1/messages",
+            payload,
+            self._headers(),
+            self.name,
+        ):
+            text = state.consume(frame)
+            if text:
+                yield TextDelta(text)
+
+        yield state.finish(self.name)
 
     def _to_completion(self, body: dict[str, Any]) -> Completion:
         text_parts: list[str] = []
@@ -190,3 +250,180 @@ def _non_negative_int(value: Any) -> int:
 
 def _optional_str(value: Any) -> str | None:
     return value if isinstance(value, str) else None
+
+
+class _StreamState:
+    """Reassembles Anthropic's streamed frames into one :class:`Completion`.
+
+    The final object must be equivalent to what a non-streamed call would have
+    returned (see :class:`~agentspace.providers.base.Provider`), so everything
+    the blocking path reads off the response body has to be collected from a
+    different frame here:
+
+    ============  =====================================================
+    field         where it arrives
+    ============  =====================================================
+    model         ``message_start``
+    input tokens  ``message_start``
+    text          ``content_block_delta`` / ``text_delta``
+    tool calls    ``content_block_start`` plus ``input_json_delta`` parts
+    output tokens ``message_delta`` (final frame, not the first)
+    stop reason   ``message_delta``
+    ============  =====================================================
+    """
+
+    def __init__(self, model: str) -> None:
+        self._model = model
+        self._text: list[str] = []
+        self._blocks: dict[int, dict[str, Any]] = {}
+        self._input_tokens = 0
+        self._output_tokens = 0
+        self._stop_reason: str | None = None
+        self._error: str | None = None
+
+    def consume(self, frame: dict[str, Any]) -> str:
+        """Fold one frame in; return any text it contributed."""
+        kind = frame.get("type")
+
+        if kind == "message_start":
+            self._message_start(frame)
+        elif kind == "content_block_start":
+            self._block_start(frame)
+        elif kind == "content_block_delta":
+            return self._block_delta(frame)
+        elif kind == "message_delta":
+            self._message_delta(frame)
+        elif kind == "error":
+            self._error = _error_message(frame)
+
+        return ""
+
+    def _message_start(self, frame: dict[str, Any]) -> None:
+        message = frame.get("message")
+        if not isinstance(message, dict):
+            return
+
+        model = message.get("model")
+        if isinstance(model, str) and model:
+            self._model = model
+
+        usage = message.get("usage")
+        if isinstance(usage, dict):
+            self._input_tokens = _non_negative_int(usage.get("input_tokens"))
+            # Present but near-zero at this point; the real figure lands on
+            # `message_delta`. Taken anyway so a stream cut short still
+            # reports something rather than nothing.
+            self._output_tokens = _non_negative_int(usage.get("output_tokens"))
+
+    def _block_start(self, frame: dict[str, Any]) -> None:
+        block = frame.get("content_block")
+        if not isinstance(block, dict) or block.get("type") != "tool_use":
+            return
+
+        index = _index_of(frame)
+        self._blocks[index] = {
+            "id": str(block.get("id", "")),
+            "name": str(block.get("name", "")),
+            "json": [],
+        }
+
+    def _block_delta(self, frame: dict[str, Any]) -> str:
+        delta = frame.get("delta")
+        if not isinstance(delta, dict):
+            return ""
+
+        if delta.get("type") == "text_delta":
+            text = delta.get("text")
+            if isinstance(text, str) and text:
+                self._text.append(text)
+                return text
+            return ""
+
+        if delta.get("type") == "input_json_delta":
+            partial = delta.get("partial_json")
+            block = self._blocks.get(_index_of(frame))
+            if isinstance(partial, str) and block is not None:
+                parts: list[str] = block["json"]
+                parts.append(partial)
+
+        return ""
+
+    def _message_delta(self, frame: dict[str, Any]) -> None:
+        delta = frame.get("delta")
+        if isinstance(delta, dict):
+            stop = delta.get("stop_reason")
+            if isinstance(stop, str):
+                self._stop_reason = stop
+
+        usage = frame.get("usage")
+        if isinstance(usage, dict):
+            output = usage.get("output_tokens")
+            if output is not None:
+                self._output_tokens = _non_negative_int(output)
+
+    def finish(self, provider: str) -> Completion:
+        """The assembled response.
+
+        An `error` frame is raised rather than returned. Anthropic can send one
+        mid-stream after a `200 OK`, so the status code alone does not decide
+        whether the call succeeded — returning a truncated completion here
+        would charge the user for a response that never finished and hand the
+        orchestrator a silently incomplete answer.
+        """
+        if self._error is not None:
+            msg = f"{provider} failed mid-stream: {self._error}"
+            raise ProviderError(msg)
+
+        tool_calls = [
+            ToolCall(
+                id=str(block["id"]),
+                name=str(block["name"]),
+                arguments=_parse_arguments(block["json"]),
+            )
+            for _, block in sorted(self._blocks.items())
+        ]
+
+        return Completion(
+            provider=provider,
+            model=self._model,
+            text="".join(self._text),
+            usage=TokenUsage(
+                input_tokens=self._input_tokens,
+                output_tokens=self._output_tokens,
+            ),
+            tool_calls=tuple(tool_calls),
+            stop_reason=self._stop_reason,
+        )
+
+
+def _index_of(frame: dict[str, Any]) -> int:
+    value = frame.get("index")
+    return value if isinstance(value, int) and not isinstance(value, bool) else 0
+
+
+def _parse_arguments(parts: list[str]) -> dict[str, Any]:
+    """Join the `input_json_delta` fragments and decode them.
+
+    A tool call with no arguments streams zero fragments, which is an empty
+    string rather than `{}` — decoding that would raise, so it is handled
+    before `json.loads` sees it.
+    """
+    joined = "".join(parts).strip()
+    if not joined:
+        return {}
+
+    try:
+        parsed: Any = json.loads(joined)
+    except ValueError:
+        return {}
+
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _error_message(frame: dict[str, Any]) -> str:
+    error = frame.get("error")
+    if isinstance(error, dict):
+        message = error.get("message")
+        if isinstance(message, str):
+            return message
+    return "no reason given"

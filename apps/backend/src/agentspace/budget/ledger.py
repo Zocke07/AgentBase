@@ -25,7 +25,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Final
 
 from agentspace.events.types import EventType
-from agentspace.providers.base import TokenUsage
+from agentspace.providers.base import Completion, TokenUsage
 from agentspace.providers.pricing import (
     UnknownModelError,
     cost_micros,
@@ -34,8 +34,10 @@ from agentspace.providers.pricing import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
     from agentspace.events.store import EventStore
-    from agentspace.providers.base import Completion, Message, Provider, ToolSpec
+    from agentspace.providers.base import Message, Provider, StreamEvent, ToolSpec
     from agentspace.store.db import Database
     from agentspace.store.settings import SettingsStore
 
@@ -309,6 +311,46 @@ class BudgetedProvider:
             usage=completion.usage,
         )
         return completion
+
+    async def stream(
+        self,
+        messages: list[Message],
+        tools: list[ToolSpec] | None = None,
+        *,
+        system: str | None = None,
+        max_tokens: int = 4096,
+    ) -> AsyncIterator[StreamEvent]:
+        """Check, stream, record — in that order, always.
+
+        Wrapping this method is not optional. The orchestrator streams by
+        default, so a `BudgetedProvider` that guarded only `complete` would
+        leave the cap binding nothing that actually runs, while every existing
+        test kept passing.
+
+        **Spend is recorded before the terminal completion is yielded, not
+        after.** A consumer that stops iterating the moment it has the
+        completion — an entirely reasonable thing to write — would otherwise
+        close the generator before the recording line ever ran, and the call
+        would go unbilled.
+        """
+        projected = estimate_usage(messages, max_tokens=max_tokens, system=system)
+
+        if self._run_id is not None:
+            await self._ledger.check(self._run_id, self._inner.model, projected)
+        else:
+            await self._ledger.check("", self._inner.model, projected)
+
+        async for event in self._inner.stream(
+            messages, tools, system=system, max_tokens=max_tokens
+        ):
+            if isinstance(event, Completion):
+                await self._ledger.record(
+                    run_id=self._run_id,
+                    provider=event.provider,
+                    model=event.model,
+                    usage=event.usage,
+                )
+            yield event
 
 
 # Re-exported so callers catching budget failures need one import.
