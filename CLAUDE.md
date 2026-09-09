@@ -18,8 +18,80 @@ with atomic per-run `seq`, an `EventBus`, and a resumable SSE stream. Verified
 against the acceptance criterion with a real `curl` client killed mid-stream —
 and, separately, from inside the webview.
 
-Next up: **Phase 3 — Providers, budget, keychain.** Do not start it before
-re-reading BUILD_SPEC §5 Phase 3.
+**Phase 3 — Providers, budget, keychain.** Complete. Three providers behind one
+protocol, integer-micros pricing, a monthly cap that refuses before the call,
+and API keys delivered from the OS keychain over stdin.
+
+Next up: **Phase 4 — Orchestrator.** Do not start it before re-reading
+BUILD_SPEC §5 Phase 4.
+
+### What Phase 3 established, and how it was verified
+
+**The budget check is a wrapper, not a convention.** `BudgetedProvider`
+implements the same protocol as the provider it wraps, so the only way to reach
+a model is through the check. A rule the orchestrator is merely *expected* to
+call first survives exactly until the second call site, and the evidence of
+breaking it is a provider invoice rather than a stack trace. Confirmed by
+mutation: moving the check after the call makes
+`test_a_run_over_cap_is_refused_before_any_api_call_fires` fail, because the
+provider double raises if it is called at all. A test that only asserted the
+error message would have passed with the request already sent.
+
+**An unpriced model is refused, never charged at zero.** `PRICES.get(model, 0)`
+is the obvious implementation and it silently disables the cap the day a
+provider ships a model id the table does not know. `pricing.UnknownModelError`
+makes that loud, and both the ledger and the pre-flight check refuse rather than
+treating an unknown cost as no cost.
+
+**Money never touches a float.** Prices are stored as micros *per million
+tokens*, because real published prices include $2.50 and $0.05 per million —
+2.5 and 0.05 micros per token, which are not integers. `cost_micros` rounds up
+(a cap must never under-count); `format_micros` rounds to nearest (a display
+should be the closest true reading — rounding a single micro up would render it
+as `$0.0001`, a hundredfold overstatement). Writing the tests first is what
+surfaced those two rules being silently inconsistent.
+
+**Migration 002 is the first to run against a populated database.** This file
+previously recorded that no migration had ever crossed real user data.
+`test_upgrade_preserves_an_existing_populated_database` now builds a v1 database
+with runs and events in it and upgrades it. Confirmed live as well: a real data
+directory came up at `user_version: 2` with `spend` and `settings` present.
+
+**`--add-data` now globs `*.sql`.** The justfile named `schema.sql` explicitly,
+which was correct while there was one migration. Adding 002 without noticing
+would have produced a binary that starts and then dies on a missing resource —
+invisible to `just ci`, to every dev run and to every test, because all of those
+read the file off the source tree rather than out of the bundle. Same shape as
+the Phase 1 and Phase 2 bugs: correct everywhere except where it ships.
+`test_every_migration_file_is_bundled_by_the_packaging_glob` pins it.
+
+**stdin now carries two protocols, and they cannot be confused.** The first line
+is the JSON key handshake; every line after it is watched for `shutdown`. The
+sentinel is not valid JSON, so a launch that sends no handshake at all —
+`python -m agentspace` by hand — still starts and still stops. The handshake is
+read on the reader thread rather than at startup on purpose: a blocking read
+would turn a missing key into a sidecar that never binds its port.
+
+### The bug worth remembering (Phase 3)
+
+**Nothing dramatic broke — the existing guards fired instead.** Three mechanisms
+already in the repo caught real mistakes, which is worth recording precisely
+because it is the boring outcome:
+
+- `test_no_api_keys_in_tracked_files` failed on the placeholder keys in the new
+  provider tests. The guard was right and the placeholders changed; relaxing the
+  pattern instead would have retired the one test that stops a real key being
+  committed.
+- ruff's `ARG001` caught a genuinely unused parameter in a parametrized test.
+  The exemption then needed for protocol-conforming test doubles was therefore
+  scoped to `ARG002` (method arguments) only, so `ARG001` keeps its signal.
+- `mypy --strict` rejected a test double typed `list[object]` where the protocol
+  says `list[ToolSpec]`. It was not conforming to the protocol it claimed to
+  implement, so the test proved less than it appeared to.
+
+The lesson is the inverse of Phases 1 and 2, where a check was missing and the
+failure was invisible. Here the checks existed, and the cost of keeping them was
+three small fixes rather than one weakened rule.
 
 ### What Phase 2 established, and how it was verified
 
@@ -151,6 +223,39 @@ Phase 2 specifically:
   the HTTP layer against a live server. It becomes real in Phase 8, when a run
   is watched from the dashboard and a chat channel at once.
 
+Phase 3 specifically:
+
+- **No real API call has ever been made.** Every provider test runs against an
+  `httpx2.MockTransport`. The request bodies are asserted against each vendor's
+  documented shape, but no Anthropic, OpenAI or Ollama endpoint has actually
+  answered one, so a wrong header name or a renamed field would pass the suite.
+  The first real call happens in Phase 4; expect at least one shape bug there.
+- **Ollama has never been run.** No daemon was started. The provider exists to
+  keep the abstraction free of cloud assumptions (§7), and it does that whether
+  or not it works — but "it works" is not claimed.
+- **The Rust keychain path is compiled, not exercised.** `cargo check` passes
+  and `send_secrets` is wired into spawn, but nothing has stored a key in the
+  Windows Credential Manager and watched it arrive. The *sidecar* half of the
+  handshake was verified end to end by hand — a real secrets line on stdin, keys
+  reported as configured by `/settings`, values absent from the log, the process
+  and the database — so what remains untested is specifically
+  keychain-read → stdin-write inside the packaged app. This is the gap the
+  no-UI scope decision created, and it is exactly the class of thing Phases 1
+  and 2 both got wrong from a terminal.
+- **The budget refusal has no HTTP path yet.** It is enforced at the
+  `BudgetedProvider` layer and unit-tested there, including the mutation check.
+  Nothing over HTTP makes a model call until the orchestrator exists, so the
+  refusal cannot yet be observed from outside the process.
+- **`budget.warning` fires once per period, per the crossing test — but only
+  within one process.** The before/after comparison reads the database, so a
+  restart mid-month cannot re-fire it. Two runs appending concurrently at the
+  threshold could, in principle, both observe the crossing; that race is not
+  tested and becomes real in Phase 4.
+- **Prices are list prices recorded on a date, not truth.** Anthropic rows come
+  from the bundled `claude-api` reference (checked 2026-06-24), OpenAI rows from
+  `developers.openai.com` (checked 2026-09-09). A stale row mis-counts the
+  user's own cap; it never affects what a provider actually bills.
+
 ## The constraints that get violated by accident
 
 Restated from BUILD_SPEC §1 because these are the ones a well-meaning refactor
@@ -235,8 +340,12 @@ Two things to keep straight:
 `packages/schemas/` (generated TS types) arrives in Phase 7. It is absent rather
 than stubbed, because BUILD_SPEC §5 says do not build ahead.
 
-The backend now also holds `store/` (SQLite + migrations), `events/` (types,
-store, bus) and `api/` (runs, stream), per the §3 layout.
+The backend now also holds `store/` (SQLite + migrations and workspace
+settings), `events/` (types, store, bus), `providers/` (protocol, pricing,
+Anthropic/OpenAI/Ollama, factory), `budget/` (the monthly cap) and `api/`
+(runs, stream, settings), per the §3 layout. `secrets.py` sits at the package
+root because it is process-wide state, not storage — keys never reach the
+database.
 
 ## Decisions made mid-build
 
@@ -292,6 +401,44 @@ Recorded here as they happen, so a later session does not re-litigate them.
   resuming past the head of an already-completed run waited forever, because the
   stream only learned a run was over by *seeing* its terminal event. The stream
   now also checks the run's status.
+- **2026-09-09 — a `settings` table, beyond the five §4 specifies.** The Phase 3
+  acceptance criterion needs the provider choice to live somewhere, and §4 has
+  no table for it. A file beside the database would split authority between
+  SQLite and the filesystem, which §2 is explicit about. Key/value with a JSON
+  `value`, so Phase 7's settings UI and Phase 8's channel config do not each
+  need a migration that widens a table. Additive only — it changes nothing §4
+  specifies. Asked before deviating, per §6.
+- **2026-09-09 — raw `httpx` against both REST APIs, not the vendor SDKs.**
+  Normalizing token usage and tool calls is required by §5 Phase 3 either way,
+  so the SDKs would save little of the actual work while adding two large
+  dependency trees to a `--onefile` binary and two new hidden-import problems at
+  freeze time. The distribution is `httpx2` and the module it provides is
+  `httpx2`, not `httpx`; it moved from a dev-only dependency (it arrives under
+  Starlette's TestClient) to a runtime one.
+- **2026-09-09 — prices are micros per *million* tokens, not per token.**
+  Published prices include $2.50 and $0.05 per million, which are 2.5 and 0.05
+  micros per token — not integers. Storing the per-million figure keeps every
+  price exact and moves the single division to the point of charging, where the
+  rounding rule can be stated explicitly.
+- **2026-09-09 — the budget guard is a Provider wrapper.** `BudgetedProvider`
+  makes "check before the call" structural rather than a rule Phase 4 has to
+  remember. See the Phase 3 notes above for the mutation test that keeps it
+  honest.
+- **2026-09-09 — the secrets handshake is read on the stdin reader thread.**
+  §5 Phase 3 wants keys over stdin at spawn. Reading them in `run()` before
+  starting the server would hang any launch that sends no handshake — a hand-run
+  `python -m agentspace`, or a shell that died between spawn and write — turning
+  a missing key into a sidecar that never binds and never says why. The wire
+  protocol is unchanged: first line is the handshake, the rest is the watchdog.
+- **2026-09-09 — `tauri-plugin-keyring` rather than the `keyring` crate direct.**
+  §5 Phase 3 names the plugin, and inspecting it showed it exposes `KeyringExt`
+  to Rust as well as JS commands — so one dependency serves both the spawn-time
+  read and Phase 7's settings UI. It is a 0.1.0 single-author crate, which is
+  worth knowing; it wraps `keyring` 3.6 with `windows-native`.
+- **2026-09-09 — `--add-data` globs `*.sql` instead of naming `schema.sql`.**
+  See the Phase 3 notes. Naming files individually means each new migration
+  needs a justfile edit whose omission is invisible until the packaged binary
+  runs.
 - **2026-09-09 — Vite's dev watcher ignores `src-tauri/**`.** `tauri dev` runs
   cargo and Vite against the same tree; Vite's watcher opens `target/` files
   while cargo is still writing them, and on Windows the resulting EBUSY is
