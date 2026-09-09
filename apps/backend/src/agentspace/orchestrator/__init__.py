@@ -126,4 +126,33 @@ async def execute_run(
         logger.exception("run %s failed", run_id)
         await run.fail(f"The run stopped unexpectedly: {exc}")
     else:
+        await _finish(run, outcome)
+
+
+async def _finish(run: Run, outcome: StepOutcome) -> None:
+    """Write the run's terminal event from how the supervisor actually stopped.
+
+    **A supervisor that ran out of steps did not complete the run.** §4 has no
+    `agent.failed`, so an agent out of steps *completes* with a reason — but
+    that is a fact about the agent, not about the run. Treating the two as the
+    same thing marks the run `completed` and hands the user a summary reading
+    "supervisor stopped after 4 steps with no result": a terminal event that
+    says the run worked when it did not, which is precisely the drift between
+    the log and reality that §2 exists to prevent.
+
+    A worker running out of steps is different and stays a completion: the
+    supervisor still sees its partial result and can finish the goal around it.
+    Only the supervisor giving up means the run gave up.
+
+    Found by watching a local model hit the agent cap twice and then exhaust
+    its steps — invisible against a scripted provider, which always finished.
+    """
+    if outcome.reason == "finished":
         await run.complete(outcome.result)
+        return
+
+    await run.fail(
+        f"The supervisor stopped after {outcome.steps} steps without finishing "
+        f"the task. Anything its workers produced is in this run's event log. "
+        f"Raise 'max steps per agent' in settings to give it more room."
+    )

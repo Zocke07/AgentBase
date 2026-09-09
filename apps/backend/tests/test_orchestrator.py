@@ -498,7 +498,7 @@ async def test_the_mailbox_reads_the_log_not_a_variable(store: EventStore) -> No
 async def test_an_agent_that_never_finishes_stops_at_the_step_limit(
     store: EventStore, settings: SettingsStore, ledger: BudgetLedger, secrets: SecretStore
 ) -> None:
-    """§4 has no `agent.failed`, so the step limit completes the agent with a
+    """§4 has no `agent.failed`, so the step limit completes the *agent* with a
     reason rather than failing it."""
     await settings.update({"max_steps_per_agent": 3})
     script = [says("Thinking about it.") for _ in range(3)]
@@ -508,7 +508,54 @@ async def test_an_agent_that_never_finishes_stops_at_the_step_limit(
     supervisor = rebuilt.agent("supervisor")
     assert supervisor.finished_reason == "max_steps"
     assert supervisor.steps == 3
+
+
+async def test_a_supervisor_that_runs_out_of_steps_fails_the_run(
+    store: EventStore, settings: SettingsStore, ledger: BudgetLedger, secrets: SecretStore
+) -> None:
+    """The agent completing is not the run succeeding.
+
+    Found by running a local model, which hit the agent cap twice and then ran
+    out of steps. The run was reported `completed` with the summary
+    "supervisor stopped after 4 steps with no result" — a terminal event that
+    says the run worked when it did not, which is exactly the drift between the
+    log and reality that §2 exists to prevent. A supervisor that never called
+    `finish` did not answer the goal, whatever its workers managed.
+    """
+    await settings.update({"max_steps_per_agent": 3})
+    script = [says("Thinking about it.") for _ in range(3)]
+
+    _, rebuilt = await drive(store, settings, ledger, secrets, script)
+
+    assert rebuilt.status == "failed"
+    assert rebuilt.outcome is not None
+    assert "without finishing" in rebuilt.outcome
+    assert "3 steps" in rebuilt.outcome
+
+
+async def test_a_worker_hitting_the_step_limit_does_not_fail_the_run(
+    store: EventStore, settings: SettingsStore, ledger: BudgetLedger, secrets: SecretStore
+) -> None:
+    """The distinction the previous test turns on.
+
+    A worker running out of steps is a subtask that went badly; the supervisor
+    still sees its partial result and can finish. Only the supervisor giving up
+    means the run gave up.
+    """
+    await settings.update({"max_steps_per_agent": 3})
+    script = [
+        says("Delegating.", call("spawn_agent", "c1", name="researcher", role="R", task="t")),
+        says("Working."),
+        says("Still working."),
+        says("Nearly."),
+        says("I have enough.", call("finish", "c2", result="finished despite a stuck worker")),
+    ]
+
+    _, rebuilt = await drive(store, settings, ledger, secrets, script)
+
+    assert rebuilt.agent("researcher").finished_reason == "max_steps"
     assert rebuilt.status == "completed"
+    assert rebuilt.outcome == "finished despite a stuck worker"
 
 
 async def test_a_run_that_outlives_its_deadline_fails(
