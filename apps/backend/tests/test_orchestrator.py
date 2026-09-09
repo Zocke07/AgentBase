@@ -21,12 +21,15 @@ building ahead, and a second implementation to keep in sync forever.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from agentspace.api.stream import run_stream
 from agentspace.budget.ledger import BudgetLedger
+from agentspace.events.bus import DEFAULT_QUEUE_SIZE, EventBus
 from agentspace.events.types import Event, EventType
 from agentspace.orchestrator import execute_run
 from agentspace.orchestrator.limits import RunLimits
@@ -641,3 +644,100 @@ async def test_a_worker_is_not_offered_spawn_agent(
     assert "spawn_agent" in provider.offered_tools[0]
     assert "spawn_agent" not in provider.offered_tools[1]
     assert "finish" in provider.offered_tools[1]
+
+
+# --- backpressure ------------------------------------------------------------
+#
+# CLAUDE.md recorded this as unverified after Phase 2: "no HTTP client has ever
+# overflowed a 512-event queue, because nothing yet emits events fast enough.
+# Revisit when Phase 4 streams `llm.token` at model speed — that is the first
+# thing that plausibly outruns a subscriber."
+#
+# This is that revisit. A subscriber queue holds 512 events; one streamed model
+# response here produces well over that, and the consumer deliberately stops
+# reading while they are produced. The bus drops the buffer of a subscriber it
+# cannot keep up with — which is safe *only* because the durable row makes the
+# buffered copy worthless and the stream re-reads the range from SQLite. If that
+# resync were wrong, this is the test that shows it, as a gap or a duplicate in
+# what the client receives.
+
+
+FLOOD_WORDS = 900
+
+
+def flood_script() -> list[Completion]:
+    """One long streamed answer, then a `finish`.
+
+    Long enough that the `llm.token` events alone exceed the queue by a wide
+    margin, so the overflow is not a near-miss that passes by luck.
+    """
+    return [
+        says(" ".join(f"word{i}" for i in range(FLOOD_WORDS))),
+        says("Done.", call("finish", "c1", result="flood complete")),
+    ]
+
+
+async def test_a_token_flood_reaches_a_slow_subscriber_without_gaps(
+    store: EventStore,
+    bus: EventBus,
+    settings: SettingsStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+) -> None:
+    """A subscriber that stops reading must still receive every event, once.
+
+    The stream is consumed directly rather than over HTTP because httpx's ASGI
+    transport buffers a response body to completion before handing it back —
+    so an in-process HTTP client cannot read a stream while the run producing
+    it is still going. That is a limitation of the test transport, not of the
+    server; the HTTP framing above this generator is covered by the Phase 2
+    tests. What was never covered, and is covered here, is the resync path
+    running because a queue actually overflowed.
+    """
+    run = await store.create_run(goal="flood", origin="ui")
+
+    stream = run_stream(store, bus, run.id, 0)
+
+    # The first item is the retry hint, and pulling it is what subscribes this
+    # client to the bus. Subscribing has to happen before the flood, or the
+    # test measures a backlog replay instead of an overflow.
+    assert (await anext(stream)).startswith("retry:")
+
+    # A second subscriber that never reads, held only to prove the queue really
+    # did overflow. Without it this test could pass having measured nothing:
+    # "more than 512 events arrived" is not the same claim as "a subscriber was
+    # dropped and the stream recovered by re-reading SQLite".
+    with bus.subscribe(run.id) as idle:
+        await execute_run(
+            store,
+            settings,
+            ledger,
+            secrets,
+            run.id,
+            "flood",
+            provider=ScriptedProvider(flood_script()),
+        )
+        assert idle.stale, (
+            "no subscriber was overwhelmed, so the resync path never ran and "
+            "this test proved nothing"
+        )
+
+    frames = [json.loads(line[len("data:") :]) for line in await _drain(stream)]
+
+    sequences = [frame["seq"] for frame in frames]
+    assert sequences == sorted(set(sequences)), "a gap or a duplicate reached the client"
+    assert sequences == list(range(1, len(sequences) + 1))
+    assert len(sequences) > DEFAULT_QUEUE_SIZE, (
+        f"only {len(sequences)} events — the {DEFAULT_QUEUE_SIZE}-event queue "
+        f"bound was never crossed, so this test proved nothing"
+    )
+    assert frames[-1]["type"] == "run.completed"
+    assert sum(1 for f in frames if f["type"] == "llm.token") >= FLOOD_WORDS
+
+
+async def _drain(stream: AsyncIterator[str]) -> list[str]:
+    """Collect the data frames the stream has left, ignoring keepalives."""
+    lines: list[str] = []
+    async for chunk in stream:
+        lines.extend(line for line in chunk.splitlines() if line.startswith("data:"))
+    return lines
