@@ -20,25 +20,33 @@ deliberately, which is the path used on a clean quit.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import sys
 import threading
+from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Final
 
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from agentspace.api.runs import router as runs_router
 from agentspace.config import (
     ALLOWED_ORIGINS,
     BIND_HOST,
     DEFAULT_BIND_PORT,
+    AppPaths,
     assert_loopback_only,
+    resolve_app_paths,
 )
+from agentspace.events.bus import EventBus
+from agentspace.events.store import EventStore
+from agentspace.store.db import Database
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import AsyncIterator, Iterator
 
 __all__ = ["SHUTDOWN_COMMAND", "create_app", "resolve_port", "run"]
 
@@ -51,17 +59,53 @@ SHUTDOWN_COMMAND: Final[str] = "shutdown"
 PORT_ENV_VAR: Final[str] = "AGENTSPACE_PORT"
 
 
-def create_app() -> FastAPI:
+def create_app(paths: AppPaths | None = None) -> FastAPI:
     """Build the ASGI application.
 
     A factory rather than a module-level singleton so tests can build an
     isolated instance, and so importing this module never starts anything.
+
+    :param paths: explicit data locations, as a test supplies. When omitted the
+        directory is resolved the way the shipped app resolves it — the Tauri
+        shell's ``AGENTSPACE_DATA_DIR``, then the OS app-data dir.
     """
+    resolved = paths if paths is not None else resolve_app_paths()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        """Own the database handle for the process's lifetime.
+
+        Opened here rather than at import so that importing this module still
+        touches nothing, and closed on the way out so the SQLite file is not
+        left locked — which on Windows blocks the installer from replacing it.
+        """
+        resolved.ensure_exists()
+
+        database = Database(resolved.db_path)
+        database.connect()
+        logger.info("database ready at %s (schema v%d)", database.path, database.schema_version)
+
+        app.state.paths = resolved
+        app.state.db = database
+        app.state.bus = EventBus()
+        app.state.store = EventStore(database, app.state.bus)
+        app.state.background_tasks = set()
+
+        try:
+            yield
+        finally:
+            for task in tuple(app.state.background_tasks):
+                task.cancel()
+            if app.state.background_tasks:
+                await asyncio.gather(*app.state.background_tasks, return_exceptions=True)
+            database.close()
+
     app = FastAPI(
         title="AgentSpace sidecar",
         version="0.1.0",
         docs_url="/docs",
         openapi_url="/openapi.json",
+        lifespan=lifespan,
     )
 
     # Without this the webview's fetch succeeds at the socket level and is then
@@ -78,6 +122,8 @@ def create_app() -> FastAPI:
     def health() -> dict[str, bool]:
         """Liveness probe. The shell polls this to decide the sidecar is up."""
         return {"ok": True}
+
+    app.include_router(runs_router)
 
     return app
 
