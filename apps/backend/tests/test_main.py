@@ -13,7 +13,7 @@ import pytest
 import uvicorn
 from fastapi.testclient import TestClient
 
-from agentspace import main
+from agentspace import config, main
 from agentspace.config import BIND_HOST, DEFAULT_BIND_PORT
 
 
@@ -122,3 +122,62 @@ def test_resolve_port_falls_back_on_unusable_values(raw: str) -> None:
 @pytest.mark.parametrize("raw", ["1024", "8787", "65535"])
 def test_resolve_port_accepts_the_valid_range(raw: str) -> None:
     assert main.resolve_port(raw) == int(raw)
+
+
+# --- CORS -------------------------------------------------------------------
+#
+# The webview does not share an origin with the sidecar, so without these
+# headers every request from the UI succeeds at the socket level and is then
+# discarded by the browser. That failure looks exactly like the sidecar being
+# down, which is why it survived a passing HTTP smoke test: curl and
+# Invoke-WebRequest do not enforce CORS, and a webview does.
+
+
+@pytest.mark.parametrize("origin", config.ALLOWED_ORIGINS)
+def test_allowed_origins_get_cors_headers(origin: str) -> None:
+    with TestClient(main.create_app()) as client:
+        response = client.get("/health", headers={"Origin": origin})
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == origin
+
+
+@pytest.mark.parametrize("origin", config.ALLOWED_ORIGINS)
+def test_preflight_is_answered_for_allowed_origins(origin: str) -> None:
+    with TestClient(main.create_app()) as client:
+        response = client.options(
+            "/health",
+            headers={
+                "Origin": origin,
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == origin
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "http://evil.example",
+        "https://example.com",
+        "http://127.0.0.1:9999",
+        "http://localhost:3000",
+    ],
+)
+def test_unknown_origins_get_no_cors_headers(origin: str) -> None:
+    """The allowlist must stay an allowlist — never a wildcard."""
+    with TestClient(main.create_app()) as client:
+        response = client.get("/health", headers={"Origin": origin})
+
+    assert "access-control-allow-origin" not in response.headers
+
+
+def test_the_windows_tauri_origin_is_allowed() -> None:
+    """The specific origin whose absence broke the packaged app."""
+    assert "http://tauri.localhost" in config.ALLOWED_ORIGINS
+
+
+def test_origins_are_never_wildcarded() -> None:
+    assert "*" not in config.ALLOWED_ORIGINS

@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Final
 
 __all__ = [
+    "ALLOWED_ORIGINS",
     "APP_NAME",
     "BIND_HOST",
     "DEFAULT_BIND_PORT",
@@ -45,6 +46,25 @@ DEFAULT_BIND_PORT: Final[int] = 8787
 #: Environment variable the Tauri shell uses to hand the sidecar its data
 #: directory, resolved there through Tauri's own path API (§5 Phase 2).
 DATA_DIR_ENV_VAR: Final[str] = "AGENTSPACE_DATA_DIR"
+
+#: Page origins allowed to read responses from the sidecar.
+#:
+#: The webview does not share an origin with the sidecar — Tauri serves the app
+#: from ``http://tauri.localhost`` on Windows and ``tauri://localhost``
+#: elsewhere — so every request from the UI is cross-origin and the browser
+#: withholds the response without these headers. Binding loopback stops other
+#: *machines* reaching the sidecar; it does nothing about which page origins a
+#: browser will hand the body to.
+#:
+#: This is an explicit allowlist and must stay one. A wildcard would let any
+#: web page the user happens to have open read from their agent workspace.
+ALLOWED_ORIGINS: Final[tuple[str, ...]] = (
+    "http://tauri.localhost",  # Tauri v2 on Windows
+    "https://tauri.localhost",
+    "tauri://localhost",  # Tauri v2 on macOS and Linux
+    "http://127.0.0.1:5173",  # `just dev-desktop`
+    "http://localhost:5173",
+)
 
 
 @dataclass(frozen=True, slots=True)

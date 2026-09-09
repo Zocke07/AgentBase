@@ -28,8 +28,14 @@ from typing import TYPE_CHECKING, Final
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-from agentspace.config import BIND_HOST, DEFAULT_BIND_PORT, assert_loopback_only
+from agentspace.config import (
+    ALLOWED_ORIGINS,
+    BIND_HOST,
+    DEFAULT_BIND_PORT,
+    assert_loopback_only,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -56,6 +62,16 @@ def create_app() -> FastAPI:
         version="0.1.0",
         docs_url="/docs",
         openapi_url="/openapi.json",
+    )
+
+    # Without this the webview's fetch succeeds at the socket level and is then
+    # discarded by the browser, which looks identical to the sidecar being down.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(ALLOWED_ORIGINS),
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "Last-Event-ID"],
     )
 
     @app.get("/health")
