@@ -18,6 +18,7 @@ not silently depend on build order.
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 import platform
 import socket
@@ -153,8 +154,13 @@ def _require_ready(process: subprocess.Popen[str]) -> None:
 
 
 @pytest.fixture
-def sidecar() -> Iterator[subprocess.Popen[str]]:
-    """Launch the frozen binary with a live stdin pipe, as Tauri does."""
+def sidecar(tmp_path: Path) -> Iterator[subprocess.Popen[str]]:
+    """Launch the frozen binary with a live stdin pipe, as Tauri does.
+
+    The data directory is redirected into `tmp_path` so these tests exercise a
+    first-launch database — schema creation included — instead of reusing, and
+    growing, the developer's own `.dev/data`.
+    """
     assert _wait_for_port_release(TEST_PORT, 5), (
         f"port {TEST_PORT} is already in use; a previous run may have leaked a sidecar process"
     )
@@ -165,7 +171,11 @@ def sidecar() -> Iterator[subprocess.Popen[str]]:
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        env={**os.environ, "AGENTSPACE_PORT": str(TEST_PORT)},
+        env={
+            **os.environ,
+            "AGENTSPACE_PORT": str(TEST_PORT),
+            "AGENTSPACE_DATA_DIR": str(tmp_path),
+        },
     )
     try:
         yield process
@@ -278,3 +288,56 @@ def test_process_list_command_targets_the_right_image() -> None:
 
     unix = _process_list_command("thing", "linux")
     assert unix[-1] == "thing"
+
+
+# --- Phase 2: the event spine inside the frozen binary ----------------------
+
+
+def _post(path: str, timeout: float = 10) -> dict[str, object]:
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{TEST_PORT}{path}", method="POST", data=b""
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
+        parsed: dict[str, object] = json.loads(response.read())
+        return parsed
+
+
+def test_frozen_sidecar_creates_its_database(
+    sidecar: subprocess.Popen[str], tmp_path: Path
+) -> None:
+    """`--onefile` collects bytecode automatically but not data files.
+
+    `schema.sql` reaches the binary only because the justfile passes
+    `--add-data`. Without it the sidecar starts, answers `/health`, and then
+    fails the moment anything touches the database — which is exactly the shape
+    of the Phase 1 bug that looked healthy and was not. Asserting on a real
+    database file is the cheapest way to keep that from recurring.
+    """
+    _require_ready(sidecar)
+
+    _post("/debug/fake_run?step_ms=0")
+
+    assert (tmp_path / "agentspace.sqlite3").is_file(), (
+        "the frozen sidecar did not create its database; "
+        "schema.sql is most likely missing from the bundle"
+    )
+
+
+def test_frozen_sidecar_streams_a_debug_run(sidecar: subprocess.Popen[str]) -> None:
+    """End to end through the real binary: migrate, append, and stream SSE."""
+    _require_ready(sidecar)
+
+    run = _post("/debug/fake_run?step_ms=0")
+
+    with urllib.request.urlopen(
+        f"http://127.0.0.1:{TEST_PORT}/runs/{run['id']}/events", timeout=30
+    ) as response:
+        body = response.read().decode("utf-8")
+
+    seqs = [
+        json.loads(line.removeprefix("data: "))["seq"]
+        for line in body.splitlines()
+        if line.startswith("data: ")
+    ]
+
+    assert seqs == list(range(1, 21))

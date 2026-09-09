@@ -69,6 +69,16 @@ sidecar_binary := "agentspace-sidecar-" + target_triple
 exe_suffix := if os() == "windows" { ".exe" } else { "" }
 sidecar_file := sidecar_binary + exe_suffix
 sidecar_dir := justfile_directory() / "apps" / "desktop" / "src-tauri" / "binaries"
+
+# PyInstaller's --add-data separator is platform-specific: ";" on Windows,
+# ":" elsewhere. Getting it wrong is not an error, it is a silently missing
+# data file that only surfaces when the frozen binary first reads it.
+#
+# The source path must be absolute: --add-data resolves relative paths against
+# --specpath, which points into .dev/cache, not against the recipe's working
+# directory.
+data_sep := if os() == "windows" { ";" } else { ":" }
+schema_sql := justfile_directory() / "apps" / "backend" / "src" / "agentspace" / "store" / "schema.sql"
 sidecar_path := sidecar_dir / sidecar_file
 
 # List every available recipe.
@@ -191,10 +201,14 @@ test-backend-cov:
 # ---------------------------------------------------------------------------
 
 # Freeze the sidecar into a single self-contained executable.
+#
+# --add-data carries the migration SQL, which `--onefile` would otherwise omit:
+# bytecode is collected automatically, data files are not. The failure mode is
+# a binary that starts and then cannot create its database.
 [group('build')]
 [working-directory('apps/backend')]
 build-sidecar:
-    uv run pyinstaller --onefile --clean --noconfirm --name {{ sidecar_binary }} --distpath {{ sidecar_dir }} --workpath {{ dev_dir / "cache" / "pyinstaller" / "build" }} --specpath {{ dev_dir / "cache" / "pyinstaller" }} src/agentspace/__main__.py
+    uv run pyinstaller --onefile --clean --noconfirm --name {{ sidecar_binary }} --distpath {{ sidecar_dir }} --workpath {{ dev_dir / "cache" / "pyinstaller" / "build" }} --specpath {{ dev_dir / "cache" / "pyinstaller" }} --add-data "{{ schema_sql }}{{ data_sep }}agentspace/store" src/agentspace/__main__.py
 
 # Show the built sidecar's path, size and hash.
 [group('build')]

@@ -16,6 +16,15 @@ export default defineConfig({
     host: "127.0.0.1",
     port: 5173,
     strictPort: true,
+    watch: {
+      // Never watch the Rust tree. `tauri dev` runs cargo and Vite against the
+      // same directory, and Vite's watcher opens `target/` files while cargo is
+      // still writing them — on Windows that is an EBUSY the watcher raises as
+      // a fatal error, killing the dev server and taking `tauri dev` with it.
+      // Nothing under here is a frontend source file, so there is nothing to
+      // lose by ignoring it.
+      ignored: ["**/src-tauri/**"],
+    },
   },
   preview: {
     host: "127.0.0.1",

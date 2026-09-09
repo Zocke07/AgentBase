@@ -15,6 +15,7 @@
 //! that actually is the server. `kill` exists only as a timeout backstop, and
 //! even then it closes stdin on the way out.
 
+use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -47,9 +48,40 @@ fn sidecar_base_url() -> String {
     format!("http://127.0.0.1:{SIDECAR_PORT}")
 }
 
+/// Environment variable the sidecar reads its data directory from. Must match
+/// `agentspace.config.DATA_DIR_ENV_VAR`.
+const DATA_DIR_ENV: &str = "AGENTSPACE_DATA_DIR";
+
 /// Start the sidecar and keep its handle for shutdown.
+///
+/// The data directory is resolved here, through Tauri's path API, and handed
+/// over at spawn time — BUILD_SPEC §5 Phase 2 asks for exactly that. The
+/// sidecar can resolve an OS app-data directory by itself and falls back to
+/// doing so, but the two answers are only incidentally equal: Tauri derives
+/// its path from the bundle identifier, so letting each side guess separately
+/// is how an upgrade quietly starts reading a different, empty database.
+///
+/// It travels as an environment variable rather than `argv` for the same
+/// reason API keys will in Phase 3 — `argv` is world-readable via `ps` — and
+/// keeping one channel for spawn-time configuration avoids a second, weaker
+/// one appearing later.
 fn spawn_sidecar(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    let (mut rx, child) = app.shell().sidecar(SIDECAR_NAME)?.spawn()?;
+    // An inherited value wins. The justfile exports this so a dev run keeps its
+    // database in `.dev/data` where it can be inspected and deleted; silently
+    // overriding it here would move dev state into the real app-data directory
+    // and quietly contradict the layout CLAUDE.md documents. A packaged app has
+    // no such variable set, so it takes Tauri's path.
+    let data_dir = match std::env::var_os(DATA_DIR_ENV) {
+        Some(inherited) => PathBuf::from(inherited),
+        None => app.path().app_data_dir()?,
+    };
+    std::fs::create_dir_all(&data_dir)?;
+
+    let (mut rx, child) = app
+        .shell()
+        .sidecar(SIDECAR_NAME)?
+        .env(DATA_DIR_ENV, data_dir.as_os_str())
+        .spawn()?;
 
     app.state::<SidecarState>()
         .0
