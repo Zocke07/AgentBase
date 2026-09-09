@@ -8,30 +8,64 @@ start of every session.** This file is a pointer and a running log, not a summar
 
 ## Current phase
 
-**Phase 0 — Scaffold and cross-platform hygiene.** Complete; `just check` passes
-on a clean clone.
+**Phase 0 — Scaffold and cross-platform hygiene.** Complete.
 
-**Phase 1 — Packaging spike.** In progress. The sidecar half is done and
-verified; the Tauri bundle half is being built.
+**Phase 1 — Packaging spike.** Complete. A built NSIS installer installs
+per-user, launches, reaches the sidecar, and leaves zero processes behind.
 
-The two Phase 1 traps that are already handled and tested:
+Next up: **Phase 2 — Event spine.** Do not start it before re-reading
+BUILD_SPEC §5 Phase 2.
 
-- **The `externalBin` filename.** Tauri resolves `binaries/agentspace-sidecar`
-  on disk as `agentspace-sidecar-<target triple>.exe`. Anything else is silently
-  not found at bundle time. The triple is computed once in the justfile from
-  `os()`/`arch()`, and `test_target_triple_matches_the_justfile` asserts the
-  Python side agrees — including the macOS rows, which only CI can execute.
-- **The orphaned sidecar.** `--onefile` means the PID Tauri holds is
-  PyInstaller's bootloader, not the server. Shutdown therefore never relies on
-  signals: the shell writes `shutdown` to stdin and then drops the handle,
-  closing the pipe. `agentspace.main._stop_on_stdin_close` stops the server on
-  either signal, from inside the process that really is the server.
-  `test_closing_stdin_leaves_no_orphan_process` asserts zero survivors.
+### What Phase 1 established, and how it was verified
 
-Still to verify before Phase 1 can be called done: the NSIS installer builds,
-installs per-user, launches, reaches the sidecar, and leaves nothing behind in
-Task Manager on quit — plus that the sidecar inside the produced installer is
-the freshly built one, not a stale cached copy.
+Four traps from §5 Phase 1, each now covered by a test rather than a comment:
+
+- **The `externalBin` filename is asymmetric.** The file in `binaries/` must
+  carry the target triple (`agentspace-sidecar-x86_64-pc-windows-msvc.exe`) or
+  Tauri never resolves it — but Tauri *strips* that triple when staging and
+  installing, so the shipped file is `agentspace-sidecar.exe`. Looking for the
+  built name inside the installer finds nothing and looks exactly like a
+  bundling failure. `bundled_name()` in `test_installer_bundle.py` encodes both
+  halves.
+- **The orphaned sidecar.** `--onefile` means the PID Tauri holds is the
+  bootloader's, not the server's. Shutdown never relies on signals: the shell
+  writes `shutdown` to stdin and drops the handle. Verified on the *installed*
+  app — two `agentspace-sidecar` processes while running (bootloader + real
+  interpreter), zero one second after closing the window, port released.
+- **Stale cached sidecar in the bundle.** Not trusted to the build log:
+  `test_installer_carries_the_freshly_built_sidecar` unpacks the installer with
+  7-Zip and compares SHA-256 against the freshly built binary.
+- **WebView2 on machines that lack it.** `webviewInstallMode` is
+  `embedBootstrapper`, and a test asserts `MicrosoftEdgeWebview2Setup.exe` is
+  physically inside the installer.
+
+### The bug worth remembering
+
+The packaged app once looked completely healthy and was not. The window
+rendered, the sidecar bound in half a second, and an HTTP request from
+PowerShell returned `{"ok": true}` — while the page sat retrying at attempt 22.
+The webview does not share an origin with the sidecar (Tauri serves from
+`http://tauri.localhost` on Windows), and FastAPI sent no CORS headers, so the
+browser fetched successfully and discarded the response.
+
+**curl and `Invoke-WebRequest` do not enforce CORS; a webview does.** A green
+HTTP smoke test proves the server answered, not that the client was allowed to
+read the answer. It surfaced only from screenshotting the running app and
+reading the retry counter. When Phase 7 adds SSE, expect the same class of
+problem and test it from inside the webview, not from a terminal.
+
+`ALLOWED_ORIGINS` in `config.py` is an explicit allowlist and must stay one — a
+wildcard would let any page the user has open read from their agent workspace.
+
+### Not verified
+
+- **A machine with no Python installed.** The frozen sidecar was run with a
+  minimal environment and no Python on `PATH` and served correctly, but this
+  machine has Python. Genuine proof needs a second machine, which is Phase 9's
+  acceptance criterion.
+- **macOS.** Nothing has run there. CI is Phase 9.
+- **Reinstall-over-existing beyond one upgrade pass.** One `/S` reinstall over
+  an existing install worked; repeated upgrade cycles are untested.
 
 ## The constraints that get violated by accident
 
@@ -148,6 +182,16 @@ Recorded here as they happen, so a later session does not re-litigate them.
   Side benefit: the uv cache now sits on the same volume as the venv, so uv
   hardlinks instead of copying — the "Failed to hardlink files; falling back to
   full copy" warning is gone.
+- **2026-09-09 — CORS allowlist rather than a Tauri HTTP proxy.** The webview
+  reaching the sidecar over plain `fetch` needs CORS headers. The alternative
+  was routing every call through a Rust command. Direct `fetch` keeps the
+  frontend ordinary — which matters when Phase 7 needs `EventSource` for SSE,
+  something a Rust proxy would have to reimplement.
+- **2026-09-09 — Tauri bundler tools stay on the system drive.** `tauri build`
+  downloads NSIS and the WebView2 bootstrapper into `%LOCALAPPDATA%	auri`
+  (8.5 MB, one-time). Tauri resolves that path through `dirs::cache_dir()` with
+  no override, so unlike the cargo/uv/npm caches it cannot be redirected into
+  `.dev/`. Small enough to accept; recorded so nobody re-investigates.
 - **2026-09-09 — `.dev` added to the hygiene test's pruned directories.**
   Package caches contain vendored `.sh` files, which would have failed
   `test_no_shell_or_batch_scripts` for reasons unrelated to this repository, and
