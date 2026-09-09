@@ -23,6 +23,9 @@ if TYPE_CHECKING:
     from agentspace.store.db import Database
 
 __all__ = [
+    "DEFAULT_MAX_AGENTS_PER_RUN",
+    "DEFAULT_MAX_RUN_SECONDS",
+    "DEFAULT_MAX_STEPS_PER_AGENT",
     "DEFAULT_MONTHLY_CAP_MICROS",
     "SettingsStore",
     "WorkspaceSettings",
@@ -43,6 +46,14 @@ DEFAULT_MODEL: Final[str] = "claude-opus-5"
 #: Where a local Ollama daemon listens. Loopback, like everything else.
 DEFAULT_OLLAMA_BASE_URL: Final[str] = "http://127.0.0.1:11434"
 
+#: The Phase 4 run limits (§5: "all configurable"). They live here rather than
+#: as constants in `orchestrator/limits.py` because a limit nobody can change
+#: is not configurable, and the `settings` table already exists — so this is a
+#: new key, not a migration.
+DEFAULT_MAX_STEPS_PER_AGENT: Final[int] = 20
+DEFAULT_MAX_AGENTS_PER_RUN: Final[int] = 5
+DEFAULT_MAX_RUN_SECONDS: Final[int] = 600
+
 
 class WorkspaceSettings(BaseModel):
     """Everything the user can configure that is not a secret."""
@@ -51,6 +62,13 @@ class WorkspaceSettings(BaseModel):
     model: str = DEFAULT_MODEL
     monthly_cap_micros: int = Field(default=DEFAULT_MONTHLY_CAP_MICROS, ge=0)
     ollama_base_url: str = DEFAULT_OLLAMA_BASE_URL
+
+    # Run limits. `ge=1` on each: a limit of zero is not a stricter setting,
+    # it is a run that cannot do anything, and it would fail in a way that
+    # looks like a bug rather than like a setting.
+    max_steps_per_agent: int = Field(default=DEFAULT_MAX_STEPS_PER_AGENT, ge=1)
+    max_agents_per_run: int = Field(default=DEFAULT_MAX_AGENTS_PER_RUN, ge=1)
+    max_run_seconds: int = Field(default=DEFAULT_MAX_RUN_SECONDS, ge=1)
 
 
 class SettingsStore:

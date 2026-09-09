@@ -1,9 +1,10 @@
-"""Run endpoints and the Phase 2 debug run.
+"""Run endpoints, and the scripted debug run.
 
-`POST /runs` creates a row and nothing else. Attaching an orchestrator to it is
-Phase 4 (§5); until then the only thing that drives a run forward is the debug
-endpoint below. That is deliberate — a stub supervisor here would be building
-ahead, and Phase 4 would have to unpick it.
+`POST /runs` creates the row and hands it to the orchestrator. The debug
+endpoint below predates the orchestrator and still earns its place: it exercises
+the whole event spine and SSE path with no provider, no API key and no spend,
+which is what makes it usable from a test, from `curl`, and from the Phase 7 UI
+before a key has been configured.
 """
 
 from __future__ import annotations
@@ -18,8 +19,11 @@ from pydantic import BaseModel, Field
 
 from agentspace.api.stream import SSE_HEADERS, parse_last_event_id, run_stream
 from agentspace.events.types import Event, EventType, Run, RunOrigin
+from agentspace.orchestrator import execute_run
 
 if TYPE_CHECKING:
+    from collections.abc import Coroutine
+
     from agentspace.events.bus import EventBus
     from agentspace.events.store import EventStore
 
@@ -89,10 +93,50 @@ async def _require_run(request: Request, run_id: str) -> Run:
 
 @router.post("/runs", status_code=201)
 async def create_run(request: Request, body: CreateRunRequest) -> Run:
-    """Create a run row. Phase 4 attaches the orchestrator that advances it."""
-    return await _store(request).create_run(
+    """Create a run and start the orchestrator on it.
+
+    Returns as soon as the row exists rather than waiting for the run to
+    finish. A run takes minutes and the client watches it over SSE — holding
+    the request open would make the event stream a second way to learn the same
+    thing, and would put a proxy's idle timeout in charge of when a run ends.
+    """
+    run = await _store(request).create_run(
         goal=body.goal, origin=body.origin, origin_ref=body.origin_ref
     )
+
+    _spawn(request, _drive_run(request, run.id, body.goal))
+    return run
+
+
+async def _drive_run(request: Request, run_id: str, goal: str) -> None:
+    """Hand one run to the orchestrator.
+
+    Every failure path inside `execute_run` writes its own terminal event, so
+    nothing here needs to — and nothing here should, because a second opinion
+    about how a run ended is exactly the drift §2 rules out.
+    """
+    state = request.app.state
+    await execute_run(
+        state.store,
+        state.settings,
+        state.ledger,
+        state.secrets,
+        run_id,
+        goal,
+    )
+
+
+def _spawn(request: Request, coroutine: Coroutine[Any, Any, None]) -> None:
+    """Run a coroutine in the background, keeping a strong reference to it.
+
+    `asyncio` holds only a weak reference to a bare task, so without this the
+    loop may garbage-collect a run that is still going. The set is drained by
+    the lifespan handler on shutdown.
+    """
+    task = asyncio.create_task(coroutine)
+    tasks: set[asyncio.Task[None]] = request.app.state.background_tasks
+    tasks.add(task)
+    task.add_done_callback(tasks.discard)
 
 
 @router.get("/runs/{run_id}")
@@ -164,10 +208,5 @@ async def fake_run(
     store = _store(request)
     run = await store.create_run(goal="Debug run — scripted event sequence", origin="ui")
 
-    task = asyncio.create_task(_play_script(store, run.id, step_ms))
-    # Without a strong reference the loop may garbage-collect a running task.
-    tasks: set[asyncio.Task[None]] = request.app.state.background_tasks
-    tasks.add(task)
-    task.add_done_callback(tasks.discard)
-
+    _spawn(request, _play_script(store, run.id, step_ms))
     return run
