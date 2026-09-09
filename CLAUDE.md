@@ -22,12 +22,62 @@ and, separately, from inside the webview.
 protocol, integer-micros pricing, a monthly cap that refuses before the call,
 and API keys delivered from the OS keychain over stdin.
 
-**Phase 4 — Orchestrator.** Code complete, `just ci` green at 350 tests. **One
-acceptance verification is outstanding: no real model call has been made yet.**
-Everything below was proved against a scripted provider, real SQLite, and a real
-HTTP server; the first real Anthropic request has still never happened, and
-CLAUDE.md has been predicting a shape bug there since Phase 3. Do not mark this
-phase complete until that run has happened.
+**Phase 4 — Orchestrator.** Complete. A hand-written supervisor/worker loop, a
+run whose event log alone reconstructs it, three enforced limits, and streaming
+through the budget guard. Verified with a **real two-worker Anthropic run**:
+3 agents, 6 model calls, 50 events, `run.completed`, $0.0260 recorded.
+
+### What the first real API call showed
+
+**The provider shapes were right.** Phase 3 predicted "at least one shape bug"
+on the first real call and there was none in the request/response mapping.
+Anthropic's split token accounting — input on `message_start`, output on
+`message_delta` — produced correct non-zero usage on all six calls (998/256,
+868/141, 1055/184, 1156/354, 992/189, 1303/198), tool calls came back with
+their arguments intact, and `stop_reason` mapped cleanly. The mock-transport
+fixtures had the shapes correct.
+
+**`llm.token` granularity is server-decided and varies wildly.** This is the
+finding worth carrying into Phase 7. The same prompt, same model, same payload
+produced **1, 2, and 10** `text_delta` frames across four requests. Suspecting
+the adapter was merging frames, a probe wrapped `stream_sse` to count frames in
+against `TextDelta`s out **on one request**: they matched exactly, every time
+(2→2, sizes `[123, 27]` and `[140, 10]` identical in and out). So the adapter is
+faithful and Anthropic simply coalesces its own deltas, probably influenced by
+how fast the client reads.
+
+The first comparison was two *separate* requests and looked like a bug — 10
+frames raw versus 2 through the provider. It was not. Do not conclude anything
+about streaming granularity from two different calls.
+
+Consequence for Phase 7: a UI that assumes a per-token typewriter effect will
+look wrong, because a whole 479-character paragraph can arrive in four chunks
+or one. Render whatever arrives; do not build timing around delta size.
+
+**Keys stayed where they belong.** After a real run: no key material anywhere in
+`agentspace.sqlite3`, its `-wal`/`-shm`, or the sidecar's stdout/stderr, and
+`/settings` reported `configured_secrets: ["anthropic_api_key"]` — the name,
+never the value. The stdin handshake was performed by a stand-in for the Tauri
+shell, so this exercised sidecar-side secret handling end to end; the
+keychain→stdin half is still untested (see below).
+
+### The bug the real run found
+
+**A setting that could not be set, and said it could.** `PATCH /settings` with
+`max_steps_per_agent` returned `200 OK` and changed nothing:
+`UpdateSettingsRequest` lists its fields explicitly and the three Phase 4 limits
+were never added, so Pydantic silently dropped them. §5 Phase 4 says the limits
+are "all configurable" — and they were, but only by writing to SQLite directly,
+which is not something the product can do.
+
+The silence is the worse half: the caller was told it worked. `extra="forbid"`
+now makes an unknown or misspelled field a 422 naming it, which is also what
+Phase 7 needs to put the error on the offending input rather than in a toast.
+
+This is the fourth time in this project the same shape has appeared — correct
+everywhere except where it is actually used, and invisible to a green test
+suite. Phase 1's CORS, Phase 2's named SSE events, Phase 3's `*.sql` glob, and
+now this. Every one of them was found by running the thing, not by reading it.
 
 ### What Phase 4 established, and how it was verified
 
@@ -119,7 +169,7 @@ codepoint is a clean U+2014 and the corruption was in the inspecting pipe —
 Bash on this machine. Checked with `ord()` before reporting anything.
 
 Next up: **Phase 5 — Agent registry.** Do not start it before re-reading
-BUILD_SPEC §5 Phase 5, and not before Phase 4's real model call has happened.
+BUILD_SPEC §5 Phase 5.
 
 ### What Phase 3 established, and how it was verified
 
@@ -339,8 +389,13 @@ Phase 3 specifically:
   and the database — so what remains untested is specifically
   keychain-read → stdin-write inside the packaged app. This is the gap the
   no-UI scope decision created, and it is exactly the class of thing Phases 1
-  and 2 both got wrong from a terminal.
-- **The budget refusal has no HTTP path yet.** It is enforced at the
+  and 2 both got wrong from a terminal. **Phase 4 strengthened the sidecar half
+  further** — a real Anthropic key travelled the handshake and drove a real run,
+  after which no key material was present in the database, its `-wal`/`-shm`, or
+  the process output — but the keychain read itself is still the untested step.
+- ~~**The budget refusal has no HTTP path yet.**~~ **Closed in Phase 4.**
+  `POST /runs` drives the orchestrator, so a run over the cap now fails with
+  `budget.exceeded` in its own event log. It was enforced at the
   `BudgetedProvider` layer and unit-tested there, including the mutation check.
   Nothing over HTTP makes a model call until the orchestrator exists, so the
   refusal cannot yet be observed from outside the process.
@@ -356,15 +411,12 @@ Phase 3 specifically:
 
 Phase 4 specifically:
 
-- **No real model call has still ever been made.** This is the big one, and it
-  is now the only thing between Phase 4 and complete. Every orchestrator test
-  runs against a `ScriptedProvider`; every provider test against an
-  `httpx2.MockTransport`. The streaming frame shapes for all three vendors were
-  written from their documented formats and asserted against handcrafted
-  fixtures, which proves the parser matches what was *written down*, not what a
-  server *sends*. Anthropic's two-frame token accounting and OpenAI's
-  `stream_options.include_usage` are the two most likely to be wrong, and both
-  fail silently in the direction of under-billing.
+- **OpenAI and Ollama have still never answered a real request.** Anthropic now
+  has, and its shapes were correct. OpenAI's `stream_options.include_usage` is
+  the remaining one that fails silently in the direction of under-billing — if
+  it is wrong, every streamed OpenAI call records as free and the cap stops
+  binding while the run works perfectly. Ollama has never had a daemon started
+  against it at all.
 - **The webview has never seen an orchestrated run.** Live SSE was verified with
   `curl` against a real uvicorn sidecar — including the `tauri.localhost` CORS
   preflight carrying `Last-Event-ID` — but the frontend is still the Phase 1
