@@ -59,9 +59,7 @@ def test_no_shell_or_batch_scripts() -> None:
         if path.suffix.lower() in {".sh", ".bat", ".cmd", ".ps1"}
     )
 
-    assert offenders == [], (
-        f"dev tasks belong in the justfile, not in scripts: {offenders}"
-    )
+    assert offenders == [], f"dev tasks belong in the justfile, not in scripts: {offenders}"
 
 
 def test_gitattributes_normalizes_line_endings() -> None:

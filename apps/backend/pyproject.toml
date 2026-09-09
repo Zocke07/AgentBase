@@ -3,11 +3,16 @@ name = "agentspace"
 version = "0.1.0"
 description = "Local-first autonomous agent co-working space — FastAPI sidecar."
 requires-python = "==3.12.*"
-dependencies = []
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
+]
 
 [dependency-groups]
 dev = [
+    "httpx2>=0.28.0",
     "mypy>=1.18.2",
+    "pyinstaller>=6.11.0",
     "pytest>=8.4.2",
     "ruff>=0.14.0",
 ]

@@ -36,6 +36,41 @@ export npm_config_cache := dev_dir / "cache" / "npm"
 # they can be inspected and deleted, instead of in %LOCALAPPDATA%.
 export AGENTSPACE_DATA_DIR := dev_dir / "data"
 
+# PyInstaller caches its prebuilt bootloader here; without this it writes to
+# %APPDATA%/pyinstaller on the system drive.
+export PYINSTALLER_CONFIG_DIR := dev_dir / "cache" / "pyinstaller"
+
+# ---------------------------------------------------------------------------
+# Sidecar naming.
+#
+# Tauri resolves an `externalBin` entry by appending the *target triple* to the
+# configured name — `binaries/agentspace-sidecar` is looked up on disk as
+# `binaries/agentspace-sidecar-x86_64-pc-windows-msvc.exe`. A binary named
+# anything else, including a plain `.exe`, is silently not found at bundle time.
+# BUILD_SPEC §5 Phase 1 calls this out as a trap; it is encoded here rather than
+# left to a human to remember.
+#
+# v1 ships x86_64 Windows only. macOS is computed so the CI build job works from
+# day one (§1 constraint 7), not because a Mac artifact is published.
+# ---------------------------------------------------------------------------
+
+target_triple := if os() == "windows" {
+    "x86_64-pc-windows-msvc"
+} else if os() == "macos" {
+    arch() + "-apple-darwin"
+} else {
+    arch() + "-unknown-linux-gnu"
+}
+
+# The name Tauri is configured with, plus the triple. PyInstaller appends the
+# platform's executable extension itself, so `sidecar_file` is what exists on
+# disk while `sidecar_binary` is what the build is asked to produce.
+sidecar_binary := "agentspace-sidecar-" + target_triple
+exe_suffix := if os() == "windows" { ".exe" } else { "" }
+sidecar_file := sidecar_binary + exe_suffix
+sidecar_dir := justfile_directory() / "apps" / "desktop" / "src-tauri" / "binaries"
+sidecar_path := sidecar_dir / sidecar_file
+
 # List every available recipe.
 default:
     @just --list --unsorted
@@ -154,6 +189,27 @@ test-backend-cov:
 # ---------------------------------------------------------------------------
 # Run
 # ---------------------------------------------------------------------------
+
+# Freeze the sidecar into a single self-contained executable.
+[group('build')]
+[working-directory('apps/backend')]
+build-sidecar:
+    uv run pyinstaller --onefile --clean --noconfirm --name {{ sidecar_binary }} --distpath {{ sidecar_dir }} --workpath {{ dev_dir / "cache" / "pyinstaller" / "build" }} --specpath {{ dev_dir / "cache" / "pyinstaller" }} src/agentspace/__main__.py
+
+# Show the built sidecar's path, size and hash.
+[group('build')]
+versions-sidecar:
+    @just _hash "{{ sidecar_path }}"
+
+[private]
+[windows]
+_hash path:
+    @$f = Get-Item "{{ path }}" ; Write-Output $f.FullName ; Write-Output "  $($f.Length) bytes" ; Write-Output "  sha256 $((Get-FileHash -Algorithm SHA256 $f).Hash)"
+
+[private]
+[unix]
+_hash path:
+    @echo "{{ path }}" ; echo "  $(wc -c < '{{ path }}') bytes" ; echo "  sha256 $(shasum -a 256 '{{ path }}' | cut -d' ' -f1)"
 
 # Vite dev server on 127.0.0.1:5173.
 [group('run')]
