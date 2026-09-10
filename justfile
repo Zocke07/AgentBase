@@ -78,6 +78,24 @@ sidecar_dir := justfile_directory() / "apps" / "desktop" / "src-tauri" / "binari
 # --specpath, which points into .dev/cache, not against the recipe's working
 # directory.
 data_sep := if os() == "windows" { ";" } else { ":" }
+
+# What `tauri build` is asked to produce, per platform.
+#
+# `tauri.conf.json` cannot express this: its `bundle.targets` is a single list
+# applied to whatever host is building, and `nsis` means nothing on macOS. The
+# alternative, `"targets": "all"`, would additionally build an MSI on Windows —
+# a per-machine installer, which contradicts the per-user NSIS install Phase 1
+# settled on and verified.
+#
+# macOS gets `app` and not `dmg` deliberately. §5 Phase 9 builds macOS to catch
+# cross-platform breakage and explicitly does not publish it; a `.app` is the
+# Tauri bundle, and everything that can break in *our* code — the PyInstaller
+# freeze, the Rust compile, `externalBin` resolution — has already happened by
+# the time it exists. A dmg is hdiutil re-packaging an app that already built,
+# so it adds a CI-flaky step that can only fail for reasons unrelated to this
+# repository, and a red CI nobody trusts is worse than one less artefact.
+bundle_targets := if os() == "windows" { "nsis" } else { "app" }
+
 # Every migration, not just the first. A named `schema.sql` was correct while
 # migration 001 was the only one; naming files individually means each new
 # migration needs an edit here, and forgetting it produces a binary that starts
@@ -130,7 +148,15 @@ ci: check test
 # ---------------------------------------------------------------------------
 
 # Lint backend and frontend.
-lint: lint-backend lint-desktop
+#
+# `lint-backend-format` is in here rather than standing alone because of a real
+# Phase 4 incident: a helper script writing source with `Path.write_text()`
+# converted six LF files to CRLF, and `ruff check`, `mypy` and `pytest` all
+# stayed green — `ruff format --check` was the only thing that noticed, and it
+# was the one check `just check` did not run. Phase 9 owns what the gate runs,
+# so it runs this too. It found ten already-drifted files the moment it was
+# added, all of them Phase 8's.
+lint: lint-backend lint-backend-format lint-desktop
 
 # ruff check on the Python sidecar.
 [group('lint')]
@@ -281,15 +307,31 @@ _dev-app:
 check-tauri:
     cargo clippy --all-targets -- -D warnings
 
-# Build the Windows NSIS installer. Rebuilds the sidecar first so the bundle
-# can never pick up a stale one (BUILD_SPEC §5 Phase 1).
+# Build the installer (NSIS on Windows, .app on macOS). Rebuilds the sidecar
+# first so the bundle can never pick up a stale one (BUILD_SPEC §5 Phase 1).
 [group('build')]
 build-installer: build-sidecar _build-installer
 
 [private]
 [working-directory('apps/desktop')]
 _build-installer:
-    npx --no-install tauri build
+    npx --no-install tauri build --bundles {{ bundle_targets }}
+
+# Verify the built artefacts, refusing to skip if one is missing.
+#
+# These tests skip when nothing is built, which is right for `just test` and
+# wrong for a release: a CI job that builds an installer and then skips the
+# staleness check reports the same green tick as one that verified it.
+# `--require-build-checks` turns a missing artefact into a failure that names it.
+#
+# Two of these guards caught a real staleness in Phase 8 the moment the sidecar
+# was rebuilt without the installer, so the ordering is not a formality.
+#
+# Check the built sidecar and installer — run AFTER a build, never before.
+[group('build')]
+[working-directory('apps/backend')]
+verify-build:
+    uv run pytest tests/test_sidecar_binary.py tests/test_installer_bundle.py --require-build-checks -v
 
 # Production build of the frontend bundle.
 [group('run')]
