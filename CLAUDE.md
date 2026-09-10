@@ -44,6 +44,13 @@ model that actually tried to escape**: `qwen3:4b` called
 `blocked_by: "sandbox"` — with every risk level pre-approved, so the gate would
 have allowed it instantly had the sandbox not caught it first.
 
+**Phase 7 — Dashboard.** Complete. A React Flow graph, a filterable event log, a
+modal approval gate, a budget meter, a replay scrubber and an agent editor — all
+of them one pure fold of the event log. Verified in a **real browser driving a
+real local model**: a run started from the page, watched live over `EventSource`,
+its approval answered by clicking Allow, and the file appeared on disk. Replay
+was then measured against live, pixel by pixel.
+
 ### What the first real API call showed
 
 **The provider shapes were right.** Phase 3 predicted "at least one shape bug"
@@ -679,35 +686,160 @@ policy that lets "overnight runs progress", a knob that requires separately
 editing every definition afterwards is not that knob, and the per-definition list
 remains available to anyone who wants to narrow a particular agent.
 
-Next up: **Phase 7 — Dashboard.** Do not start it before re-reading BUILD_SPEC §5
-Phase 7. Several things are already shaped for it:
+### What Phase 7 established, and how it was verified
 
-- `GET /tools` reports each tool's `name`, `description`, `risk` and `available`,
-  which is what the agent editor's checkboxes need — §5 Phase 7 wants the risk
-  level visible "at the moment of ticking it".
-- `approval.requested` carries a rendered `prompt` string, so the modal displays
-  what the log recorded rather than composing its own wording from the arguments.
-- `GET /approvals` lists what is outstanding, because a dialog relying only on
-  the live event shows nothing to a user who opened the window a second late.
-- The field-aware 400s from Phase 5 exist so validation errors land inline on the
-  offending input rather than in a toast.
+**The acceptance criterion is structural, not a promise kept.** §5 Phase 7 asks
+that "replaying a completed run produces pixel-identical UI state to what was
+shown live". The usual way to fail that is to have two code paths — one that
+accumulates state as events arrive, one that rebuilds it from history — which
+agree until one of them gains a feature. So there is one path: the store holds
+the event array and a cursor, and the view is always
+`reduceAll(events.slice(0, cursor))`. Live is that fold with the cursor pinned to
+the head; replay is the same fold with a smaller cursor. **Scrubbing backwards is
+not a second renderer, it is a smaller number.**
 
-Four warnings from this project's findings, all of which bear directly on the UI:
+Confirmed by mutation: making `setCursor` fold forward from the current view in
+both directions — the obvious optimisation — fails four tests, because the
+reducer has no inverse and going backwards has to start over.
 
-- **Do not render `run.completed.summary` as though the work described in it
-  happened.** Three separate live runs have now confabulated it. What happened is
-  the `tool.called` events.
-- **Do not treat `llm.token` as a liveness signal.** Deltas arrive 1-10 at a time
-  from Anthropic and a run can legitimately emit zero of them.
-- **Render `blocked_by` on a `tool.denied`.** "The user said no" and "the agent
-  tried to leave the workspace" are the same event type and very different things
-  to see in a run.
-- **Expect the same question more than once in a run.** A denial stops a call,
-  not a run, and a supervisor will spawn a second worker and ask again — watched
-  live. Show a run's approval history, not just what is outstanding.
-- **Test it from inside the webview, not from a terminal.** Phase 1's CORS bug
-  and Phase 2's named-event bug were both invisible from `curl` and obvious from
-  the page.
+**And then it was measured, in a browser, against the pixels.** A scripted run
+was attached to *while it was still running*, watched to completion, and the run
+projection captured. The page was then reloaded and the same run replayed from
+history, and captured again. The DOM came back **byte-for-byte identical**, and
+the pixels differed in 0.018% of the canvas by a single unit of 255 — SVG
+rasterization noise, not state. Per region, the event log and the run summary
+differ by **zero** pixels.
+
+Getting there took three attempts and the failures are the interesting part; see
+"The bug the live run found (Phase 7)" below.
+
+**The honest exception is the transport control, and it is excluded on purpose.**
+Watching live at event 12, the log holds 12 events. Replaying the same run at
+event 12, it holds 28 and you are standing at 12 of them. The scrubber cannot
+match and should not: hiding the length of the run being replayed would be worse
+than the difference. So `RunPanel` has two halves — `run-projection`, which is a
+pure function of the log, and the scrubber, which says where you are standing.
+The projection is compared at every position in the run; the whole panel is
+compared at the head of a completed run, which is the criterion in its literal
+form.
+
+**A run was created, watched, approved and replayed entirely from the page.**
+Against a real `qwen3:4b`: an agent created through the editor (never touching
+Python), edited through the editor, spawned by the supervisor, and its
+`write_file` call stopped at the gate. **Allow** was clicked in the browser and
+`reminder.txt` appeared on disk with exactly the content the prompt named. A
+second call was **denied** from the browser, and the run continued and completed
+— "a denial stops a call, not a run", now watched in the UI rather than in a log.
+
+That closes the Phase 6 gap which said no approval had ever been resolved from
+anything but `curl`, and the Phase 4 gap which said the webview had never seen an
+orchestrated run.
+
+**The second dialog said "overwrite" where the first said "create".** Same tool,
+same path, different sentence — because `Prepared.summary` is built from the
+resolved call and the file existed by then. The Phase 6 decision to render the
+resolved call rather than the raw arguments, confirmed in the UI.
+
+**Each of the four warnings this file left for Phase 7 is answered by something
+on screen.**
+
+- `run.completed.summary` is rendered under the heading "The supervisor's account
+  of the run", with the caveat "This is what the agent said it did. What it
+  actually did is the N tool calls in the log below." A live run promptly
+  obliged: the fourth confabulation in this project, `finish("reminder.txt")`
+  from an agent that never called `write_file` at all, rendered beside a count of
+  two control calls and no file tool.
+- `llm.token` changes no activity state. Only `agent.thinking` and `llm.request`
+  do, so an agent that streams nothing does not read as idle.
+- `blocked_by` is rendered on every denial — `read_file [sandbox] — that path is
+  outside the workspace` — and counted separately in the run summary.
+- The approval dialog carries the run's decision history, not only what is
+  outstanding. Watched live: "Earlier in this run: 1 decision — approved
+  note_taker write_file", above a second question from `note_taker-2`.
+
+**The generated types are generated, and a test says so.** §5 Phase 7 requires
+the API types to come from the OpenAPI schema. `openapi-typescript` is the
+canonical tool and caps its TypeScript peer at `^5.x` against the 6.0.3 here, so
+it cannot be installed without `--legacy-peer-deps` on every `npm install` —
+weakening peer checking across the whole tree for one dev tool, which is the
+trade Phase 0 already refused with `eslint-plugin-import`. The input is 17
+schemas over a closed set of keywords, so `agentspace/openapi.py` emits them.
+
+**The emitter raises rather than guessing.** A generator that fell back to
+`unknown` on an unfamiliar keyword produces a file that typechecks and protects
+nothing, and a discriminated union of event payloads is an obvious Phase 8
+candidate for triggering exactly that. `UnsupportedSchemaError` makes it a build
+failure, and `test_openapi_snapshot.py` compares both committed artefacts against
+the live app byte for byte, so a forgotten `just schemas` fails a test instead of
+shipping types that describe a past API.
+
+**`GET /runs` reads the `runs` table, not the event log.** The log is the
+authority on what *happened* in a run; it is not the authority on which runs
+exist, and a run created and never started has no events at all. That run is
+precisely the one a user goes looking for an explanation of.
+
+### The bug the live run found (Phase 7)
+
+**Three, and two of them were invisible to a green suite.**
+
+**The first: every Ollama configuration was told its runs would be refused.**
+`GET /settings` computed `model_is_priced` from `settings.model` verbatim, while
+the provider that actually runs namespaces a local model to `ollama/<name>`
+before the ledger prices it. So the field whose own docstring promises "every run
+will be refused" read false for a configuration that worked perfectly and cost
+nothing — and the Phase 7 header rendered it as "unpriced — runs will be
+refused" over a working setup. `POST /settings/verify` was right all along,
+because it builds the provider first and asks about `provider.model`: two
+endpoints, one configuration, opposite answers.
+
+This is the **seventh** instance of this project's recurring shape, after Phase
+1's CORS, Phase 2's named SSE events, Phase 3's `*.sql` glob, Phase 4's silently
+dropped settings fields, Phase 5's `max_steps` default and Phase 6's unsettable
+`auto_approve`. Every one was found by running the thing. The fix is structural
+in the same way Phase 6's was: `qualified_model` is the single place that knows a
+provider's naming rule, and
+`test_qualified_model_is_what_the_built_provider_reports` compares it against
+what a built provider actually says, for every provider.
+
+**The second: no handoff edge was ever drawn.** `AgentCard` rendered no
+`<Handle>`, so React Flow refused every edge touching it — logging a warning to
+the console and drawing nothing. §5 Phase 7's "handoffs as edges" was entirely
+missing while the graph looked finished. Every test passed, because they all
+asserted node content and none asserted an edge. Found by reading the browser
+console during a real run, which is the whole argument for doing that.
+
+React Flow will not lay out an SVG edge in jsdom at all, so the drawn edge is
+verified in a browser and the *handles* are what the test asserts — the thing
+that was actually wrong.
+
+**The third: replay was not pixel-identical, and the difference was the camera.**
+Measured at 10% of the canvas's pixels, with a byte-identical DOM underneath.
+React Flow's `fitView` frames what it has **measured**, so its result depends on
+when it ran: first against nodes that had no dimensions yet, then against a pane
+that changes height when the terminal event adds its claim block above it.
+
+Two attempts to fix it by waiting for measurement failed, and the more
+instructive one *appeared* to succeed — gating the refit on `useNodesInitialized`
+produced identical pixels because the fit then never ran at all, leaving the
+camera at identity. A criterion that passes because the feature stopped working
+is worse than one that fails.
+
+So the camera is arithmetic now, like the layout: `viewportFor` computes it from
+the nodes and the pane and nothing else, recomputed when either changes. Every
+region then differed by zero pixels. **The pane-resize half is not defensive** —
+without it the two disagree by 10%, because the summary above the canvas grows
+when the run ends.
+
+Next up: **Phase 8 — Channel adapters.** Do not start it before re-reading
+BUILD_SPEC §5 Phase 8. Two things this phase built bear on it directly:
+
+- The reducer already handles `channel.inbound` and `channel.outbound` and the
+  log panel renders them, so a Discord-originated run appears in the dashboard
+  with no special-casing — which is §5 Phase 8's last requirement.
+- Adding an event type now means updating `events/types.py`, `just schemas`, and
+  the reducer's `switch` **in the same commit**. The reducer reports an
+  unrecognised type in the run summary rather than dropping it, so the omission
+  is visible rather than silent — but it is still an omission.
 
 ### What Phase 3 established, and how it was verified
 
@@ -897,7 +1029,11 @@ Phase 2 specifically:
   forced is the browser *automatically* reconnecting a dropped EventSource and
   supplying the header itself. The server cannot tell the two apart, but the
   browser's retry timing and its handling of a stream that closes normally are
-  untested. Phase 7 writes the real client; force a mid-run disconnect there.
+  untested. **Phase 7 wrote the real client and still did not force this.** It
+  did establish the other half of a stream that closes normally: the client
+  closes itself on a terminal event, because `EventSource` would otherwise
+  treat the ended response as a drop and re-request a finished run every
+  second forever. The reconnect proper is still owed a mid-run disconnect.
 - ~~**Backpressure against a real client.**~~ **Closed in Phase 4.** A 900-word
   streamed response overflows the 512-event queue while the client reads
   nothing; the subscription is asserted to have actually gone stale, and the
@@ -947,6 +1083,38 @@ Phase 3 specifically:
   `developers.openai.com` (checked 2026-09-09). A stale row mis-counts the
   user's own cap; it never affects what a provider actually bills.
 
+Phase 7 specifically:
+
+- **Nothing has run in the packaged app.** Every browser check this phase used
+  Edge — which is WebView2's engine, so the JavaScript, `EventSource` and CORS
+  behaviour are the same — against the Vite dev server at
+  `http://127.0.0.1:5173`. The shipped app serves from `http://tauri.localhost`,
+  a different origin in the same allowlist, and no `tauri build` was produced or
+  installed this phase. Phase 1's CORS bug was found by installing the app and
+  looking, and Phase 9's acceptance criterion is the real check.
+- **The browser's automatic EventSource reconnect is still unforced.** Phase 2
+  left this for Phase 7 and Phase 7 did not do it: no run was interrupted
+  mid-stream to watch the browser reconnect and supply `Last-Event-ID` itself.
+  What *is* now exercised is the client closing itself on a terminal event, and
+  the store discarding a whole re-delivered log without changing the screen —
+  which is the resume path's effect, reached a different way.
+- **The pixel comparison used one scripted run, not a model-driven one.** The
+  debug run is 20 events over a fixed script, which is what made attaching to it
+  mid-run and replaying it reproducible. A long model-driven run was compared by
+  DOM and by the reducer, not by pixels.
+- **No run has been watched from two windows at once.** Same standing gap as
+  Phase 2's and Phase 6's, and it becomes ordinary in Phase 8 when a run is
+  watched from the dashboard and a chat channel together. The store's duplicate
+  handling and the 409 on a settled approval are what it will exercise.
+- **The graph has never held more than three agents.** `max_agents_per_run` was 3
+  for these runs. The layout is a single row of workers with no wrapping, so a
+  run with a dozen agents will overflow horizontally; the camera zooms out to fit
+  it, which is not the same as a design that handles it.
+- **Long transcripts are still untested for size, and now for rendering too.**
+  `llm.request` carries the full message list on every step, and the event log
+  renders every row it is given with no virtualisation. The longest run this
+  phase rendered was 218 events, which is nothing.
+
 Phase 6 specifically:
 
 - **`run_shell` has no network isolation, and this is not a gap that testing
@@ -967,14 +1135,16 @@ Phase 6 specifically:
   the connection to the checked address, which is a property of the HTTP client
   rather than of the sandbox. Recorded in the module docstring rather than
   quietly implied to be handled.
-- **No approval has ever been resolved from the webview.** The full gate loop
-  was driven live over HTTP with `curl` — blocked, listed by `GET /approvals`,
-  approved, written; then a second call denied — but the client was a terminal.
-  This is precisely the shape of the Phase 1 CORS bug and the Phase 2
-  named-event bug, both of which were invisible from a terminal and obvious from
-  inside the page. `POST /approvals/{id}` is a new method/route pair the CORS
-  allowlist has never been exercised against. **Do that check in Phase 7 from
-  the webview, not from `curl`.**
+- ~~**No approval has ever been resolved from the webview.**~~ **Closed in
+  Phase 7.** A `write_file` call was approved by clicking **Allow** in a real
+  browser and the file appeared on disk with the expected content; a second was
+  **denied** from the browser and the run continued and completed. Both requests
+  were genuinely cross-origin — a `POST` with a JSON content type, so the browser
+  sent the preflight — which is what the Phase 1 CORS bug and the Phase 2
+  named-event bug were both invisible to from `curl`. The origin exercised was
+  `http://127.0.0.1:5173`; the packaged app's `http://tauri.localhost` is in the
+  same allowlist and has still not been exercised against these routes.
+
 - **Two clients answering the same approval has only been tested in-process.**
   `test_resolving_twice_is_a_409` and the conditional `UPDATE` cover it, and no
   two real clients have raced. It becomes ordinary in Phase 8, when a run is
@@ -1015,10 +1185,12 @@ Phase 5 specifically:
   every agent so tests stay deterministic. The supervisor's handling of a
   definition whose provider will not build is therefore covered as a unit and
   not end to end.
-- **No agent editor exists.** Every definition through Phase 6 was created by
-  `curl` or by a test. §5 Phase 7 owns `AgentList.tsx` and `AgentEditor.tsx`,
-  and the field-aware 400s exist for it — but nothing has yet rendered one
-  inline on an input, which is the specific thing §5 Phase 7 asks for.
+- ~~**No agent editor exists.**~~ **Closed in Phase 7.** `AgentList.tsx` and
+  `AgentEditor.tsx` exist, and a definition was created, edited and run entirely
+  through them against a real model. The field-aware 400s are consumed: a
+  duplicate name lands on the name input, a `max_steps` rejection on the max-steps
+  input, and an unknown tool on the tool list. Deleting a built-in was refused
+  with its 409 message rendered inline rather than the button being hidden.
 
 Phase 4 specifically:
 
@@ -1032,13 +1204,13 @@ Phase 4 specifically:
   whether a local model can handle a *harder* goal than a two-worker writing
   task — plan quality was visibly weaker than Anthropic's even on a run that
   succeeded.
-- **The webview has never seen an orchestrated run.** Live SSE was verified with
-  `curl` against a real uvicorn sidecar — including the `tauri.localhost` CORS
-  preflight carrying `Last-Event-ID` — but the frontend is still the Phase 1
-  shell, so no `EventSource` has consumed orchestrator events. This is exactly
-  the shape of the Phase 1 CORS bug and the Phase 2 named-event bug, both of
-  which were invisible from a terminal. Phase 7 writes the real client; do the
-  check there rather than trusting the `curl` result.
+- ~~**The webview has never seen an orchestrated run.**~~ **Closed in Phase
+  7.** A run driven by a real `qwen3:4b` was started from the page and watched to
+  completion over a real `EventSource` — 218 events, three agents, six tool calls
+  — with the browser console clean throughout. What is still untested is the
+  browser *reconnecting* mid-run; see the Phase 2 entry above, which this phase
+  did not close.
+
 - **Concurrency between agents.** Delegation is strictly sequential: a worker
   runs to completion before the supervisor's next turn. Nothing has ever
   appended events for two agents at once, so `seq` ordering has not had to
@@ -1139,8 +1311,10 @@ Two things to keep straight:
   BUILD_SPEC §5 Phase 2 requires. Do not change that default to match the dev
   path — the end user has no repository.
 
-`packages/schemas/` (generated TS types) arrives in Phase 7. It is absent rather
-than stubbed, because BUILD_SPEC §5 says do not build ahead.
+`packages/schemas/` holds the generated TS types and the OpenAPI document they
+come from. Both are committed, so `just check` on a clean clone never needs a
+Python environment to typecheck the frontend; `just schemas` regenerates them and
+`test_openapi_snapshot.py` fails if either drifts from the running app.
 
 The backend now also holds `store/` (SQLite + migrations and workspace
 settings), `events/` (types, store, bus), `providers/` (protocol, pricing,
@@ -1178,6 +1352,27 @@ enforces.
 `api/approvals.py` arrived with it — `POST /approvals/{id}` is what resolves the
 future an agent is suspended on, plus the `GET`s the Phase 7 dialog needs.
 
+Phase 7 filled in `apps/desktop/src/`, which until now held only the Phase 1
+shell. `lib/` gained `api.ts` (typed calls, using the generated types), and
+`events.ts` (the `EventSource` client); `state/` holds `reducer.ts` — the fold
+that everything on screen is derived from — plus `runStore.ts`, `graph.ts`,
+`useRunStream.ts` and `useFetched.ts`; `components/` holds the six modules §3
+names, plus `RunPanel.tsx`, `RunSummary.tsx`, `RunsView.tsx` and
+`AgentsView.tsx`.
+
+Three of those are not in §3's sketch and each earns its place. `RunPanel` is the
+boundary the acceptance criterion lives on — it separates the projection of the
+log from the transport control, which is the one thing that legitimately differs
+between live and replay. `state/graph.ts` holds the pure `RunView` → nodes/edges/
+camera derivations, out of the component both because they are the interesting
+part and because a component module that also exports functions defeats React
+Fast Refresh. `lib/payload.ts` is shared by the reducer and the log panel, which
+read the same payloads and would otherwise grow two opinions about what a missing
+field means.
+
+`agentspace/openapi.py` sits at the backend package root: it builds the OpenAPI
+document and emits the TypeScript from it, and is what `just schemas` runs.
+
 `tests/support.py` holds the scripted provider doubles and the event-log
 reducer. Phase 4 kept them in `test_orchestrator.py`; three test modules now
 drive runs, and two copies of a reducer is two answers to "what does the log
@@ -1187,6 +1382,54 @@ say".
 
 Recorded here as they happen, so a later session does not re-litigate them.
 
+- **2026-09-10 — the view is a fold over a prefix of the event array, and live is
+  just the cursor at the end.** §5 Phase 7 wants replay to use "the identical
+  rendering path as live", and the way that claim usually rots is two paths that
+  agree today. There is one: `view === reduceAll(events.slice(0, cursor))`.
+  Folding forward is incremental so a long run stays linear; folding backwards
+  starts over, because the reducer has no inverse and giving it one would be a
+  second definition of what each event means.
+- **2026-09-10 — the scrubber is outside the identity boundary, and the graph
+  camera is inside it.** The transport control honestly differs between live and
+  replay — at event 12 of a finished run you are standing somewhere, and live you
+  were at the end. The camera is the opposite case: it looked like view state and
+  was really a hidden dependency on *when* nodes arrived, which is why it is
+  computed arithmetically now rather than fitted. See the Phase 7 bug note.
+- **2026-09-10 — the terminal summary is rendered as a claim, beside a count of
+  what executed.** Four live runs have now announced work the log shows never
+  happened. The summary and the `tool.called` events are separately observable
+  precisely so they can disagree, and the UI would be repeating the confabulation
+  if it presented one as the other.
+- **2026-09-10 — the SSE client closes itself on a terminal event.** The server
+  ends the response when a run ends, and `EventSource` treats every ended response
+  as a dropped connection — so without this a finished run is re-requested every
+  second for as long as the window stays open. Nothing fails and nothing is
+  visible; it just polls forever. This is the one piece of protocol knowledge the
+  client cannot get from the frames themselves.
+- **2026-09-10 — the API types are generated by this repository, not by
+  `openapi-typescript`.** That tool caps its TypeScript peer at `^5.x` against the
+  6.0.3 here, and the alternative is `--legacy-peer-deps` on every install,
+  weakening peer checking across the whole tree for one dev tool. Same trade Phase
+  0 refused with `eslint-plugin-import`; there a maintained fork existed and here
+  none does. The emitter raises on any keyword it does not understand rather than
+  emitting `unknown`, because a generator that degrades silently produces types
+  that check nothing while looking verified.
+- **2026-09-10 — the schema and the generated types are committed.** A build step
+  that starts the sidecar to read `/openapi.json` makes the frontend's typecheck
+  depend on a working Python environment and turns a type error into a startup
+  error. Committing both also makes drift visible in a diff. `just schemas`
+  regenerates; a test compares them byte for byte against the live app.
+- **2026-09-10 — the approval dialog renders the run's decision history.** A
+  denial stops a call, not a run, and the supervisor will spawn a second worker
+  and ask the same question again — watched live in Phase 6 and again in Phase 7.
+  A dialog showing only what is outstanding makes two questions look like one.
+- **2026-09-10 — the log panel's filters are component state, not run state.**
+  Which rows a person is looking at is a fact about the person. Putting it in
+  `RunView` would make the same log fold to different states, which is the one
+  thing the whole design is built to prevent.
+- **2026-09-10 — no relative timestamps anywhere.** "3 seconds ago" would make
+  the same event render differently on every fold and quietly break the replay
+  criterion. Times come from the event's own `ts`, which travels in the log.
 - **2026-09-10 — a tool call happens in two stages, and the gate sits between
   them.** `Tool.prepare` validates and resolves while touching nothing;
   `Tool.execute` carries out an already-approved call. §5 Phase 6 requires
