@@ -14,9 +14,10 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from fastapi.testclient import TestClient
 
+from agentspace.api.settings import UpdateSettingsRequest
 from agentspace.main import create_app
 from agentspace.secrets import SecretStore
-from agentspace.store.settings import DEFAULT_MONTHLY_CAP_MICROS
+from agentspace.store.settings import DEFAULT_MONTHLY_CAP_MICROS, WorkspaceSettings
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -278,3 +279,57 @@ def test_a_partial_update_leaves_the_other_limits_alone(client: TestClient) -> N
     settings = client.get("/settings").json()["settings"]
     assert settings["max_steps_per_agent"] == 9
     assert settings["max_run_seconds"] == 60
+
+
+def test_every_workspace_setting_can_be_patched(client: TestClient) -> None:
+    """`UpdateSettingsRequest` must list every field of `WorkspaceSettings`.
+
+    The two models duplicate that list because they differ in bounds and
+    optionality, and a duplicated list drifts. It already has, twice: Phase 4's
+    run limits were reported by `GET /settings` and dropped by `PATCH`, and
+    Phase 6's `auto_approve` was reported and then *rejected* with a 422 — the
+    workspace's whole approval policy unsettable through the API while every
+    test stayed green, because every test set it through the store instead.
+
+    Asserted structurally rather than by patching each field in turn, so a
+    field added in Phase 8 is covered by a test written in Phase 6.
+    """
+    settable = set(UpdateSettingsRequest.model_fields)
+    stored = set(WorkspaceSettings.model_fields)
+
+    assert stored - settable == set(), "these settings are readable but not writable"
+    assert settable - stored == set(), "these fields are accepted but stored nowhere"
+
+
+def test_the_approval_policy_can_actually_be_set(client: TestClient) -> None:
+    """§5 Phase 6's policy setting, over HTTP, end to end.
+
+    The specific instance of the drift above, kept as its own test because it
+    is the one that governs whether a tool call stops to ask.
+    """
+    response = client.patch("/settings", json={"auto_approve": ["low", "medium"]})
+
+    assert response.status_code == 200
+    assert response.json()["settings"]["auto_approve"] == ["low", "medium"]
+    assert client.get("/settings").json()["settings"]["auto_approve"] == ["low", "medium"]
+
+
+def test_the_approval_policy_can_be_turned_back_off(client: TestClient) -> None:
+    """An empty list is a meaningful value, not an omission.
+
+    `exclude_none` rather than `exclude_unset` is what makes `[]` reach the
+    store — a user withdrawing pre-authorization must not be read as "no change
+    requested", which would leave the gate silently permissive.
+    """
+    client.patch("/settings", json={"auto_approve": ["high"]})
+
+    response = client.patch("/settings", json={"auto_approve": []})
+
+    assert response.status_code == 200
+    assert response.json()["settings"]["auto_approve"] == []
+
+
+def test_an_invalid_risk_level_is_rejected(client: TestClient) -> None:
+    response = client.patch("/settings", json={"auto_approve": ["catastrophic"]})
+
+    assert response.status_code == 422

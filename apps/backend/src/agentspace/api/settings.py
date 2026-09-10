@@ -26,6 +26,7 @@ from agentspace.providers.factory import (
 )
 from agentspace.providers.pricing import PRICES, format_micros, is_priced
 from agentspace.store.settings import WorkspaceSettings
+from agentspace.tools.catalogue import RiskLevel
 
 if TYPE_CHECKING:
     from agentspace.budget.ledger import BudgetLedger
@@ -57,6 +58,17 @@ class UpdateSettingsRequest(BaseModel):
     `200 OK` that changed nothing — the caller is told it worked and it did
     not. That is exactly how the Phase 4 run limits appeared configurable
     through this endpoint for a while without being so.
+
+    **This model must list every field of
+    :class:`~agentspace.store.settings.WorkspaceSettings`.** It duplicates that
+    list because the two differ in bounds and optionality, and a duplicated
+    list is a list that drifts: Phase 6 added `auto_approve` to the settings
+    model and not to this one, so `GET /settings` reported a policy that
+    `PATCH /settings` refused to set — the workspace's entire approval policy
+    was unsettable through the API. `extra="forbid"` made that loud rather than
+    silent, which is the Phase 4 fix working, and
+    `test_every_workspace_setting_can_be_patched` is what stops the next field
+    repeating it.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -72,6 +84,11 @@ class UpdateSettingsRequest(BaseModel):
     max_steps_per_agent: int | None = Field(default=None, ge=1)
     max_agents_per_run: int | None = Field(default=None, ge=1)
     max_run_seconds: int | None = Field(default=None, ge=1)
+
+    # §5 Phase 6's policy for unattended operation. An empty list is meaningful
+    # here — it is how a user turns pre-authorization back off — and
+    # `exclude_none` keeps it distinguishable from "not sent".
+    auto_approve: list[RiskLevel] | None = None
 
 
 class BudgetResponse(BaseModel):
