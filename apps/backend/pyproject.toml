@@ -64,6 +64,13 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+# The built-in tools implement the `Tool` protocol, whose `execute` takes the
+# sandbox because `run_shell` needs it as a working directory. The filesystem
+# and network tools resolved everything they need in `prepare`, so they hold a
+# parameter they do not read — and renaming it to `_sandbox` would stop them
+# conforming to the protocol. Same exemption, same scope and same reasoning as
+# the test doubles below: ARG002 only, so ARG001 keeps its signal.
+"src/agentspace/tools/builtin/**" = ["ARG002"]
 "tests/**" = [
     "S101",  # assert is the point of a test
     # Test doubles implement a Protocol, so they must keep the parameter names

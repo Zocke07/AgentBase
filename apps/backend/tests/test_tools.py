@@ -1,0 +1,461 @@
+"""The five built-in tools: what each one does, and what each one refuses.
+
+The sandbox is tested on its own in `test_sandbox.py` and the gate in
+`test_approval_gate.py`. What is left, and what this file covers, is each
+tool's own behaviour — its arguments, its result, and the difference between
+the two ways a call can fail:
+
+* :class:`~agentspace.tools.base.ToolArgumentError` — a malformed call, which
+  becomes `tool.error` and which the agent can fix by retrying;
+* :class:`~agentspace.tools.base.ToolExecutionError` — a correct call that did
+  not work, which is an ordinary event in a run.
+
+Neither is a refusal. A refusal comes from the sandbox and is
+:class:`~agentspace.tools.sandbox.SandboxViolationError`, so a tool that raised
+`ToolArgumentError` for an out-of-bounds path would quietly downgrade a
+`tool.denied` into a `tool.error` — the log would then say an agent made a bad
+call rather than that it tried to leave the workspace.
+"""
+
+from __future__ import annotations
+
+import sys
+from typing import TYPE_CHECKING
+
+import httpx2
+import pytest
+
+from agentspace.tools.base import ToolArgumentError, ToolExecutionError
+from agentspace.tools.builtin import build_registry
+from agentspace.tools.builtin.filesystem import (
+    MAX_READ_CHARS,
+    MAX_WRITE_CHARS,
+    ListDirTool,
+    ReadFileTool,
+    WriteFileTool,
+)
+from agentspace.tools.builtin.network import HttpGetTool
+from agentspace.tools.builtin.shell import RunShellTool
+from agentspace.tools.catalogue import CATALOGUE, RiskLevel
+from agentspace.tools.sandbox import Sandbox, SandboxViolationError, UrlNotAllowedError
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture
+def sandbox(tmp_path: Path) -> Sandbox:
+    root = tmp_path / "workspace"
+    root.mkdir(exist_ok=True)
+    return Sandbox(root)
+
+
+# --- the registry -------------------------------------------------------------
+
+
+def test_the_registry_and_the_catalogue_name_the_same_tools() -> None:
+    """Drift here is invisible without a test, because each half is consistent.
+
+    A catalogue entry with no implementation is a tool the Phase 7 editor
+    offers, a definition can allow, and a run then refuses. An implementation
+    with no entry is worse in a quieter way: `allowed_tools` validates against
+    the catalogue, so no definition could ever name it — unreachable code
+    wearing the shape of a feature.
+    """
+    registry = build_registry()
+
+    assert set(registry) == {declaration.name for declaration in CATALOGUE}
+
+
+def test_no_tool_declares_its_own_risk() -> None:
+    """Risk is read from the catalogue, so the editor and the gate agree.
+
+    §5 Phase 7 requires the tool checkboxes to show "each tool's risk level
+    next to it, so the consequence of ticking `run_shell` is visible at the
+    moment of ticking it". If a tool restated its risk, that label could differ
+    from the level the gate actually enforces, and the checkbox would be
+    telling the user something untrue at the moment they decide.
+    """
+    registry = build_registry()
+
+    for declaration in CATALOGUE:
+        assert registry[declaration.name].risk is declaration.risk
+
+
+def test_every_tool_has_a_usable_schema() -> None:
+    """A model is told what arguments a tool takes, not left to guess.
+
+    Phase 5 offered `additionalProperties: True` for every tool because the
+    shapes belonged to this phase. They exist now, so an empty or open schema
+    would be a tool that had not actually been implemented.
+    """
+    for tool in build_registry().values():
+        schema = tool.input_schema
+        assert schema["type"] == "object"
+        assert schema["properties"], tool.name
+        for spec in schema["properties"].values():
+            assert spec["description"], tool.name
+
+
+# --- read_file ----------------------------------------------------------------
+
+
+async def test_read_file_returns_the_contents(sandbox: Sandbox) -> None:
+    (sandbox.root / "notes.txt").write_text("hello there", encoding="utf-8")
+    tool = ReadFileTool()
+
+    prepared = tool.prepare({"path": "notes.txt"}, sandbox)
+
+    assert await tool.execute(prepared, sandbox) == "hello there"
+    assert prepared.summary == "read the file notes.txt"
+
+
+async def test_read_file_refuses_a_path_outside_the_workspace(sandbox: Sandbox) -> None:
+    """A refusal, not a bad argument — the distinction the event log turns on."""
+    tool = ReadFileTool()
+
+    with pytest.raises(SandboxViolationError):
+        tool.prepare({"path": "../outside.txt"}, sandbox)
+
+
+async def test_read_file_without_a_path_is_a_bad_call(sandbox: Sandbox) -> None:
+    tool = ReadFileTool()
+
+    with pytest.raises(ToolArgumentError) as caught:
+        tool.prepare({}, sandbox)
+
+    assert "'path'" in str(caught.value)
+
+
+async def test_reading_a_file_that_is_not_there_is_an_execution_failure(
+    sandbox: Sandbox,
+) -> None:
+    """Not a crash and not a denial: the agent is told and carries on."""
+    tool = ReadFileTool()
+    prepared = tool.prepare({"path": "missing.txt"}, sandbox)
+
+    with pytest.raises(ToolExecutionError) as caught:
+        await tool.execute(prepared, sandbox)
+
+    assert "no file at missing.txt" in str(caught.value)
+
+
+async def test_reading_a_directory_points_at_list_dir(sandbox: Sandbox) -> None:
+    (sandbox.root / "reports").mkdir()
+    tool = ReadFileTool()
+    prepared = tool.prepare({"path": "reports"}, sandbox)
+
+    with pytest.raises(ToolExecutionError) as caught:
+        await tool.execute(prepared, sandbox)
+
+    assert "list_dir" in str(caught.value)
+
+
+async def test_a_long_file_is_truncated_and_says_so(sandbox: Sandbox) -> None:
+    """Silently returning a prefix is worse than the size.
+
+    A model that believes it read a whole file reasons about the part it never
+    saw, so the cap is stated in the result text where the model reads it.
+    """
+    (sandbox.root / "big.txt").write_text("x" * (MAX_READ_CHARS + 500), encoding="utf-8")
+    tool = ReadFileTool()
+
+    result = await tool.execute(tool.prepare({"path": "big.txt"}, sandbox), sandbox)
+
+    assert "[truncated:" in result
+    assert str(MAX_READ_CHARS) in result
+
+
+# --- write_file ---------------------------------------------------------------
+
+
+async def test_write_file_creates_the_file(sandbox: Sandbox) -> None:
+    tool = WriteFileTool()
+    prepared = tool.prepare({"path": "out.txt", "content": "written"}, sandbox)
+
+    result = await tool.execute(prepared, sandbox)
+
+    assert (sandbox.root / "out.txt").read_text(encoding="utf-8") == "written"
+    assert "out.txt" in result
+
+
+async def test_write_file_creates_missing_parent_directories(sandbox: Sandbox) -> None:
+    tool = WriteFileTool()
+    prepared = tool.prepare({"path": "a/b/c.txt", "content": "deep"}, sandbox)
+
+    await tool.execute(prepared, sandbox)
+
+    assert (sandbox.root / "a" / "b" / "c.txt").read_text(encoding="utf-8") == "deep"
+
+
+async def test_write_file_does_not_translate_newlines(sandbox: Sandbox) -> None:
+    """`Path.write_text` turns `\\n` into `\\r\\n` on Windows.
+
+    This project has already had six source files silently converted that way
+    (CLAUDE.md, Phase 4). A tool doing it to a user's file is the same bug with
+    a wider blast radius: an agent writing YAML, a diff, or a shell script
+    would produce something subtly broken.
+    """
+    tool = WriteFileTool()
+    prepared = tool.prepare({"path": "unix.txt", "content": "one\ntwo\n"}, sandbox)
+
+    await tool.execute(prepared, sandbox)
+
+    assert (sandbox.root / "unix.txt").read_bytes() == b"one\ntwo\n"
+
+
+async def test_write_file_refuses_to_escape_the_workspace(sandbox: Sandbox) -> None:
+    """§5 Phase 6's acceptance criterion at the unit level."""
+    tool = WriteFileTool()
+
+    with pytest.raises(SandboxViolationError):
+        tool.prepare({"path": "../escaped.txt", "content": "x"}, sandbox)
+
+    assert not (sandbox.root.parent / "escaped.txt").exists()
+
+
+async def test_write_file_refuses_an_oversized_write(sandbox: Sandbox) -> None:
+    tool = WriteFileTool()
+
+    with pytest.raises(ToolArgumentError):
+        tool.prepare({"path": "big.txt", "content": "x" * (MAX_WRITE_CHARS + 1)}, sandbox)
+
+
+async def test_write_file_needs_content(sandbox: Sandbox) -> None:
+    tool = WriteFileTool()
+
+    with pytest.raises(ToolArgumentError) as caught:
+        tool.prepare({"path": "out.txt"}, sandbox)
+
+    assert "'content'" in str(caught.value)
+
+
+# --- list_dir -----------------------------------------------------------------
+
+
+async def test_list_dir_lists_files_and_directories(sandbox: Sandbox) -> None:
+    (sandbox.root / "a.txt").write_text("aa", encoding="utf-8")
+    (sandbox.root / "sub").mkdir()
+    tool = ListDirTool()
+
+    result = await tool.execute(tool.prepare({}, sandbox), sandbox)
+
+    assert "a.txt (2 bytes)" in result
+    assert "sub/" in result
+
+
+async def test_list_dir_defaults_to_the_workspace_root(sandbox: Sandbox) -> None:
+    """The obvious first call an agent makes. Requiring '.' would waste a step."""
+    tool = ListDirTool()
+
+    prepared = tool.prepare({}, sandbox)
+
+    assert prepared.summary == "list the contents of the workspace root"
+
+
+async def test_list_dir_on_an_empty_directory_says_so(sandbox: Sandbox) -> None:
+    """An empty string would read to a model as a failed call."""
+    tool = ListDirTool()
+
+    result = await tool.execute(tool.prepare({"path": "."}, sandbox), sandbox)
+
+    assert "empty" in result
+
+
+async def test_list_dir_on_a_file_points_at_read_file(sandbox: Sandbox) -> None:
+    (sandbox.root / "a.txt").write_text("aa", encoding="utf-8")
+    tool = ListDirTool()
+
+    with pytest.raises(ToolExecutionError) as caught:
+        await tool.execute(tool.prepare({"path": "a.txt"}, sandbox), sandbox)
+
+    assert "read_file" in str(caught.value)
+
+
+# --- http_get -----------------------------------------------------------------
+
+
+async def test_http_get_returns_the_body(sandbox: Sandbox) -> None:
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        assert str(request.url) == "https://example.com/page"
+        return httpx2.Response(200, text="the page")
+
+    client = httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+    tool = HttpGetTool(client)
+
+    prepared = tool.prepare({"url": "https://example.com/page"}, sandbox)
+    assert await tool.execute(prepared, sandbox) == "the page"
+
+    await client.aclose()
+
+
+async def test_http_get_refuses_loopback_before_any_request(sandbox: Sandbox) -> None:
+    """The tool that would otherwise let an agent call this app's own API.
+
+    §1 constraint 3 stops other *machines* reaching the sidecar. It does
+    nothing about an agent inside a run fetching `127.0.0.1:8787/settings`, and
+    this is what does.
+    """
+    called = False
+
+    def handler(request: httpx2.Request) -> httpx2.Response:  # noqa: ARG001  # pragma: no cover
+        nonlocal called
+        called = True
+        return httpx2.Response(200, text="secrets")
+
+    client = httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+    tool = HttpGetTool(client)
+
+    with pytest.raises(UrlNotAllowedError):
+        tool.prepare({"url": "http://127.0.0.1:8787/settings"}, sandbox)
+
+    assert called is False
+    await client.aclose()
+
+
+async def test_http_get_does_not_follow_redirects(sandbox: Sandbox) -> None:
+    """A redirect is how a checked public URL becomes an unchecked private one.
+
+    The sandbox validated the address the agent named; a `Location` header
+    names one nothing validated. Handing the target back makes the agent ask
+    for it explicitly, which puts it through `check_url` and the gate again.
+    """
+
+    def handler(request: httpx2.Request) -> httpx2.Response:  # noqa: ARG001
+        return httpx2.Response(302, headers={"location": "http://169.254.169.254/"})
+
+    client = httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+    tool = HttpGetTool(client)
+
+    result = await tool.execute(tool.prepare({"url": "https://example.com"}, sandbox), sandbox)
+
+    assert "redirected to" in result
+    assert "169.254.169.254" in result
+    assert "not followed" in result
+
+    await client.aclose()
+
+
+async def test_http_get_reports_an_error_status(sandbox: Sandbox) -> None:
+    def handler(request: httpx2.Request) -> httpx2.Response:  # noqa: ARG001
+        return httpx2.Response(404, text="nope")
+
+    client = httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+    tool = HttpGetTool(client)
+
+    with pytest.raises(ToolExecutionError) as caught:
+        await tool.execute(tool.prepare({"url": "https://example.com"}, sandbox), sandbox)
+
+    assert "404" in str(caught.value)
+    await client.aclose()
+
+
+# --- run_shell ----------------------------------------------------------------
+
+
+async def test_run_shell_returns_output(sandbox: Sandbox) -> None:
+    tool = RunShellTool()
+    prepared = tool.prepare({"command": "echo hello"}, sandbox)
+
+    result = await tool.execute(prepared, sandbox)
+
+    assert "hello" in result
+
+
+async def test_run_shell_runs_inside_the_workspace(sandbox: Sandbox) -> None:
+    """The command's working directory is the sandbox root.
+
+    Not a boundary — a shell command can `cd` anywhere, which is exactly why
+    `run_shell` is `high` risk and why the module says plainly that this is not
+    isolation. It is still the right default: a relative path in a command
+    means the same thing it means to every other tool.
+    """
+    (sandbox.root / "marker.txt").write_text("here", encoding="utf-8")
+    tool = RunShellTool()
+    command = "dir" if sys.platform == "win32" else "ls"
+
+    result = await tool.execute(tool.prepare({"command": command}, sandbox), sandbox)
+
+    assert "marker.txt" in result
+
+
+async def test_run_shell_reports_a_non_zero_exit_rather_than_failing(
+    sandbox: Sandbox,
+) -> None:
+    """A failing command is frequently the informative result.
+
+    A test run that fails or a grep that matches nothing is a real answer, and
+    raising `tool.error` for it would tell the agent the tool broke when the
+    tool worked perfectly.
+    """
+    tool = RunShellTool()
+    command = "exit 3"
+
+    result = await tool.execute(tool.prepare({"command": command}, sandbox), sandbox)
+
+    assert "status 3" in result
+
+
+async def test_run_shell_refuses_an_empty_command(sandbox: Sandbox) -> None:
+    tool = RunShellTool()
+
+    with pytest.raises(ToolArgumentError):
+        tool.prepare({"command": "   "}, sandbox)
+
+
+async def test_run_shell_does_not_inherit_the_sidecar_environment(
+    sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The child gets a constructed environment, not a filtered copy of ours.
+
+    The sidecar holds API keys in memory (§1 constraint 4). Nothing puts one in
+    an environment variable today, and a child inheriting the environment
+    wholesale is a standing invitation for the next thing that does. An
+    allowlist means a variable added later is excluded by default rather than
+    included by default.
+    """
+    monkeypatch.setenv("AGENTSPACE_TEST_SECRET", "swordfish")
+    tool = RunShellTool()
+    command = (
+        "echo %AGENTSPACE_TEST_SECRET%"
+        if sys.platform == "win32"
+        else "echo $AGENTSPACE_TEST_SECRET"
+    )
+
+    result = await tool.execute(tool.prepare({"command": command}, sandbox), sandbox)
+
+    assert "swordfish" not in result
+
+
+async def test_run_shell_kills_a_command_that_outlives_its_timeout(
+    sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """§5 Phase 6: "`run_shell` has ... a hard timeout."
+
+    Patched down to a second rather than waiting sixty. What is being asserted
+    is that the timeout fires and the call comes back as an execution failure —
+    a command that hung the run forever would be the failure this prevents.
+    """
+    monkeypatch.setattr("agentspace.tools.builtin.shell.SHELL_TIMEOUT_SECONDS", 1.0)
+    tool = RunShellTool()
+    command = "ping -n 30 127.0.0.1" if sys.platform == "win32" else "sleep 30"
+
+    with pytest.raises(ToolExecutionError) as caught:
+        await tool.execute(tool.prepare({"command": command}, sandbox), sandbox)
+
+    assert "killed" in str(caught.value)
+
+
+def test_run_shell_is_the_only_high_risk_tool() -> None:
+    """The risk levels the approval gate branches on.
+
+    `high` is what makes `run_shell` stop and ask even in a workspace that
+    pre-approved everything else, so a tool wrongly marked `medium` would be
+    silently auto-approved by a policy the user set for something far tamer.
+    """
+    registry = build_registry()
+    high = {name for name, tool in registry.items() if tool.risk is RiskLevel.HIGH}
+
+    assert high == {"run_shell"}
