@@ -29,6 +29,13 @@ through the budget guard. Verified with a **real two-worker Anthropic run**:
 against a **real local Ollama model**, which switched in as a settings change
 with no credentials and no cost.
 
+**Phase 5 — Agent registry.** Complete. Agents are rows in `agent_defs`, not
+Python classes: the supervisor picks from a roster the user controls, an
+allowlist decides what each may touch, and a definition edited mid-run leaves
+the in-flight run alone. Verified against a **real local model** driving agents
+that existed only because they were POSTed to the API — including one run that
+reached `run.completed` on a roster containing nothing the product ships.
+
 ### What the first real API call showed
 
 **The provider shapes were right.** Phase 3 predicted "at least one shape bug"
@@ -177,6 +184,174 @@ everywhere except where it is actually used, and invisible to a green test
 suite. Phase 1's CORS, Phase 2's named SSE events, Phase 3's `*.sql` glob, and
 now this. Every one of them was found by running the thing, not by reading it.
 
+### What Phase 5 established, and how it was verified
+
+**An agent is now a row, and the proof is that a run can be driven by agents
+that only ever existed as HTTP requests.** Against a real `qwen3:4b`, two
+definitions — `haiku_writer` and `haiku_critic` — were created with `curl`, the
+three seeded built-ins were disabled so the roster contained *nothing* the
+product ships, and the run spawned both and got real work out of them: a haiku,
+and a syllable count naming the offending line. Their roles, prompts and step
+limits in the event log are the rows', not anything a model typed. That is §5
+Phase 5's first acceptance clause in its literal form.
+
+**A second live run completed end to end on an agent that only existed as an
+HTTP request.** `note_keeper` — created with `curl`, `allowed_tools:
+["read_file"]`, the built-ins disabled so it was the entire roster — was spawned
+by the supervisor, worked, handed back, and the run reached `run.completed`.
+That is §5 Phase 5's first acceptance clause with a terminal success behind it,
+not merely a spawn.
+
+**And its summary was a confabulation, which is the most useful thing either
+run produced.** The run completed with `"Database migrations note saved to
+notes.txt"`. No file was written. Nothing could have been: the data directory
+contains only `agentspace.sqlite3` and its `-wal`/`-shm`, and the entire run
+contains exactly three `tool.called` events — `spawn_agent`, `handoff`,
+`finish`, all control calls that touch nothing.
+
+Two conclusions, and they point in opposite directions.
+
+*§1 constraint 5 held, observably.* An agent whose prompt ordered it to write a
+file, in a run whose stated goal was to write a file, reached the filesystem
+zero times, because there is nothing for it to reach through. The absence of a
+file on disk is the check that matters, and it was made by looking.
+
+*A terminal event's `summary` is a model's assertion, not a verified fact.* The
+event log is honest — it records three control calls and no file tool — while
+the sentence shown to the user is false. This is exactly why §2 makes the log
+the authority and the UI a projection of it. **Phase 7 must not render
+`run.completed.summary` as though the work described in it happened.** What
+happened is the `tool.called` events; the summary is what an agent claims about
+them, and the two are separately observable precisely so they can disagree.
+
+Worth stating plainly because it is the failure a graph UI is *for*: a user
+reading "saved to notes.txt" learns nothing, and a user watching three control
+calls go by with no file tool among them learns everything.
+
+**The same run exercised three Phase 4 guarantees against the new shape.**
+Spawning one definition twice produced `haiku_writer` and `haiku_writer-2`, both
+carrying the same `definition_id` — so a replay can tell two agents apart and
+still say they came from one row. The `max_agents_per_run` refusal fired as a
+`tool.error` and the run stayed alive. And the supervisor, having never called
+`finish`, ended the run as `failed` rather than `completed` — the Phase 4 bug
+fix behaving correctly under a genuinely inconclusive run.
+
+**Exposure and enforcement are separate, and only one of them is a boundary.**
+The obvious implementation of an allowlist is to pass the model only the tools
+its definition permits. That is necessary and it is not sufficient: a model can
+name any string, which is why `_unknown_tool` existed before this phase.
+`Agent._permit` therefore reads `spec.allowed_tools`, never the offered
+`self._tools`. Three mutations pin this:
+
+- removing the permission check entirely — the Phase 4 shape — fails **five**
+  tests;
+- making enforcement read the offered list instead of the allowlist fails
+  `test_a_tool_offered_by_mistake_is_still_refused`, which is the only test that
+  can tell the two apart, because everywhere in the product one is built from
+  the other;
+- re-reading the roster at spawn time instead of snapshotting it fails the
+  mid-run-edit test.
+
+The first mutation is worth recording twice, because the *first* attempt at it
+passed. Rewriting one branch of `_permit` left the denial fallback intact, so
+the tests stayed green while the thing being tested had not actually been
+removed. A mutation that does not fail is not evidence the code is right — it is
+evidence the mutation was too small.
+
+**`tool.requested` is written before the permission check.** §5 Phase 5's claim
+is that a forbidden call is *blocked*, and "blocked" is only observable if the
+attempt is in the log beside the refusal. A denial that erased the attempt would
+leave a replay unable to say what the agent tried to do.
+
+**The system prompt is in the event log for the first time.** It previously
+appeared in no event at all — `llm.request` carries the message list, and the
+system prompt travels beside it as a separate provider argument — so Phase 4's
+"the log alone reconstructs the run" had a hole in it that nothing noticed while
+prompts were generated from code. Once the prompt is a row a user wrote, it is
+the most load-bearing fact about why two runs of the same goal differed. It now
+rides in `agent.spawned`, once per agent, and was confirmed to arrive over SSE
+with the rest of the snapshot: definition name, allowlist, step limit and model.
+
+**The tool catalogue is names and risk levels with no implementations.** §5
+Phase 5 requires `allowed_tools` to "resolve to a registered tool", which needs
+a registry of tools in this phase, before any tool may exist under §1 constraint
+5. So `tools/catalogue.py` declares the five built-ins §5 Phase 6 names and
+their risk, and `GET /tools` reports every one as `available: false`. An agent
+*permitted* a catalogue tool that calls it is told the tool is unavailable and
+no `tool.called` is written — `tool.called` means the call executed, and
+emitting it for a tool with no implementation would put a false statement in
+the log.
+
+**The `max_steps` validation refuses on write and clamps again at spawn.** The
+write-time rule compares against a workspace cap that can be lowered afterwards;
+`test_the_run_limit_clamps_a_definition_written_when_the_cap_was_higher` is what
+stops that from being the only check. Confirmed live: definitions capped at 3
+steps ran under a supervisor capped at 10.
+
+### The bug the live run found (Phase 5)
+
+**Creating an ordinary agent was impossible whenever the workspace cap was
+below 20.** `CreateAgentRequest.max_steps` defaulted to the literal `20` from
+§4's column default. Lowering `max_steps_per_agent` to 10 — which the product
+invites, and which the step-limit failure message explicitly suggests — then
+made every `POST /agents` that omitted `max_steps` fail with
+`400 [max_steps] max_steps of 20 is above this workspace's limit of 10`:
+a rejection naming a field the caller had not supplied, with no way to connect
+it to a setting changed elsewhere. The fix is that an unsupplied `max_steps`
+resolves to `min(20, cap)` instead of asserting a number the workspace may not
+allow.
+
+It also masked an unrelated defect for as long as it lasted: a duplicate name
+was returning `400` rather than `409`, because validation reached the
+`max_steps` rule before the uniqueness check. The parametrized validation test
+accepted either code, so nothing caught it. Both now have their own tests.
+
+**The whole suite was green.** Every test either sent an explicit `max_steps` or
+left the cap at its default, so no test ever had a cap below 20 *and* an omitted
+`max_steps` at the same time. It took thirty seconds of using the thing to find
+— which is now the fifth time in this project the same shape has appeared, after
+Phase 1's CORS, Phase 2's named SSE events, Phase 3's `*.sql` glob and Phase 4's
+silently-dropped settings fields. The pattern is specific enough to state as a
+rule: **a default that duplicates a value the user can change is a bug waiting
+for the user to change it.**
+
+### What the local model showed this time
+
+**qwen3:4b will not invent a tool it was not offered — it goes silent instead.**
+Handed a system prompt ordering it to call `write_file` while being offered only
+`finish` and `handoff`, it returned **empty content and no tool call, five
+times running**, until the step limit ended it. A direct probe of
+`POST /api/chat` with the same prompt shows why: the entire response went into
+Ollama's separate `message.thinking` field, with `message.content` empty and
+`tool_calls` null.
+
+Two things follow.
+
+**The adapter drops `thinking`, so the log records nothing where the model
+reasoned at length.** `providers/ollama.py` reads `message.content` and
+`message.tool_calls`. That is not wrong — reasoning is not output, and adding a
+thinking channel to the `Provider` protocol touches all three providers,
+`llm.token`, and the Phase 7 renderer — but it means an agent can burn its whole
+budget and leave an event log that says it produced nothing. **Deliberately not
+fixed in Phase 5**: it is a Provider-protocol design decision, not an
+agent-registry one, and it should be made where its cost across all three
+providers is visible. Recorded here so Phase 7 does not conclude the loop is
+broken when it renders five empty responses.
+
+**A model that returns nothing at all is a real failure mode, and the step limit
+is the only thing that ends it.** `_NO_TOOL_NUDGE` assumes prose to push back
+against; there was no prose. Nothing here suggests an orchestrator defect —
+every event is correct and the limit fired — but "the model said nothing" and
+"the model is thinking" are indistinguishable from the log, which matters for a
+UI whose whole job is showing what an agent is doing.
+
+**And it emits tool calls as prose when it gets stuck.** In the haiku run, after
+the agent cap refused a spawn, the supervisor's next output was the literal JSON
+`{"name": "spawn_agent", "arguments": {...}}` as *text*, with no structured tool
+call — so the loop nudged it and it burned its remaining steps. Same conclusion
+as CLAUDE.md's existing gemma finding, one level worse: a small model degrades
+into describing the call it means to make.
+
 ### What Phase 4 established, and how it was verified
 
 **The event log is load-bearing, not a record kept alongside the truth.** A
@@ -266,8 +441,17 @@ codepoint is a clean U+2014 and the corruption was in the inspecting pipe —
 `json.load(sys.stdin)` decodes with the locale encoding, which is cp1252 in Git
 Bash on this machine. Checked with `ord()` before reporting anything.
 
-Next up: **Phase 5 — Agent registry.** Do not start it before re-reading
-BUILD_SPEC §5 Phase 5.
+Next up: **Phase 6 — Tools and the approval gate.** Do not start it before
+re-reading BUILD_SPEC §5 Phase 6. Phase 5 left it three things deliberately
+shaped for it: the tool *names and risk levels* already exist in
+`tools/catalogue.py` and are already what `allowed_tools` validates against, so
+Phase 6 attaches implementations to names rather than inventing them; the
+approval events slot between `tool.requested` and `tool.called`, which is
+exactly where `Agent._handle_call` already branches; and
+`effective_auto_approve` already settles that a definition can only *narrow* the
+workspace policy, so the gate wires a policy into an existing rule instead of
+inventing one while building the gate. `available: false` on every row of
+`GET /tools` is what Phase 6 flips.
 
 ### What Phase 3 established, and how it was verified
 
@@ -507,6 +691,48 @@ Phase 3 specifically:
   `developers.openai.com` (checked 2026-09-09). A stale row mis-counts the
   user's own cap; it never affects what a provider actually bills.
 
+Phase 5 specifically:
+
+- **A real model has never been *denied* a tool.** The `tool.denied` path is
+  covered by scripted-provider tests, by three mutation checks, and by an
+  agent whose offered list and allowlist deliberately disagree — but no live
+  model has produced the refused call. Two attempts, both with `qwen3:4b` and
+  both with a system prompt ordering the agent to call `write_file`:
+
+  * offered only `finish` and `handoff`, it did not invent the call — it
+    reasoned itself into silence instead (see below);
+  * offered `read_file` as well, so that a file-shaped tool was visibly
+    available and the neighbouring one was not, it called `handoff` rather than
+    reaching for `write_file`.
+
+  So the *mechanism* is thoroughly tested and the *trigger* has only ever been
+  scripted. On this evidence a small local model is unlikely to produce it at
+  all; a frontier model is the one that hallucinates a tool it was not offered.
+  Try it there when a key is next in play, and do not treat the absence of a
+  live denial as evidence the boundary is untested — it is evidence the model
+  never tested it.
+- **`auto_approve` is stored, validated and intersected, and consumed by
+  nothing.** There is no gate and no tool to put behind one until Phase 6, so
+  `effective_auto_approve` is proven only as arithmetic.
+- **A definition's `provider`/`model` are honoured at the pool, not through a
+  run.** `ProviderPool` is tested directly — inheritance, pinning, caching, and
+  the auth failure — but no run has ever had two agents on two different
+  providers, because the scripted-provider override deliberately applies to
+  every agent so tests stay deterministic. The supervisor's handling of a
+  definition whose provider will not build is therefore covered as a unit and
+  not end to end.
+- **Nothing has been packaged since migration 003 existed.** The glob in the
+  justfile carries every `*.sql` and `test_every_migration_file_is_bundled_by_
+  the_packaging_glob` still passes, but no installer has been built and no
+  upgrade has run 002 -> 003 on a real installation. `test_upgrade_preserves_an_
+  existing_populated_database` now walks the whole chain against populated data
+  and asserts the built-ins seed on upgrade, which is the closest a test can
+  get. The real thing is still the Phase 9 acceptance criterion.
+- **No agent editor exists.** Every definition in this phase was created by
+  `curl` or by a test. §5 Phase 7 owns `AgentList.tsx` and `AgentEditor.tsx`,
+  and the field-aware 400s here exist for it — but nothing has yet rendered one
+  inline on an input, which is the specific thing §5 Phase 7 asks for.
+
 Phase 4 specifically:
 
 - **OpenAI has still never answered a real request.** Anthropic and Ollama both
@@ -639,13 +865,92 @@ database.
 Phase 4 added `orchestrator/` — `run.py` (lifecycle, the event sequence, the
 mailbox), `supervisor.py`, `agent.py`, plus two modules §3 does not name:
 `limits.py` (the run ceilings) and `control.py` (the tool vocabulary an agent
-may call). `registry.py` is Phase 5 and is absent rather than stubbed.
-`tools/` is still empty: it belongs to Phase 6 with the approval gate.
+may call).
+
+Phase 5 added `orchestrator/registry.py` (the frozen roster, plus `ProviderPool`
+for §4's per-definition `provider`/`model`), `store/agents.py` (the `agent_defs`
+row and its validation) and `api/agents.py` (CRUD, and `GET /tools`).
+
+`tools/` now exists but holds only `catalogue.py` — the five built-in tool
+*names* and their risk levels, with no implementations. §5 Phase 5 requires
+`allowed_tools` entries to "resolve to a registered tool", so validating a
+definition needs a registry of tools before any tool can exist; §1 constraint 5
+is why none can until Phase 6's approval gate. `base.py`, `approval.py`,
+`sandbox.py` and `builtin/` are still absent rather than stubbed. `RiskLevel`
+lives in `catalogue.py` rather than the `base.py` §3 sketches, because `base.py`
+is the Tool *protocol* and its signature depends on the sandbox Phase 6 owns —
+half a protocol now is a file Phase 6 rewrites.
+
+`tests/support.py` holds the scripted provider doubles and the event-log
+reducer. Phase 4 kept them in `test_orchestrator.py`; three test modules now
+drive runs, and two copies of a reducer is two answers to "what does the log
+say".
 
 ## Decisions made mid-build
 
 Recorded here as they happen, so a later session does not re-litigate them.
 
+- **2026-09-10 — the supervisor picks workers from a roster; it can no longer
+  invent one.** §5 Phase 5 says the registry "constructs workers from rows", so
+  `spawn_agent` takes an `agent` name from `agent_defs` instead of Phase 4's
+  free-form `name` + `role`. An agent's identity stops being whatever a model
+  typed. The roster travels in the supervisor's system prompt, not in the tool
+  description, because it differs per run — it is whatever the user has defined
+  and enabled at the moment the run started.
+- **2026-09-10 — the supervisor is not a definition.** §5 Phase 5 says the
+  registry constructs *workers* from rows. The supervisor is orchestration
+  machinery rather than a role a user would edit, so it stays in code, holds no
+  `allowed_tools`, and can never reach the tool catalogue. The one agent present
+  in every run and unreachable by the editor is therefore also the one that
+  touches nothing.
+- **2026-09-10 — built-ins are seeded by migration 003, not by startup code.**
+  §5 Phase 5 asks for definitions seeded "on first launch". A startup check has
+  to distinguish "never seeded" from "seeded and since edited", and getting that
+  wrong silently reverts a user's edit on upgrade. A migration runs exactly once
+  by construction, so the question never arises. Their ids are fixed uuid4
+  literals so "the built-in researcher" is one identity on every machine.
+- **2026-09-10 — every seeded built-in has an empty `allowed_tools`.** Not a
+  placeholder: §5 Phase 5 says an empty array means the agent "can reason and
+  hand off but touches nothing", which is exactly true while no tool is
+  implemented. A built-in seeded with `write_file` would spend a step
+  discovering it cannot use it. Phase 6 widens these rows when there is
+  something for them to point at.
+- **2026-09-10 — a worker's system prompt is the user's text plus a fixed
+  protocol addendum, and `agent.spawned` records the composed result.** A
+  definition's prompt says what the agent is for; it cannot say how to end a
+  turn, because that is a fact about this orchestrator a user has no reason to
+  know. The addendum names only `finish` and `handoff`, which every agent holds
+  regardless of its allowlist, and grants nothing. The log records what was
+  actually sent — that is what explains the model's behaviour on replay — while
+  `definition_id` records which row it came from.
+- **2026-09-10 — the system prompt is now in the event log at all.** It
+  previously appeared in no event: `llm.request` carries the message list, and
+  the system prompt travels beside it as a separate provider argument. That was
+  a real hole in Phase 4's reconstruction claim, and it became acute once the
+  prompt was user-authored data. It goes in `agent.spawned`, once per agent
+  rather than once per step.
+- **2026-09-10 — the allowlist is enforced against `spec.allowed_tools`, never
+  against the offered tool list.** Not offering a tool is not the same as
+  blocking it: a model can name any string, which is why `_unknown_tool` exists
+  at all. Exposure and enforcement read different sources so neither can quietly
+  become the other's proof. `test_a_tool_offered_by_mistake_is_still_refused`
+  builds an agent whose two lists disagree, which is the only way to tell them
+  apart — everywhere in the product they are built from each other.
+- **2026-09-10 — a permitted catalogue tool is still not executed.** Being on an
+  agent's allowlist is permission from the *definition*; it is not permission
+  from the *user*, which is what Phase 6's gate collects. So the call stops after
+  `tool.requested` with a `tool.error`, and no `tool.called` is written —
+  `tool.called` means the call executed, and a Phase 5 that emitted it for a
+  tool with no implementation would be writing a log entry that is not true.
+- **2026-09-10 — a definition's `provider`/`model` are honoured at run time.**
+  §4 gives the columns "NULL = inherit workspace default", and `ProviderPool`
+  resolves, caches and budget-wraps one provider per distinct pair. Storing the
+  columns without honouring them would have been the Phase 4 settings bug again:
+  a value the product accepts and silently ignores.
+- **2026-09-10 — `max_steps` is clamped at spawn as well as validated on write.**
+  The write-time check compares against the workspace cap, and the cap is a
+  setting that can be lowered afterwards. A rule enforced only on write stops
+  holding the moment the thing it depends on changes.
 - **2026-09-09 — a worker's result travels through SQLite, not up the call
   stack.** §5 Phase 4 says agents communicate via `agent.message` events and
   never direct function calls, which taken literally is impossible — some
