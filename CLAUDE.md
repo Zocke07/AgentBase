@@ -1411,12 +1411,18 @@ Phase 9 specifically:
   it is not met. The repository has no git remote, `gh` is not installed, and
   creating a public GitHub repository and pushing to it is the owner's decision,
   not something to be done on their behalf. Everything downstream of that is
-  therefore unverified *as CI*: whether `extractions/setup-just@v2`,
-  `astral-sh/setup-uv@v5`, `actions/setup-node@v4` and
-  `dtolnay/rust-toolchain@stable` resolve, whether the composite action is found
-  at `./.github/actions/toolchain`, whether the cache key behaves, and whether
-  the `release` job's `gh release create` works. The YAML parses and the job
-  graph is asserted by `test_ci_workflow.py`; that is a different claim.
+  therefore unverified *as CI*: whether the composite action is found at
+  `./.github/actions/toolchain`, whether the cache key behaves, and whether the
+  `release` job's `gh release create` works. The YAML parses and the job graph is
+  asserted by `test_ci_workflow.py`; that is a different claim.
+
+  The action *versions* are no longer in that list. Every one was checked against
+  its own repository on 2026-09-11, and five of seven had been pinned from memory
+  two to five majors behind — on the node20 runtime the current majors have moved
+  off. The inputs this workflow passes were confirmed to still exist in each new
+  major. That is the one part of a never-executed workflow that can be verified
+  without executing it, and it was worth the twenty minutes: it would have failed
+  at the first step on both runners.
 - **The second Windows machine has still never happened**, so the other half of
   the criterion — "runs on a second Windows machine with no Python installed" —
   is untouched. What Phase 9 did was install on *this* machine, which has Python.
