@@ -18,6 +18,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from agentspace.api.stream import SSE_HEADERS, parse_last_event_id, run_stream
+from agentspace.events.store import DEFAULT_RUN_LIST_LIMIT, MAX_RUN_LIST_LIMIT
 from agentspace.events.types import Event, EventType, Run, RunOrigin
 from agentspace.orchestrator import execute_run
 
@@ -139,6 +140,22 @@ def _spawn(request: Request, coroutine: Coroutine[Any, Any, None]) -> None:
     tasks: set[asyncio.Task[None]] = request.app.state.background_tasks
     tasks.add(task)
     task.add_done_callback(tasks.discard)
+
+
+@router.get("/runs")
+async def list_runs(
+    request: Request,
+    limit: Annotated[int, Query(ge=1, le=MAX_RUN_LIST_LIMIT)] = DEFAULT_RUN_LIST_LIMIT,
+) -> list[Run]:
+    """Recent runs, newest first — what the Phase 7 replay picker reads.
+
+    §5 Phase 7 requires "Replay: scrub any past run from the event log", and a
+    user cannot scrub a run they cannot find. The alternative — a UI keeping
+    its own list of the runs it happens to have seen — would make the client an
+    authority on something the database already knows, which is the drift §2
+    exists to prevent.
+    """
+    return await _store(request).list_runs(limit)
 
 
 @router.get("/runs/{run_id}")

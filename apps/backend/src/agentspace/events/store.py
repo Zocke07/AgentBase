@@ -13,7 +13,7 @@ import asyncio
 import json
 import uuid
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 
 from agentspace.events.types import Event, EventType, Run, RunOrigin, RunStatus
 
@@ -23,7 +23,15 @@ if TYPE_CHECKING:
     from agentspace.events.bus import EventBus
     from agentspace.store.db import Database
 
-__all__ = ["EventStore"]
+__all__ = ["DEFAULT_RUN_LIST_LIMIT", "MAX_RUN_LIST_LIMIT", "EventStore"]
+
+#: How many runs :meth:`EventStore.list_runs` returns when nobody says.
+DEFAULT_RUN_LIST_LIMIT: Final[int] = 50
+
+#: The ceiling `GET /runs` accepts. A workspace accumulates runs forever and
+#: the picker renders them all at once, so the bound is the UI's protection
+#: rather than the database's.
+MAX_RUN_LIST_LIMIT: Final[int] = 500
 
 #: Statuses after which a run is over and `finished_at` is stamped.
 _TERMINAL_STATUSES: frozenset[str] = frozenset({"completed", "failed", "cancelled"})
@@ -217,6 +225,31 @@ class EventStore:
             )
 
         return run
+
+    async def list_runs(self, limit: int = DEFAULT_RUN_LIST_LIMIT) -> list[Run]:
+        """Recent runs, newest first — what the Phase 7 replay picker reads.
+
+        Reads the `runs` table rather than deriving the list from events. The
+        event log is the authority on what *happened* in a run (§2); it is not
+        the authority on which runs exist, and a run created but never started
+        has no events at all. That run is precisely the one a user goes looking
+        for an explanation of, so a listing that omitted it would be worse than
+        useless.
+        """
+        return await asyncio.to_thread(self._list_runs_sync, limit)
+
+    def _list_runs_sync(self, limit: int) -> list[Run]:
+        with self._db.read() as connection:
+            rows = connection.execute(
+                # `rowid` breaks the tie. `created_at` is an ISO timestamp and
+                # two runs started in the same microsecond would otherwise come
+                # back in whatever order SQLite chose, which makes the ordering
+                # test flaky rather than the ordering wrong.
+                "SELECT * FROM runs ORDER BY created_at DESC, rowid DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+
+        return [_row_to_run(row) for row in rows]
 
     async def get_run(self, run_id: str) -> Run | None:
         return await asyncio.to_thread(self._get_run_sync, run_id)

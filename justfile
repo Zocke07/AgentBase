@@ -88,6 +88,10 @@ data_sep := if os() == "windows" { ";" } else { ":" }
 migrations_sql := justfile_directory() / "apps" / "backend" / "src" / "agentspace" / "store" / "*.sql"
 sidecar_path := sidecar_dir / sidecar_file
 
+# Generated TypeScript API types, per BUILD_SPEC §3's layout. Committed rather
+# than built on demand — see `just schemas`.
+schemas_dir := justfile_directory() / "packages" / "schemas"
+
 # List every available recipe.
 default:
     @just --list --unsorted
@@ -189,7 +193,7 @@ fmt-desktop:
 # ---------------------------------------------------------------------------
 
 # Run every test suite.
-test: test-backend
+test: test-backend test-desktop
 
 # pytest on the Python sidecar.
 [group('test')]
@@ -197,11 +201,33 @@ test: test-backend
 test-backend *ARGS:
     uv run pytest {{ ARGS }}
 
+# vitest on the React frontend — the run reducer and the dashboard it renders.
+[group('test')]
+[working-directory('apps/desktop')]
+test-desktop *ARGS:
+    npm run --silent test -- {{ ARGS }}
+
 # pytest with a coverage summary.
 [group('test')]
 [working-directory('apps/backend')]
 test-backend-cov:
     uv run pytest --cov=agentspace --cov-report=term-missing
+
+# ---------------------------------------------------------------------------
+# Generated code
+# ---------------------------------------------------------------------------
+
+# Regenerate packages/schemas from the sidecar's OpenAPI schema.
+#
+# BUILD_SPEC §5 Phase 7: "Generate TS types from the FastAPI OpenAPI schema;
+# never hand-write the API types." Both outputs are committed, so `just check`
+# on a clean clone never needs a Python environment to typecheck the frontend —
+# and `test_openapi_snapshot.py` fails if either drifts from the running app,
+# which is what stops a regeneration being forgotten.
+[group('build')]
+[working-directory('apps/backend')]
+schemas:
+    uv run python -m agentspace.openapi {{ schemas_dir / "openapi.json" }} {{ schemas_dir / "src" / "api.ts" }}
 
 # ---------------------------------------------------------------------------
 # Run

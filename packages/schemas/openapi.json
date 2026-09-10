@@ -1,0 +1,1615 @@
+{
+  "components": {
+    "schemas": {
+      "AgentDef": {
+        "description": "One row of `agent_defs` (\u00a74).\n\nFrozen: a definition handed to a run is a snapshot of what that run started\nwith, and a snapshot that can be mutated in place is not one. See\n:mod:`agentspace.orchestrator.registry`.",
+        "properties": {
+          "allowed_tools": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Tools",
+            "type": "array"
+          },
+          "auto_approve": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RiskLevel"
+            },
+            "title": "Auto Approve",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_builtin": {
+            "default": false,
+            "title": "Is Builtin",
+            "type": "boolean"
+          },
+          "max_steps": {
+            "default": 20,
+            "minimum": 1.0,
+            "title": "Max Steps",
+            "type": "integer"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "system_prompt": {
+            "title": "System Prompt",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "role",
+          "system_prompt",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AgentDef",
+        "type": "object"
+      },
+      "ApprovalResponse": {
+        "description": "One approval, as the dialog renders it.",
+        "properties": {
+          "args": {
+            "additionalProperties": true,
+            "title": "Args",
+            "type": "object"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "risk": {
+            "title": "Risk",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tool": {
+            "title": "Tool",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "run_id",
+          "tool",
+          "args",
+          "risk",
+          "status",
+          "created_at"
+        ],
+        "title": "ApprovalResponse",
+        "type": "object"
+      },
+      "BudgetResponse": {
+        "properties": {
+          "cap_display": {
+            "title": "Cap Display",
+            "type": "string"
+          },
+          "cap_micros": {
+            "title": "Cap Micros",
+            "type": "integer"
+          },
+          "percent_used": {
+            "title": "Percent Used",
+            "type": "integer"
+          },
+          "period": {
+            "title": "Period",
+            "type": "string"
+          },
+          "spent_display": {
+            "title": "Spent Display",
+            "type": "string"
+          },
+          "spent_micros": {
+            "title": "Spent Micros",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "period",
+          "spent_micros",
+          "cap_micros",
+          "percent_used",
+          "spent_display",
+          "cap_display"
+        ],
+        "title": "BudgetResponse",
+        "type": "object"
+      },
+      "CreateAgentRequest": {
+        "additionalProperties": false,
+        "description": "A new definition.\n\nDeliberately not the same model as :class:`~agentspace.store.agents.AgentDef`:\n`id`, `created_at`, `updated_at` and `is_builtin` are ours to assign, and a\nrequest model that accepted them would let a caller mint a built-in \u2014 which\nis a definition the delete path refuses to remove.",
+        "properties": {
+          "allowed_tools": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Tools",
+            "type": "array"
+          },
+          "auto_approve": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Auto Approve",
+            "type": "array"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "max_steps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Steps"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "system_prompt": {
+            "title": "System Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "role",
+          "system_prompt"
+        ],
+        "title": "CreateAgentRequest",
+        "type": "object"
+      },
+      "CreateRunRequest": {
+        "properties": {
+          "goal": {
+            "maxLength": 10000,
+            "minLength": 1,
+            "title": "Goal",
+            "type": "string"
+          },
+          "origin": {
+            "default": "ui",
+            "enum": [
+              "ui",
+              "discord",
+              "telegram"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "origin_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Ref"
+          }
+        },
+        "required": [
+          "goal"
+        ],
+        "title": "CreateRunRequest",
+        "type": "object"
+      },
+      "Event": {
+        "description": "One append-only row of the log.\n\n``seq`` is per-run and 1-based; it is the id the SSE stream publishes and\nthe cursor ``Last-Event-ID`` carries. ``id`` is the global rowid and exists\nfor ordering across runs \u2014 never use it as a resume cursor, since a client\nresuming one run would then skip every event another run interleaved.",
+        "properties": {
+          "agent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/EventType"
+          }
+        },
+        "required": [
+          "id",
+          "run_id",
+          "seq",
+          "type",
+          "ts"
+        ],
+        "title": "Event",
+        "type": "object"
+      },
+      "EventType": {
+        "description": "Every event this application can emit. The list is from \u00a74, verbatim.",
+        "enum": [
+          "run.started",
+          "run.completed",
+          "run.failed",
+          "run.paused",
+          "run.cancelled",
+          "agent.spawned",
+          "agent.thinking",
+          "agent.message",
+          "agent.handoff",
+          "agent.completed",
+          "llm.request",
+          "llm.token",
+          "llm.response",
+          "llm.error",
+          "tool.requested",
+          "tool.approved",
+          "tool.denied",
+          "tool.called",
+          "tool.result",
+          "tool.error",
+          "approval.requested",
+          "approval.resolved",
+          "budget.warning",
+          "budget.exceeded",
+          "channel.inbound",
+          "channel.outbound"
+        ],
+        "title": "EventType",
+        "type": "string"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "ResolveApprovalRequest": {
+        "additionalProperties": false,
+        "description": "A decision on one approval.\n\n``extra=\"forbid\"`` for the reason every request model in this project has\nit: Pydantic's default is to drop an unknown field, which turned a\nmisspelled setting into a `200 OK` that changed nothing once already\n(CLAUDE.md, Phase 4). Here the stakes are higher \u2014 a client that sent\n``{\"approve\": true}`` would have the typo silently read as a denial.",
+        "properties": {
+          "approved": {
+            "title": "Approved",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "approved"
+        ],
+        "title": "ResolveApprovalRequest",
+        "type": "object"
+      },
+      "RiskLevel": {
+        "description": "How much damage a tool call can do. \u00a75 Phase 6's three levels.\n\nThe ordering is meaningful to a reader and deliberately not encoded as\ncomparison: \"at most medium\" is not a policy this project expresses, because\n`http_get` and `write_file` are both medium and permitting one is not a\nreason to permit the other. Policy is a *set* of levels, never a threshold.",
+        "enum": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "title": "RiskLevel",
+        "type": "string"
+      },
+      "Run": {
+        "description": "A row of the `runs` table (\u00a74).",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "goal": {
+            "title": "Goal",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "ui",
+              "discord",
+              "telegram"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "origin_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Ref"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "running",
+              "paused",
+              "completed",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "goal",
+          "status",
+          "origin",
+          "created_at"
+        ],
+        "title": "Run",
+        "type": "object"
+      },
+      "SettingsResponse": {
+        "description": "Workspace settings plus the read-only facts the UI needs beside them.",
+        "properties": {
+          "configured_secrets": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Configured Secrets",
+            "type": "array"
+          },
+          "model_is_priced": {
+            "title": "Model Is Priced",
+            "type": "boolean"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/WorkspaceSettings"
+          },
+          "supported_providers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Supported Providers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "settings",
+          "configured_secrets",
+          "supported_providers",
+          "model_is_priced"
+        ],
+        "title": "SettingsResponse",
+        "type": "object"
+      },
+      "ToolResponse": {
+        "description": "One catalogue entry, as the agent editor renders it.",
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "risk": {
+            "title": "Risk",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "risk",
+          "available"
+        ],
+        "title": "ToolResponse",
+        "type": "object"
+      },
+      "UpdateAgentRequest": {
+        "additionalProperties": false,
+        "description": "A partial update. Every field optional; omitted fields are untouched.\n\n``None`` is meaningful for `provider` and `model` \u2014 it is how a definition\ngoes back to inheriting the workspace default \u2014 so this cannot use\n`exclude_none` the way `PATCH /settings` does. `model_fields_set` is what\nseparates \"sent as null\" from \"not sent\".",
+        "properties": {
+          "allowed_tools": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Tools"
+          },
+          "auto_approve": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Approve"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "max_steps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Steps"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "system_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "System Prompt"
+          }
+        },
+        "title": "UpdateAgentRequest",
+        "type": "object"
+      },
+      "UpdateSettingsRequest": {
+        "additionalProperties": false,
+        "description": "A partial update. Every field optional; omitted fields are untouched.\n\n**Unknown fields are rejected rather than ignored.** Pydantic's default is\nto drop them, which turns a misspelled or not-yet-supported setting into a\n`200 OK` that changed nothing \u2014 the caller is told it worked and it did\nnot. That is exactly how the Phase 4 run limits appeared configurable\nthrough this endpoint for a while without being so.\n\n**This model must list every field of\n:class:`~agentspace.store.settings.WorkspaceSettings`.** It duplicates that\nlist because the two differ in bounds and optionality, and a duplicated\nlist is a list that drifts: Phase 6 added `auto_approve` to the settings\nmodel and not to this one, so `GET /settings` reported a policy that\n`PATCH /settings` refused to set \u2014 the workspace's entire approval policy\nwas unsettable through the API. `extra=\"forbid\"` made that loud rather than\nsilent, which is the Phase 4 fix working, and\n`test_every_workspace_setting_can_be_patched` is what stops the next field\nrepeating it.",
+        "properties": {
+          "auto_approve": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RiskLevel"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Approve"
+          },
+          "max_agents_per_run": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Agents Per Run"
+          },
+          "max_run_seconds": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Run Seconds"
+          },
+          "max_steps_per_agent": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Steps Per Agent"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "monthly_cap_micros": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Monthly Cap Micros"
+          },
+          "ollama_base_url": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ollama Base Url"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          }
+        },
+        "title": "UpdateSettingsRequest",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "WorkspaceSettings": {
+        "description": "Everything the user can configure that is not a secret.",
+        "properties": {
+          "auto_approve": {
+            "items": {
+              "$ref": "#/components/schemas/RiskLevel"
+            },
+            "title": "Auto Approve",
+            "type": "array"
+          },
+          "max_agents_per_run": {
+            "default": 5,
+            "minimum": 1.0,
+            "title": "Max Agents Per Run",
+            "type": "integer"
+          },
+          "max_run_seconds": {
+            "default": 600,
+            "minimum": 1.0,
+            "title": "Max Run Seconds",
+            "type": "integer"
+          },
+          "max_steps_per_agent": {
+            "default": 20,
+            "minimum": 1.0,
+            "title": "Max Steps Per Agent",
+            "type": "integer"
+          },
+          "model": {
+            "default": "claude-opus-5",
+            "title": "Model",
+            "type": "string"
+          },
+          "monthly_cap_micros": {
+            "default": 20000000,
+            "minimum": 0.0,
+            "title": "Monthly Cap Micros",
+            "type": "integer"
+          },
+          "ollama_base_url": {
+            "default": "http://127.0.0.1:11434",
+            "title": "Ollama Base Url",
+            "type": "string"
+          },
+          "provider": {
+            "default": "anthropic",
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "title": "WorkspaceSettings",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "AgentSpace sidecar",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/agents": {
+      "get": {
+        "description": "Every definition, enabled or not \u2014 this backs the roster editor.\n\nA run reads only the enabled ones; see\n:meth:`agentspace.orchestrator.registry.AgentRegistry.load`.",
+        "operationId": "list_agents_agents_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AgentDef"
+                  },
+                  "title": "Response List Agents Agents Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Agents"
+      },
+      "post": {
+        "operationId": "create_agent_agents_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDef"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Agent"
+      }
+    },
+    "/agents/{definition_id}": {
+      "delete": {
+        "operationId": "delete_agent_agents__definition_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definition_id",
+            "required": true,
+            "schema": {
+              "title": "Definition Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Agent"
+      },
+      "get": {
+        "operationId": "get_agent_agents__definition_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definition_id",
+            "required": true,
+            "schema": {
+              "title": "Definition Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDef"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Agent"
+      },
+      "patch": {
+        "description": "Apply a partial update.\n\nA built-in is editable here \u2014 \u00a75 Phase 5 guards only the delete path \u2014 so\nthere is deliberately no `is_builtin` check.",
+        "operationId": "update_agent_agents__definition_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definition_id",
+            "required": true,
+            "schema": {
+              "title": "Definition Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDef"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Agent"
+      }
+    },
+    "/approvals": {
+      "get": {
+        "description": "Every approval still waiting for an answer, oldest first.",
+        "operationId": "list_approvals_approvals_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "run_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ApprovalResponse"
+                  },
+                  "title": "Response List Approvals Approvals Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Approvals"
+      }
+    },
+    "/approvals/{approval_id}": {
+      "get": {
+        "operationId": "get_approval_approvals__approval_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "title": "Approval Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Approval"
+      },
+      "post": {
+        "description": "Allow or deny a pending call, and release the agent waiting on it.\n\nA 404 for an id that does not exist, and a **409** for one that is already\nsettled. The distinction is not pedantry: two windows showing the same\ndialog is ordinary, and the second click has to fail in a way the UI can\nexplain as \"somebody already answered this\" rather than as \"that approval\nis gone\".",
+        "operationId": "resolve_approval_approvals__approval_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "title": "Approval Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resolve Approval"
+      }
+    },
+    "/budget": {
+      "get": {
+        "description": "Month-to-date spend against the cap. Phase 7's budget meter reads this.",
+        "operationId": "get_budget_budget_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Budget"
+      }
+    },
+    "/debug/fake_run": {
+      "post": {
+        "description": "Start a scripted run so the event spine can be exercised without an LLM.\n\n``step_ms`` exists so tests do not have to wait ten seconds; the default is\nthe pace \u00a75 Phase 2 specifies.",
+        "operationId": "fake_run_debug_fake_run_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "step_ms",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 5000,
+              "minimum": 0,
+              "title": "Step Ms",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Run"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fake Run"
+      }
+    },
+    "/health": {
+      "get": {
+        "description": "Liveness probe. The shell polls this to decide the sidecar is up.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Health Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/runs": {
+      "get": {
+        "description": "Recent runs, newest first \u2014 what the Phase 7 replay picker reads.\n\n\u00a75 Phase 7 requires \"Replay: scrub any past run from the event log\", and a\nuser cannot scrub a run they cannot find. The alternative \u2014 a UI keeping\nits own list of the runs it happens to have seen \u2014 would make the client an\nauthority on something the database already knows, which is the drift \u00a72\nexists to prevent.",
+        "operationId": "list_runs_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Run"
+                  },
+                  "title": "Response List Runs Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Runs"
+      },
+      "post": {
+        "description": "Create a run and start the orchestrator on it.\n\nReturns as soon as the row exists rather than waiting for the run to\nfinish. A run takes minutes and the client watches it over SSE \u2014 holding\nthe request open would make the event stream a second way to learn the same\nthing, and would put a proxy's idle timeout in charge of when a run ends.",
+        "operationId": "create_run_runs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Run"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Run"
+      }
+    },
+    "/runs/{run_id}": {
+      "get": {
+        "operationId": "get_run_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Run"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Run"
+      }
+    },
+    "/runs/{run_id}/events": {
+      "get": {
+        "description": "Server-sent events for one run, resumable via `Last-Event-ID`.",
+        "operationId": "stream_run_events_runs__run_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stream Run Events"
+      }
+    },
+    "/runs/{run_id}/events/history": {
+      "get": {
+        "description": "The event log as a plain array.\n\nReplay in Phase 7 goes through the SSE path so that live and replay share\none renderer (\u00a75 Phase 7). This exists for tests and for `curl` inspection.",
+        "operationId": "get_run_events_runs__run_id__events_history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after_seq",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "After Seq",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Event"
+                  },
+                  "title": "Response Get Run Events Runs  Run Id  Events History Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Run Events"
+      }
+    },
+    "/settings": {
+      "get": {
+        "operationId": "get_settings_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Settings"
+      },
+      "patch": {
+        "description": "Apply a partial settings update.\n\nValidation failures are 400s with a readable message rather than 500s: this\nendpoint backs a form, and Phase 7 surfaces the message inline on the\noffending field.",
+        "operationId": "update_settings_settings_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Settings"
+      }
+    },
+    "/settings/providers": {
+      "get": {
+        "description": "What can be selected, and which models are priced.\n\nPhase 7's dropdowns read this instead of hardcoding a list that would drift\nfrom `pricing.py` the first time a model is added.",
+        "operationId": "list_providers_settings_providers_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Providers Settings Providers Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Providers"
+      }
+    },
+    "/settings/verify": {
+      "post": {
+        "description": "Check the current settings can actually build a provider.\n\nDeliberately does *not* call the model: that would spend money to answer a\nconfiguration question, and the budget check exists precisely to stop\nunbudgeted calls. It reports whether the credentials and the provider name\nare sufficient to construct one.",
+        "operationId": "verify_provider_settings_verify_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Verify Provider Settings Verify Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Verify Provider"
+      }
+    },
+    "/tools": {
+      "get": {
+        "description": "The tool catalogue, with each tool's risk level.\n\n\u00a75 Phase 7 requires the agent editor's \"tool checkboxes show each tool's\nrisk level next to it, so the consequence of ticking `run_shell` is visible\nat the moment of ticking it\". A UI hardcoding that list would drift from\nthe catalogue the validator actually uses, so it reads this instead.",
+        "operationId": "list_tools_tools_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ToolResponse"
+                  },
+                  "title": "Response List Tools Tools Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Tools"
+      }
+    }
+  }
+}
