@@ -51,6 +51,15 @@ real local model**: a run started from the page, watched live over `EventSource`
 its approval answered by clicking Allow, and the file appeared on disk. Replay
 was then measured against live, pixel by pixel.
 
+**Phase 8 — Channel adapters.** Complete. Discord and Telegram behind one
+`ChannelAdapter` protocol, an allowlist deciding who may address the workspace,
+and a chat reply that is a second pure fold of the event log. Verified against a
+**real Discord server**: `/agent` typed in a channel started a run driven by a
+real local model, its message was edited live while a dashboard-side client
+received **52 of 52** events over the same SSE endpoint, two `write_file` calls
+stopped at the approval gate and were answered by pressing **Allow** in Discord,
+and `reminder.txt` appeared on disk with exactly the 16 bytes the prompt named.
+
 ### What the first real API call showed
 
 **The provider shapes were right.** Phase 3 predicted "at least one shape bug"
@@ -830,16 +839,225 @@ region then differed by zero pixels. **The pane-resize half is not defensive** �
 without it the two disagree by 10%, because the summary above the canvas grows
 when the run ends.
 
-Next up: **Phase 8 — Channel adapters.** Do not start it before re-reading
-BUILD_SPEC §5 Phase 8. Two things this phase built bear on it directly:
+### What Phase 8 established, and how it was verified
 
-- The reducer already handles `channel.inbound` and `channel.outbound` and the
-  log panel renders them, so a Discord-originated run appears in the dashboard
-  with no special-casing — which is §5 Phase 8's last requirement.
-- Adding an event type now means updating `events/types.py`, `just schemas`, and
-  the reducer's `switch` **in the same commit**. The reducer reports an
-  unrecognised type in the run summary rather than dropping it, so the omission
-  is visible rather than silent — but it is still an omission.
+**Both acceptance criteria fired against a real Discord server, in one run.**
+§5 Phase 8 asks that "the same run is observable simultaneously from the
+dashboard and the originating chat channel, and a channel-originated tool call
+still hits the approval gate." `/agent` was typed in a channel; the bot's single
+message was edited live as the run progressed; a dashboard-side client consuming
+`GET /runs/{id}/events` — the identical endpoint the React `EventSource` opens —
+received **52 events against 52 in the log**. Two `write_file` calls stopped at
+`approval.requested`, were surfaced to Discord as Allow/Deny buttons, were
+answered by pressing **Allow** in Discord, and only then executed.
+`reminder.txt` appeared with exactly the 16 bytes the prompt named, and the
+`approvals` table holds both rows as `approved`.
+
+**A chat reply is a second projection of the log, not a second path into the
+orchestrator.** That is what makes "same event log, no special-casing" checkable
+rather than asserted. Inbound, an adapter normalizes its platform's message and
+hands it to :class:`RunLauncher` — the same object `POST /runs` uses. Outbound,
+the message is `render(fold(events))` recomputed from scratch on every edit,
+never appended to. `test_both_projections_of_one_log_say_the_same_thing` re-folds
+the stored log and asserts it reproduces the final chat text byte for byte, and
+the live run confirmed it.
+
+Re-rendering rather than appending is the Phase 7 live-versus-replay reasoning
+applied to a different surface: an accumulating renderer and a rebuilding one
+agree until one of them gains a feature. There is only the rebuilding one, so a
+reconnect or a resend shows what the log says rather than what the process
+happened to witness.
+
+**The fold is exhaustive, and `mypy --strict` proves it.** The `case _` arm calls
+`assert_never`, so adding an `EventType` member without teaching the chat
+projection about it is a **build failure**. That is deliberately stronger than
+the TypeScript reducer's `default` branch, and the asymmetry is real: the browser
+is a separately built artefact that can lag the server it talks to, so it must
+handle an unknown type at runtime. This fold is compiled from the same enum it
+folds, so the question is settled before the process starts. The three-way
+obligation §4 describes is now a two-way one plus a compiler error.
+
+**The allowlist is the security boundary this phase actually turns on, and §1
+constraint 6 does not cover it.** That constraint stops the bot ingesting ambient
+chatter. It says nothing about who may address it *deliberately* — a slash
+command is an explicit trigger and therefore permitted — and a Discord bot
+invited to a server can be invoked by anybody in that server. Without an
+allowlist the three things a stranger reaches are the owner's monthly API budget,
+the owner's desktop (every medium/high call raises a dialog on it), and through
+`run_shell` the owner's user account. An external id with no entry resolves to
+nobody, and a message from nobody starts no run.
+
+The empty list means **nobody**, which is the opposite of the Phase 6 decision
+about an empty `auto_approve` on a definition. The shapes look inconsistent and
+the reasoning is identical: there the fallback direction was "inherit the
+workspace policy" because a strict reading made the setting inert; here there is
+no wider policy to inherit and the two candidate readings are "nobody" and
+"everybody". In both places the empty case is the one that must not widen.
+
+**And the refusal was exercised live, against the same account that had just
+driven a successful run.** With the owner's id removed from the allowlist,
+`/agent` in the same channel produced: a log line naming the sender, the reply
+"This agent workspace is not configured to accept requests from this Discord
+account. Nothing was run.", and — the part that matters — **no new run, no new
+event, and no second `channel.inbound`**. The table stayed at 1 run and 52 events.
+`GET /channels` reported `refused: ['Zocke (868311828982284310)']`.
+
+The reply is terse on purpose. It goes to somebody who is by definition not
+trusted, so it names nothing about the workspace: not the owner, not the other
+allowlisted identities, not the goal they tried to run, not where the allowlist
+lives. A stranger probing the bot learns only that it declined, while the *log*
+and the status endpoint carry the full detail, because the owner is the one who
+needs to be able to add them.
+
+**Two privileged intents were never requested, and that is enforced rather than
+remembered.** §5 Phase 8 says not to ask for `MessageContent`, and the payoff is
+that Discord does not deliver the text of messages this bot was not mentioned in
+— so §1 constraint 6 holds because the data never arrives, not because this code
+declines to read it. `test_channel_adapters.py` asserts the intent set is exactly
+`{guilds}` and, separately, that it is *strictly narrower* than `discord.py`'s
+own `Intents.default()` — which is the tempting one-word "fix" that would turn
+every flag on at once. Telegram gets the same property from privacy mode, which
+is the default for a new bot and which nothing here turns off.
+
+**Answering an approval from chat is not a privileged path.** Discord's buttons
+and Telegram's inline keyboard both call
+`ApprovalService.resolve` — the identical method `POST /approvals/{id}` calls,
+including its 409 on an already-settled row, which is what a second click or a
+race with the dashboard produces. There is no channel branch inside the gate,
+because the gate never learns a channel exists. Only *who may press* is
+channel-specific: the button check is on the interaction's user id, which the
+platform asserts, never on anything carried in the message. `_MessageReply` takes
+the originator's id as a constructor argument rather than reading it off the
+placeholder message, whose author is the bot — deriving it from the message would
+have been the plausible-looking mistake that lets anyone approve anyone's call.
+
+**The default is still that chat cannot answer.** `channel_approvals` defaults to
+`dashboard_only`: the question is *shown* in chat, so a stopped run does not look
+like a crashed bot, but the answer is given at the machine the call would run on.
+An approval is the moment the owner decides whether something touches their disk,
+their shell or their network, and the default should not move that decision onto
+a phone in a group chat. `originator` is available and was what the live run
+used.
+
+**Plain text, no markdown, on both platforms.** Telegram's MarkdownV2 requires
+eighteen characters escaped and a single miss is a 400 that discards the whole
+message. Agent output is arbitrary text — file contents, shell output, model
+prose — so any markdown mode is a grenade whose fuse burns exactly until a run
+produces something interesting. One plain renderer serves both and cannot fail
+that way.
+
+**One message per run, edited.** This is what makes the rate limits nearly moot,
+rather than the throttle being clever. §5 Phase 8 quotes Discord's 50 req/s and
+Telegram's 30 msg/s, and neither is the binding constraint: editing one message
+is limited far more tightly (roughly five per five seconds for one Discord
+webhook token). Traffic is bounded by the throttle interval instead of by how
+talkative the run is. The live run made 52 events into a handful of edits.
+
+**A refusal is deliberately not written to the event log.** §4 gives
+`events.run_id` a NOT NULL foreign key, so a `channel.inbound` for a refused
+message would need a run row to hang off — a run that never ran, in the user's
+run list, creatable in unbounded numbers by any stranger who can see the bot.
+Refusals are reported through a bounded in-memory list that `GET /channels`
+renders, and that list survives a settings reconcile because it is the only trace
+of the event that exists.
+
+**`GET /channels` earns its place the way `tools/runtime.py` did.** §3 does not
+name it. Without it, "Discord is enabled" is a setting the user wrote and nothing
+anywhere says whether it worked — a token that never reached the keychain, a
+library that failed to freeze, and a gateway that has been refusing to connect
+for ten minutes all present identically as a bot that says nothing, and the user
+can fix all three once told which it is. `PATCH /settings` knows what was asked
+for; only the running `ChannelService` knows what happened.
+
+**The confabulation check travels to chat, where it matters more.** A dashboard
+user can read the event log and see a terminal summary disagreeing with it. A
+chat user sees nothing except the one message, so the message carries the check
+itself: the summary is labelled as the supervisor's account and rendered beside a
+count of what actually executed.
+
+### The bugs the live run found (Phase 8)
+
+**Four, and three of them were invisible to a green suite.**
+
+**The first: a bot that connects, reports itself healthy, and has no commands.**
+`tree.sync()` with no guild registers *global* commands, which Discord caches for
+up to an hour. It is what the documentation and nearly every example show. The
+first live attempt connected, logged `discord connected as AgentBase#3281`,
+reported `running: true` through `GET /channels` — and typing `/agent` produced
+no interaction, no event and no log line anywhere, because the command did not
+yet exist in the client. **There is no error in that sequence to find.** Commands
+are now synced per guild, which takes effect immediately and is the correct
+registration for a local-first app whose bot lives in one or two servers; the
+global path is what a public bot with thousands of installs needs, and this is
+not that. `on_guild_join` covers a server added later, and the guild count is
+logged because "connected but in no servers" and "connected and synced" were
+otherwise indistinguishable from outside while needing completely different
+fixes.
+
+**The second: `discord_enabled` did nothing until a restart.** `ChannelService`
+started once, in the lifespan, so enabling a channel returned `200 OK`, wrote the
+row, and connected nothing — and this product has no restart button. That is the
+**eighth** appearance of this project's recurring shape, after Phase 1's CORS,
+Phase 2's named SSE events, Phase 3's `*.sql` glob, Phase 4's silently dropped
+settings fields, Phase 5's `max_steps` default, Phase 6's unsettable
+`auto_approve` and Phase 7's `qualified_model`. Every one was found by running
+the thing, and this one was no different: the setting was set and nothing
+happened. `reconcile()` now runs on any settings change touching a channel, in
+both directions, and the set of triggering fields is derived from the settings
+model rather than hand-listed — the Phase 6 lesson about two lists that drift,
+applied before it had a chance to.
+
+**The third: `channel.outbound` was appended after the run's terminal event.**
+§4's terminal events are defined as the ones "after which no further event can
+appear for that run", and the SSE stream closes on them. Writing the outbound
+record in a `finally` block therefore produced a log the dashboard could never
+fully see: a real `qwen3:4b` run put **38 events in the table and handed a
+simultaneous watcher 37**. Live and replay disagreed, which quietly breaks §5
+Phase 7's pixel-identical criterion for every channel-originated run.
+
+The test that was supposed to cover this asserted on `store.read()` — the
+database, not the stream — and passed happily. That is the same shape as every
+other bug above: a check that is correct everywhere except where the product
+actually consumes it. The record is now written on first delivery, inside the
+run's lifetime, and two tests assert it from the consumer's side; one of them
+fails against the old code by exactly one event.
+
+**The fourth, and the only one that was merely noisy:** merging settings with
+`model_copy(update=...)` left a list of dicts sitting in a field annotated
+`list[ChannelIdentity]` until a `model_dump()` round-trip coerced it, so Pydantic
+warned on every settings write. Nothing was lost, and a
+`PydanticSerializationUnexpectedValue` in a sidecar log is indistinguishable at a
+glance from the kind that precedes real data loss. Merging plain dicts and
+validating once has no such intermediate.
+
+### What the live Discord run showed
+
+**The approval prompt said "create" and then "overwrite".** Same tool, same path,
+different sentence — Phase 6's decision to build `Prepared.summary` from the
+*resolved* call rather than the model's arguments, confirmed for the first time
+through a chat channel rather than a browser.
+
+**qwen3:4b wrote the same file twice.** Two `write_file` calls with identical
+content, so the user was asked twice and pressed Allow twice. Nothing is broken:
+the gate stopped both, the second prompt correctly said "overwrite", and the
+supervisor then finished. It is the same plan-quality gap CLAUDE.md already
+records for this model, now visible from a phone.
+
+**52 events became a handful of message edits**, which is the one-message-per-run
+design doing its job — the throttle never had to be clever.
+
+Next up: **Phase 9 — CI and release.** Do not start it before re-reading
+BUILD_SPEC §5 Phase 9. Three things bear on it directly:
+
+- Nothing has been packaged since **migration 004**, and the sidecar now carries
+  `discord.py` and `python-telegram-bot`. Both are large trees with their own
+  hidden-import behaviour at freeze time, and `discord.py` imports `audioop`,
+  which is removed in Python 3.13 — irrelevant on the pinned 3.12 and worth
+  knowing. The frozen binary has not been rebuilt since they were added.
+- §5 Phase 9 requires the test job to gate the build job. `just ci` is that
+  command and it is green: **618 backend, 124 frontend**.
+- The macOS build has still never run, and `channels/` is the first code in this
+  project with a platform-shaped dependency tree.
 
 ### What Phase 3 established, and how it was verified
 
@@ -1040,9 +1258,12 @@ Phase 2 specifically:
   client still receives a gapless 1..N. Consumed through `run_stream` rather
   than over HTTP — see the Phase 4 bug note for why an in-process HTTP client
   cannot do this.
-- **Two simultaneous SSE clients on one run.** Covered on the bus, not through
-  the HTTP layer against a live server. It becomes real in Phase 8, when a run
-  is watched from the dashboard and a chat channel at once.
+- **Two simultaneous SSE clients on one run.** **Narrowed in Phase 8, not
+  closed.** A Discord-originated run was consumed concurrently by the channel
+  adapter and by an HTTP client on `GET /runs/{id}/events`, and both saw all 52
+  events — so two consumers of one run through the real cursor is now exercised.
+  What has still never happened is two clients over the *HTTP* layer at once:
+  the adapter consumes `run_events` in-process, one layer below the framing.
 
 Phase 3 specifically:
 
@@ -1083,6 +1304,52 @@ Phase 3 specifically:
   `developers.openai.com` (checked 2026-09-09). A stale row mis-counts the
   user's own cap; it never affects what a provider actually bills.
 
+Phase 8 specifically:
+
+- **Telegram has never connected.** The adapter is written, typechecked and unit
+  tested, and no `python-telegram-bot` `Application` has ever polled a real
+  endpoint. This is the deliberate scope of the live verification — Discord was
+  the one with a token — and it is exactly the state Phase 3's Ollama
+  implementation was in before it turned out to work first try. What that
+  precedent does *not* license is assuming this one will: the long-polling
+  lifecycle here is hand-assembled from `initialize`/`start`/`start_polling`
+  rather than `run_polling`, precisely because the latter owns the event loop,
+  and that assembly has never run.
+- **No approval has been answered from Telegram**, and `_OWNERS` — the in-memory
+  map deciding who may press an inline-keyboard button — has never been read in
+  anger. Its Discord counterpart has.
+- **The bot has only ever been in one guild, with one user.** Nothing has
+  exercised two guilds, a guild joined while running (`on_guild_join`), two
+  people using the bot at once, or the mention trigger — the live run used the
+  slash command both times. `_on_mention` is covered by nothing but its own
+  reading.
+- **Nothing has been packaged since `discord.py` and `python-telegram-bot` were
+  added**, and they are the two largest dependencies in the tree. PyInstaller
+  hidden imports are exactly where Phase 3 predicted an SDK would cost, and the
+  frozen binary has not been rebuilt. `discord.py` also imports `audioop`, which
+  Python 3.13 removes; the pin is 3.12, so this is a note rather than a problem.
+- **The keychain-to-stdin half is still the untested step**, one phase later and
+  now carrying two more credential names. The live run used the same
+  stand-in-for-Tauri handshake Phases 3-6 used: a real token on a real stdin
+  pipe, reported by `GET /channels` as `configured: true`, absent from the
+  database and the log. What no test and no run has done is read it out of the
+  Windows Credential Manager through `tauri-plugin-keyring`.
+- **No run has been watched from a channel and a browser at the same time.**
+  The live run was watched from Discord and from an HTTP client consuming the
+  same SSE endpoint the browser consumes — which is the acceptance criterion and
+  is what makes the claim structural — but no actual webview was open. The
+  standing "two simultaneous SSE clients on one run" gap from Phases 2, 6 and 7
+  is therefore *narrowed* rather than closed: two consumers did run concurrently,
+  and neither was a browser.
+- **The throttle has never been under real pressure.** 52 events over a run of a
+  couple of minutes is not a stress test, and no run has produced enough events
+  fast enough to make a platform return a 429. The retry behaviour on a
+  rate-limited edit is `discord.py`'s and has not been observed.
+- **A refusal was verified for one shape of stranger.** The account refused was
+  the owner's own, with its id removed from the allowlist. Nobody genuinely
+  unknown to the workspace has ever addressed the bot, and no second person has
+  ever been in the server.
+
 Phase 7 specifically:
 
 - **Nothing has run in the packaged app.** Every browser check this phase used
@@ -1103,9 +1370,10 @@ Phase 7 specifically:
   mid-run and replaying it reproducible. A long model-driven run was compared by
   DOM and by the reducer, not by pixels.
 - **No run has been watched from two windows at once.** Same standing gap as
-  Phase 2's and Phase 6's, and it becomes ordinary in Phase 8 when a run is
-  watched from the dashboard and a chat channel together. The store's duplicate
-  handling and the 409 on a settled approval are what it will exercise.
+  Phase 2's and Phase 6's. Phase 8 watched one run from a chat channel and an
+  HTTP SSE client simultaneously, which is the acceptance criterion and is not
+  this: no *browser* was open, so the store's duplicate handling under two real
+  `EventSource` clients is still untested.
 - **The graph has never held more than three agents.** `max_agents_per_run` was 3
   for these runs. The layout is a single row of workers with no wrapping, so a
   run with a dozen agents will overflow horizontally; the camera zooms out to fit
@@ -1147,8 +1415,10 @@ Phase 6 specifically:
 
 - **Two clients answering the same approval has only been tested in-process.**
   `test_resolving_twice_is_a_409` and the conditional `UPDATE` cover it, and no
-  two real clients have raced. It becomes ordinary in Phase 8, when a run is
-  watched from the dashboard and a chat channel at once.
+  two real clients have raced. Phase 8 made the race *reachable* — a Discord
+  button and the dashboard can now answer the same approval, and the button
+  handler is written to render the 409 as "Already answered elsewhere" — but
+  both live approvals were answered from Discord alone, so nothing has raced.
 - **Nothing has been packaged since migration 004 existed.** Same standing gap
   as Phase 5's, now one migration longer, and the seeded-built-in widening in
   004 makes it slightly more interesting: no real installation has upgraded
@@ -1373,6 +1643,34 @@ field means.
 `agentspace/openapi.py` sits at the backend package root: it builds the OpenAPI
 document and emits the TypeScript from it, and is what `just schemas` runs.
 
+Phase 8 filled in `channels/`, which §3 sketches as three files and which is
+seven. `base.py` (the normalized `InboundMessage` and the two protocols),
+`discord_adapter.py` and `telegram_adapter.py` are §3's; the other four each
+carry something the adapters would otherwise duplicate. `identity.py` is the
+allowlist — the security boundary of the phase, and the one thing that must not
+have two implementations. `render.py` is the chat projection: `fold` and
+`render`, pure, no I/O. `throttle.py` is the edit cadence. `service.py` holds
+both `converse` — one whole conversation, from the allowlist check to the last
+edit — and `ChannelService`, which supervises the adapters.
+
+The split between `service.py` and the adapters is the load-bearing one:
+Discord and Telegram differ in exactly one thing, which is how you edit a
+message you already sent, and that difference is the whole of `ChannelReply`.
+Everything else — who may ask, what a refusal says, which object starts the run,
+what the reply says at any moment, when an edit is worth spending — is shared,
+so a bug fixed in one channel is fixed in both.
+
+`api/channels.py` arrived with it: `GET /channels` reports whether an adapter is
+actually connected, which is a question `GET /settings` structurally cannot
+answer. Same kind of additive deviation as `tools/runtime.py`.
+
+`orchestrator/launcher.py` is not in §3 either and is the most important of
+these. `RunLauncher` is the single place that knows how to start a run, used by
+`POST /runs` and by both channels. Phase 4 assembled `execute_run`'s arguments
+inline in the HTTP handler, which was right while there was one caller; three
+copies of that list would have been the eighth instance of this project's
+recurring bug, and this file exists specifically so it cannot be.
+
 `tests/support.py` holds the scripted provider doubles and the event-log
 reducer. Phase 4 kept them in `test_orchestrator.py`; three test modules now
 drive runs, and two copies of a reducer is two answers to "what does the log
@@ -1381,6 +1679,61 @@ say".
 ## Decisions made mid-build
 
 Recorded here as they happen, so a later session does not re-litigate them.
+
+- **2026-09-11 — the channel adapters run in-process, supervised, not in their
+  own OS process.** §5 Phase 8 says Discord runs in its "own process", and this
+  is a deliberate deviation. The benefit of a separate process is crash
+  isolation, and `ChannelService._supervise` provides it: an adapter that raises
+  takes down its own task, is restarted with backoff, and is left stopped with a
+  reason after five consecutive immediate failures. The costs of the literal
+  reading are Phase 1's orphan-process trap re-run twice — with `--onefile` the
+  PID a parent holds is the bootloader's, not the server's — plus a second
+  frozen binary, a second `--onefile` extraction on every launch, and a
+  duplicated shutdown handshake. The reason usually given for the separate
+  process does not apply: neither `discord.py` nor `python-telegram-bot` needs
+  its own event loop. `discord.Client.start()` and PTB's `Application` pieces
+  both run as tasks on an existing one; only `run()` and `run_polling()` create
+  loops, and neither is used.
+- **2026-09-11 — one run owns one chat message, re-rendered, never appended
+  to.** It is the Phase 7 live-versus-replay argument on a different surface,
+  and it also happens to make both platforms' rate limits nearly moot without
+  the throttle having to be clever. The binding limit is not §5's quoted 50/s or
+  30/s but the far tighter per-route bucket on editing a message.
+- **2026-09-11 — the chat reply is plain text on both platforms.** Telegram's
+  MarkdownV2 needs eighteen characters escaped and one miss is a 400 that
+  discards the whole message, over content that is arbitrary agent output. One
+  plain renderer cannot fail that way. Discord renders plain text fine.
+- **2026-09-11 — an unknown sender starts nothing, and an empty allowlist admits
+  nobody.** §1 constraint 6 covers ambient ingestion, not deliberate address,
+  and a bot in a server can be addressed by everyone in it. See the Phase 8
+  notes for why this empty-list default is the opposite of Phase 6's and why
+  both are right.
+- **2026-09-11 — a refusal is not written to the event log.** §4 gives
+  `events.run_id` a NOT NULL foreign key, so it would need a run row that never
+  ran — in the user's run list, creatable in unbounded numbers by a stranger.
+  It goes to a bounded in-memory list `GET /channels` renders, which survives a
+  settings reconcile because it is the only trace that exists.
+- **2026-09-11 — `channel_approvals` defaults to `dashboard_only`.** The
+  question is shown in chat so a stopped run does not read as a crashed bot;
+  answering it happens at the machine the call would run on. Neither value is a
+  privileged path — both go through `ApprovalService.resolve` — so the setting
+  decides who is asked, never whether the gate applies.
+- **2026-09-11 — `channel.outbound` is written on first delivery, not as a tally
+  at the end.** §4's terminal events are the ones after which no further event
+  can appear, and the SSE stream closes on them; an append in a `finally` is
+  delivered to nobody watching live while a replay finds it. See the Phase 8 bug
+  notes — this was measured at 38 events against 37 before it was fixed.
+- **2026-09-11 — Discord commands are synced per guild, not globally.** Global
+  commands are cached by Discord for up to an hour, which for this product means
+  a bot that connects, reports itself healthy, and does nothing all afternoon
+  with no error anywhere. Guild-scoped registration is immediate and is the
+  correct one for an app whose bot lives in one or two servers.
+- **2026-09-11 — bot tokens travel the keychain-to-stdin route, not the
+  `settings` table.** A bot token authenticates this application to a third
+  party and is replayable by whoever reads it, which is what §1 constraint 4 is
+  about; the `settings` table sits on disk in the clear beside the event log.
+  Adding them to `SECRET_KEYS` meant adding them to `SECRET_NAMES` in `lib.rs`,
+  and nothing was comparing those two lists — so a test now does.
 
 - **2026-09-10 — the view is a fold over a prefix of the event array, and live is
   just the cursor at the end.** §5 Phase 7 wants replay to use "the identical
