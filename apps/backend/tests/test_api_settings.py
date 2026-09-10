@@ -75,6 +75,46 @@ def test_settings_report_whether_the_model_is_priced(client: TestClient) -> None
     assert client.get("/settings").json()["model_is_priced"] is True
 
 
+def test_a_local_model_is_reported_as_priced(client: TestClient) -> None:
+    """Found by running the thing, on the seventh instance of this shape.
+
+    `GET /settings` used to price `settings.model` verbatim, while the provider
+    that actually runs namespaces an Ollama model to `ollama/<name>` before the
+    ledger ever sees it. So every local model reported `model_is_priced: false`
+    — whose docstring promises "every run will be refused" — while runs in fact
+    worked perfectly and cost nothing. The Phase 7 header rendered that as
+    "unpriced — runs will be refused" over a configuration that was fine.
+    """
+    client.patch("/settings", json={"provider": "ollama", "model": "qwen3:4b"})
+
+    assert client.get("/settings").json()["model_is_priced"] is True
+
+
+def test_settings_and_verify_agree_about_pricing(client: TestClient) -> None:
+    """The two endpoints must not disagree about the same configuration.
+
+    `POST /settings/verify` was right because it builds the provider and asks
+    about `provider.model`; `GET /settings` was wrong because it asked about the
+    raw setting. Comparing them is what stops the next provider with a naming
+    rule of its own repeating it.
+    """
+    for provider, model in (("ollama", "qwen3:4b"), ("ollama", "gemma4:e4b")):
+        client.patch("/settings", json={"provider": provider, "model": model})
+
+        settings_says = client.get("/settings").json()["model_is_priced"]
+        verify = client.post("/settings/verify").json()
+
+        assert settings_says is True
+        assert verify["ok"] is True, verify
+
+
+def test_an_unpriced_cloud_model_is_still_reported_as_unpriced(client: TestClient) -> None:
+    """The check must still be capable of saying no, or it protects nothing."""
+    client.patch("/settings", json={"provider": "anthropic", "model": "claude-not-a-model"})
+
+    assert client.get("/settings").json()["model_is_priced"] is False
+
+
 # --- the acceptance criterion ------------------------------------------------
 
 

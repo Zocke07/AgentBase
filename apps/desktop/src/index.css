@@ -559,7 +559,12 @@ body {
 }
 
 .agent-node {
+  /* Matches NODE_WIDTH / NODE_HEIGHT in state/graph.ts, which React Flow is
+     told up front so the camera never waits on a measurement. */
+  box-sizing: border-box;
   width: 200px;
+  height: 96px;
+  overflow: hidden;
   padding: 0.5rem 0.65rem;
   border: 1px solid var(--border);
   border-left: 3px solid var(--muted);

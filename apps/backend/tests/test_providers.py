@@ -37,6 +37,7 @@ from agentspace.providers.factory import (
     SUPPORTED_PROVIDERS,
     UnknownProviderError,
     build_provider,
+    qualified_model,
 )
 from agentspace.providers.ollama import OllamaProvider
 from agentspace.providers.openai import OpenAIProvider
@@ -539,6 +540,32 @@ async def test_the_factory_builds_each_supported_provider() -> None:
     ):
         provider = build_provider(WorkspaceSettings(provider=name, model=model), secrets)
         assert provider.name == name
+
+
+async def test_qualified_model_is_what_the_built_provider_reports() -> None:
+    """The two must agree, structurally, for every provider.
+
+    `qualified_model` exists so a caller can ask a question about the model a
+    run will be *billed* for without building a provider — `GET /settings` has
+    no credentials to build one with. That makes it a second copy of a naming
+    rule, and a second copy is a copy that drifts: pricing an Ollama model under
+    its raw name rather than `ollama/<name>` is the bug this function was added
+    to fix. Comparing it to the real provider is what stops the next provider
+    with a naming rule of its own repeating it.
+    """
+    secrets = SecretStore({"anthropic_api_key": "a", "openai_api_key": "o"})
+
+    for name, model in (
+        ("anthropic", "claude-opus-5"),
+        ("openai", "gpt-5.4"),
+        ("ollama", "llama3.3"),
+        # Already namespaced: qualifying twice would produce `ollama/ollama/x`.
+        ("ollama", "ollama/llama3.3"),
+    ):
+        settings = WorkspaceSettings(provider=name, model=model)
+        provider = build_provider(settings, secrets)
+
+        assert qualified_model(name, model) == provider.model
 
 
 async def test_switching_provider_is_only_a_settings_change() -> None:

@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Final
 
 from agentspace.providers.anthropic import AnthropicProvider
 from agentspace.providers.base import Provider, ProviderAuthError
+from agentspace.providers.ollama import MODEL_PREFIX as OLLAMA_MODEL_PREFIX
 from agentspace.providers.ollama import OllamaProvider
 from agentspace.providers.openai import OpenAIProvider
 
@@ -25,7 +26,12 @@ if TYPE_CHECKING:
     from agentspace.secrets import SecretStore
     from agentspace.store.settings import WorkspaceSettings
 
-__all__ = ["SUPPORTED_PROVIDERS", "UnknownProviderError", "build_provider"]
+__all__ = [
+    "SUPPORTED_PROVIDERS",
+    "UnknownProviderError",
+    "build_provider",
+    "qualified_model",
+]
 
 #: Provider name to the secret it needs, or ``None`` for one that needs none.
 #: Ollama's ``None`` is load-bearing: it is what proves the abstraction does
@@ -46,6 +52,31 @@ class UnknownProviderError(LookupError):
             f"unknown provider {provider!r}. Supported providers are: {supported}."
         )
         self.provider = provider
+
+
+def qualified_model(provider: str, model: str) -> str:
+    """The model id as the *ledger* will see it, not as the user typed it.
+
+    A provider may namespace the model it was given: Ollama prefixes `ollama/`
+    so `pricing` can recognise a local model as free without enumerating every
+    model a user might have pulled. Everything that asks a question about a
+    model's price has to ask it about this string, because this is the one
+    `BudgetedProvider` records spend against.
+
+    Found the hard way. `GET /settings` used to call `is_priced(settings.model)`
+    on the raw value, so every Ollama configuration reported
+    `model_is_priced: false` — a field whose own docstring promises "every run
+    will be refused" — while runs worked perfectly and cost nothing. Meanwhile
+    `POST /settings/verify` was correct, because it builds the provider first
+    and asks about `provider.model`. Two endpoints, one configuration, opposite
+    answers.
+
+    Kept here rather than in `pricing` because it is a fact about how a provider
+    names things, and `build_provider` is where that knowledge already lives.
+    """
+    if provider == "ollama" and not model.startswith(OLLAMA_MODEL_PREFIX):
+        return OLLAMA_MODEL_PREFIX + model
+    return model
 
 
 def build_provider(

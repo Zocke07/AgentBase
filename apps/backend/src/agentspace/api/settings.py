@@ -23,6 +23,7 @@ from agentspace.providers.factory import (
     SUPPORTED_PROVIDERS,
     UnknownProviderError,
     build_provider,
+    qualified_model,
 )
 from agentspace.providers.pricing import PRICES, format_micros, is_priced
 from agentspace.store.settings import WorkspaceSettings
@@ -120,7 +121,11 @@ async def _response(request: Request, settings: WorkspaceSettings) -> SettingsRe
         settings=settings,
         configured_secrets=list(_secrets(request).names),
         supported_providers=sorted(SUPPORTED_PROVIDERS),
-        model_is_priced=is_priced(settings.model),
+        # `qualified_model`, not `settings.model`: a provider may namespace
+        # what it was given, and the price is looked up under the namespaced
+        # id. Asking about the raw value told every Ollama user their runs
+        # would be refused when they would in fact have cost nothing.
+        model_is_priced=is_priced(qualified_model(settings.provider, settings.model)),
     )
 
 

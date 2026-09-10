@@ -1,6 +1,15 @@
-import { Background, Controls, ReactFlow, type Edge, type Node } from "@xyflow/react";
-import { useMemo } from "react";
+import {
+  Background,
+  Controls,
+  Handle,
+  Position,
+  ReactFlow,
+  useReactFlow,
+  type Node,
+} from "@xyflow/react";
+import { useEffect, useMemo, useState } from "react";
 
+import { edgesFor, layout, viewportFor, type AgentNodeData } from "../state/graph";
 import type { AgentNode, RunView } from "../state/reducer";
 
 import "@xyflow/react/dist/style.css";
@@ -22,22 +31,10 @@ import "@xyflow/react/dist/style.css";
  * reason that has nothing to do with the events.
  */
 
-const SUPERVISOR = "supervisor";
-
-/** Node geometry. Fixed so the layout is arithmetic rather than measurement. */
-const NODE_WIDTH = 200;
-const COLUMN_GAP = 40;
-const ROW_HEIGHT = 160;
-
 export interface RunGraphProps {
   view: RunView;
   selectedAgent: string | null;
   onSelectAgent: (name: string | null) => void;
-}
-
-interface AgentNodeData extends Record<string, unknown> {
-  agent: AgentNode;
-  selected: boolean;
 }
 
 /** How an agent's current activity reads to a person, and how it is coloured. */
@@ -64,6 +61,13 @@ function AgentCard({ data }: { data: AgentNodeData }) {
       className={`agent-node agent-node--${agent.activity}${selected ? " agent-node--selected" : ""}`}
       data-testid={`agent-node-${agent.name}`}
     >
+      {/* Without these, React Flow silently refuses to draw any edge touching
+          this node — it logs a warning and renders nothing, so the graph looks
+          finished while every handoff is missing. Found by running a real run
+          and reading the browser console; no unit test noticed, because they
+          all asserted node content. */}
+      <Handle type="target" position={Position.Top} />
+      <Handle type="source" position={Position.Bottom} />
       <div className="agent-node__name">{agent.name}</div>
       <div className="agent-node__role">{agent.role ?? "—"}</div>
       <div className="agent-node__activity">{activityLabel(agent)}</div>
@@ -80,68 +84,52 @@ function AgentCard({ data }: { data: AgentNodeData }) {
 const nodeTypes = { agent: AgentCard };
 
 /**
- * Place the supervisor on the top row and every worker on the row below.
+ * Put the camera where {@link viewportFor} says.
  *
- * The supervisor is found by name because `SUPERVISOR_NAME` is fixed in the
- * orchestrator precisely so a replay can find the root of the graph without
- * inferring it.
- */
-function layout(view: RunView, selected: string | null): Node<AgentNodeData>[] {
-  const workers = view.agentOrder.filter((name) => name !== SUPERVISOR);
-  const width = Math.max(workers.length, 1) * (NODE_WIDTH + COLUMN_GAP);
-
-  return view.agentOrder.flatMap((name) => {
-    const agent = view.agents[name];
-    if (agent === undefined) return [];
-
-    const isSupervisor = name === SUPERVISOR;
-    const column = isSupervisor ? 0 : workers.indexOf(name);
-
-    return [
-      {
-        id: name,
-        type: "agent",
-        position: isSupervisor
-          ? { x: width / 2 - NODE_WIDTH / 2, y: 0 }
-          : { x: column * (NODE_WIDTH + COLUMN_GAP), y: ROW_HEIGHT },
-        data: { agent, selected: selected === name },
-      },
-    ];
-  });
-}
-
-/**
- * One edge per ordered pair, labelled with how many handoffs it carries.
+ * Deliberately not React Flow's `fitView`: that frames what it has *measured*,
+ * so the result depends on when it ran. See `viewportFor` for the measurements
+ * that made this necessary.
  *
- * A separate edge per handoff would draw several identical lines on top of each
- * other in the common case — a supervisor delegating twice to the same worker —
- * and lose the count that makes it interesting.
+ * Recomputed on pane resize as well as on the node set, and the resize half is
+ * not defensive. The run summary above the canvas grows when the terminal event
+ * adds its claim block, which shortens the pane — so a run watched live
+ * computed its camera against a *taller* pane than the same run replayed, and
+ * the two framed the graph differently for a reason that had nothing to do with
+ * either the nodes or the log.
  */
-function edges(view: RunView): Edge[] {
-  const counts = new Map<string, { from: string; to: string; count: number; task: string }>();
+function Camera({ nodes }: { nodes: Node<AgentNodeData>[] }) {
+  const flow = useReactFlow();
+  const [pane, setPane] = useState<{ width: number; height: number } | null>(null);
+  const signature = nodes.map((node) => node.id).join(",");
 
-  for (const handoff of view.handoffs) {
-    const key = `${handoff.from}->${handoff.to}`;
-    const existing = counts.get(key);
-    if (existing === undefined) {
-      counts.set(key, { from: handoff.from, to: handoff.to, count: 1, task: handoff.task });
-    } else {
-      existing.count += 1;
-    }
-  }
+  useEffect(() => {
+    const element = document.querySelector(".react-flow__viewport")?.parentElement;
+    if (element === null || element === undefined) return undefined;
 
-  return [...counts.entries()].map(([key, edge]) => ({
-    id: key,
-    source: edge.from,
-    target: edge.to,
-    animated: false,
-    label: edge.count > 1 ? `${String(edge.count)} handoffs` : "handoff",
-  }));
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry === undefined) return;
+      setPane({ width: entry.contentRect.width, height: entry.contentRect.height });
+    });
+    observer.observe(element);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (pane === null) return;
+    void flow.setViewport(viewportFor(nodes, pane.width, pane.height));
+    // `nodes` changes identity every render; the ids are what decide the camera.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flow, signature, pane]);
+
+  return null;
 }
 
 export function RunGraph({ view, selectedAgent, onSelectAgent }: RunGraphProps) {
   const nodes = useMemo(() => layout(view, selectedAgent), [view, selectedAgent]);
-  const graphEdges = useMemo(() => edges(view), [view]);
+  const graphEdges = useMemo(() => edgesFor(view), [view]);
 
   if (view.agentOrder.length === 0) {
     return (
@@ -157,7 +145,6 @@ export function RunGraph({ view, selectedAgent, onSelectAgent }: RunGraphProps) 
         nodes={nodes}
         edges={graphEdges}
         nodeTypes={nodeTypes}
-        fitView
         // The graph is a view of the log, not a diagram the user edits: dragging
         // a node would imply the layout means something the events do not say.
         nodesDraggable={false}
@@ -171,6 +158,7 @@ export function RunGraph({ view, selectedAgent, onSelectAgent }: RunGraphProps) 
           onSelectAgent(null);
         }}
       >
+        <Camera nodes={nodes} />
         <Background />
         <Controls showInteractive={false} />
       </ReactFlow>

@@ -2,6 +2,7 @@ import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 
+import { edgesFor } from "../state/graph";
 import { reduceAll } from "../state/reducer";
 import { twoAgentRun } from "../test/log";
 
@@ -78,6 +79,44 @@ describe("RunGraph", () => {
     );
 
     expect(getByTestId("run-graph").textContent).toContain("No agents yet");
+  });
+
+  it("gives every node the handles an edge attaches to", () => {
+    /* The regression this file exists for, found by running a real run and
+       reading the browser console. `AgentCard` rendered no `<Handle>`, so React
+       Flow refused every edge touching it — logging a warning and drawing
+       nothing. The graph looked complete with every handoff missing, and every
+       test here passed, because they all asserted node content.
+
+       React Flow will not lay out an SVG edge in jsdom at all — it needs real
+       measurement — so the drawn edge is verified in a browser rather than
+       here. What is checkable here is the thing that was actually wrong. */
+    const { container } = graph();
+
+    const nodes = container.querySelectorAll('[data-testid^="agent-node-"]');
+    expect(nodes.length).toBeGreaterThan(0);
+
+    for (const node of nodes) {
+      expect(node.querySelector(".react-flow__handle-top")).not.toBeNull();
+      expect(node.querySelector(".react-flow__handle-bottom")).not.toBeNull();
+    }
+  });
+
+  it("derives one edge per ordered pair, counting repeats", () => {
+    /* A supervisor delegating twice to the same worker would otherwise draw two
+       identical lines on top of each other and lose the count. Asserted on the
+       derivation rather than the drawing, for the reason above. */
+    const events = twoAgentRun();
+    const handoff = events[8];
+    if (handoff === undefined) throw new Error("fixture changed shape");
+
+    const once = edgesFor(reduceAll(events));
+    const twice = edgesFor(reduceAll([...events, { ...handoff, seq: 999, id: 999 }]));
+
+    expect(once).toEqual([
+      { id: "supervisor->researcher", source: "supervisor", target: "researcher", label: "handoff" },
+    ]);
+    expect(twice[0]?.label).toBe("2 handoffs");
   });
 
   it("lays out the same agents in the same places every time", () => {
