@@ -221,7 +221,7 @@ async def _report(
     pump = asyncio.create_task(_pump(deps, run_id, queue))
 
     seen: list[Event] = []
-    edits = 0
+    delivered = False
     asked: set[str] = set()
 
     try:
@@ -232,10 +232,15 @@ async def _report(
             forced = ended or any(event.type in _FORCE_RENDER_ON for event in batch)
             if batch and throttle.due(force=forced):
                 await reply.update(render(fold(seen), limit=limit))
-                edits += 1
+                if not delivered:
+                    # Written on the *first* delivery, not the last. See
+                    # `_record_outbound` for why the obvious placement — a
+                    # tally in the `finally` below — is a bug.
+                    delivered = True
+                    await _record_outbound(deps, run_id, inbound, "report")
 
             if ask:
-                await _offer_approvals(reply, seen, asked)
+                await _offer_approvals(deps, run_id, inbound, reply, seen, asked)
 
             if ended:
                 return
@@ -250,7 +255,6 @@ async def _report(
         pump.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await pump
-        await _record_outbound(deps, run_id, inbound, edits)
         await reply.close()
 
 
@@ -288,7 +292,14 @@ async def _drain(queue: asyncio.Queue[Event | None]) -> tuple[list[Event], bool]
         batch.append(item)
 
 
-async def _offer_approvals(reply: ChannelReply, seen: list[Event], asked: set[str]) -> None:
+async def _offer_approvals(
+    deps: ChannelDeps,
+    run_id: str,
+    inbound: InboundMessage,
+    reply: ChannelReply,
+    seen: list[Event],
+    asked: set[str],
+) -> None:
     """Offer an Allow/Deny affordance for anything still outstanding.
 
     Derived from the fold rather than from the event that just arrived, so a
@@ -299,17 +310,37 @@ async def _offer_approvals(reply: ChannelReply, seen: list[Event], asked: set[st
             continue
         asked.add(pending.approval_id)
         await reply.ask(pending.approval_id, pending.prompt, pending.risk)
+        await _record_outbound(deps, run_id, inbound, "approval")
 
 
 async def _record_outbound(
-    deps: ChannelDeps, run_id: str, inbound: InboundMessage, edits: int
+    deps: ChannelDeps, run_id: str, inbound: InboundMessage, kind: str
 ) -> None:
-    """One `channel.outbound` per run, written when the reply is final.
+    """Record that something was sent to the conversation.
 
-    One per edit would put a hundred rows in the log describing the same
-    message, which is noise in a log whose value is that everything in it
-    happened. What is worth recording is that this run was reported to this
-    conversation, and how many times the message was revised.
+    ``kind`` is ``"report"`` for the run's own message and ``"approval"`` for a
+    question pushed to the chat.
+
+    **Both are written while the run is still alive, and that is the whole
+    point of this function's shape.** The obvious implementation is a tally
+    written once at the end — "this run was reported to Discord, in 9 edits" —
+    and it is wrong for a reason that no unit test reading the database would
+    ever show: §4's terminal events are defined as the events "after which no
+    further event can appear for that run", and the SSE stream closes on them.
+    An append after `run.completed` is therefore delivered to nobody watching
+    live, while a replay reading the table finds it — so the two disagree, and
+    §5 Phase 7's pixel-identical criterion quietly stops holding for every run
+    that came from a channel.
+
+    Found by running it: a real `qwen3:4b` run put 38 events in the table and
+    handed a simultaneous SSE watcher 37. The test that was supposed to cover
+    this asserted on `store.read()`, which is the database, not the stream —
+    the same shape as every other bug this project has found, which is a check
+    that is correct everywhere except where the product actually consumes it.
+
+    A per-edit row was never on the table for a different reason: a hundred
+    rows describing revisions of one message is noise in a log whose value is
+    that everything in it happened.
     """
     with contextlib.suppress(Exception):
         await deps.store.append(
@@ -318,7 +349,7 @@ async def _record_outbound(
             {
                 "channel": inbound.channel,
                 "thread_ref": inbound.thread_ref,
-                "edits": edits,
+                "kind": kind,
                 "ts": datetime.now(UTC).isoformat(),
             },
         )
@@ -358,37 +389,90 @@ class ChannelService:
 
     async def start(self) -> None:
         """Start every channel that is both enabled and has a token."""
+        await self.reconcile()
+
+    async def reconcile(self) -> None:
+        """Make the running adapters match the settings, in both directions.
+
+        Called at startup and again whenever `PATCH /settings` touches a
+        channel field. Without the second call, `discord_enabled` would be a
+        setting that reports success and changes nothing until the application
+        is restarted — and this product has no restart button, so for a user it
+        would simply not work.
+
+        That is the shape this project has now hit seven times: Phase 1's CORS
+        origins, Phase 2's named SSE events, Phase 3's `*.sql` glob, Phase 4's
+        silently-dropped settings fields, Phase 5's `max_steps` default, Phase
+        6's unsettable `auto_approve`, Phase 7's `qualified_model`. Every one
+        was a setting or a value that looked configured and was not, and every
+        one was found by running the thing rather than by reading it. This one
+        was found the same way — by enabling Discord over HTTP and watching
+        nothing connect.
+        """
         settings = await self._deps.settings.get()
-        enabled = {
+        enabled: dict[str, bool] = {
             "discord": settings.discord_enabled,
             "telegram": settings.telegram_enabled,
         }
 
         for channel in CHANNEL_NAMES:
             token = self._secrets.get(_TOKEN_SECRET[channel])
-            status = ChannelStatus(
-                channel=channel,
-                enabled=enabled[channel],
-                configured=token is not None,
+            # Preserved across a reconcile rather than rebuilt: `refused` is a
+            # record of who this workspace turned away, and losing it because
+            # somebody toggled an unrelated setting would throw away the only
+            # trace of it (a refusal writes no event — see `converse`).
+            status = self._status.setdefault(
+                channel, ChannelStatus(channel=channel, enabled=False, configured=False)
             )
-            self._status[channel] = status
+            status.enabled = enabled[channel]
+            status.configured = token is not None
 
-            if not status.enabled:
-                continue
-            if token is None:
+            running = self._is_running(channel)
+            # `token is not None` is written inline rather than folded into a
+            # `should_run` boolean so the narrowing survives into the branch;
+            # mypy cannot see through the indirection, and silencing it would
+            # have thrown away a real check for a cosmetic one.
+            should_run = status.enabled and token is not None and channel in self._factories
+
+            if should_run and not running and token is not None:
+                status.failures = 0
+                status.last_error = None
+                self._tasks[channel] = asyncio.create_task(
+                    self._supervise(channel, token), name=f"channel-{channel}"
+                )
+                logger.info("%s channel starting", channel)
+            elif not should_run and running:
+                await self._stop(channel)
+                logger.info("%s channel stopped", channel)
+            elif status.enabled and token is None:
                 status.last_error = (
                     f"No {_TOKEN_SECRET[channel]} was delivered from the OS keychain, "
                     f"so this channel cannot connect."
                 )
                 logger.warning("%s is enabled but has no token", channel)
-                continue
-            if channel not in self._factories:
+            elif status.enabled and channel not in self._factories:
                 status.last_error = f"No adapter is registered for {channel}."
-                continue
 
-            self._tasks[channel] = asyncio.create_task(
-                self._supervise(channel, token), name=f"channel-{channel}"
-            )
+    def _is_running(self, channel: ChannelName) -> bool:
+        task = self._tasks.get(channel)
+        return task is not None and not task.done()
+
+    async def _stop(self, channel: ChannelName) -> None:
+        """Cancel one adapter's supervisor and release its connection."""
+        task = self._tasks.pop(channel, None)
+        if task is not None:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await task
+
+        adapter = self._adapters.pop(channel, None)
+        if adapter is not None:
+            with contextlib.suppress(Exception):
+                await adapter.close()
+
+        status = self._status.get(channel)
+        if status is not None:
+            status.running = False
 
     async def aclose(self) -> None:
         """Stop every adapter. Safe to call when none were started."""

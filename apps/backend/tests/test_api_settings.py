@@ -9,6 +9,8 @@ observes the selection change. That is
 
 from __future__ import annotations
 
+import asyncio
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -373,3 +375,69 @@ def test_an_invalid_risk_level_is_rejected(client: TestClient) -> None:
     response = client.patch("/settings", json={"auto_approve": ["catastrophic"]})
 
     assert response.status_code == 422
+
+
+def test_a_structured_setting_round_trips_without_a_serialisation_warning(
+    tmp_path: Path,
+) -> None:
+    """`channel_identities` is the first setting whose value is a list of models.
+
+    The first version of `_update_sync` merged with `model_copy(update=...)`,
+    which does not validate — so a list of dicts from the API sat in a field
+    annotated `list[ChannelIdentity]` until a `model_dump()` round-trip
+    coerced it, and Pydantic warned on every settings write. Nothing was lost,
+    and a `PydanticSerializationUnexpectedValue` in a sidecar log is
+    indistinguishable at a glance from the kind that precedes real data loss.
+
+    Raising on the warning is the assertion: a scalar-only settings model would
+    never have surfaced this, so the test has to use the structured one.
+    """
+    import warnings
+
+    from agentspace.store.db import Database
+    from agentspace.store.settings import SettingsStore
+
+    database = Database(tmp_path / "settings.sqlite3")
+    database.connect()
+    try:
+        store = SettingsStore(database)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            updated = asyncio.run(
+                store.update(
+                    {
+                        "channel_identities": [
+                            {
+                                "channel": "discord",
+                                "external_user_id": "4210",
+                                "identity": "owner",
+                            }
+                        ]
+                    }
+                )
+            )
+
+        # Typed on the way out, not merely accepted on the way in.
+        assert updated.channel_identities[0].identity == "owner"
+        assert asyncio.run(store.get()).channel_identities[0].external_user_id == "4210"
+    finally:
+        database.close()
+
+
+def test_a_duplicate_channel_identity_is_refused_by_the_api(tmp_path: Path) -> None:
+    """The allowlist validator has to fire through the endpoint, not only in
+    the model — that is the Phase 6 lesson about a rule nobody can reach."""
+    from agentspace.store.db import Database
+    from agentspace.store.settings import SettingsStore
+
+    database = Database(tmp_path / "settings.sqlite3")
+    database.connect()
+    try:
+        store = SettingsStore(database)
+        entry = {"channel": "discord", "external_user_id": "1", "identity": "owner"}
+
+        with pytest.raises(ValueError, match="appears twice"):
+            asyncio.run(store.update({"channel_identities": [entry, {**entry, "identity": "x"}]}))
+    finally:
+        database.close()

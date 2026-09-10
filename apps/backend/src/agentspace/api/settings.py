@@ -32,12 +32,21 @@ from agentspace.tools.catalogue import RiskLevel
 
 if TYPE_CHECKING:
     from agentspace.budget.ledger import BudgetLedger
+    from agentspace.channels.service import ChannelService
     from agentspace.secrets import SecretStore
     from agentspace.store.settings import SettingsStore
 
 __all__ = ["router"]
 
 router = APIRouter()
+
+#: Settings that change which adapters should be connected. Derived from the
+#: model rather than hand-listed, so a channel setting added later is covered
+#: without anybody remembering this line — the Phase 6 lesson about two lists
+#: that drift, applied before it has a chance to.
+_CHANNEL_SETTINGS: frozenset[str] = frozenset(
+    name for name in WorkspaceSettings.model_fields if name.startswith(("discord_", "telegram_"))
+)
 
 
 class SettingsResponse(BaseModel):
@@ -167,6 +176,15 @@ async def update_settings(request: Request, body: UpdateSettingsRequest) -> Sett
         updated = await _settings_store(request).update(changes)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # A channel that was just enabled has to connect now, not at the next
+    # restart — and this product has no restart button. Reconciling here is
+    # what stops `discord_enabled` being another setting that reports success
+    # and changes nothing; see `ChannelService.reconcile`.
+    if changes.keys() & _CHANNEL_SETTINGS:
+        channels: ChannelService | None = getattr(request.app.state, "channels", None)
+        if channels is not None:
+            await channels.reconcile()
 
     return await _response(request, updated)
 

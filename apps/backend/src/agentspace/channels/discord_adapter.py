@@ -104,11 +104,13 @@ class DiscordAdapter:
     def _register(self) -> None:
         @self._client.event
         async def on_ready() -> None:
-            # Global command sync is rate-limited and takes up to an hour to
-            # propagate; it is done once per connection because Discord treats
-            # a repeated identical payload as a no-op.
-            await self._tree.sync()
-            logger.info("discord connected as %s", self._client.user)
+            await self._sync_commands()
+
+        @self._client.event
+        async def on_guild_join(guild: discord.Guild) -> None:
+            # A guild joined after startup would otherwise have no commands
+            # until the next restart.
+            await self._sync_one(guild)
 
         @self._tree.command(name="agent", description="Give the agent workspace a task.")
         @app_commands.describe(goal="What you want the agents to do.")
@@ -118,6 +120,53 @@ class DiscordAdapter:
         @self._client.event
         async def on_message(message: discord.Message) -> None:
             await self._on_mention(message)
+
+    async def _sync_commands(self) -> None:
+        """Register `/agent` in every guild this bot is in, not globally.
+
+        **Global commands are cached by Discord for up to an hour.** `sync()`
+        with no guild is what the documentation and most examples show, and for
+        this product it means a bot that connects, reports itself healthy, and
+        does nothing at all for the rest of the afternoon — which is exactly
+        what happened the first time this was run against a real server: the
+        gateway connected, `GET /channels` said `running: true`, and typing the
+        command produced no interaction, no event and no log line, because the
+        command did not yet exist in the client.
+
+        Guild-scoped commands appear immediately. This is a local-first
+        personal application whose bot lives in one or two servers, so syncing
+        per guild is not a development shortcut here — it is the correct
+        registration for the deployment. The global path is what a public bot
+        with thousands of installs needs, and this is not that.
+
+        The guild count is logged because "connected but in no servers" and
+        "connected and synced" are otherwise indistinguishable from outside,
+        and the fix for each is completely different.
+        """
+        guilds = list(self._client.guilds)
+        logger.info(
+            "discord connected as %s, in %d guild(s)", self._client.user, len(guilds)
+        )
+
+        if not guilds:
+            logger.warning(
+                "this bot is in no servers, so no command can be registered. "
+                "Invite it with the bot and applications.commands scopes."
+            )
+            return
+
+        for guild in guilds:
+            await self._sync_one(guild)
+
+    async def _sync_one(self, guild: discord.Guild) -> None:
+        self._tree.copy_global_to(guild=guild)
+        synced = await self._tree.sync(guild=guild)
+        logger.info(
+            "synced %d command(s) to %s: %s",
+            len(synced),
+            guild.name,
+            ", ".join(command.name for command in synced),
+        )
 
     async def _on_agent(self, interaction: discord.Interaction, goal: str) -> None:
         """The slash command. Defers first, then does the slow work."""

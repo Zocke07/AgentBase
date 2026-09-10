@@ -184,11 +184,21 @@ class SettingsStore:
 
     def _update_sync(self, changes: dict[str, Any]) -> WorkspaceSettings:
         current = self._get_sync()
-        merged = current.model_copy(update=changes)
 
-        # Re-validate: `model_copy` does not, and a bad value that reaches the
-        # table would fail on every subsequent read.
-        validated = WorkspaceSettings.model_validate(merged.model_dump())
+        # Merge as plain data, then validate once. The obvious version —
+        # `current.model_copy(update=changes)` followed by
+        # `model_validate(merged.model_dump())` — reaches the same answer and
+        # passes through an object that is lying about its own types on the
+        # way: `model_copy` does not validate, so a `channel_identities` list
+        # arriving from the API as dicts sits in a field annotated
+        # `list[ChannelIdentity]` until the round-trip fixes it. Pydantic says
+        # so out loud, and a `PydanticSerializationUnexpectedValue` warning in
+        # the sidecar's log is indistinguishable at a glance from the kind that
+        # precedes real data loss. Merging dicts has no such intermediate.
+        merged = current.model_dump()
+        merged.update(changes)
+
+        validated = WorkspaceSettings.model_validate(merged)
 
         # `mode="json"` rather than `getattr`: a setting whose value is a model
         # — `channel_identities` is a list of them — is not JSON-serialisable as

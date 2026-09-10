@@ -28,7 +28,7 @@ from agentspace.channels.base import InboundMessage
 from agentspace.channels.identity import ChannelIdentity
 from agentspace.channels.render import fold
 from agentspace.channels.service import ChannelDeps, ChannelService, converse
-from agentspace.events.types import EventType
+from agentspace.events.types import TERMINAL_RUN_EVENTS, EventType
 from agentspace.orchestrator.launcher import RunLauncher
 from agentspace.tools.approval import ApprovalNotPendingError
 from agentspace.tools.catalogue import RiskLevel
@@ -281,7 +281,7 @@ async def test_the_run_records_where_it_came_from(
     assert run.origin_ref == "channel-1"
 
 
-async def test_one_channel_outbound_is_written_when_the_reply_is_final(
+async def test_one_channel_outbound_records_the_delivery(
     store: EventStore,
     bus: EventBus,
     settings: SettingsStore,
@@ -303,7 +303,78 @@ async def test_one_channel_outbound_is_written_when_the_reply_is_final(
     outbound = [event for event in events if event.type == EventType.CHANNEL_OUTBOUND]
     assert len(outbound) == 1
     assert outbound[0].payload["thread_ref"] == "channel-1"
-    assert outbound[0].payload["edits"] >= 1
+    assert outbound[0].payload["kind"] == "report"
+
+
+async def test_nothing_is_appended_after_the_run_s_terminal_event(
+    store: EventStore,
+    bus: EventBus,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+) -> None:
+    """§4's terminal events are the ones "after which no further event can
+    appear for that run", and the SSE stream closes on them.
+
+    The first version of `_record_outbound` wrote its row in a `finally`, after
+    the run had completed. Every unit test passed, because they all read
+    `store.read()` — the table — and the table happily accepted it. A real
+    `qwen3:4b` run put 38 events in the table and handed a simultaneous SSE
+    watcher 37.
+    """
+    await allow(settings)
+    deps = deps_for(store, bus, settings, agents, ledger, secrets, finishing_provider())
+
+    await converse(deps, inbound(), FakeReply())
+    events = await store.read(await _wait_for_run(store))
+
+    terminal = [index for index, e in enumerate(events) if e.type in TERMINAL_RUN_EVENTS]
+    assert terminal, "the run never reached a terminal event"
+    assert terminal[0] == len(events) - 1, (
+        f"{len(events) - 1 - terminal[0]} event(s) were appended after "
+        f"{events[terminal[0]].type}; nothing watching live will ever see them"
+    )
+
+
+async def test_a_live_watcher_receives_every_event_the_log_ends_up_holding(
+    store: EventStore,
+    bus: EventBus,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+) -> None:
+    """§5 Phase 7's criterion, stated for a channel-originated run.
+
+    "Replaying a completed run produces pixel-identical UI state to what was
+    shown live" cannot hold if live and replay are not even fed the same
+    events. This compares the two directly: what the stream delivered against
+    what the table finally held. It is the assertion the previous test's bug
+    needed, expressed on the consumer rather than on the writer, and it stays
+    true for any future append the `finally` block might grow.
+    """
+    from agentspace.api.stream import run_stream
+
+    await allow(settings)
+    deps = deps_for(store, bus, settings, agents, ledger, secrets, finishing_provider())
+
+    conversation = asyncio.create_task(converse(deps, inbound(), FakeReply()))
+    run_id = await _wait_for_run(store)
+
+    frames: list[str] = []
+
+    async def watch() -> None:
+        async for frame in run_stream(store, bus, run_id, 0):
+            if frame.startswith("id:"):
+                frames.append(frame)
+
+    watcher = asyncio.create_task(watch())
+    await conversation
+    await asyncio.wait_for(watcher, timeout=15)
+
+    stored = await store.read(run_id)
+    assert len(frames) == len(stored)
 
 
 # --- acceptance criterion 2 ---------------------------------------------------
@@ -687,3 +758,93 @@ async def _until(predicate: Any) -> None:
     async with asyncio.timeout(10):
         while not predicate():  # noqa: ASYNC110
             await asyncio.sleep(0.005)
+
+
+async def test_enabling_a_channel_over_http_starts_it_without_a_restart(
+    store: EventStore,
+    bus: EventBus,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+) -> None:
+    """`discord_enabled` has to mean something the moment it is set.
+
+    `ChannelService.start()` runs once, in the lifespan. Without a reconcile on
+    `PATCH /settings`, enabling a channel returns `200 OK`, writes the row, and
+    connects nothing until the application is restarted — and this product has
+    no restart button. That is the eighth appearance of this project's
+    recurring shape, and it was found the same way as the other seven: by
+    setting it and watching nothing happen.
+    """
+    started: list[str] = []
+    service = _service_with(
+        store, bus, settings, agents, ledger, secrets, started,
+        discord_token="not-a-real-token",  # noqa: S106
+    )
+
+    await service.start()
+    assert started == []
+
+    await settings.update({"discord_enabled": True})
+    await service.reconcile()
+    await _until(lambda: started == ["discord"])
+
+    await service.aclose()
+
+
+async def test_disabling_a_channel_over_http_stops_it(
+    store: EventStore,
+    bus: EventBus,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+) -> None:
+    """The other direction, which is the one that matters for a mistake.
+
+    A user who turns Discord off because they no longer trust it has to have it
+    actually disconnect, not stay connected until the next launch.
+    """
+    await settings.update({"discord_enabled": True})
+    started: list[str] = []
+    service = _service_with(
+        store, bus, settings, agents, ledger, secrets, started,
+        discord_token="not-a-real-token",  # noqa: S106
+    )
+
+    await service.start()
+    await _until(lambda: started == ["discord"])
+    assert next(s for s in service.status() if s.channel == "discord").running
+
+    await settings.update({"discord_enabled": False})
+    await service.reconcile()
+
+    assert not next(s for s in service.status() if s.channel == "discord").running
+    await service.aclose()
+
+
+async def test_a_reconcile_keeps_the_record_of_who_was_refused(
+    store: EventStore,
+    bus: EventBus,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+) -> None:
+    """A refusal writes no event — §4 gives every event a NOT NULL `run_id` and
+    a refused message started no run — so this bounded list is the only trace
+    of it that exists. Losing it because somebody toggled an unrelated setting
+    would throw the evidence away."""
+    started: list[str] = []
+    service = _service_with(store, bus, settings, agents, ledger, secrets, started)
+
+    await service.start()
+    service.note_refusal("discord", "Stranger (99999)")
+
+    await service.reconcile()
+
+    assert next(s for s in service.status() if s.channel == "discord").refused == [
+        "Stranger (99999)"
+    ]
+    await service.aclose()
