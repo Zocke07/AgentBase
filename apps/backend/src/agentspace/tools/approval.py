@@ -39,7 +39,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, Final
+from typing import TYPE_CHECKING, Any
 
 from agentspace.events.types import EventType
 from agentspace.tools.catalogue import RiskLevel
@@ -276,15 +276,6 @@ def _record(row: Any) -> ApprovalRecord:
     )
 
 
-#: How often the waiter re-checks the run deadline while blocked.
-#:
-#: The wait itself is event-driven — the future is resolved by the HTTP handler,
-#: not by this tick — so this only bounds how long a run can sit past its
-#: deadline before the gate notices. Frequent enough to be responsive, rare
-#: enough to be free.
-_DEADLINE_POLL_SECONDS: Final[float] = 1.0
-
-
 class ApprovalService:
     """Creates approvals, blocks on them, and resolves them.
 
@@ -469,15 +460,20 @@ class ApprovalService:
             if deadline is None:
                 return await future
 
-            # `shield` is deliberately absent: if the run is cancelled, this
-            # should be cancelled with it.
-            remaining = deadline
-            while remaining > 0:
-                slice_seconds = min(remaining, _DEADLINE_POLL_SECONDS)
-                try:
-                    return await asyncio.wait_for(asyncio.shield(future), timeout=slice_seconds)
-                except TimeoutError:
-                    remaining -= slice_seconds
+            # One wait, not a poll loop. `deadline` is the run's remaining
+            # budget measured once by the caller, so slicing it into intervals
+            # would wake the loop hundreds of times to arrive at the same
+            # instant. Nothing is being watched for in between — the future is
+            # set by `resolve`, from an HTTP handler, not by a clock.
+            #
+            # `shield` so that the timeout cancels *this* wait and not the
+            # future itself: `resolve` may be setting a result at the very
+            # moment the deadline lands, and a cancelled future would turn that
+            # into a `CancelledError` instead of the decision a person made.
+            try:
+                return await asyncio.wait_for(asyncio.shield(future), timeout=deadline)
+            except TimeoutError:
+                pass
 
             # Out of time. Settle the row so it does not sit pending forever,
             # tolerating the race where a human resolved it in the last instant.
