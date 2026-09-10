@@ -18,6 +18,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from agentspace.budget.ledger import current_period
+from agentspace.channels.identity import ChannelIdentity
 from agentspace.providers.base import ProviderAuthError
 from agentspace.providers.factory import (
     SUPPORTED_PROVIDERS,
@@ -26,7 +27,7 @@ from agentspace.providers.factory import (
     qualified_model,
 )
 from agentspace.providers.pricing import PRICES, format_micros, is_priced
-from agentspace.store.settings import WorkspaceSettings
+from agentspace.store.settings import ChannelApprovalPolicy, WorkspaceSettings
 from agentspace.tools.catalogue import RiskLevel
 
 if TYPE_CHECKING:
@@ -90,6 +91,14 @@ class UpdateSettingsRequest(BaseModel):
     # here — it is how a user turns pre-authorization back off — and
     # `exclude_none` keeps it distinguishable from "not sent".
     auto_approve: list[RiskLevel] | None = None
+
+    # §5 Phase 8's channels. `channel_identities` has the same empty-list-is-
+    # meaningful property as `auto_approve`: sending `[]` is how an owner
+    # revokes everyone's access, and it must not be read as "not sent".
+    discord_enabled: bool | None = None
+    telegram_enabled: bool | None = None
+    channel_identities: list[ChannelIdentity] | None = None
+    channel_approvals: ChannelApprovalPolicy | None = None
 
 
 class BudgetResponse(BaseModel):

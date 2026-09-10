@@ -56,6 +56,24 @@ export interface BudgetResponse {
   cap_display: string;
 }
 
+/** One allowlist entry: this person, on this channel, is that identity. */
+export interface ChannelIdentity {
+  channel: "discord" | "telegram";
+  external_user_id: string;
+  identity: string;
+}
+
+/** One adapter, as the settings screen renders it. */
+export interface ChannelStatusResponse {
+  channel: string;
+  enabled: boolean;
+  configured: boolean;
+  running: boolean;
+  failures: number;
+  last_error?: string | null;
+  refused?: string[];
+}
+
 /**
  * A new definition.
  *
@@ -232,6 +250,10 @@ export interface UpdateSettingsRequest {
   max_agents_per_run?: number | null;
   max_run_seconds?: number | null;
   auto_approve?: RiskLevel[] | null;
+  discord_enabled?: boolean | null;
+  telegram_enabled?: boolean | null;
+  channel_identities?: ChannelIdentity[] | null;
+  channel_approvals?: "dashboard_only" | "originator" | null;
 }
 
 export interface ValidationError {
@@ -252,4 +274,8 @@ export interface WorkspaceSettings {
   max_steps_per_agent?: number;
   max_agents_per_run?: number;
   max_run_seconds?: number;
+  discord_enabled?: boolean;
+  telegram_enabled?: boolean;
+  channel_identities?: ChannelIdentity[];
+  channel_approvals?: "dashboard_only" | "originator";
 }

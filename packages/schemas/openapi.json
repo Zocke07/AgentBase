@@ -190,6 +190,90 @@
         "title": "BudgetResponse",
         "type": "object"
       },
+      "ChannelIdentity": {
+        "additionalProperties": false,
+        "description": "One allowlist entry: this person, on this channel, is that identity.",
+        "properties": {
+          "channel": {
+            "enum": [
+              "discord",
+              "telegram"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "external_user_id": {
+            "minLength": 1,
+            "title": "External User Id",
+            "type": "string"
+          },
+          "identity": {
+            "minLength": 1,
+            "title": "Identity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "external_user_id",
+          "identity"
+        ],
+        "title": "ChannelIdentity",
+        "type": "object"
+      },
+      "ChannelStatusResponse": {
+        "description": "One adapter, as the settings screen renders it.",
+        "properties": {
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "failures": {
+            "title": "Failures",
+            "type": "integer"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "refused": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Refused",
+            "type": "array"
+          },
+          "running": {
+            "title": "Running",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "channel",
+          "enabled",
+          "configured",
+          "running",
+          "failures"
+        ],
+        "title": "ChannelStatusResponse",
+        "type": "object"
+      },
       "CreateAgentRequest": {
         "additionalProperties": false,
         "description": "A new definition.\n\nDeliberately not the same model as :class:`~agentspace.store.agents.AgentDef`:\n`id`, `created_at`, `updated_at` and `is_builtin` are ours to assign, and a\nrequest model that accepted them would let a caller mint a built-in \u2014 which\nis a definition the delete path refuses to remove.",
@@ -689,6 +773,46 @@
             ],
             "title": "Auto Approve"
           },
+          "channel_approvals": {
+            "anyOf": [
+              {
+                "enum": [
+                  "dashboard_only",
+                  "originator"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Approvals"
+          },
+          "channel_identities": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ChannelIdentity"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Identities"
+          },
+          "discord_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discord Enabled"
+          },
           "max_agents_per_run": {
             "anyOf": [
               {
@@ -771,6 +895,17 @@
               }
             ],
             "title": "Provider"
+          },
+          "telegram_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telegram Enabled"
           }
         },
         "title": "UpdateSettingsRequest",
@@ -826,6 +961,27 @@
             "title": "Auto Approve",
             "type": "array"
           },
+          "channel_approvals": {
+            "default": "dashboard_only",
+            "enum": [
+              "dashboard_only",
+              "originator"
+            ],
+            "title": "Channel Approvals",
+            "type": "string"
+          },
+          "channel_identities": {
+            "items": {
+              "$ref": "#/components/schemas/ChannelIdentity"
+            },
+            "title": "Channel Identities",
+            "type": "array"
+          },
+          "discord_enabled": {
+            "default": false,
+            "title": "Discord Enabled",
+            "type": "boolean"
+          },
           "max_agents_per_run": {
             "default": 5,
             "minimum": 1.0,
@@ -864,6 +1020,11 @@
             "default": "anthropic",
             "title": "Provider",
             "type": "string"
+          },
+          "telegram_enabled": {
+            "default": false,
+            "title": "Telegram Enabled",
+            "type": "boolean"
           }
         },
         "title": "WorkspaceSettings",
@@ -1210,6 +1371,28 @@
         "summary": "Get Budget"
       }
     },
+    "/channels": {
+      "get": {
+        "operationId": "list_channels_channels_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ChannelStatusResponse"
+                  },
+                  "title": "Response List Channels Channels Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Channels"
+      }
+    },
     "/debug/fake_run": {
       "post": {
         "description": "Start a scripted run so the event spine can be exercised without an LLM.\n\n``step_ms`` exists so tests do not have to wait ten seconds; the default is\nthe pace \u00a75 Phase 2 specifies.",
@@ -1323,7 +1506,7 @@
         "summary": "List Runs"
       },
       "post": {
-        "description": "Create a run and start the orchestrator on it.\n\nReturns as soon as the row exists rather than waiting for the run to\nfinish. A run takes minutes and the client watches it over SSE \u2014 holding\nthe request open would make the event stream a second way to learn the same\nthing, and would put a proxy's idle timeout in charge of when a run ends.",
+        "description": "Create a run and start the orchestrator on it.\n\nReturns as soon as the row exists rather than waiting for the run to\nfinish. A run takes minutes and the client watches it over SSE \u2014 holding\nthe request open would make the event stream a second way to learn the same\nthing, and would put a proxy's idle timeout in charge of when a run ends.\n\n**The work of starting a run is not done here.** Phase 8 gave the chat\nchannels the same job, and assembling `execute_run`'s arguments at three\ncall sites would be the eighth instance of this project's recurring bug: one\nlist duplicated, correct everywhere on the day it was written, silently\ndivergent afterwards. :class:`~agentspace.orchestrator.launcher.RunLauncher`\nis the single copy.",
         "operationId": "create_run_runs_post",
         "requestBody": {
           "content": {

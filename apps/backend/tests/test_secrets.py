@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 import uvicorn
@@ -21,9 +21,6 @@ import uvicorn
 from agentspace import main
 from agentspace.config import BIND_HOST
 from agentspace.secrets import SECRET_KEYS, SecretStore, parse_secrets_line
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 FAKE_KEY = "totally-not-a-real-key-9f3a2b"
 
@@ -243,3 +240,39 @@ def pathlib_source(filename: str) -> str:
 
     root = pathlib.Path(__file__).resolve().parents[1] / "src" / "agentspace"
     return (root / filename).read_text(encoding="utf-8")
+
+
+def test_the_rust_shell_sends_exactly_the_names_the_sidecar_accepts() -> None:
+    """`SECRET_NAMES` in `lib.rs` and `SECRET_KEYS` here are one list in two
+    languages, and nothing has been comparing them.
+
+    This is the shape that has bitten this project seven times — Phase 1's CORS
+    origins, Phase 2's named SSE events, Phase 3's `*.sql` glob, Phase 4's
+    settings fields, Phase 5's `max_steps` default, Phase 6's `auto_approve`,
+    Phase 7's `qualified_model` — and Phase 6's conclusion was explicit: making
+    the failure loud is worth a great deal and does not stop the field being
+    forgotten; only comparing the two lists does that.
+
+    Here the failure is not even loud. A name added on the Python side alone is
+    a credential the shell will never read, so the feature that needs it simply
+    never works; a name added on the Rust side alone is a keychain entry the
+    sidecar silently discards. Both present as "the bot does not connect", with
+    nothing in any log to say why.
+    """
+    import re
+
+    lib_rs = (
+        Path(__file__).resolve().parents[3] / "apps/desktop/src-tauri/src/lib.rs"
+    ).read_text(encoding="utf-8")
+
+    declaration = re.search(
+        r"const SECRET_NAMES:\s*\[&str;\s*(\d+)\]\s*=\s*\[(.*?)\];", lib_rs, re.DOTALL
+    )
+    assert declaration is not None, "SECRET_NAMES is not declared as expected in lib.rs"
+
+    names = set(re.findall(r'"([^"]+)"', declaration.group(2)))
+
+    assert names == set(SECRET_KEYS)
+    # The declared array length has to match too: Rust would fail to compile
+    # otherwise, but this test runs in CI long before `cargo build` does.
+    assert int(declaration.group(1)) == len(names)

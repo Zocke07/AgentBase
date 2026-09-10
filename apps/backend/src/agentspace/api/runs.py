@@ -20,13 +20,13 @@ from pydantic import BaseModel, Field
 from agentspace.api.stream import SSE_HEADERS, parse_last_event_id, run_stream
 from agentspace.events.store import DEFAULT_RUN_LIST_LIMIT, MAX_RUN_LIST_LIMIT
 from agentspace.events.types import Event, EventType, Run, RunOrigin
-from agentspace.orchestrator import execute_run
 
 if TYPE_CHECKING:
     from collections.abc import Coroutine
 
     from agentspace.events.bus import EventBus
     from agentspace.events.store import EventStore
+    from agentspace.orchestrator.launcher import RunLauncher
 
 __all__ = ["router"]
 
@@ -100,41 +100,31 @@ async def create_run(request: Request, body: CreateRunRequest) -> Run:
     finish. A run takes minutes and the client watches it over SSE — holding
     the request open would make the event stream a second way to learn the same
     thing, and would put a proxy's idle timeout in charge of when a run ends.
+
+    **The work of starting a run is not done here.** Phase 8 gave the chat
+    channels the same job, and assembling `execute_run`'s arguments at three
+    call sites would be the eighth instance of this project's recurring bug: one
+    list duplicated, correct everywhere on the day it was written, silently
+    divergent afterwards. :class:`~agentspace.orchestrator.launcher.RunLauncher`
+    is the single copy.
     """
-    run = await _store(request).create_run(
-        goal=body.goal, origin=body.origin, origin_ref=body.origin_ref
+    return await _launcher(request).launch(
+        body.goal, origin=body.origin, origin_ref=body.origin_ref
     )
 
-    _spawn(request, _drive_run(request, run.id, body.goal))
-    return run
 
-
-async def _drive_run(request: Request, run_id: str, goal: str) -> None:
-    """Hand one run to the orchestrator.
-
-    Every failure path inside `execute_run` writes its own terminal event, so
-    nothing here needs to — and nothing here should, because a second opinion
-    about how a run ended is exactly the drift §2 rules out.
-    """
-    state = request.app.state
-    await execute_run(
-        state.store,
-        state.settings,
-        state.agents,
-        state.ledger,
-        state.secrets,
-        run_id,
-        goal,
-        runtime=state.tool_runtime,
-    )
+def _launcher(request: Request) -> RunLauncher:
+    launcher: RunLauncher = request.app.state.launcher
+    return launcher
 
 
 def _spawn(request: Request, coroutine: Coroutine[Any, Any, None]) -> None:
     """Run a coroutine in the background, keeping a strong reference to it.
 
     `asyncio` holds only a weak reference to a bare task, so without this the
-    loop may garbage-collect a run that is still going. The set is drained by
-    the lifespan handler on shutdown.
+    loop may garbage-collect work that is still going. The set is drained by
+    the lifespan handler on shutdown. Only the debug script uses this now; a
+    real run goes through the launcher, which keeps the same references.
     """
     task = asyncio.create_task(coroutine)
     tasks: set[asyncio.Task[None]] = request.app.state.background_tasks

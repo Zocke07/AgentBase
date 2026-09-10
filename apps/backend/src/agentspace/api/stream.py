@@ -40,6 +40,7 @@ __all__ = [
     "SSE_HEADERS",
     "format_sse",
     "parse_last_event_id",
+    "run_events",
     "run_stream",
 ]
 
@@ -127,7 +128,7 @@ class _RunStream:
         self._last_seq = after_seq
         self._finished = False
 
-    async def _catch_up(self) -> AsyncIterator[str]:
+    async def _catch_up(self) -> AsyncIterator[Event]:
         """Emit everything the database holds beyond the cursor.
 
         The single authoritative path. Every anomaly routes here rather than
@@ -137,7 +138,7 @@ class _RunStream:
             self._last_seq = event.seq
             if event.type in TERMINAL_RUN_EVENTS:
                 self._finished = True
-            yield format_sse(event)
+            yield event
 
     async def _run_is_over(self) -> bool:
         """Whether the run reached a terminal status.
@@ -154,14 +155,20 @@ class _RunStream:
         run = await self._store.get_run(self._run_id)
         return run is not None and run.status in TERMINAL_RUN_STATUSES
 
-    async def stream(self) -> AsyncIterator[str]:
+    async def stream(self) -> AsyncIterator[Event | None]:
+        """Yield this run's events in order; ``None`` is an idle tick.
+
+        The idle tick is what lets a consumer act on a quiet connection without
+        this class knowing what that action is. The SSE renderer turns it into a
+        keepalive comment; the Phase 8 channel adapters ignore it. Neither
+        concern belongs in the cursor logic, which is the part that must stay
+        easy to reason about.
+        """
         # Subscribe first, then read the backlog. The reverse order silently
         # drops anything appended in between.
         with self._bus.subscribe(self._run_id) as subscription:
-            yield f"retry: {RETRY_MILLISECONDS}\n\n"
-
-            async for frame in self._catch_up():
-                yield frame
+            async for backlog in self._catch_up():
+                yield backlog
 
             if self._finished or await self._run_is_over():
                 return
@@ -170,7 +177,7 @@ class _RunStream:
                 event = await subscription.get(KEEPALIVE_SECONDS)
 
                 if event is None and not subscription.stale:
-                    yield ": keepalive\n\n"
+                    yield None
                     continue
 
                 # Anomalous, or simply the next event: in either case the
@@ -178,8 +185,8 @@ class _RunStream:
                 # trusted. `_catch_up` re-reads from the cursor, so an event
                 # already emitted yields nothing and no duplicate is possible.
                 if event is None or subscription.stale or event.seq != self._last_seq + 1:
-                    async for frame in self._catch_up():
-                        yield frame
+                    async for caught in self._catch_up():
+                        yield caught
                     subscription.clear_stale()
                     if not self._finished and await self._run_is_over():
                         return
@@ -187,14 +194,41 @@ class _RunStream:
                     self._last_seq = event.seq
                     if event.type in TERMINAL_RUN_EVENTS:
                         self._finished = True
-                    yield format_sse(event)
+                    yield event
 
                 if self._finished:
                     return
 
 
-def run_stream(
+def run_events(
+    store: EventStore, bus: EventBus, run_id: str, after_seq: int = 0
+) -> AsyncIterator[Event | None]:
+    """This run's events, gap-free and in order, until it ends.
+
+    The same cursor and anomaly handling `GET /runs/{id}/events` uses, one layer
+    below the framing. Phase 8's channel adapters consume this: a chat message
+    is another projection of the log (§2), and it needs exactly the guarantee
+    the dashboard needs — every event, once, in sequence — while needing none of
+    the SSE wire format.
+
+    Growing a second stream implementation for the channels would have meant two
+    answers to "did this consumer miss an event", and the three properties this
+    one is careful about (subscribe before backlog, re-read on any anomaly,
+    consult the run's status as well as its events) are exactly the three a
+    second implementation would get subtly wrong. ``None`` is an idle tick.
+    """
+    return _RunStream(store, bus, run_id, after_seq).stream()
+
+
+async def run_stream(
     store: EventStore, bus: EventBus, run_id: str, after_seq: int
 ) -> AsyncIterator[str]:
-    """Build the SSE body for one client attaching to ``run_id``."""
-    return _RunStream(store, bus, run_id, after_seq).stream()
+    """Build the SSE body for one client attaching to ``run_id``.
+
+    One rendering of :func:`run_events`, and the only place the wire format
+    lives.
+    """
+    yield f"retry: {RETRY_MILLISECONDS}\n\n"
+
+    async for event in run_events(store, bus, run_id, after_seq):
+        yield ": keepalive\n\n" if event is None else format_sse(event)

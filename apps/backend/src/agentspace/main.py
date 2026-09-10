@@ -45,9 +45,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from agentspace.api.agents import router as agents_router
 from agentspace.api.approvals import router as approvals_router
+from agentspace.api.channels import router as channels_router
 from agentspace.api.runs import router as runs_router
 from agentspace.api.settings import router as settings_router
 from agentspace.budget.ledger import BudgetLedger
+from agentspace.channels.service import ChannelDeps, ChannelService
 from agentspace.config import (
     ALLOWED_ORIGINS,
     BIND_HOST,
@@ -58,6 +60,7 @@ from agentspace.config import (
 )
 from agentspace.events.bus import EventBus
 from agentspace.events.store import EventStore
+from agentspace.orchestrator.launcher import RunLauncher
 from agentspace.secrets import SecretStore, parse_secrets_line
 from agentspace.store.agents import AgentDefStore
 from agentspace.store.db import Database
@@ -125,6 +128,20 @@ def create_app(paths: AppPaths | None = None, secrets: SecretStore | None = None
         app.state.sandbox = Sandbox(resolved.workspace_root)
         app.state.tool_runtime = ToolRuntime.build(app.state.sandbox, app.state.approvals)
 
+        # One object knows how to start a run, and every caller uses it — the
+        # HTTP endpoint and both chat channels. See `orchestrator/launcher.py`
+        # for why three copies of `execute_run`'s argument list would have been
+        # the eighth instance of this project's recurring bug.
+        app.state.launcher = RunLauncher(
+            store=app.state.store,
+            settings=app.state.settings,
+            agents=app.state.agents,
+            ledger=app.state.ledger,
+            secrets=secret_store,
+            runtime=app.state.tool_runtime,
+            tasks=app.state.background_tasks,
+        )
+
         # A pending approval's waiter was an `asyncio.Future` in whichever
         # process created it, so nothing survives a restart to answer these.
         # Left alone they would show up in the Phase 7 dialog as live questions
@@ -133,9 +150,26 @@ def create_app(paths: AppPaths | None = None, secrets: SecretStore | None = None
         if orphaned:
             logger.info("expired %d approval(s) left pending by a previous run", orphaned)
 
+        # Started after the approval sweep above, so a channel cannot surface a
+        # question left over from the last process as though it were live.
+        app.state.channels = ChannelService(
+            ChannelDeps(
+                store=app.state.store,
+                bus=app.state.bus,
+                settings=app.state.settings,
+                approvals=app.state.approvals,
+                launcher=app.state.launcher,
+            ),
+            secret_store,
+        )
+        await app.state.channels.start()
+
         try:
             yield
         finally:
+            # Channels first: an adapter torn down after the database is closed
+            # would try to report a run against a handle that is gone.
+            await app.state.channels.aclose()
             for task in tuple(app.state.background_tasks):
                 task.cancel()
             if app.state.background_tasks:
@@ -167,6 +201,7 @@ def create_app(paths: AppPaths | None = None, secrets: SecretStore | None = None
 
     app.include_router(agents_router)
     app.include_router(approvals_router)
+    app.include_router(channels_router)
     app.include_router(runs_router)
     app.include_router(settings_router)
 

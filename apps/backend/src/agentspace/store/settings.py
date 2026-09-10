@@ -15,10 +15,11 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, Final
+from typing import TYPE_CHECKING, Any, Final, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
+from agentspace.channels.identity import ChannelIdentity, IdentityDirectory
 from agentspace.tools.catalogue import RiskLevel
 
 if TYPE_CHECKING:
@@ -26,6 +27,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "DEFAULT_AUTO_APPROVE",
+    "DEFAULT_CHANNEL_APPROVALS",
     "DEFAULT_MAX_AGENTS_PER_RUN",
     "DEFAULT_MAX_RUN_SECONDS",
     "DEFAULT_MAX_STEPS_PER_AGENT",
@@ -71,6 +73,24 @@ DEFAULT_MAX_STEPS_PER_AGENT: Final[int] = 20
 DEFAULT_MAX_AGENTS_PER_RUN: Final[int] = 5
 DEFAULT_MAX_RUN_SECONDS: Final[int] = 600
 
+#: Who may answer the approval gate for a run that came from a chat channel.
+#:
+#: ``dashboard_only`` — the question is *shown* in chat, so a run that has
+#: stopped does not look like a crashed bot, but the answer has to be given at
+#: the machine the tool call would run on. ``originator`` also lets the person
+#: who started the run answer it from the chat client they started it from.
+#:
+#: **The default is the strict one**, matching §5 Phase 6's "Default is
+#: manual-approve-everything" in spirit: an approval is the moment the owner
+#: decides whether something touches their disk, their shell or their network,
+#: and the default should not move that decision onto a phone in a group chat.
+#: Neither value is a privileged path (§1 constraint 5) — both go through
+#: :meth:`~agentspace.tools.approval.ApprovalService.resolve`, which is the same
+#: method `POST /approvals/{id}` calls. The setting decides who is asked, never
+#: whether the gate applies.
+ChannelApprovalPolicy = Literal["dashboard_only", "originator"]
+DEFAULT_CHANNEL_APPROVALS: Final[ChannelApprovalPolicy] = "dashboard_only"
+
 
 class WorkspaceSettings(BaseModel):
     """Everything the user can configure that is not a secret."""
@@ -92,6 +112,40 @@ class WorkspaceSettings(BaseModel):
     max_steps_per_agent: int = Field(default=DEFAULT_MAX_STEPS_PER_AGENT, ge=1)
     max_agents_per_run: int = Field(default=DEFAULT_MAX_AGENTS_PER_RUN, ge=1)
     max_run_seconds: int = Field(default=DEFAULT_MAX_RUN_SECONDS, ge=1)
+
+    # --- channels (§5 Phase 8) ------------------------------------------------
+    #
+    # This is the `settings` table earning the shape it was given in Phase 2.
+    # The note recorded then was that a key/value table with a JSON value means
+    # "Phase 7's settings UI and Phase 8's channel config do not each need a
+    # migration that widens a table", and that is exactly what happens here:
+    # four new settings, one of them a list of objects, and no migration 005.
+
+    #: Both default off. A channel that connected on a fresh install would put
+    #: this workspace on a network the moment a token happened to be present,
+    #: which is the opposite of what §1 constraint 3 is protecting.
+    discord_enabled: bool = False
+    telegram_enabled: bool = False
+
+    #: Who may address this workspace from a chat channel, and as whom. Empty
+    #: means nobody, which is the only safe reading — see
+    #: :mod:`agentspace.channels.identity`.
+    channel_identities: list[ChannelIdentity] = Field(default_factory=list)
+
+    channel_approvals: ChannelApprovalPolicy = DEFAULT_CHANNEL_APPROVALS
+
+    @field_validator("channel_identities")
+    @classmethod
+    def _identities_are_unambiguous(
+        cls, entries: list[ChannelIdentity]
+    ) -> list[ChannelIdentity]:
+        """Refuse a duplicate on write rather than shadowing one on read.
+
+        Whichever entry resolution happened to pick, the other would be a rule
+        the owner wrote and the product ignored — and an allowlist that quietly
+        ignores half of what it was told is the worst kind of security control.
+        """
+        return IdentityDirectory.validated(entries)
 
 
 class SettingsStore:
@@ -136,6 +190,12 @@ class SettingsStore:
         # table would fail on every subsequent read.
         validated = WorkspaceSettings.model_validate(merged.model_dump())
 
+        # `mode="json"` rather than `getattr`: a setting whose value is a model
+        # — `channel_identities` is a list of them — is not JSON-serialisable as
+        # a Python object, and reaching for `getattr` would work for every
+        # scalar setting and fail the first time a structured one was written.
+        dumped = validated.model_dump(mode="json")
+
         now = datetime.now(UTC).isoformat()
         with self._db.write() as connection:
             for key in changes:
@@ -146,7 +206,7 @@ class SettingsStore:
                     "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)"
                     " ON CONFLICT(key) DO UPDATE SET value = excluded.value,"
                     " updated_at = excluded.updated_at",
-                    (key, json.dumps(getattr(validated, key)), now),
+                    (key, json.dumps(dumped[key]), now),
                 )
 
         return validated
