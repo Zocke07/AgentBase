@@ -19,10 +19,13 @@ from typing import TYPE_CHECKING, Any, Final
 
 from pydantic import BaseModel, Field
 
+from agentspace.tools.catalogue import RiskLevel
+
 if TYPE_CHECKING:
     from agentspace.store.db import Database
 
 __all__ = [
+    "DEFAULT_AUTO_APPROVE",
     "DEFAULT_MAX_AGENTS_PER_RUN",
     "DEFAULT_MAX_RUN_SECONDS",
     "DEFAULT_MAX_STEPS_PER_AGENT",
@@ -46,6 +49,20 @@ DEFAULT_MODEL: Final[str] = "claude-opus-5"
 #: Where a local Ollama daemon listens. Loopback, like everything else.
 DEFAULT_OLLAMA_BASE_URL: Final[str] = "http://127.0.0.1:11434"
 
+#: Which risk levels the workspace pre-authorizes, so a tool call at that level
+#: runs without stopping to ask (§5 Phase 6: "A policy setting for unattended
+#: operation: pre-authorize a named risk subset so overnight runs can
+#: progress").
+#:
+#: **Empty by default, because §5 Phase 6 says "Default is
+#: manual-approve-everything".** That is a stronger default than it first looks:
+#: it means a fresh install stops on `read_file`, which is mildly annoying and
+#: is the correct trade for a product whose entire safety story is that nothing
+#: reaches the disk without the user saying so. A default that pre-approved
+#: `low` would be a defensible product decision and a different one from what
+#: the spec asks for, so it is the user's to make, not this module's.
+DEFAULT_AUTO_APPROVE: Final[tuple[RiskLevel, ...]] = ()
+
 #: The Phase 4 run limits (§5: "all configurable"). They live here rather than
 #: as constants in `orchestrator/limits.py` because a limit nobody can change
 #: is not configurable, and the `settings` table already exists — so this is a
@@ -62,6 +79,12 @@ class WorkspaceSettings(BaseModel):
     model: str = DEFAULT_MODEL
     monthly_cap_micros: int = Field(default=DEFAULT_MONTHLY_CAP_MICROS, ge=0)
     ollama_base_url: str = DEFAULT_OLLAMA_BASE_URL
+
+    #: The workspace approval policy. An agent definition's own `auto_approve`
+    #: is intersected with this and can only narrow it — see
+    #: :func:`agentspace.tools.catalogue.effective_auto_approve` and §5 Phase 5's
+    #: security note. Widening is the operation that does not exist.
+    auto_approve: list[RiskLevel] = Field(default_factory=lambda: list(DEFAULT_AUTO_APPROVE))
 
     # Run limits. `ge=1` on each: a limit of zero is not a stricter setting,
     # it is a run that cannot do anything, and it would fail in a way that

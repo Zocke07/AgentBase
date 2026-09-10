@@ -104,13 +104,18 @@ def test_migration_creates_the_agent_registry(db: Database) -> None:
     assert "agent_defs" in _table_names(db)
 
 
-def test_later_phase_tables_are_not_created_yet(db: Database) -> None:
-    """BUILD_SPEC §5: do not build ahead.
+def test_every_table_the_data_model_specifies_now_exists(db: Database) -> None:
+    """BUILD_SPEC §4's five tables, all present as of migration 004.
 
-    `approvals` is specified in §4 but belongs to Phase 6, and arrives as
-    migration 004. Every other §4 table now exists.
+    This test previously asserted the opposite for `approvals` — that it did
+    *not* exist, because §5 says not to build ahead and the table belonged to
+    Phase 6's approval gate. Phase 6 is what changed it, and it is kept as a
+    completeness check rather than deleted: §4 is a contract, and a migration
+    that quietly dropped one of its tables should fail something.
     """
-    assert "approvals" not in _table_names(db)
+    tables = _table_names(db)
+
+    assert {"runs", "events", "spend", "agent_defs", "approvals"} <= tables
 
 
 def test_schema_version_is_recorded(db: Database) -> None:
