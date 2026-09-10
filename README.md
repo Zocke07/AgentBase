@@ -6,10 +6,13 @@ and you watch them work in real time on a live graph.
 Everything runs on your machine — orchestration, tool execution, and state.
 The only traffic that leaves it is model inference.
 
-**Status: Phase 1 of 10 (packaging spike).** It installs and runs, but does
-nothing yet — the agent orchestrator is Phase 4 and the live graph is Phase 7.
-See [BUILD_SPEC.md](BUILD_SPEC.md) for the full design and phase plan, and
-[CLAUDE.md](CLAUDE.md) for current progress.
+**Status: Phase 9 of 10 (CI and release).** The application works end to end:
+agents are rows you edit, a supervisor delegates to them, every filesystem,
+shell and network call stops at an approval gate, and the whole run is watchable
+live on a graph — from the dashboard or from Discord and Telegram. What remains
+is Phase 10's portfolio pass. See [BUILD_SPEC.md](BUILD_SPEC.md) for the full
+design and phase plan, and [CLAUDE.md](CLAUDE.md) for what each phase actually
+verified.
 
 ## Development
 
@@ -35,14 +38,46 @@ or `just clean` to remove every git-ignored file.
 
 ```
 just build-sidecar     # freeze the FastAPI sidecar with PyInstaller
-just build-installer   # rebuild the sidecar, then bundle with NSIS
-just test              # includes verifying the installer's contents
+just build-installer   # rebuild the sidecar, then bundle it
+just verify-build      # check the built artefacts, refusing to skip
 ```
 
 The installer lands in
 `apps/desktop/src-tauri/target/release/bundle/nsis/`. It installs per-user, so
 it needs no administrator rights, and it embeds the WebView2 bootstrapper so it
 works on machines that lack the runtime.
+
+Run `just verify-build` *after* a build, never before: it launches the frozen
+binary, unpacks the produced installer and compares the sidecar inside it
+against the one just built. Those checks skip when nothing is built — which is
+right for `just test` and wrong for a release, so this recipe passes
+`--require-build-checks` and a missing artefact fails instead of skipping.
+
+## Installing
+
+Download `AgentSpace_<version>_x64-setup.exe` from the
+[latest release](../../releases/latest), or from the artefacts of any green
+[build run](../../actions/workflows/build.yml).
+
+**The build is unsigned, so Windows will warn you once.** SmartScreen shows
+*"Windows protected your PC"* — click **More info**, then **Run anyway**. That is
+the whole of it: there is no terminal command to run and no setting to change,
+and it does not reappear after the first time. Signing the installer with an EV
+certificate would remove the prompt; it costs real money and buys nothing else,
+so it is deliberately skipped.
+
+The installer needs no administrator rights and installs for the current user
+only. Your data — the event log, agent definitions and the agent workspace —
+lives in `%LOCALAPPDATA%\dev.agentspace.desktop`, outside the installation, so
+upgrading or uninstalling the app does not touch it.
+
+## CI
+
+[`.github/workflows/build.yml`](.github/workflows/build.yml) runs the test job
+before the build job and gates it: lint, typecheck and both test suites must
+pass on Windows *and* macOS before any installer is bundled. macOS is built and
+deliberately not published — it exists to catch cross-platform breakage
+continuously, so an eventual Mac release is a flag flip rather than a port.
 
 A proper README — screenshot, one-command demo, architecture diagram — is
 Phase 10.

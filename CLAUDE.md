@@ -60,6 +60,16 @@ received **52 of 52** events over the same SSE endpoint, two `write_file` calls
 stopped at the approval gate and were answered by pressing **Allow** in Discord,
 and `reminder.txt` appeared on disk with exactly the 16 bytes the prompt named.
 
+**Phase 9 — CI and release.** Written and locally verified; **the acceptance
+criterion is not met and cannot be met from this machine.** §5 Phase 9 asks for
+"a green CI run [that] produces a downloadable installer that runs on a second
+Windows machine with no Python installed", and both halves are out of reach
+here: this repository has **no git remote**, `gh` is not installed, and there is
+one machine. What exists is the workflow, a gate that is asserted rather than
+reviewed, and a real installer built, installed over an existing install, and
+run. See "What Phase 9 established" below for what was executed, and
+"Not verified" for what was not.
+
 ### What the first real API call showed
 
 **The provider shapes were right.** Phase 3 predicted "at least one shape bug"
@@ -1046,23 +1056,172 @@ records for this model, now visible from a phone.
 **52 events became a handful of message edits**, which is the one-message-per-run
 design doing its job — the throttle never had to be clever.
 
-Next up: **Phase 9 — CI and release.** Do not start it before re-reading
-BUILD_SPEC §5 Phase 9. Three things bear on it directly:
+Next up: **Phase 10 — Portfolio artifacts.** Do not start it before re-reading
+BUILD_SPEC §5 Phase 10. Two things bear on it directly:
 
-- The sidecar and the NSIS installer have both been rebuilt with `discord.py`
-  and `python-telegram-bot` in them, and the frozen binary was confirmed to load
-  both out of the bundle and reach their real APIs. So the freeze risk this
-  phase created is closed; what is left for Phase 9 is *installing* the result
-  on a second machine, which is its acceptance criterion. No installed app has
-  upgraded across migrations 002-004.
-- §5 Phase 9 requires the test job to gate the build job. `just ci` is that
-  command and it is green: **618 backend, 124 frontend**. Note that two of those
-  618 — the installer guards — only assert anything when a build exists, and
-  they caught a real staleness the moment the sidecar was rebuilt without the
-  installer. A CI job that builds must therefore run them *after* the build, not
-  before.
-- The macOS build has still never run, and `channels/` is the first code in this
-  project with a platform-shaped dependency tree.
+- Phase 9's acceptance criterion is still open, and it is not something Phase 10
+  can quietly absorb: no CI run has ever executed, because there is no remote to
+  push to. Creating and pushing to a public GitHub repository is the owner's
+  decision, and it is the *only* remaining step — the workflow, the gate and the
+  artefact are all in place and locally verified.
+- `just test-backend-cov` now works. `pytest-cov` was never a declared
+  dependency until this phase, which is exactly what §5 Phase 10's "coverage
+  visible, not just present" needs.
+
+### What Phase 9 established, and how it was verified
+
+**The gate is a structure, not an intention.** §5 Phase 9's central requirement
+is an ordering — "a red test blocks the build job entirely" — and it lives in one
+line of YAML. Deleting `needs: test` breaks nothing observable: the workflow
+still parses, both jobs still run, every tick is still green, and installers
+start being cut from code no test has looked at. So `test_ci_workflow.py` parses
+the workflow and asserts it, and three mutations confirm the assertions bite —
+removing `needs: test`, swapping `verify-build` before `build-installer`, and
+dropping macOS from the build matrix each fail exactly one test.
+
+The first attempt at the first of those mutations failed with a bare `KeyError`
+from `_job("build")["needs"]`. That still fails the build, so it would have been
+easy to leave — but the sentence a maintainer reads is the whole value of the
+test, so the lookup is a `.get` now and the mutation produces the explanation
+rather than a traceback.
+
+**The second ordering fails far more quietly than the first, and it is a shape
+this project has met before.** `just verify-build` can only say anything once a
+bundle exists: it launches the frozen binary and compares the sidecar *inside*
+the produced installer against the freshly built one by SHA-256. Run before the
+build it has nothing to inspect — and the underlying tests are written to skip
+when nothing is built, so moving that step earlier converts a real check into a
+green no-op. Two of those guards fired for real in Phase 8 the moment the sidecar
+was rebuilt without the installer, so this is not hypothetical.
+
+**Hence `--require-build-checks`.** The release path passes it, and a missing
+sidecar, a missing installer or a missing 7-Zip becomes a failure naming what was
+absent instead of a skip nobody reads. Measured both ways: with the artefacts
+moved aside, 16 tests skip without the flag and 16 fail with it; with them
+present, 16 pass and genuinely execute — unpacking the installer and launching
+the binary. The platform skip stays an ordinary skip, because the macOS job has
+no NSIS installer to look inside and demanding one would fail that job for being
+macOS.
+
+**A hardcoded bundle target would have been a hard error on macOS, not a
+warning.** `tauri.conf.json` had `"targets": ["nsis"]`, and `tauri build
+--bundles` validates against a *per-platform* list of possible values — on
+Windows it prints `[possible values: msi, nsis]`. So the macOS job could never
+have produced anything. The targets now come from the justfile beside the other
+platform facts (`target_triple`, `exe_suffix`, `data_sep`): `nsis` on Windows,
+`app` on macOS. `"targets": "all"` was the tempting one-word fix and is wrong —
+it additionally builds an MSI on Windows, which is a per-machine installer and
+contradicts the per-user NSIS install Phase 1 settled on and verified.
+
+macOS gets `app` and deliberately not `dmg`. §5 Phase 9 builds macOS to catch
+cross-platform breakage and explicitly does not publish it, and everything that
+can break in *this* repository's code — the PyInstaller freeze, the Rust compile,
+`externalBin` resolution — has already happened by the time the `.app` exists. A
+dmg is `hdiutil` re-packaging an app that already built, so it adds a CI-flaky
+step that can only fail for reasons unrelated to this code, and a red CI nobody
+trusts is worse than one fewer artefact.
+
+**A real installer was built, installed over an existing install, and run.**
+`just build-installer` produced `AgentSpace_0.1.0_x64-setup.exe` (27.3 MB) with
+the new `--bundles nsis` flag, `just verify-build` passed all 16 guards against
+it, and a silent `/S` reinstall replaced the Phase 1-era install. The sidecar in
+`%LOCALAPPDATA%\AgentSpace` went from 17.5 MB to 23.9 MB and its SHA-256 matches
+the freshly built binary exactly — so the staleness trap §5 Phase 1 warns about
+is now checked on the *installed* file, not only inside the installer.
+
+**The installed app opened a pre-existing database rather than a fresh one.**
+This is the reachable half of "no installed app has upgraded across migrations
+002-004". The data directory already stood at `user_version: 4` — it was never a
+v1 database, because a sidecar run without `AGENTSPACE_DATA_DIR` writes there —
+so a 1→4 upgrade could not be staged from it. What was verified instead is the
+release-critical case: an upgraded application opening real user data. The log
+line reads `database ready at ...\dev.agentspace.desktop\agentspace.sqlite3
+(schema v4)`, `GET /runs` returned all **15** runs, and afterwards the file still
+held 15 runs, 544 events, 18 spend rows and `integrity_check: ok`. The migration
+chain itself, 1 through 4 on a populated database, is covered by
+`test_upgrade_preserves_an_existing_populated_database`, and the frozen binary
+applying all four out of its bundled `*.sql` by
+`test_frozen_sidecar_creates_its_database`. Both are green.
+
+**The keychain-to-stdin half is no longer untested.** This was the oldest open
+item in this file, carried from Phase 3 through Phase 8: `send_secrets` compiled
+and was wired into spawn, and nothing had ever stored a key in the Windows
+Credential Manager and watched it arrive.
+
+A dummy value was written to the Credential Manager under the exact target name
+the `keyring` crate builds — `{user}.{service}`, read out of the vendored
+`keyring-3.6.3/src/windows.rs` rather than guessed — and the installed app was
+relaunched with its stderr captured:
+
+```
+[keychain] sending 1 key(s): ["anthropic_api_key"]
+[sidecar] INFO agentspace.secrets: received 1 secret(s): anthropic_api_key
+```
+
+and `GET /settings` reported `configured_secrets: ["anthropic_api_key"]`. So the
+Rust shell read the OS keychain, wrote the value to the sidecar's stdin, and the
+sidecar received it — inside the packaged app, which is the one configuration no
+test can reach. §1 constraint 4's other half was then checked by looking: the
+value appears nowhere in `agentspace.sqlite3`, its `-wal`/`-shm`, the logs
+directory, or the captured stdout and stderr, in either UTF-8 or the UTF-16 form
+Windows stores it as. The probe credential was deleted afterwards.
+
+**Closing the app still leaves zero processes**, on a build that now carries two
+websocket-shaped libraries. Phase 1's acceptance criterion re-verified on the
+shipped artefact: closed by window close, zero surviving `agentspace-*`
+processes, port 8787 released.
+
+**`ruff format --check` joined the gate, and immediately found ten drifted
+files.** Phase 4 recorded that a helper script had converted six LF files to
+CRLF, that `ruff check`, `mypy` and `pytest` all stayed green, and that "the one
+check that catches this is the one the gate does not run". Phase 9 owns what the
+gate runs, so `lint` now depends on `lint-backend-format`. Ten files were already
+unformatted when it was added — five under `src/agentspace/channels/` plus
+`api/settings.py`, and four of their test modules, which is all of Phase 8's
+work, never formatted because nothing ran the check. 142 lines, purely
+mechanical. `line-ending = "lf"` was already pinned in `pyproject.toml`, so
+reformatting could not reintroduce the CRLF problem, and the files were inspected
+afterwards to confirm it had not.
+
+**The workflow runs `just` recipes, not its own commands.** A workflow that
+inlines `pytest` and `npm test` is a second build system that drifts from the
+justfile the moment either grows a step, and
+`test_the_test_job_runs_the_whole_gate` asserts the test job is exactly
+`just ci`. For the same reason the shared setup steps live in a composite action
+at `.github/actions/toolchain` rather than being copied into both jobs: this
+repository has been bitten repeatedly by two lists that were supposed to agree
+and did not.
+
+**The Rust target directory is deliberately not cached.** Caching `.dev/cache` is
+caching downloads and is safe. Restoring `apps/desktop/src-tauri/target` across
+runs is how a stale `externalBin` gets bundled — the precise trap §5 Phase 1
+flags and that `verify-build` exists to catch — so a cache that can reintroduce
+the bug the guards are there to find is a bad trade for build minutes on a public
+repository, where they are free.
+
+**One macOS risk was investigated and is not a risk.** `tauri-plugin-keyring` is
+a 0.1.0 single-author crate wrapping `keyring` 3.6, and the obvious way for the
+first macOS build to fail is a keychain backend enabled only for Windows. It
+enables `apple-native` alongside `windows-native` and `sync-secret-service`, so
+macOS has a real backend. Read from the vendored `Cargo.toml`, not assumed.
+
+### The bug the phase found
+
+**`just test-backend-cov` could not run, and never could have.** The recipe has
+always named `--cov=agentspace`, and `pytest-cov` was never a declared
+dependency — so the one recipe nothing in the gate exercises was broken from the
+day it was written. Nobody noticed because nothing runs it: `just test` calls
+`test-backend`, not `test-backend-cov`.
+
+That is the **ninth** instance of this project's recurring shape, after Phase 1's
+CORS, Phase 2's named SSE events, Phase 3's `*.sql` glob, Phase 4's silently
+dropped settings fields, Phase 5's `max_steps` default, Phase 6's unsettable
+`auto_approve`, Phase 7's `qualified_model` and Phase 8's `discord_enabled`. It
+is the mildest of the nine — a dev recipe, not a shipped path — and it is the
+same lesson: a thing that is never executed is a thing that does not work, and
+the gate is the only place that reliably executes anything. §5 Phase 10 wants the
+coverage number in the README, which is precisely when this would have been
+discovered the hard way.
 
 ### What Phase 3 established, and how it was verified
 
@@ -1237,12 +1396,45 @@ wildcard would let any page the user has open read from their agent workspace.
   minimal environment and no Python on `PATH` and served correctly, but this
   machine has Python. Genuine proof needs a second machine, which is Phase 9's
   acceptance criterion.
-- **macOS.** Nothing has run there. CI is Phase 9.
-- **Reinstall-over-existing at scale.** Three `/S` reinstalls over an existing
-  install have now worked, each with a rebuilt sidecar. Still nothing like the
-  number of upgrade cycles a released app sees, and no reinstall has yet
-  happened across a *schema migration* — the case that matters once migration
-  002 exists.
+- **macOS.** Nothing has run there. Phase 9 wrote the CI job that would, and it
+  has never executed, because there is no remote to push to.
+- **Reinstall-over-existing at scale.** Four `/S` reinstalls over an existing
+  install have now worked, each with a rebuilt sidecar, and the fourth (Phase 9)
+  was the first across a *schema migration* — it replaced a Phase 1-era sidecar
+  that knew only migration 001 with one that knows four, over a populated data
+  directory, and the data survived. Still nothing like the number of upgrade
+  cycles a released app sees.
+
+Phase 9 specifically:
+
+- **No CI run has ever executed.** This is the phase's acceptance criterion and
+  it is not met. The repository has no git remote, `gh` is not installed, and
+  creating a public GitHub repository and pushing to it is the owner's decision,
+  not something to be done on their behalf. Everything downstream of that is
+  therefore unverified *as CI*: whether `extractions/setup-just@v2`,
+  `astral-sh/setup-uv@v5`, `actions/setup-node@v4` and
+  `dtolnay/rust-toolchain@stable` resolve, whether the composite action is found
+  at `./.github/actions/toolchain`, whether the cache key behaves, and whether
+  the `release` job's `gh release create` works. The YAML parses and the job
+  graph is asserted by `test_ci_workflow.py`; that is a different claim.
+- **The second Windows machine has still never happened**, so the other half of
+  the criterion — "runs on a second Windows machine with no Python installed" —
+  is untouched. What Phase 9 did was install on *this* machine, which has Python.
+- **macOS has still never run anything.** Every macOS-shaped decision this phase
+  made is reasoning, not observation: that `--bundles app` is the right target,
+  that `just ci` passes there, that the frozen sidecar's POSIX branches
+  (`/usr/bin/pgrep`, `start_new_session`, the process-group kill) behave, and that
+  `channels/` — the first platform-shaped dependency tree in this project —
+  freezes at all. `tauri-plugin-keyring` enabling `apple-native` was checked in
+  its `Cargo.toml`; it was not compiled.
+- **The `release` job has never fired.** No tag has been pushed, so
+  `gh release create`, the artefact hand-off from the Windows build job, and the
+  `contents: write` permission are all untested. The path is short and it is
+  still a path nothing has walked.
+- **The workflow was never linted by a workflow linter.** `actionlint` is a Go
+  binary and is not in this toolchain, so the checks are: PyYAML parses both
+  files, the job graph is asserted, and the commands each job runs were executed
+  by hand locally. An input name that GitHub rejects would not have been caught.
 
 Phase 2 specifically:
 
@@ -1281,18 +1473,15 @@ Phase 3 specifically:
 - **Ollama has never been run.** No daemon was started. The provider exists to
   keep the abstraction free of cloud assumptions (§7), and it does that whether
   or not it works — but "it works" is not claimed.
-- **The Rust keychain path is compiled, not exercised.** `cargo check` passes
-  and `send_secrets` is wired into spawn, but nothing has stored a key in the
-  Windows Credential Manager and watched it arrive. The *sidecar* half of the
-  handshake was verified end to end by hand — a real secrets line on stdin, keys
-  reported as configured by `/settings`, values absent from the log, the process
-  and the database — so what remains untested is specifically
-  keychain-read → stdin-write inside the packaged app. This is the gap the
-  no-UI scope decision created, and it is exactly the class of thing Phases 1
-  and 2 both got wrong from a terminal. **Phase 4 strengthened the sidecar half
-  further** — a real Anthropic key travelled the handshake and drove a real run,
-  after which no key material was present in the database, its `-wal`/`-shm`, or
-  the process output — but the keychain read itself is still the untested step.
+- ~~**The Rust keychain path is compiled, not exercised.**~~ **Closed in
+  Phase 9**, five phases after it was first recorded. A dummy value was stored in
+  the Windows Credential Manager under the target name the `keyring` crate
+  actually builds, and the *installed* app was launched: the Rust shell logged
+  `[keychain] sending 1 key(s)`, the sidecar logged `received 1 secret(s)`, and
+  `/settings` reported the name. The value appears nowhere in the database, its
+  `-wal`/`-shm`, the logs or the captured process output, in either UTF-8 or
+  UTF-16. What is still untrue of macOS: `apple-native` is enabled in the plugin,
+  but nothing has run there.
 - ~~**The budget refusal has no HTTP path yet.**~~ **Closed in Phase 4.**
   `POST /runs` drives the orchestrator, so a run over the cap now fails with
   `budget.exceeded` in its own event log. It was enforced at the
@@ -1366,12 +1555,11 @@ Phase 8 specifically:
   What this does **not** cover is *installing* it. No installed app has been
   launched since Phase 1, and none has upgraded across migrations 002-004 —
   which is the case that matters, and is Phase 9's acceptance criterion.
-- **The keychain-to-stdin half is still the untested step**, one phase later and
-  now carrying two more credential names. The live run used the same
-  stand-in-for-Tauri handshake Phases 3-6 used: a real token on a real stdin
-  pipe, reported by `GET /channels` as `configured: true`, absent from the
-  database and the log. What no test and no run has done is read it out of the
-  Windows Credential Manager through `tauri-plugin-keyring`.
+- ~~**The keychain-to-stdin half is still the untested step.**~~ **Closed in
+  Phase 9** — see the Phase 3 entry above. What that probe used was
+  `anthropic_api_key`; the two bot tokens travel the identical loop over the same
+  `SECRET_NAMES` array, so nothing about them is special, but neither was
+  actually placed in the Credential Manager and read back.
 - **No run has been watched from a channel and a browser at the same time.**
   The live run was watched from Discord and from an HTTP client consuming the
   same SSE endpoint the browser consumes — which is the acceptance criterion and
@@ -1457,11 +1645,14 @@ Phase 6 specifically:
   button and the dashboard can now answer the same approval, and the button
   handler is written to render the 409 as "Already answered elsewhere" — but
   both live approvals were answered from Discord alone, so nothing has raced.
-- **Nothing has been packaged since migration 004 existed.** Same standing gap
-  as Phase 5's, now one migration longer, and the seeded-built-in widening in
-  004 makes it slightly more interesting: no real installation has upgraded
-  across it. The glob still carries every `*.sql` and the test still passes.
-  Phase 9's acceptance criterion is the real check.
+- ~~**Nothing has been packaged since migration 004 existed.**~~ **Closed in
+  Phase 9.** An installer was built, installed over the existing install, and
+  launched, and it opened the pre-existing data directory at `schema v4` with all
+  15 runs and 544 events intact (`integrity_check: ok`). What that did *not*
+  exercise is a v1 database being upgraded by an installed app: the data
+  directory was already at v4, so the 1→4 chain is covered by
+  `test_upgrade_preserves_an_existing_populated_database` and by the frozen
+  binary creating a database from scratch, not by a real upgrade in place.
 - **The sandbox has only ever been rooted at a temp directory or the dev data
   directory.** `AppPaths.workspace_root` resolves under the OS app-data
   directory in the shipped app and a test asserts that, but no *installed* build
@@ -1709,6 +1900,14 @@ inline in the HTTP handler, which was right while there was one caller; three
 copies of that list would have been the eighth instance of this project's
 recurring bug, and this file exists specifically so it cannot be.
 
+Phase 9 added `.github/`, which §3 sketches as a single
+`.github/workflows/build.yml` and which is two files. The second,
+`.github/actions/toolchain/action.yml`, is the setup both jobs need — GitHub
+Actions has no YAML anchors, so the alternative is the same steps copied twice,
+and this repository has been bitten repeatedly by two lists that had to agree and
+did not. `tests/test_ci_workflow.py` parses both and asserts the orderings that
+matter, because `needs: test` is one line whose deletion breaks nothing visible.
+
 `tests/support.py` holds the scripted provider doubles and the event-log
 reducer. Phase 4 kept them in `test_orchestrator.py`; three test modules now
 drive runs, and two copies of a reducer is two answers to "what does the log
@@ -1717,6 +1916,44 @@ say".
 ## Decisions made mid-build
 
 Recorded here as they happen, so a later session does not re-litigate them.
+
+- **2026-09-11 — CI runs `just` recipes, never its own commands.** The test job
+  is exactly `just ci` and the build job is `just build-installer` then
+  `just verify-build`. A workflow that inlines `pytest` and `npm test` is a
+  second build system, and it drifts from the justfile the moment either grows a
+  step. `test_the_test_job_runs_the_whole_gate` asserts it, and the shared setup
+  steps live in a composite action at `.github/actions/toolchain` so the two jobs
+  cannot disagree about the toolchain.
+- **2026-09-11 — `ruff format --check` is part of `just check`.** Phase 4's
+  CRLF incident was invisible to `ruff check`, `mypy` and `pytest`, and its own
+  note ends "the one check that catches this is the one the gate does not run".
+  Phase 9 owns what the gate runs. Adding it found ten already-drifted files, all
+  of them Phase 8's, which is the argument in miniature.
+- **2026-09-11 — the bundle target is a justfile variable, not a
+  `tauri.conf.json` list.** `tauri build --bundles` validates against a
+  *per-platform* set of possible values, so the committed `["nsis"]` could never
+  have produced a macOS bundle. `"targets": "all"` is the wrong fix: it also
+  builds an MSI on Windows, which is per-machine and contradicts the per-user
+  NSIS install Phase 1 verified. macOS builds `app` and not `dmg` — a dmg is
+  `hdiutil` re-packaging an app that already built, so it can only fail for
+  reasons unrelated to this repository, and a flaky red CI is worse than one
+  fewer artefact nobody publishes.
+- **2026-09-11 — `--require-build-checks` turns a skip into a failure on the
+  release path.** The frozen-sidecar and installer guards skip when nothing is
+  built, which is right for `just test` and wrong for a release: a job that
+  builds an installer and then skips the staleness check reports the same green
+  tick as one that verified it. The platform skip stays a skip, because the macOS
+  job has no NSIS installer to inspect.
+- **2026-09-11 — the Rust `target/` directory is deliberately not cached in
+  CI.** Package caches are downloads and are safe to restore. A restored
+  `target/` is how a stale `externalBin` gets bundled — the exact trap §5 Phase 1
+  flags and `verify-build` exists to catch — so it is not worth build minutes
+  that are free on a public repository.
+- **2026-09-11 — every green run uploads a downloadable installer; only a `v*`
+  tag creates a release.** §5 Phase 9 says publish the Windows artefact, and the
+  acceptance criterion says a green run produces a downloadable installer. An
+  artefact on every run satisfies the second; a release on a tag is the first,
+  kept deliberate rather than firing on every push to main.
 
 - **2026-09-11 — the channel adapters run in-process, supervised, not in their
   own OS process.** §5 Phase 8 says Discord runs in its "own process", and this
