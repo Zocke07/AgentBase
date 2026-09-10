@@ -1,0 +1,51 @@
+# The toolchain both CI jobs need, in one place.
+#
+# GitHub Actions has no YAML anchors, so the alternative is the same six steps
+# copied into `test` and `build`. This repository has been bitten four times by
+# two lists that were supposed to stay identical and did not — Phase 6's
+# settings models, Phase 8's `SECRET_NAMES`, and twice more besides — so the
+# shared half is factored out rather than duplicated and hoped over.
+name: Toolchain
+description: Install just, uv and Node, and restore this repository's redirected package caches.
+
+runs:
+  using: composite
+  steps:
+    # Every dev task in this repository goes through `just` (§5 Phase 0), so CI
+    # runs the same recipes a developer does rather than reimplementing them in
+    # YAML. A workflow that inlines its own build commands is a second build
+    # system that drifts from the first.
+    - name: Install just
+      uses: extractions/setup-just@v2
+      with:
+        github-token: ${{ github.token }}
+
+    # No `actions/setup-python`: `apps/backend/pyproject.toml` pins
+    # `requires-python = "==3.12.*"` and uv fetches the interpreter itself, which
+    # is exactly what the README tells a human to rely on.
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+
+    - name: Install Node
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: .nvmrc
+
+    # The justfile redirects the cargo, uv, npm and PyInstaller caches into
+    # `.dev/cache` (see `just paths`), so that is the directory worth caching —
+    # each tool's own default location is empty here by construction, which is
+    # why `setup-uv`'s and `setup-node`'s built-in caching is deliberately not
+    # used: it would cache directories these recipes never write to.
+    #
+    # Deliberately NOT cached: `apps/desktop/src-tauri/target`. Restoring a Rust
+    # target directory across runs is how a stale `externalBin` gets bundled —
+    # the precise trap §5 Phase 1 flags and that `just verify-build` exists to
+    # catch. A cache that can reintroduce the bug the guards are there to find is
+    # a bad trade for build minutes on a public repository, where they are free.
+    - name: Restore the redirected package caches
+      uses: actions/cache@v4
+      with:
+        path: .dev/cache
+        key: dev-cache-${{ runner.os }}-${{ hashFiles('apps/backend/uv.lock', 'apps/desktop/package-lock.json', 'apps/desktop/src-tauri/Cargo.lock') }}
+        restore-keys: |
+          dev-cache-${{ runner.os }}-
