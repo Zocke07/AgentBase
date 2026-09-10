@@ -1049,13 +1049,18 @@ design doing its job — the throttle never had to be clever.
 Next up: **Phase 9 — CI and release.** Do not start it before re-reading
 BUILD_SPEC §5 Phase 9. Three things bear on it directly:
 
-- Nothing has been packaged since **migration 004**, and the sidecar now carries
-  `discord.py` and `python-telegram-bot`. Both are large trees with their own
-  hidden-import behaviour at freeze time, and `discord.py` imports `audioop`,
-  which is removed in Python 3.13 — irrelevant on the pinned 3.12 and worth
-  knowing. The frozen binary has not been rebuilt since they were added.
+- The sidecar and the NSIS installer have both been rebuilt with `discord.py`
+  and `python-telegram-bot` in them, and the frozen binary was confirmed to load
+  both out of the bundle and reach their real APIs. So the freeze risk this
+  phase created is closed; what is left for Phase 9 is *installing* the result
+  on a second machine, which is its acceptance criterion. No installed app has
+  upgraded across migrations 002-004.
 - §5 Phase 9 requires the test job to gate the build job. `just ci` is that
-  command and it is green: **618 backend, 124 frontend**.
+  command and it is green: **618 backend, 124 frontend**. Note that two of those
+  618 — the installer guards — only assert anything when a build exists, and
+  they caught a real staleness the moment the sidecar was rebuilt without the
+  installer. A CI job that builds must therefore run them *after* the build, not
+  before.
 - The macOS build has still never run, and `channels/` is the first code in this
   project with a platform-shaped dependency tree.
 
@@ -1306,15 +1311,16 @@ Phase 3 specifically:
 
 Phase 8 specifically:
 
-- **Telegram has never connected.** The adapter is written, typechecked and unit
-  tested, and no `python-telegram-bot` `Application` has ever polled a real
-  endpoint. This is the deliberate scope of the live verification — Discord was
-  the one with a token — and it is exactly the state Phase 3's Ollama
-  implementation was in before it turned out to work first try. What that
-  precedent does *not* license is assuming this one will: the long-polling
-  lifecycle here is hand-assembled from `initialize`/`start`/`start_polling`
-  rather than `run_polling`, precisely because the latter owns the event loop,
-  and that assembly has never run.
+- **Telegram has never held a session, but its transport has now run.** No bot
+  token exists for it, so nothing has polled an update or answered a message.
+  What *has* happened, in the frozen-binary check below, is the hand-assembled
+  `initialize`/`start`/`start_polling` lifecycle executing for real and reaching
+  `POST https://api.telegram.org/bot.../getMe`, which returned 401 and surfaced
+  as `InvalidToken` in `GET /channels`. That assembly exists because
+  `run_polling` owns the event loop and this sidecar's belongs to uvicorn, and
+  it was the part most likely to be silently wrong. It is not. What remains
+  untested is everything after a successful `getMe`: the poller delivering an
+  update, privacy mode's effect on group messages, and the reply path.
 - **No approval has been answered from Telegram**, and `_OWNERS` — the in-memory
   map deciding who may press an inline-keyboard button — has never been read in
   anger. Its Discord counterpart has.
@@ -1323,11 +1329,43 @@ Phase 8 specifically:
   people using the bot at once, or the mention trigger — the live run used the
   slash command both times. `_on_mention` is covered by nothing but its own
   reading.
-- **Nothing has been packaged since `discord.py` and `python-telegram-bot` were
-  added**, and they are the two largest dependencies in the tree. PyInstaller
-  hidden imports are exactly where Phase 3 predicted an SDK would cost, and the
-  frozen binary has not been rebuilt. `discord.py` also imports `audioop`, which
-  Python 3.13 removes; the pin is 3.12, so this is a note rather than a problem.
+- ~~**Nothing has been packaged since `discord.py` and `python-telegram-bot`
+  were added.**~~ **Checked, and it works.** The two largest dependencies in the
+  tree are also the two the adapters import *lazily*, inside a factory, so that
+  a library which failed to freeze degrades to one channel being unavailable
+  rather than a sidecar that will not start. That is the right behaviour and it
+  is also a place a missing module could hide indefinitely — the process starts,
+  the channel reports itself disabled, and nobody is any the wiser.
+
+  So the frozen binary was launched with no Python on `PATH`, handed deliberately
+  invalid tokens over the stdin handshake, and asked to enable both channels.
+  Both libraries loaded out of the bundle and reached their real APIs:
+  `LoginFailure: Improper token has been passed` from Discord and
+  `InvalidToken: ... rejected by the server` from Telegram, the latter after an
+  actual `POST api.telegram.org/getMe` returning 401. A `ModuleNotFoundError`
+  would have been the other outcome and is what this was looking for.
+
+  Two things came free. The supervisor's backoff, failure counting and
+  give-up-after-five behaved against genuine repeated failures rather than a
+  fake adapter. And the binary still shuts down cleanly on stdin EOF, which is
+  Phase 1's protocol, now with two websocket-shaped libraries inside it.
+  `discord.py` imports `audioop`, which Python 3.13 removes; the pin is 3.12, so
+  that is a note rather than a problem. The sidecar is 23.9 MB.
+
+  **The installer was then rebuilt too, and that was not optional.** Rebuilding
+  the sidecar alone made `test_installer_carries_the_freshly_built_sidecar` and
+  `test_staged_sidecar_matches_the_build` fail — Phase 1's staleness guards
+  firing exactly as designed, because `binaries/` now held a binary the last
+  installer did not. `just build-installer` produced
+  `AgentSpace_0.1.0_x64-setup.exe` with `discord.py` and
+  `python-telegram-bot` inside it, and both guards then passed: the sidecar
+  unpacked out of the NSIS installer with 7-Zip matches the freshly built one by
+  SHA-256. The Rust shell also still compiles with the two extra
+  `SECRET_NAMES`.
+
+  What this does **not** cover is *installing* it. No installed app has been
+  launched since Phase 1, and none has upgraded across migrations 002-004 —
+  which is the case that matters, and is Phase 9's acceptance criterion.
 - **The keychain-to-stdin half is still the untested step**, one phase later and
   now carrying two more credential names. The live run used the same
   stand-in-for-Tauri handshake Phases 3-6 used: a real token on a real stdin
