@@ -108,6 +108,37 @@ more useful statement than §7's "untested". Nothing here suggests an
 orchestrator defect — every limit and every event behaved correctly around a
 model that would not converge.
 
+### Which local model actually drives the loop
+
+The binding constraint on the maintainer's machine is **VRAM, not RAM**: an RTX
+4050 Laptop has 6.1 GB total, ~4.9 GB free. A model has to fit in that to run
+on the GPU at all.
+
+**`qwen3:4b` (2.5 GB, Q4_K_M) completes runs.** Verified end to end: 3 agents,
+2 handoffs, 8 model calls, `run.completed` in 205 s with a correct answer, at
+$0.0000. It also emitted **144 `llm.token` events**, so unlike gemma it gives a
+live UI something to render.
+
+**`gemma4:e4b` (9.6 GB) cannot, for two separate reasons.** It does not fit —
+8.0B at Q4_K_M against 4.9 GB free means most of it ran on the CPU, which is
+why its runs took 60–80 s to fail. And more fundamentally it never calls
+`finish`: handed a transcript where the work was plainly complete, it responded
+with *two more* `spawn_agent` calls, three times out of three. That probe
+matters because it rules out the supervisor prompt as the cause — the model
+simply does not reason about completion. Do not spend time tuning prompts for
+it.
+
+**Thinking mode is not the bottleneck.** Ollama leaves qwen3's reasoning on and
+it costs about 17% in time and 16% in output tokens (26.2 s / 1494 tokens
+versus 21.7 s / 1249 with `think: false`, one sample each). Tool calls survive
+either way. The provider has no way to send `think`, and on this evidence it is
+not worth adding one.
+
+**Plan quality is the real gap, not mechanics.** qwen3:4b spawned two drafters
+instead of a drafter and a shortener, and reused a worker name — `register_agent`
+deduplicated it to `draft_worker-2`. It converged anyway. Expect a local model
+to need more steps and a higher agent cap than a frontier one for the same goal.
+
 ### The bug the Ollama run found
 
 **A failed run was reporting itself completed.** When the supervisor exhausted
@@ -483,10 +514,11 @@ Phase 4 specifically:
   the remaining one that fails silently in the direction of under-billing — if
   it is wrong, every streamed OpenAI call records as free and the cap stops
   binding while the run works perfectly.
-- **No local model has completed a run.** gemma4:e4b works at the protocol
-  level but never calls `finish`, so whether the supervisor prompt can drive a
-  small local model at all is open. Try a tool-use-tuned model before
-  concluding anything about the prompt.
+- ~~**No local model has completed a run.**~~ **Closed: `qwen3:4b` does.** See
+  "Which local model actually drives the loop" below. What remains open is
+  whether a local model can handle a *harder* goal than a two-worker writing
+  task — plan quality was visibly weaker than Anthropic's even on a run that
+  succeeded.
 - **The webview has never seen an orchestrated run.** Live SSE was verified with
   `curl` against a real uvicorn sidecar — including the `tauri.localhost` CORS
   preflight carrying `Last-Event-ID` — but the frontend is still the Phase 1
