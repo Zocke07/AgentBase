@@ -40,6 +40,16 @@ export function RunSummary({ view }: RunSummaryProps) {
           {STATUS_LABEL[view.status]}
         </span>
         <h2 className="run-summary__goal">{view.goal ?? "No goal recorded yet"}</h2>
+        {view.origin !== null && (
+          // §5 Phase 8: a run started from Discord appears here with no
+          // special-casing anywhere below this line — it is the same fold of
+          // the same log. What a viewer does need is to know they are watching
+          // something they did not start, and who did.
+          <p className="run-summary__origin" data-testid="run-origin">
+            Started from {view.origin.channel} by {view.origin.identity ?? "an unknown identity"}
+            {view.origin.displayName !== null && ` (${view.origin.displayName})`}
+          </p>
+        )}
       </header>
 
       <dl className="run-summary__facts">

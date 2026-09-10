@@ -420,12 +420,22 @@ body {
   display: flex;
   gap: 0.65rem;
   align-items: baseline;
+  flex-wrap: wrap;
 }
 
 .run-summary__goal {
   margin: 0;
   font-size: 1rem;
   font-weight: 600;
+}
+
+/* Where a channel-originated run came from. Reads as a caption, because the
+   goal is the headline and this is the provenance under it. */
+.run-summary__origin {
+  margin: 0;
+  flex-basis: 100%;
+  font-size: 0.78rem;
+  color: var(--muted);
 }
 
 .run-summary__facts {

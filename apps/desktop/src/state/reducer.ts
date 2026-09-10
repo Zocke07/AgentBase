@@ -116,11 +116,35 @@ export interface RunClaim {
   readonly text: string;
 }
 
+/**
+ * Where a run came from, when it did not come from this window.
+ *
+ * §5 Phase 8 requires a Discord-originated run to "appear live in the
+ * dashboard, and vice versa. Same event log, no special-casing." The
+ * no-special-casing half is already true — the SSE endpoint has no idea a
+ * channel exists — but a user watching a run they did not start still needs to
+ * know who did, and the log is the only place that says so.
+ *
+ * `identity` is the *internal* name the sender's external id resolved to, not
+ * anything the sender typed. `displayName` is theirs and is shown beside it,
+ * never instead of it: a chat user controls their own display name, so a UI
+ * that showed only that could be made to read like anyone.
+ */
+export interface RunOrigin {
+  readonly channel: string;
+  readonly identity: string | null;
+  readonly displayName: string | null;
+  readonly threadRef: string | null;
+  readonly trigger: string | null;
+}
+
 export type RunStatus = "pending" | "running" | "paused" | "completed" | "failed" | "cancelled";
 
 export interface RunView {
   readonly runId: string | null;
   readonly goal: string | null;
+  /** Set only for a run that arrived from a chat channel. */
+  readonly origin: RunOrigin | null;
   readonly limits: Payload | null;
   readonly status: RunStatus;
   readonly claim: RunClaim | null;
@@ -145,6 +169,7 @@ export interface RunView {
 export const EMPTY_RUN: RunView = {
   runId: null,
   goal: null,
+  origin: null,
   limits: null,
   status: "pending",
   claim: null,
@@ -406,10 +431,29 @@ export function reduce(state: RunView, event: Event): RunView {
     case "budget.exceeded":
       return { ...next, budget: budgetOf(payload, next.budget), budgetExceeded: true };
 
-    // --- channels (Phase 8 emits these; the log panel already shows them) ----
+    // --- channels ------------------------------------------------------------
 
     case "channel.inbound":
+      // The first event of a channel-originated run, by construction: the
+      // launcher appends it before the orchestrator task exists, so it cannot
+      // race `run.started`.
+      return {
+        ...next,
+        origin: {
+          channel: text(payload, "channel") ?? "chat",
+          identity: text(payload, "identity"),
+          displayName: text(payload, "display_name"),
+          threadRef: text(payload, "thread_ref"),
+          trigger: text(payload, "trigger"),
+        },
+      };
+
     case "channel.outbound":
+      // Deliberately changes nothing. It records that the run was *reported*
+      // to a conversation, which is a fact about delivery rather than about
+      // what the agents did — and the graph is a projection of the latter. It
+      // is rendered in the log panel, where a reader asking "did this reach
+      // Discord?" is asking the question it answers.
       return next;
 
     default:

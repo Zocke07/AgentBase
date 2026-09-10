@@ -406,3 +406,70 @@ describe("a partial log", () => {
     expect(state.claim).toBeNull();
   });
 });
+
+describe("channel-originated runs", () => {
+  it("records where a run came from, and as which internal identity", () => {
+    const log = new LogBuilder();
+    const state = reduceAll([
+      log.add("channel.inbound", {
+        channel: "discord",
+        external_user_id: "4210",
+        text: "Summarise q3.md",
+        thread_ref: "channel-1",
+        trigger: "command",
+        display_name: "Owner",
+        identity: "owner",
+      }),
+      log.add("run.started", { goal: "Summarise q3.md" }),
+    ]);
+
+    expect(state.origin).toEqual({
+      channel: "discord",
+      identity: "owner",
+      displayName: "Owner",
+      threadRef: "channel-1",
+      trigger: "command",
+    });
+    // The rest of the fold is untouched: a Discord run is an ordinary run.
+    expect(state.goal).toBe("Summarise q3.md");
+    expect(state.status).toBe("running");
+  });
+
+  it("leaves a run started from this window with no origin", () => {
+    const state = reduceAll(twoAgentRun());
+
+    expect(state.origin).toBeNull();
+  });
+
+  it("does not let channel.outbound change anything about the run", () => {
+    // It records that the run was reported to a conversation, which is a fact
+    // about delivery rather than about what the agents did. A graph that moved
+    // when a chat message was edited would be projecting the wrong thing.
+    const events = twoAgentRun();
+    const log = new LogBuilder();
+    const extra = log.add("channel.outbound", {
+      channel: "discord",
+      thread_ref: "channel-1",
+      edits: 7,
+    });
+
+    const before = reduceAll(events);
+    const after = reduceAll([...events, { ...extra, seq: events.length + 1 }]);
+
+    expect({ ...after, eventCount: 0, lastSeq: 0 }).toEqual({
+      ...before,
+      eventCount: 0,
+      lastSeq: 0,
+    });
+  });
+
+  it("reports neither channel event as unrecognised", () => {
+    const log = new LogBuilder();
+    const state = reduceAll([
+      log.add("channel.inbound", { channel: "telegram", identity: "owner" }),
+      log.add("channel.outbound", { channel: "telegram", edits: 1 }),
+    ]);
+
+    expect(state.unrecognised).toEqual([]);
+  });
+});

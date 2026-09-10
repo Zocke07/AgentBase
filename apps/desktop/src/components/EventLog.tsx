@@ -84,6 +84,19 @@ function describe(event: Event): string {
     case "budget.warning":
     case "budget.exceeded":
       return read("reason") ?? "";
+    case "channel.inbound": {
+      // The identity is the internal name the sender's external id resolved
+      // to. The display name is the sender's own and is shown after it, never
+      // instead of it — a chat user can rename themselves to anything.
+      const displayName = read("display_name");
+      const who = displayName === null ? "" : ` (${displayName})`;
+      return `${read("channel") ?? "?"} · ${read("identity") ?? "?"}${who} — ${ellipsise(
+        read("text") ?? "",
+        90,
+      )}`;
+    }
+    case "channel.outbound":
+      return `${read("channel") ?? "?"} · ${shown("edits")} edits to ${read("thread_ref") ?? "?"}`;
     default:
       return "";
   }
