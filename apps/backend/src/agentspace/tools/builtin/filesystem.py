@@ -295,6 +295,15 @@ class WriteFileTool:
         # decisions for the user: creating a file is additive, and overwriting
         # one destroys work that may not be recoverable. §5 Phase 6's own
         # example prompt is about a destructive call for exactly this reason.
+        #
+        # Read at prepare time, which is before the approval and therefore
+        # possibly minutes before the write. If something else creates the file
+        # while the user is deciding, the prompt said "create" and an overwrite
+        # happens. Re-checking at execute time would not help — the decision has
+        # already been made by then — and the honest fix is a compare-and-swap
+        # the `Tool` protocol has no vocabulary for. Recorded rather than
+        # papered over: it is a wrong *description*, never a wrong boundary, and
+        # the write is still confined to the workspace either way.
         verb = "overwrite" if resolved.exists() else "create"
         return Prepared(
             tool_name=self.name,
