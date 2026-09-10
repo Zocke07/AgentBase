@@ -2,14 +2,15 @@
 
 The migration runner is deliberately exercised as a *sequence*, not a one-shot
 schema load. Migration 001 creates `runs` and `events`; 002 adds `spend` and
-`settings` for Phase 3. `agent_defs` and `approvals` still arrive in the phases
-that use them (BUILD_SPEC §5 says do not build ahead), so the synthetic-
-migration tests below stay — they prove stepping works past whatever the
-current head happens to be.
+`settings` for Phase 3; 003 adds `agent_defs` for Phase 5 and seeds it.
+`approvals` still arrives in the phase that uses it (BUILD_SPEC §5 says do not
+build ahead), so the synthetic-migration tests below stay — they prove stepping
+works past whatever the current head happens to be.
 
-Migration 002 is the first one that runs against a database that already holds
+Migration 002 was the first one that runs against a database that already holds
 a user's data, which is the case that breaks in the field rather than on a
-fresh clone. `test_upgrade_preserves_an_existing_populated_database` covers it.
+fresh clone. `test_upgrade_preserves_an_existing_populated_database` covers it,
+and now runs the whole chain rather than a single step.
 """
 
 from __future__ import annotations
@@ -98,13 +99,18 @@ def test_migration_creates_phase_three_tables(db: Database) -> None:
     assert {"spend", "settings"} <= _table_names(db)
 
 
+def test_migration_creates_the_agent_registry(db: Database) -> None:
+    """`agent_defs` is §4 verbatim, and arrives with §5 Phase 5."""
+    assert "agent_defs" in _table_names(db)
+
+
 def test_later_phase_tables_are_not_created_yet(db: Database) -> None:
     """BUILD_SPEC §5: do not build ahead.
 
-    `agent_defs` and `approvals` are specified in §4 but belong to Phases 5
-    and 6. They arrive as migrations 003+.
+    `approvals` is specified in §4 but belongs to Phase 6, and arrives as
+    migration 004. Every other §4 table now exists.
     """
-    assert _table_names(db).isdisjoint({"agent_defs", "approvals"})
+    assert "approvals" not in _table_names(db)
 
 
 def test_schema_version_is_recorded(db: Database) -> None:
@@ -248,16 +254,16 @@ def test_write_rolls_back_on_error(db: Database) -> None:
 
 
 def test_upgrade_preserves_an_existing_populated_database(app_paths: AppPaths) -> None:
-    """Migration 002 must not disturb a v1 database that already has data.
+    """An upgrade must not disturb a v1 database that already has data.
 
-    This is the case CLAUDE.md records as never yet exercised: every migration
-    test before Phase 3 ran against a fresh file, and the shipped app upgrades
-    over a user's existing event log. A migration that drops or rewrites data
-    here is unrecoverable — there is no down-migration by design.
+    Every migration test before Phase 3 ran against a fresh file, and the
+    shipped app upgrades over a user's existing event log. A migration that
+    drops or rewrites data here is unrecoverable — there is no down-migration
+    by design.
 
     The v1 schema is built explicitly rather than by monkeypatching MIGRATIONS
-    down to one entry, so this keeps testing a real 1 -> 2 step even after
-    migration 003 exists.
+    down to one entry, so this walks the whole real chain — 1 -> 2 -> 3 — and
+    keeps doing so as migrations are added.
     """
     first = Database(app_paths.db_path)
     monkeyed = (db_module.MIGRATIONS[0],)
@@ -284,16 +290,25 @@ def test_upgrade_preserves_an_existing_populated_database(app_paths: AppPaths) -
     upgraded.connect()
     try:
         assert upgraded.schema_version == LATEST_SCHEMA_VERSION
-        assert {"spend", "settings"} <= _table_names(upgraded)
+        assert {"spend", "settings", "agent_defs"} <= _table_names(upgraded)
 
         with upgraded.read() as connection:
             run = connection.execute("SELECT goal FROM runs WHERE id = 'keepme'").fetchone()
             events = connection.execute(
                 "SELECT seq, type FROM events WHERE run_id = 'keepme'"
             ).fetchall()
+            seeded = connection.execute(
+                "SELECT name FROM agent_defs WHERE is_builtin = 1 ORDER BY name"
+            ).fetchall()
 
         assert run["goal"] == "pre-existing goal"
         assert [(row["seq"], row["type"]) for row in events] == [(1, "run.started")]
+
+        # Seeding happens on *upgrade*, not only on a fresh install. A user
+        # who has been running since v1 must end up with a usable roster, or
+        # migration 003 lands them an empty registry and no way to fill it
+        # except the API they have not been told about.
+        assert [row["name"] for row in seeded] == ["researcher", "reviewer", "writer"]
     finally:
         upgraded.close()
 
@@ -356,3 +371,51 @@ def test_migration_files_and_migrations_agree() -> None:
         migration.version for migration in db_module.MIGRATIONS
     ]
     assert all(migration.source is not None for migration in db_module.MIGRATIONS)
+
+
+def test_agent_defs_table_matches_the_specified_columns(db: Database) -> None:
+    """§4 specifies `agent_defs` exactly.
+
+    Pinned the same way `spend` is, and for a related reason: `max_steps` being
+    an INTEGER is what lets the registry clamp it against the workspace ceiling
+    without a cast, and `name` being UNIQUE is what makes it safe to spawn by.
+    """
+    with db.read() as connection:
+        columns = {
+            row["name"]: row["type"]
+            for row in connection.execute("PRAGMA table_info(agent_defs)").fetchall()
+        }
+
+    assert set(columns) == {
+        "id",
+        "name",
+        "role",
+        "system_prompt",
+        "provider",
+        "model",
+        "allowed_tools",
+        "max_steps",
+        "auto_approve",
+        "is_builtin",
+        "enabled",
+        "created_at",
+        "updated_at",
+    }
+    assert columns["max_steps"] == "INTEGER"
+    assert columns["is_builtin"] == "INTEGER"
+    assert columns["enabled"] == "INTEGER"
+
+
+def test_agent_name_is_unique(db: Database) -> None:
+    """The constraint behind `DuplicateAgentNameError`.
+
+    The store checks for a clash before inserting so the user gets a message
+    naming the field; this is what holds if that check is ever refactored into
+    a race.
+    """
+    with pytest.raises(sqlite3.IntegrityError), db.write() as connection:
+        connection.execute(
+            "INSERT INTO agent_defs (id, name, role, system_prompt, allowed_tools,"
+            " max_steps, auto_approve, is_builtin, enabled, created_at, updated_at)"
+            " VALUES ('x', 'researcher', 'r', 'p', '[]', 5, '[]', 0, 1, 't', 't')"
+        )

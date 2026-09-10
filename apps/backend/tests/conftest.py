@@ -12,10 +12,14 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from agentspace.budget.ledger import BudgetLedger
 from agentspace.config import AppPaths
 from agentspace.events.bus import EventBus
 from agentspace.events.store import EventStore
+from agentspace.secrets import SecretStore
+from agentspace.store.agents import AgentDefStore
 from agentspace.store.db import Database
+from agentspace.store.settings import SettingsStore
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -82,3 +86,31 @@ def bus() -> EventBus:
 @pytest.fixture
 def store(db: Database, bus: EventBus) -> EventStore:
     return EventStore(db, bus)
+
+
+# --- the workspace stores ----------------------------------------------------
+#
+# Phase 4 defined these locally in `test_orchestrator.py`. Phase 5 added a
+# second and a third module that drive runs, and three copies of the same
+# four-line fixture is three places to forget when a store grows a dependency.
+
+
+@pytest.fixture
+def settings(db: Database) -> SettingsStore:
+    return SettingsStore(db)
+
+
+@pytest.fixture
+def agents(db: Database, settings: SettingsStore) -> AgentDefStore:
+    """The agent registry, seeded with the built-ins by migration 003."""
+    return AgentDefStore(db, settings)
+
+
+@pytest.fixture
+def ledger(db: Database, store: EventStore, settings: SettingsStore) -> BudgetLedger:
+    return BudgetLedger(db, settings, store)
+
+
+@pytest.fixture
+def secrets() -> SecretStore:
+    return SecretStore()

@@ -81,6 +81,7 @@ def _load_sql(filename: str) -> str:
 MIGRATION_FILES: tuple[tuple[int, str], ...] = (
     (1, "schema.sql"),
     (2, "002_spend_and_settings.sql"),
+    (3, "003_agent_defs.sql"),
 )
 
 #: Applied in order, each exactly once, lowest version first.
