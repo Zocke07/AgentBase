@@ -594,6 +594,26 @@ purely a convenience: a supervisor that can re-ask indefinitely turns a single
 limit and the agent cap. Recorded rather than fixed, because the fix belongs
 with whatever Phase 7 learns about how these dialogs actually feel to use.
 
+**Every settled approval status has now been produced by a real run.** One
+`write_file` was approved over HTTP and the file appeared; a second was denied
+and did not; a third went unanswered and **expired on the run's wall-clock
+deadline**, which then failed the run:
+
+```
+46 escaper-2 approval.requested  overwrite the file notes.txt (36 characters)
+47 escaper-2 approval.resolved   status: "expired"
+48 escaper-2 tool.denied         "... was not answered before this run ran out
+                                  of time, so it did not happen."
+49 -         run.failed          "This run hit its time limit of 900s (ran for 904s)."
+```
+
+That is the borrowed-deadline design working end to end: the gate did not keep a
+clock of its own, it ran out of the run's. The four-second overshoot is correct
+rather than sloppy — the approval expired at 900s and the run failed at the next
+`check_deadline`, which happens before a model call, so the run stopped where it
+could still write a coherent terminal event. §4's `approvals.status` now has no
+value that exists only on paper.
+
 **A restart makes every pending approval unanswerable, so startup expires them.**
 A pending row's waiter is an `asyncio.Future` in the process that created it.
 After a restart, resolving one would update a database and unblock nothing, and
