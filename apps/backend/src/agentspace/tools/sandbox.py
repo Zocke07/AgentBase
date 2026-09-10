@@ -1,0 +1,248 @@
+"""Where a tool call may reach, decided before anything runs or anyone is asked.
+
+§5 Phase 6: "a configured workspace root. Path traversal outside it is rejected
+**before the approval prompt is even shown**." That ordering is the whole
+design. An approval dialog reading *Agent "researcher" wants to write to
+`../../../Windows/System32/drivers/etc/hosts` — Allow / Deny* puts the user one
+misclick from the thing the sandbox exists to prevent, and asks them to make a
+judgement they have no way to make well. A path outside the root is not a risky
+call awaiting a decision; it is not a call at all.
+
+So this module answers one question — *is this reachable?* — and answers it with
+no reference to risk levels, policy, or who is asking. Those are the approval
+gate's business, and it only ever sees calls that already passed here.
+
+**Resolution, not inspection.** Every check below compares fully resolved paths.
+A string search for `".."` rejects the legitimate `reports/../notes.txt` and
+misses a symlink that contains neither dots nor slashes, which is the escape
+that actually works. :meth:`Path.resolve` collapses traversal *and* follows
+symlinks, so one comparison covers both, plus the drive-letter and UNC cases
+that a POSIX-shaped implementation treats as ordinary relative segments.
+
+**On URLs.** `http_get` is the one tool that reaches off the filesystem, and the
+containment idea has a direct analogue: the machine's own services are inside
+the boundary and must stay unreachable. Without :meth:`Sandbox.check_url`, an
+agent can fetch `http://127.0.0.1:8787/settings` and read this application's own
+API from inside a run — §1 constraint 3 keeps other *machines* out and does
+nothing about that. See the method for the limit of what this can enforce.
+"""
+
+from __future__ import annotations
+
+import ipaddress
+import socket
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Final
+from urllib.parse import urlsplit
+
+__all__ = [
+    "SHELL_TIMEOUT_SECONDS",
+    "Sandbox",
+    "SandboxViolationError",
+    "UrlNotAllowedError",
+]
+
+#: How long `run_shell` may run before it is killed (§5 Phase 6: "a hard
+#: timeout"). Long enough for a build or a test run, short enough that a
+#: command waiting on input the agent cannot supply does not hold the run's
+#: whole wall-clock budget.
+SHELL_TIMEOUT_SECONDS: Final[float] = 60.0
+
+#: Schemes `http_get` will fetch. An allowlist rather than a denylist of the
+#: obviously-bad ones, because the interesting schemes are the ones nobody
+#: thinks to deny: `file:` is a filesystem read that bypasses the path sandbox
+#: entirely, and `data:` makes the tool a laundering step for content the model
+#: wrote itself.
+_ALLOWED_SCHEMES: Final[frozenset[str]] = frozenset({"http", "https"})
+
+
+class SandboxViolationError(Exception):
+    """A path that resolves outside the workspace root.
+
+    Carries a message written for the user, because it reaches them: §5 Phase 6
+    requires this refusal to be visible in the event log as `tool.denied`, and
+    that payload is what the Phase 7 dialog renders.
+    """
+
+
+class UrlNotAllowedError(Exception):
+    """A URL `http_get` will not fetch. Same contract as its sibling above."""
+
+
+@dataclass(frozen=True, slots=True)
+class Sandbox:
+    """The workspace root, and the questions that can be asked about it.
+
+    Frozen, and the root is resolved once in :meth:`__post_init__`. Both matter:
+    a root that can be reassigned is a boundary a later refactor can move, and
+    an *unresolved* root silently rejects everything on macOS, where `/var` is a
+    symlink to `/private/var` — every candidate resolves to a path that is not
+    relative to the root as written.
+    """
+
+    root: Path
+
+    def __post_init__(self) -> None:
+        # `object.__setattr__` because the dataclass is frozen; normalising an
+        # input in `__post_init__` is the one legitimate use of it.
+        object.__setattr__(self, "root", Path(self.root).expanduser().resolve())
+
+    # --- paths -------------------------------------------------------------
+
+    def resolve_path(self, candidate: str) -> Path:
+        """Resolve ``candidate`` against the root, or refuse it.
+
+        The returned path is absolute and guaranteed to be inside the root. It
+        may not exist — `write_file` names its target before creating it, so
+        requiring existence here would make the sandbox unusable by the one
+        tool whose containment matters most.
+
+        :raises SandboxViolationError: when the path resolves outside the root,
+            is empty, or names an alternate data stream.
+        """
+        text = candidate.strip()
+        if not text:
+            msg = (
+                "No path was given. Tools that take a path need one relative to "
+                "the workspace, such as 'notes.txt'."
+            )
+            raise SandboxViolationError(msg)
+
+        # An NTFS alternate data stream stays inside the root, so containment
+        # does not catch it — `notes.txt:hidden` is a real write that almost no
+        # tool displays. A tool reporting it wrote `notes.txt` would be lying.
+        # Checked before joining, since `Path` discards the stream suffix on
+        # some operations and it would vanish before the comparison.
+        #
+        # A drive letter is the legitimate colon, and it is absolute, so it is
+        # left to the containment check below rather than being caught here.
+        if ":" in text and not Path(text).is_absolute():
+            msg = (
+                f"{candidate!r} is not a valid workspace path: ':' names an "
+                f"alternate data stream, which is a hidden write. Use a plain "
+                f"file name."
+            )
+            raise SandboxViolationError(msg)
+
+        # An absolute candidate replaces the root under `/`, which is what we
+        # want: it is then judged by where it actually points, not rejected for
+        # being absolute. A path inside the root written absolutely is fine.
+        joined = self.root / text
+
+        try:
+            resolved = joined.resolve()
+        except (OSError, RuntimeError) as exc:
+            # A resolution loop, or a path the OS refuses outright. Both are
+            # refusals rather than crashes.
+            msg = f"{candidate!r} is not a usable workspace path: {exc}"
+            raise SandboxViolationError(msg) from exc
+
+        if not resolved.is_relative_to(self.root):
+            msg = (
+                f"{candidate!r} is outside the workspace and cannot be reached. "
+                f"Tools may only touch files under {self.root.name}{Path().anchor}, "
+                f"using paths relative to it."
+            )
+            raise SandboxViolationError(msg)
+
+        return resolved
+
+    def relative(self, path: Path) -> str:
+        """Render a resolved path the way a user should see it.
+
+        The absolute path leaks the account name and the install location into
+        approval prompts and event payloads. What a user needs is which file
+        inside their workspace is about to be touched.
+        """
+        try:
+            relative = path.resolve().relative_to(self.root)
+        except (OSError, ValueError):
+            return str(path)
+        return str(relative) if str(relative) != "." else "."
+
+    # --- urls --------------------------------------------------------------
+
+    def check_url(self, candidate: str) -> str:
+        """Return ``candidate`` if `http_get` may fetch it, else refuse.
+
+        **What this enforces and what it does not.** A literal address in a
+        private, loopback, link-local or otherwise reserved range is refused,
+        and so is a hostname that resolves into one right now. What it cannot
+        stop is a name that resolves to a public address here and a private one
+        when the request is actually made — DNS rebinding — because the check
+        and the connection are separate resolutions. Closing that needs the
+        connection itself pinned to the address that was checked, which is a
+        property of the HTTP client rather than of this function. Recorded
+        rather than papered over: this raises the cost of reaching the LAN, it
+        does not make it impossible.
+
+        :raises UrlNotAllowedError: for a bad scheme, a missing host, or a host
+            that is or resolves to a non-public address.
+        """
+        try:
+            parts = urlsplit(candidate.strip())
+        except ValueError as exc:
+            msg = f"{candidate!r} is not a URL that can be fetched: {exc}"
+            raise UrlNotAllowedError(msg) from exc
+
+        if parts.scheme not in _ALLOWED_SCHEMES:
+            allowed = ", ".join(sorted(_ALLOWED_SCHEMES))
+            msg = (
+                f"{candidate!r} cannot be fetched: only {allowed} URLs are "
+                f"allowed, and this one is {parts.scheme or 'not a URL'}."
+            )
+            raise UrlNotAllowedError(msg)
+
+        try:
+            hostname = parts.hostname
+        except ValueError as exc:
+            msg = f"{candidate!r} has a host that cannot be read: {exc}"
+            raise UrlNotAllowedError(msg) from exc
+
+        if not hostname:
+            msg = f"{candidate!r} cannot be fetched: it names no host."
+            raise UrlNotAllowedError(msg)
+
+        for address in self._addresses_for(hostname, candidate):
+            if not address.is_global:
+                msg = (
+                    f"{candidate!r} cannot be fetched: {hostname} is a "
+                    f"loopback, private or otherwise local address "
+                    f"({address}). Tools may only reach the public internet — "
+                    f"this machine's own services, and the local network, are "
+                    f"not reachable from inside a run."
+                )
+                raise UrlNotAllowedError(msg)
+
+        return candidate.strip()
+
+    def _addresses_for(
+        self, hostname: str, candidate: str
+    ) -> list[ipaddress.IPv4Address | ipaddress.IPv6Address]:
+        """Every address ``hostname`` currently stands for.
+
+        A literal is used as given. A name is resolved, and *all* of its
+        addresses are checked rather than the first: a host answering with one
+        public and one private address would otherwise pass on a coin flip.
+        """
+        try:
+            return [ipaddress.ip_address(hostname)]
+        except ValueError:
+            pass
+
+        try:
+            infos = socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
+        except OSError as exc:
+            msg = (
+                f"{candidate!r} cannot be fetched: {hostname} could not be "
+                f"resolved ({exc.strerror or exc})."
+            )
+            raise UrlNotAllowedError(msg) from exc
+
+        addresses: list[ipaddress.IPv4Address | ipaddress.IPv6Address] = []
+        for info in infos:
+            sockaddr = info[4]
+            if sockaddr:
+                addresses.append(ipaddress.ip_address(str(sockaddr[0])))
+        return addresses
