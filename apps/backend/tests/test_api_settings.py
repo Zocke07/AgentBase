@@ -438,6 +438,8 @@ def test_a_duplicate_channel_identity_is_refused_by_the_api(tmp_path: Path) -> N
         entry = {"channel": "discord", "external_user_id": "1", "identity": "owner"}
 
         with pytest.raises(ValueError, match="appears twice"):
-            asyncio.run(store.update({"channel_identities": [entry, {**entry, "identity": "x"}]}))
+            asyncio.run(
+                store.update({"channel_identities": [entry, {**entry, "identity": "x"}]})
+            )
     finally:
         database.close()

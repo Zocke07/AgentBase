@@ -144,9 +144,7 @@ class DiscordAdapter:
         and the fix for each is completely different.
         """
         guilds = list(self._client.guilds)
-        logger.info(
-            "discord connected as %s, in %d guild(s)", self._client.user, len(guilds)
-        )
+        logger.info("discord connected as %s, in %d guild(s)", self._client.user, len(guilds))
 
         if not guilds:
             logger.warning(
@@ -210,9 +208,7 @@ class DiscordAdapter:
             display_name=message.author.display_name,
         )
         placeholder = await message.reply("Starting…")
-        await self._converse(
-            inbound, _MessageReply(self._deps, placeholder, message.author.id)
-        )
+        await self._converse(inbound, _MessageReply(self._deps, placeholder, message.author.id))
 
     async def _converse(self, inbound: InboundMessage, reply: Any) -> None:
         """Hand one conversation to the shared driver, in the background.

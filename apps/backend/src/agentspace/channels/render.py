@@ -215,9 +215,7 @@ def _apply(state: _Accumulator, event: Event) -> None:
 
         case EventType.AGENT_THINKING:
             step = payload.get("step")
-            state.set_agent(
-                agent, state="thinking", steps=step if isinstance(step, int) else 0
-            )
+            state.set_agent(agent, state="thinking", steps=step if isinstance(step, int) else 0)
 
         case EventType.AGENT_MESSAGE:
             state.note(f"{agent}: {_ellipsise(_text(payload, 'text'), 110)}")
@@ -360,7 +358,9 @@ def _sections(view: ChatView) -> list[list[str]]:
     if view.approvals:
         waiting = ["⏸ Waiting for approval"]
         for pending in view.approvals:
-            waiting.append(f"  {pending.agent}: {_ellipsise(pending.prompt, 160)} [{pending.risk}]")
+            waiting.append(
+                f"  {pending.agent}: {_ellipsise(pending.prompt, 160)} [{pending.risk}]"
+            )
         blocks.append(waiting)
 
     if view.claim is not None:

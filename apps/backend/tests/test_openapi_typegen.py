@@ -33,7 +33,9 @@ def _emit(node: dict[str, Any], name: str = "Subject") -> str:
 
 
 def test_a_required_field_is_not_optional() -> None:
-    emitted = _emit({"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]})
+    emitted = _emit(
+        {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]}
+    )
 
     assert "id: string;" in emitted
 
@@ -114,7 +116,10 @@ def test_an_array_of_a_union_is_parenthesised() -> None:
         {
             "type": "object",
             "properties": {
-                "loc": {"type": "array", "items": {"anyOf": [{"type": "string"}, {"type": "integer"}]}}
+                "loc": {
+                    "type": "array",
+                    "items": {"anyOf": [{"type": "string"}, {"type": "integer"}]},
+                }
             },
             "required": ["loc"],
         }
@@ -125,7 +130,11 @@ def test_an_array_of_a_union_is_parenthesised() -> None:
 
 def test_a_free_form_object_becomes_a_record() -> None:
     emitted = _emit(
-        {"type": "object", "properties": {"payload": {"type": "object"}}, "required": ["payload"]}
+        {
+            "type": "object",
+            "properties": {"payload": {"type": "object"}},
+            "required": ["payload"],
+        }
     )
 
     assert "payload: Record<string, unknown>;" in emitted
@@ -140,7 +149,9 @@ def test_a_description_becomes_a_doc_comment() -> None:
 
 def test_a_long_union_is_wrapped_one_member_per_line() -> None:
     """`EventType` has 26 members and is reviewed in a diff, not in an editor."""
-    emitted = _emit({"type": "string", "enum": [f"a.very.long.event.name.{n}" for n in range(20)]})
+    emitted = _emit(
+        {"type": "string", "enum": [f"a.very.long.event.name.{n}" for n in range(20)]}
+    )
 
     assert '\n  | "a.very.long.event.name.0"' in emitted
 
@@ -195,7 +206,9 @@ def test_a_reference_outside_component_schemas_raises() -> None:
 def test_the_error_names_the_offending_field() -> None:
     """A build failure that does not say which model broke is a scavenger hunt."""
     with pytest.raises(UnsupportedSchemaError, match=r"Subject\.broken"):
-        _emit({"type": "object", "properties": {"broken": {"allOf": []}}, "required": ["broken"]})
+        _emit(
+            {"type": "object", "properties": {"broken": {"allOf": []}}, "required": ["broken"]}
+        )
 
 
 # --- the real document ------------------------------------------------------

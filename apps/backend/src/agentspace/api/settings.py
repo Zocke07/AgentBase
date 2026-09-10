@@ -45,7 +45,9 @@ router = APIRouter()
 #: without anybody remembering this line — the Phase 6 lesson about two lists
 #: that drift, applied before it has a chance to.
 _CHANNEL_SETTINGS: frozenset[str] = frozenset(
-    name for name in WorkspaceSettings.model_fields if name.startswith(("discord_", "telegram_"))
+    name
+    for name in WorkspaceSettings.model_fields
+    if name.startswith(("discord_", "telegram_"))
 )
 
 

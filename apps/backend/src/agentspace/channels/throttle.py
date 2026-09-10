@@ -56,9 +56,7 @@ class Throttle:
 
     __slots__ = ("_clock", "_interval", "_last")
 
-    def __init__(
-        self, interval: float, *, clock: Callable[[], float] | None = None
-    ) -> None:
+    def __init__(self, interval: float, *, clock: Callable[[], float] | None = None) -> None:
         self._interval = interval
         self._clock = clock if clock is not None else time.monotonic
         #: `None` rather than 0.0 so the first send is always allowed, whatever

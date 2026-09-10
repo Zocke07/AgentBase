@@ -182,9 +182,7 @@ async def converse(
         # First event of the run, before the orchestrator emits anything. The
         # message genuinely did arrive before the run started, and a log that
         # recorded it afterwards would be saying something untrue about order.
-        await deps.store.append(
-            run.id, EventType.CHANNEL_INBOUND, inbound.as_payload(identity)
-        )
+        await deps.store.append(run.id, EventType.CHANNEL_INBOUND, inbound.as_payload(identity))
 
     run = await deps.launcher.launch(
         goal,

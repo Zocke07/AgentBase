@@ -72,9 +72,13 @@ def test_surrounding_whitespace_in_configuration_still_matches() -> None:
     otherwise fail to match, and the symptom — "the bot ignores me" — gives the
     owner nothing to go on.
     """
-    directory = IdentityDirectory([ChannelIdentity.model_validate(
-        {"channel": "discord", "external_user_id": "  4210 ", "identity": "owner"}
-    )])
+    directory = IdentityDirectory(
+        [
+            ChannelIdentity.model_validate(
+                {"channel": "discord", "external_user_id": "  4210 ", "identity": "owner"}
+            )
+        ]
+    )
 
     assert directory.resolve("discord", "4210") == "owner"
 

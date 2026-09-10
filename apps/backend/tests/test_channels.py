@@ -417,15 +417,15 @@ async def test_a_channel_originated_tool_call_still_hits_the_approval_gate(
 
     provider = ScriptedProvider(
         [
-            says("Delegating.", call("spawn_agent", agent="file_writer", task="write notes.txt")),
+            says(
+                "Delegating.", call("spawn_agent", agent="file_writer", task="write notes.txt")
+            ),
             says("Writing.", call("write_file", path="notes.txt", content="from discord")),
             says("Done.", call("finish", result="Wrote the file.")),
             says("All done.", call("finish", result="notes.txt written.")),
         ]
     )
-    deps = deps_for(
-        store, bus, settings, agents, ledger, secrets, provider, runtime, approvals
-    )
+    deps = deps_for(store, bus, settings, agents, ledger, secrets, provider, runtime, approvals)
     reply = FakeReply()
 
     conversation = asyncio.create_task(converse(deps, inbound("write notes.txt"), reply))
@@ -487,15 +487,15 @@ async def test_the_question_is_surfaced_in_chat_while_the_run_waits(
 
     provider = ScriptedProvider(
         [
-            says("Delegating.", call("spawn_agent", agent="file_writer", task="write notes.txt")),
+            says(
+                "Delegating.", call("spawn_agent", agent="file_writer", task="write notes.txt")
+            ),
             says("Writing.", call("write_file", path="notes.txt", content="hi")),
             says("Done.", call("finish", result="Wrote it.")),
             says("All done.", call("finish", result="Done.")),
         ]
     )
-    deps = deps_for(
-        store, bus, settings, agents, ledger, secrets, provider, runtime, approvals
-    )
+    deps = deps_for(store, bus, settings, agents, ledger, secrets, provider, runtime, approvals)
     reply = FakeReply()
 
     conversation = asyncio.create_task(converse(deps, inbound("write notes.txt"), reply))
@@ -511,7 +511,7 @@ async def test_answering_from_chat_uses_the_same_service_the_http_route_uses(
     db: Database,
     store: EventStore,
 ) -> None:
-    """"No privileged paths for any channel", asserted rather than claimed.
+    """ "No privileged paths for any channel", asserted rather than claimed.
 
     The adapters call :meth:`ApprovalService.resolve` — the identical method
     `POST /approvals/{id}` calls — so a second answer conflicts exactly as two
@@ -602,7 +602,14 @@ async def test_a_disabled_channel_is_never_started(
 ) -> None:
     started: list[str] = []
     service = _service_with(
-        store, bus, settings, agents, ledger, secrets, started, discord_token="not-a-real-token"  # noqa: S106
+        store,
+        bus,
+        settings,
+        agents,
+        ledger,
+        secrets,
+        started,
+        discord_token="not-a-real-token",  # noqa: S106
     )
 
     await service.start()
@@ -779,7 +786,13 @@ async def test_enabling_a_channel_over_http_starts_it_without_a_restart(
     """
     started: list[str] = []
     service = _service_with(
-        store, bus, settings, agents, ledger, secrets, started,
+        store,
+        bus,
+        settings,
+        agents,
+        ledger,
+        secrets,
+        started,
         discord_token="not-a-real-token",  # noqa: S106
     )
 
@@ -809,7 +822,13 @@ async def test_disabling_a_channel_over_http_stops_it(
     await settings.update({"discord_enabled": True})
     started: list[str] = []
     service = _service_with(
-        store, bus, settings, agents, ledger, secrets, started,
+        store,
+        bus,
+        settings,
+        agents,
+        ledger,
+        secrets,
+        started,
         discord_token="not-a-real-token",  # noqa: S106
     )
 

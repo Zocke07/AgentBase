@@ -140,7 +140,11 @@ def test_an_outstanding_approval_is_surfaced_with_its_prompt() -> None:
         event(
             4,
             EventType.APPROVAL_REQUESTED,
-            {"approval_id": "a1", "prompt": 'create "notes.txt" (36 characters)', "risk": "medium"},
+            {
+                "approval_id": "a1",
+                "prompt": 'create "notes.txt" (36 characters)',
+                "risk": "medium",
+            },
             "rex",
         ),
     ]
@@ -155,7 +159,9 @@ def test_a_resolved_approval_stops_being_outstanding() -> None:
     events = [
         *started(),
         event(4, EventType.APPROVAL_REQUESTED, {"approval_id": "a1", "prompt": "p"}, "rex"),
-        event(5, EventType.APPROVAL_RESOLVED, {"approval_id": "a1", "status": "approved"}, "rex"),
+        event(
+            5, EventType.APPROVAL_RESOLVED, {"approval_id": "a1", "status": "approved"}, "rex"
+        ),
     ]
 
     assert fold(events).approvals == ()
@@ -268,9 +274,7 @@ def test_a_partial_log_renders_without_implying_a_run_happened() -> None:
     message arriving and the orchestrator emitting `run.started`, and it is also
     what a log looks like if the run failed to start at all.
     """
-    view = fold(
-        [event(1, EventType.CHANNEL_INBOUND, {"channel": "discord", "identity": None})]
-    )
+    view = fold([event(1, EventType.CHANNEL_INBOUND, {"channel": "discord", "identity": None})])
 
     assert view.agents == ()
     assert view.claim is None
