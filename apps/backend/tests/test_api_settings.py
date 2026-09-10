@@ -281,7 +281,7 @@ def test_a_partial_update_leaves_the_other_limits_alone(client: TestClient) -> N
     assert settings["max_run_seconds"] == 60
 
 
-def test_every_workspace_setting_can_be_patched(client: TestClient) -> None:
+def test_every_workspace_setting_can_be_patched() -> None:
     """`UpdateSettingsRequest` must list every field of `WorkspaceSettings`.
 
     The two models duplicate that list because they differ in bounds and

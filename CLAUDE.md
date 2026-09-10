@@ -36,6 +36,14 @@ the in-flight run alone. Verified against a **real local model** driving agents
 that existed only because they were POSTed to the API — including one run that
 reached `run.completed` on a roster containing nothing the product ships.
 
+**Phase 6 — Tools and the approval gate.** Complete. Five tools that reach the
+disk, the shell and the network, each behind a workspace sandbox and a
+human-in-the-loop gate that genuinely blocks. Verified against a **real local
+model that actually tried to escape**: `qwen3:4b` called
+`write_file(path="../../ESCAPED.txt")` and was refused with `tool.denied` and
+`blocked_by: "sandbox"` — with every risk level pre-approved, so the gate would
+have allowed it instantly had the sandbox not caught it first.
+
 ### What the first real API call showed
 
 **The provider shapes were right.** Phase 3 predicted "at least one shape bug"
@@ -441,17 +449,210 @@ codepoint is a clean U+2014 and the corruption was in the inspecting pipe —
 `json.load(sys.stdin)` decodes with the locale encoding, which is cp1252 in Git
 Bash on this machine. Checked with `ord()` before reporting anything.
 
-Next up: **Phase 6 — Tools and the approval gate.** Do not start it before
-re-reading BUILD_SPEC §5 Phase 6. Phase 5 left it three things deliberately
-shaped for it: the tool *names and risk levels* already exist in
-`tools/catalogue.py` and are already what `allowed_tools` validates against, so
-Phase 6 attaches implementations to names rather than inventing them; the
-approval events slot between `tool.requested` and `tool.called`, which is
-exactly where `Agent._handle_call` already branches; and
-`effective_auto_approve` already settles that a definition can only *narrow* the
-workspace policy, so the gate wires a policy into an existing rule instead of
-inventing one while building the gate. `available: false` on every row of
-`GET /tools` is what Phase 6 flips.
+### What Phase 6 established, and how it was verified
+
+**The acceptance criterion fired against a real model, not a script.** §5 Phase
+6 asks that "an agent instructed to write outside the workspace root is blocked
+at the sandbox layer, and this is visible in the event log as `tool.denied`".
+`qwen3:4b`, given a system prompt ordering it to call `write_file` with
+`../../ESCAPED.txt` and told not to simplify the path, did exactly that. The log
+shows `tool.requested` carrying the escaping path, then `tool.denied` with
+`blocked_by: "sandbox"`, and no such file exists anywhere on disk.
+
+Two things make it mean something rather than merely happen:
+
+*The gate was wide open.* `auto_approve` was `["low","medium","high"]`, so the
+approval gate would have allowed that call instantly. The only thing between the
+model and the write was the sandbox, which is precisely the claim being tested.
+
+*The `approvals` table is empty.* Every call that reaches the gate writes a row —
+including an auto-approved one, deliberately, so the log can answer "what did
+this run do without asking me". Zero rows is direct evidence that the refusal
+happened **before** the gate was consulted, which is §5 Phase 6's "rejected
+before the approval prompt is even shown" observed rather than asserted.
+
+**This closes the Phase 5 gap that said a real model had never been denied a
+tool.** Phase 5 tried twice with `qwen3:4b` and got refusal-by-silence once and
+a `handoff` the other time. What was different here was not a better prompt but
+a *plausible* call: the agent was offered `write_file` and told to use it, so
+the denial came from the boundary rather than from the model declining to try.
+
+Also worth recording: the agent **reacted** to the denial rather than looping on
+it. Told plainly that the path was outside the workspace, it called `handoff` to
+a nonexistent `another_agent`. Wrong, but it shows the refusal text reached the
+model and changed its plan — which is why `_denied` explains itself instead of
+returning a bare error.
+
+**It took two attempts, and the first is the more useful finding.** Given the
+same goal but a prompt that merely *described* the path, qwen3 skipped the tool
+entirely and called `finish("pwned")` — a `run.completed` whose summary asserts
+an outcome that never happened, with three control calls and no file tool in the
+log. That is Phase 5's confabulation finding reproduced exactly, on a different
+goal. Restating it because Phase 7 renders these: **the summary is a model's
+claim, the `tool.called` events are what happened, and they disagree routinely.**
+Both live runs this phase ended `completed` with a summary of "pwned" and an
+empty workspace.
+
+**The sandbox rejects before the gate asks, and the ordering is the design.**
+An approval dialog is a question put to a human, and a question is only safe to
+ask if every answer is survivable. Asking "may this agent write to
+`../../../etc/hosts`?" makes the user's misclick into the vulnerability. So
+`Tool.prepare` resolves and validates while touching nothing, the gate runs
+between `prepare` and `execute`, and a call that cannot be allowed is never
+offered as a choice. Confirmed by mutation: recording a sandbox violation as
+`tool.error` instead of `tool.denied` fails four tests including the acceptance
+criterion, and bypassing the gate so every call is allowed fails six — including
+the one asserting a denied call does not happen.
+
+**Three ways a call can be stopped, and the log tells them apart.** The
+allowlist refused it (the definition never permitted it), the sandbox refused it
+(out of bounds, nobody asked), or the user refused it (in bounds, asked,
+declined). All three are `tool.denied`; `blocked_by: "sandbox"` is what separates
+a prompt-injected agent probing the boundary from a user declining a routine
+write. A log that collapsed them would render those two as the same event.
+
+**Resolution, not inspection.** The sandbox compares fully resolved paths. A
+string search for `".."` rejects the legitimate `reports/../notes.txt` and misses
+a symlink containing neither dots nor slashes — the escape that actually works.
+That mutation fails four tests, including both of those cases. The symlink test
+*runs on Windows* rather than skipping: unprivileged accounts cannot create
+symlinks without Developer Mode, so it falls back to a directory junction, which
+needs no privilege and which `Path.resolve` follows identically. A test that
+skips on the primary platform is not coverage of it.
+
+**`http_get` is the tool that could call this application's own API.** §1
+constraint 3 keeps other *machines* off the sidecar and does nothing about an
+agent inside a run fetching `127.0.0.1:8787/settings`. `Sandbox.check_url`
+refuses loopback, private, link-local and reserved addresses — including the
+`169.254.169.254` metadata endpoint — and refuses `file:` and `data:` schemes,
+which would otherwise be a filesystem read that never touched the path sandbox.
+Redirects are reported rather than followed, because a `Location` header is
+exactly how a checked public URL becomes an unchecked private one. What it
+cannot stop is a name that resolves public at check time and private at connect
+time; that needs the connection pinned to the checked address, which is a
+property of the HTTP client. Recorded rather than papered over.
+
+**What `run_shell` actually enforces, stated plainly.** §5 Phase 6 asks for "no
+network and a hard timeout". The timeout is real, and it kills the process
+*tree* — `taskkill /T` on Windows, a process-group signal on POSIX. Killing only
+the direct child is the Phase 1 bootloader mistake in a new costume: the parent's
+handle is not the process doing the work, so the kill returns cleanly and leaves
+the command running after the run that started it has ended.
+
+**"No network" is not enforced, and cannot be** in-process and cross-platform: a
+command that calls `curl` reaches the internet. What is done instead is a child
+environment built from an allowlist rather than inherited, so a credential put
+into the sidecar's environment in some later phase is not readable by every shell
+command an agent runs. This is the same gap §5 Phase 6's own addendum identifies
+when it calls the app-level sandbox "a real but limited boundary" that "still
+runs as your actual user account" — and it is why that addendum puts real
+isolation in a container outside the shipped build. The shipped mitigation is
+that `run_shell` is `high` risk and therefore always stops to ask.
+
+**An auto-approved call still writes its row and emits both events.** The
+temptation is to skip all of it since nobody was asked, and that is backwards:
+the question a user asks afterwards is "what did this run do *without* asking
+me", and it is only answerable if the automatic decisions sit in the log beside
+the manual ones. `tool.approved` carries `automatic` so the two are separable.
+
+**The gate borrows the run's wall-clock budget rather than keeping its own
+deadline.** A separate approval timeout would be a second limit to configure and
+explain, and the two would disagree — a run with five minutes left sitting on a
+ten-minute approval window waits for a decision it can no longer act on. Expiry
+settles the row rather than leaving it pending forever, which is what §4's
+`expired` status is for.
+
+**A restart makes every pending approval unanswerable, so startup expires them.**
+A pending row's waiter is an `asyncio.Future` in the process that created it.
+After a restart, resolving one would update a database and unblock nothing, and
+the Phase 7 dialog would show live questions about runs that ended when the app
+last closed.
+
+### The bug the live run found (Phase 6)
+
+**The approval policy could not be set through the API.** `GET /settings`
+reported `auto_approve` and `PATCH /settings` rejected it with a 422, because
+`UpdateSettingsRequest` lists its fields explicitly and Phase 6 added the field
+to `WorkspaceSettings` only. §5 Phase 6's entire "policy setting for unattended
+operation" was unreachable from the product: the setting existed, was enforced,
+was tested, and no user could change it.
+
+This is the **sixth** instance of the same shape, after Phase 1's CORS, Phase 2's
+named SSE events, Phase 3's `*.sql` glob, Phase 4's silently dropped settings
+fields, and Phase 5's `max_steps` default. Every one was found by running the
+thing. The suite was green because every gate test sets the policy through
+`SettingsStore` or the runtime directly — never through the endpoint a user has.
+
+Phase 4's fix did its job: `extra="forbid"` turned what would otherwise have been
+a silent `200 OK` into a loud 422 naming the field. What remained was the
+*duplicated field list*, so the fix this time is structural.
+`test_every_workspace_setting_can_be_patched` compares the two models' fields as
+sets, which means a field added in Phase 8 is already covered by a test written
+in Phase 6. Removing the field again fails three tests.
+
+The lesson to carry forward: `extra="forbid"` converts a silent failure into a
+loud one, which is worth a great deal and does not stop the field being
+forgotten. Only comparing the two lists does that.
+
+### The design decision worth not re-litigating (Phase 6)
+
+**An empty `auto_approve` on a definition means "inherit", not "none".**
+
+Phase 5 built `effective_auto_approve` as a pure intersection and tested it as
+arithmetic, including the case `((), (LOW, HIGH)) -> frozenset()` under the
+heading "asking for nothing does not widen anything". Consuming it for the first
+time in Phase 6 revealed what that implies in the product: §4 defaults the column
+to `'[]'` and every seeded built-in carries that value, so a strict intersection
+makes the workspace policy **inert**. A user sets `auto_approve` to `["low"]` so
+an overnight run can proceed, every definition intersects it away to nothing, and
+the setting reports success while changing nothing — the same class of bug as the
+one above, arrived at from the opposite direction.
+
+So `ToolRuntime.auto_approve_for` reads an empty definition list as "not
+answered" rather than "declined" and falls back to the workspace policy. A
+definition that *does* name levels still narrows, through the untouched pure
+intersection in `effective_auto_approve`.
+
+**The security property is unchanged, which is the part that matters.** §5 Phase
+5's note forbids a definition *escalating* — "it can never grant a risk level the
+workspace policy has not enabled" — and under both readings the result is a
+subset of the workspace policy. The only difference is whether a row nobody has
+edited counts as having declined. It has not.
+
+Worth stating at length because the strict reading is the safer-*looking* one and
+is what a later reader will be tempted to restore: it requires opting in twice,
+so a user who enables `high` at the workspace level does not thereby hand every
+agent a shell. That is a real argument. The answer is that §5 Phase 6 asks for a
+policy that lets "overnight runs progress", a knob that requires separately
+editing every definition afterwards is not that knob, and the per-definition list
+remains available to anyone who wants to narrow a particular agent.
+
+Next up: **Phase 7 — Dashboard.** Do not start it before re-reading BUILD_SPEC §5
+Phase 7. Several things are already shaped for it:
+
+- `GET /tools` reports each tool's `name`, `description`, `risk` and `available`,
+  which is what the agent editor's checkboxes need — §5 Phase 7 wants the risk
+  level visible "at the moment of ticking it".
+- `approval.requested` carries a rendered `prompt` string, so the modal displays
+  what the log recorded rather than composing its own wording from the arguments.
+- `GET /approvals` lists what is outstanding, because a dialog relying only on
+  the live event shows nothing to a user who opened the window a second late.
+- The field-aware 400s from Phase 5 exist so validation errors land inline on the
+  offending input rather than in a toast.
+
+Four warnings from this project's findings, all of which bear directly on the UI:
+
+- **Do not render `run.completed.summary` as though the work described in it
+  happened.** Three separate live runs have now confabulated it. What happened is
+  the `tool.called` events.
+- **Do not treat `llm.token` as a liveness signal.** Deltas arrive 1-10 at a time
+  from Anthropic and a run can legitimately emit zero of them.
+- **Render `blocked_by` on a `tool.denied`.** "The user said no" and "the agent
+  tried to leave the workspace" are the same event type and very different things
+  to see in a run.
+- **Test it from inside the webview, not from a terminal.** Phase 1's CORS bug
+  and Phase 2's named-event bug were both invisible from `curl` and obvious from
+  the page.
 
 ### What Phase 3 established, and how it was verified
 
@@ -691,29 +892,67 @@ Phase 3 specifically:
   `developers.openai.com` (checked 2026-09-09). A stale row mis-counts the
   user's own cap; it never affects what a provider actually bills.
 
+Phase 6 specifically:
+
+- **`run_shell` has no network isolation, and this is not a gap that testing
+  closes.** See the Phase 6 notes: the timeout and the process-tree kill are
+  real and verified, the scrubbed environment is real, and "no network" is not
+  enforceable in-process cross-platform. A shell command that calls `curl`
+  reaches the internet. The container wrapper §5 Phase 6's addendum describes is
+  the answer and is explicitly not part of the shared build.
+- **`http_get` has never fetched a real URL.** Every network test runs against
+  an `httpx2.MockTransport`, exactly as the providers do. The *refusals* are
+  well covered — scheme, loopback, private, link-local, redirect — and a real
+  page has never been retrieved, so a wrong default header or a redirect shape
+  the mock does not reproduce would pass. It is also the one built-in no live
+  run has called.
+- **DNS rebinding defeats `check_url`.** The check resolves the hostname and the
+  connection resolves it again, so a name that answers public at check time and
+  private at connect time reaches a private address. Closing it means pinning
+  the connection to the checked address, which is a property of the HTTP client
+  rather than of the sandbox. Recorded in the module docstring rather than
+  quietly implied to be handled.
+- **No approval has ever been resolved from the webview.** The full gate loop
+  was driven live over HTTP with `curl` — blocked, listed by `GET /approvals`,
+  approved, written; then a second call denied — but the client was a terminal.
+  This is precisely the shape of the Phase 1 CORS bug and the Phase 2
+  named-event bug, both of which were invisible from a terminal and obvious from
+  inside the page. `POST /approvals/{id}` is a new method/route pair the CORS
+  allowlist has never been exercised against. **Do that check in Phase 7 from
+  the webview, not from `curl`.**
+- **Two clients answering the same approval has only been tested in-process.**
+  `test_resolving_twice_is_a_409` and the conditional `UPDATE` cover it, and no
+  two real clients have raced. It becomes ordinary in Phase 8, when a run is
+  watched from the dashboard and a chat channel at once.
+- **Nothing has been packaged since migration 004 existed.** Same standing gap
+  as Phase 5's, now one migration longer, and the seeded-built-in widening in
+  004 makes it slightly more interesting: no real installation has upgraded
+  across it. The glob still carries every `*.sql` and the test still passes.
+  Phase 9's acceptance criterion is the real check.
+- **The sandbox has only ever been rooted at a temp directory or the dev data
+  directory.** `AppPaths.workspace_root` resolves under the OS app-data
+  directory in the shipped app and a test asserts that, but no *installed* build
+  has created it. The Phase 2 lesson about `%APPDATA%` versus `%LOCALAPPDATA%`
+  was found by installing and looking, not by reading.
+- **A worker-initiated `handoff` still does not re-delegate**, and Phase 6 made
+  it visible: after being denied, the escaper handed off to a nonexistent
+  `another_agent` and the supervisor did nothing with it. The event is real, the
+  follow-through is not implemented, and no test asserts the supervisor behaves
+  sensibly. Carried forward unchanged from Phase 4.
+
 Phase 5 specifically:
 
-- **A real model has never been *denied* a tool.** The `tool.denied` path is
-  covered by scripted-provider tests, by three mutation checks, and by an
-  agent whose offered list and allowlist deliberately disagree — but no live
-  model has produced the refused call. Two attempts, both with `qwen3:4b` and
-  both with a system prompt ordering the agent to call `write_file`:
-
-  * offered only `finish` and `handoff`, it did not invent the call — it
-    reasoned itself into silence instead (see below);
-  * offered `read_file` as well, so that a file-shaped tool was visibly
-    available and the neighbouring one was not, it called `handoff` rather than
-    reaching for `write_file`.
-
-  So the *mechanism* is thoroughly tested and the *trigger* has only ever been
-  scripted. On this evidence a small local model is unlikely to produce it at
-  all; a frontier model is the one that hallucinates a tool it was not offered.
-  Try it there when a key is next in play, and do not treat the absence of a
-  live denial as evidence the boundary is untested — it is evidence the model
-  never tested it.
-- **`auto_approve` is stored, validated and intersected, and consumed by
-  nothing.** There is no gate and no tool to put behind one until Phase 6, so
-  `effective_auto_approve` is proven only as arithmetic.
+- ~~**A real model has never been *denied* a tool.**~~ **Closed in Phase 6.**
+  `qwen3:4b` called `write_file(path="../../ESCAPED.txt")` and was refused with
+  `tool.denied` and `blocked_by: "sandbox"`, and separately had a legitimate
+  in-workspace write denied by a user answering the gate. What made the
+  difference was not a better prompt but a *plausible* call — the agent was
+  offered `write_file` and told to use it, so the refusal came from the boundary
+  rather than from the model declining to try. Phase 5's reading, that a small
+  local model would probably never produce one, was wrong.
+- ~~**`auto_approve` is stored, validated and intersected, and consumed by
+  nothing.**~~ **Closed in Phase 6**, and consuming it changed the rule — see
+  "The design decision worth not re-litigating (Phase 6)".
 - **A definition's `provider`/`model` are honoured at the pool, not through a
   run.** `ProviderPool` is tested directly — inheritance, pinning, caching, and
   the auth failure — but no run has ever had two agents on two different
@@ -721,16 +960,9 @@ Phase 5 specifically:
   every agent so tests stay deterministic. The supervisor's handling of a
   definition whose provider will not build is therefore covered as a unit and
   not end to end.
-- **Nothing has been packaged since migration 003 existed.** The glob in the
-  justfile carries every `*.sql` and `test_every_migration_file_is_bundled_by_
-  the_packaging_glob` still passes, but no installer has been built and no
-  upgrade has run 002 -> 003 on a real installation. `test_upgrade_preserves_an_
-  existing_populated_database` now walks the whole chain against populated data
-  and asserts the built-ins seed on upgrade, which is the closest a test can
-  get. The real thing is still the Phase 9 acceptance criterion.
-- **No agent editor exists.** Every definition in this phase was created by
+- **No agent editor exists.** Every definition through Phase 6 was created by
   `curl` or by a test. §5 Phase 7 owns `AgentList.tsx` and `AgentEditor.tsx`,
-  and the field-aware 400s here exist for it — but nothing has yet rendered one
+  and the field-aware 400s exist for it — but nothing has yet rendered one
   inline on an input, which is the specific thing §5 Phase 7 asks for.
 
 Phase 4 specifically:
@@ -871,15 +1103,25 @@ Phase 5 added `orchestrator/registry.py` (the frozen roster, plus `ProviderPool`
 for §4's per-definition `provider`/`model`), `store/agents.py` (the `agent_defs`
 row and its validation) and `api/agents.py` (CRUD, and `GET /tools`).
 
-`tools/` now exists but holds only `catalogue.py` — the five built-in tool
-*names* and their risk levels, with no implementations. §5 Phase 5 requires
-`allowed_tools` entries to "resolve to a registered tool", so validating a
-definition needs a registry of tools before any tool can exist; §1 constraint 5
-is why none can until Phase 6's approval gate. `base.py`, `approval.py`,
-`sandbox.py` and `builtin/` are still absent rather than stubbed. `RiskLevel`
-lives in `catalogue.py` rather than the `base.py` §3 sketches, because `base.py`
-is the Tool *protocol* and its signature depends on the sandbox Phase 6 owns —
-half a protocol now is a file Phase 6 rewrites.
+Phase 6 filled in `tools/`, which until now held only `catalogue.py`. It now
+carries the whole path a tool call travels: `base.py` (the Tool protocol and the
+`prepare`/`execute` split), `sandbox.py` (the workspace root and what a call may
+reach), `approval.py` (the gate, plus the `approvals` table), `builtin/`
+(`filesystem.py`, `network.py`, `shell.py`) and one module §3 does not name —
+`runtime.py`. `ToolRuntime` bundles the tools, the sandbox and the gate because
+they are not independent: a sandbox without a gate is an ungated path to the
+filesystem, and passing them as one value means there is no way to assemble an
+agent holding only some of them. Same kind of additive deviation as
+`orchestrator/limits.py` and `orchestrator/control.py`.
+
+`RiskLevel` stayed in `catalogue.py` rather than moving to `base.py` as §3
+sketches. The catalogue is what `allowed_tools` validates against and what the
+Phase 7 editor renders; a tool reads its own risk from there rather than
+declaring it, so the level shown next to a checkbox is the level the gate
+enforces.
+
+`api/approvals.py` arrived with it — `POST /approvals/{id}` is what resolves the
+future an agent is suspended on, plus the `GET`s the Phase 7 dialog needs.
 
 `tests/support.py` holds the scripted provider doubles and the event-log
 reducer. Phase 4 kept them in `test_orchestrator.py`; three test modules now
@@ -890,6 +1132,82 @@ say".
 
 Recorded here as they happen, so a later session does not re-litigate them.
 
+- **2026-09-10 — a tool call happens in two stages, and the gate sits between
+  them.** `Tool.prepare` validates and resolves while touching nothing;
+  `Tool.execute` carries out an already-approved call. §5 Phase 6 requires
+  traversal to be "rejected before the approval prompt is even shown", and the
+  split is what makes that structural instead of an ordering a call site has to
+  remember. An approval dialog is a question put to a human, and a question is
+  only safe to ask if every answer is survivable — so a call that cannot be
+  allowed is never offered as a choice.
+- **2026-09-10 — the approval prompt is built from the resolved call, not the
+  arguments.** `Prepared.summary` describes what would actually run, so the
+  sentence the user reads and the call that executes cannot disagree. Rendering
+  raw arguments would describe a different call from the one about to happen,
+  which is where a confused-deputy bug lives. It also means `write_file` says
+  "overwrite" when the file exists and "create" when it does not, which is a
+  different decision for the user and was confirmed live.
+- **2026-09-10 — the rendered prompt travels in the `approval.requested`
+  payload.** §2 makes the UI a projection of the log, so a client composing its
+  own wording could show one thing while the log recorded another. The
+  Allow/Deny is the UI's; the sentence is the backend's.
+- **2026-09-10 — an auto-approved call still writes its row and emits both
+  events.** Skipping them is the obvious optimisation and it destroys the only
+  answer to "what did this run do without asking me". `tool.approved` carries
+  `automatic` so a person's yes and a policy's yes stay distinguishable.
+- **2026-09-10 — the gate blocks on the run's wall-clock budget, not its own
+  timeout.** A separate approval deadline is a second limit to configure and
+  explain, and the two disagree in the obvious case: a run with five minutes
+  left waiting on a ten-minute window is waiting for a decision it can no longer
+  act on. `Run.remaining_seconds` is the bound, and expiry settles the row —
+  which is what §4's `expired` status is for.
+- **2026-09-10 — pending approvals are expired at startup.** Their waiters are
+  `asyncio.Future`s in a process that no longer exists, so resolving one would
+  update a row and unblock nothing. Left alone they appear in the Phase 7 dialog
+  as live questions about runs that ended when the app last closed.
+- **2026-09-10 — an empty `auto_approve` on a definition means inherit, not
+  none.** §4 defaults the column to `'[]'` and every built-in carries it, so a
+  strict intersection makes the workspace policy inert — a setting that reports
+  success and changes nothing. The escalation rule is untouched: every branch
+  still returns a subset of the workspace policy. Full reasoning in "The design
+  decision worth not re-litigating (Phase 6)"; do not restore the strict reading
+  without reading it.
+- **2026-09-10 — `tool.denied` carries `blocked_by`.** An allowlist refusal, a
+  sandbox violation and a user's "no" are all `tool.denied`, and they are very
+  different things to see in a run. Without the discriminator a graph UI shows a
+  prompt-injected agent probing the boundary and a routine declined write
+  identically.
+- **2026-09-10 — the sandbox resolves before it compares, and never inspects
+  strings.** A search for `".."` rejects the legitimate `reports/../notes.txt`
+  and misses a symlink, which is the escape that works. It also means an
+  absolute path is judged by where it points rather than refused for being
+  absolute.
+- **2026-09-10 — `http_get` refuses non-public addresses and does not follow
+  redirects.** §1 constraint 3 keeps other machines off the sidecar and does
+  nothing about an agent fetching `127.0.0.1:8787/settings` from inside a run.
+  A redirect is how a checked public URL becomes an unchecked private one, so
+  the target is handed back for the agent to request explicitly — which puts it
+  through the check and the gate again.
+- **2026-09-10 — `run_shell` claims a hard timeout and does not claim network
+  isolation.** The timeout kills the process tree, because killing the direct
+  child leaves the real work running — the Phase 1 bootloader lesson. Network
+  denial is not enforceable in-process cross-platform and the module says so
+  rather than implying otherwise; §5 Phase 6's own addendum already concedes the
+  point and puts real isolation in a container outside the shipped build.
+- **2026-09-10 — the supervisor is handed no `ToolRuntime` at all.** It has no
+  `allowed_tools`, so `_permit` can never route it to a catalogue tool and a
+  runtime would be unreachable machinery. The one agent present in every run
+  stays the one that touches nothing.
+- **2026-09-10 — the workspace approval policy is snapshotted at run start.**
+  Same rule as the limits and the roster, and the direction that matters is
+  widening: a policy loosened mid-run would stop the gate asking while work was
+  already in flight.
+- **2026-09-10 — migration 004 widens the seeded built-ins conditionally.** The
+  `UPDATE`s are guarded on the row still holding its seeded `'[]'`, so a
+  definition the user edited before upgrading survives. The one case it cannot
+  distinguish is a user who deliberately emptied a built-in's allowlist; they
+  get the default back once. That is the smaller harm than a researcher which
+  can read nothing on every fresh install.
 - **2026-09-10 — the supervisor picks workers from a roster; it can no longer
   invent one.** §5 Phase 5 says the registry "constructs workers from rows", so
   `spawn_agent` takes an `agent` name from `agent_defs` instead of Phase 4's
