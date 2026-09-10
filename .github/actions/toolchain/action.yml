@@ -5,6 +5,13 @@
 # two lists that were supposed to stay identical and did not — Phase 6's
 # settings models, Phase 8's `SECRET_NAMES`, and twice more besides — so the
 # shared half is factored out rather than duplicated and hoped over.
+#
+# Every action below is pinned to its current major, each checked against the
+# repository it comes from on 2026-09-11 rather than written from memory. That
+# was worth doing: the first draft pinned five of them two to five majors behind,
+# on the node20 runtime that current majors have moved off. Nothing here had ever
+# run, so a stale pin would have failed at the first step on both runners with
+# no local symptom whatsoever.
 name: Toolchain
 description: Install just, uv and Node, and restore this repository's redirected package caches.
 
@@ -16,18 +23,23 @@ runs:
     # YAML. A workflow that inlines its own build commands is a second build
     # system that drifts from the first.
     - name: Install just
-      uses: extractions/setup-just@v2
-      with:
-        github-token: ${{ github.token }}
+      uses: extractions/setup-just@v4
 
     # No `actions/setup-python`: `apps/backend/pyproject.toml` pins
     # `requires-python = "==3.12.*"` and uv fetches the interpreter itself, which
     # is exactly what the README tells a human to rely on.
     - name: Install uv
-      uses: astral-sh/setup-uv@v5
+      uses: astral-sh/setup-uv@v10
+      with:
+        # Its default is "auto", which caches uv's *own* default directory —
+        # a directory these recipes never write to, because the justfile
+        # redirects UV_CACHE_DIR into `.dev/cache/uv`. Left on, it would upload
+        # an empty cache entry every run. The `actions/cache` step below covers
+        # the real one.
+        enable-cache: false
 
     - name: Install Node
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v7
       with:
         node-version-file: .nvmrc
 
@@ -43,7 +55,7 @@ runs:
     # catch. A cache that can reintroduce the bug the guards are there to find is
     # a bad trade for build minutes on a public repository, where they are free.
     - name: Restore the redirected package caches
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: .dev/cache
         key: dev-cache-${{ runner.os }}-${{ hashFiles('apps/backend/uv.lock', 'apps/desktop/package-lock.json', 'apps/desktop/src-tauri/Cargo.lock') }}

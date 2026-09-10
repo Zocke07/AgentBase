@@ -47,7 +47,7 @@ jobs:
         os: [windows-latest, macos-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/toolchain
 
@@ -73,7 +73,7 @@ jobs:
         os: [windows-latest, macos-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/toolchain
 
@@ -112,7 +112,7 @@ jobs:
       # appear fails the job rather than uploading nothing under a green tick.
       - name: Upload the Windows installer
         if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: AgentSpace-windows-installer
           path: apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
@@ -130,7 +130,7 @@ jobs:
 
     steps:
       - name: Download the installer built by the Windows job
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: AgentSpace-windows-installer
           path: dist
