@@ -119,6 +119,7 @@ async def _drive_run(request: Request, run_id: str, goal: str) -> None:
     await execute_run(
         state.store,
         state.settings,
+        state.agents,
         state.ledger,
         state.secrets,
         run_id,

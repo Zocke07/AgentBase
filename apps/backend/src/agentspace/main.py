@@ -43,6 +43,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from agentspace.api.agents import router as agents_router
 from agentspace.api.runs import router as runs_router
 from agentspace.api.settings import router as settings_router
 from agentspace.budget.ledger import BudgetLedger
@@ -57,6 +58,7 @@ from agentspace.config import (
 from agentspace.events.bus import EventBus
 from agentspace.events.store import EventStore
 from agentspace.secrets import SecretStore, parse_secrets_line
+from agentspace.store.agents import AgentDefStore
 from agentspace.store.db import Database
 from agentspace.store.settings import SettingsStore
 
@@ -111,6 +113,7 @@ def create_app(paths: AppPaths | None = None, secrets: SecretStore | None = None
         app.state.background_tasks = set()
         app.state.secrets = secret_store
         app.state.settings = SettingsStore(database)
+        app.state.agents = AgentDefStore(database, app.state.settings)
         app.state.ledger = BudgetLedger(database, app.state.settings, app.state.store)
 
         try:
@@ -145,6 +148,7 @@ def create_app(paths: AppPaths | None = None, secrets: SecretStore | None = None
         """Liveness probe. The shell polls this to decide the sidecar is up."""
         return {"ok": True}
 
+    app.include_router(agents_router)
     app.include_router(runs_router)
     app.include_router(settings_router)
 

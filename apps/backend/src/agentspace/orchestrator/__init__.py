@@ -1,7 +1,7 @@
 """The orchestration loop, hand-written (§1 constraint 1).
 
-:func:`execute_run` is the entry point: it resolves the run's limits and
-provider, drives the supervisor, and guarantees a terminal event whatever
+:func:`execute_run` is the entry point: it resolves the run's limits, roster and
+providers, drives the supervisor, and guarantees a terminal event whatever
 happens. Assembling those pieces here rather than in `run.py` keeps `run.py`
 ignorant of agents — a `Run` owns lifecycle and the event sequence, and does
 not need to know what a supervisor is.
@@ -23,10 +23,11 @@ from agentspace.budget.ledger import BudgetedProvider, BudgetExceededError
 from agentspace.events.types import EventType
 from agentspace.orchestrator.agent import Agent, AgentSpec, StepOutcome
 from agentspace.orchestrator.limits import RunLimits
+from agentspace.orchestrator.registry import AgentRegistry, ProviderPool
 from agentspace.orchestrator.run import Mailbox, Run, RunDeadlineExceededError
 from agentspace.orchestrator.supervisor import SUPERVISOR_NAME, Supervisor
 from agentspace.providers.base import ProviderError
-from agentspace.providers.factory import UnknownProviderError, build_provider
+from agentspace.providers.factory import UnknownProviderError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -37,13 +38,16 @@ if TYPE_CHECKING:
     from agentspace.events.store import EventStore
     from agentspace.providers.base import Provider
     from agentspace.secrets import SecretStore
+    from agentspace.store.agents import AgentDefStore
     from agentspace.store.settings import SettingsStore
 
 __all__ = [
     "SUPERVISOR_NAME",
     "Agent",
+    "AgentRegistry",
     "AgentSpec",
     "Mailbox",
+    "ProviderPool",
     "Run",
     "RunLimits",
     "StepOutcome",
@@ -57,6 +61,7 @@ logger = logging.getLogger("agentspace.orchestrator")
 async def execute_run(
     store: EventStore,
     settings: SettingsStore,
+    agents: AgentDefStore,
     ledger: BudgetLedger,
     secrets: SecretStore,
     run_id: str,
@@ -68,10 +73,13 @@ async def execute_run(
 ) -> None:
     """Drive one run from `run.started` to a terminal event.
 
-    :param provider: overrides the configured provider. Tests pass a scripted
-        one; nothing in the shipped app does. It is still wrapped by
-        :class:`~agentspace.budget.ledger.BudgetedProvider`, so a test cannot
-        accidentally prove the cap holds on a path that bypasses it.
+    :param agents: the agent definitions. Read once, here, into a frozen
+        registry — §5 Phase 5 requires that editing a definition mid-run leaves
+        the in-flight run alone.
+    :param provider: overrides the configured provider, for every agent. Tests
+        pass a scripted one; nothing in the shipped app does. It is still
+        wrapped by :class:`~agentspace.budget.ledger.BudgetedProvider`, so a
+        test cannot accidentally prove the cap holds on a path that bypasses it.
     :param clock: monotonic time source, injected so the wall-clock limit can
         be tested without a test that actually waits.
     """
@@ -88,29 +96,46 @@ async def execute_run(
 
     await run.start()
 
+    registry = await AgentRegistry.load(agents, limits)
+    providers = ProviderPool(
+        workspace,
+        secrets,
+        ledger,
+        run_id,
+        client,
+        override=BudgetedProvider(provider, ledger, run_id) if provider is not None else None,
+    )
+
     try:
-        inner = provider if provider is not None else build_provider(workspace, secrets, client)
+        guarded = providers.default()
     except (UnknownProviderError, ProviderError) as exc:
         # A missing key or an unknown provider name is a configuration problem,
         # not a crash — it has to reach the user as a readable run failure.
+        # A *definition's* own provider failing is different and is handled by
+        # the supervisor, because one bad row should not end a working run.
         await run.fail(str(exc))
         return
 
-    guarded = BudgetedProvider(inner, ledger, run_id)
     mailbox = Mailbox(run)
 
     run.register_agent(SUPERVISOR_NAME)
+    supervisor = Supervisor(
+        run=run,
+        mailbox=mailbox,
+        provider=guarded,
+        goal=goal,
+        registry=registry,
+        providers=providers,
+    )
     await run.emit(
         EventType.AGENT_SPAWNED,
         {
-            "role": "Plans the work and delegates it",
+            **supervisor.spec.as_payload(),
             "provider": guarded.name,
             "model": guarded.model,
         },
         agent_id=SUPERVISOR_NAME,
     )
-
-    supervisor = Supervisor(run=run, mailbox=mailbox, provider=guarded, goal=goal)
 
     try:
         outcome = await supervisor.execute(goal)
