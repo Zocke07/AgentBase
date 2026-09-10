@@ -109,19 +109,29 @@ class Sandbox:
             )
             raise SandboxViolationError(msg)
 
-        # An NTFS alternate data stream stays inside the root, so containment
-        # does not catch it — `notes.txt:hidden` is a real write that almost no
-        # tool displays. A tool reporting it wrote `notes.txt` would be lying.
-        # Checked before joining, since `Path` discards the stream suffix on
-        # some operations and it would vanish before the comparison.
+        # A colon in a *relative* path is refused on every platform, and the
+        # reason is Windows-specific: `notes.txt:hidden` writes an NTFS
+        # alternate data stream. It stays inside the root, so containment does
+        # not catch it, and almost no tool displays it — a tool reporting that
+        # it wrote `notes.txt` would be lying to the user. It has to be checked
+        # before joining, because `Path` drops the stream suffix on some
+        # operations and it would vanish before the comparison.
         #
-        # A drive letter is the legitimate colon, and it is absolute, so it is
-        # left to the containment check below rather than being caught here.
+        # **Applied on POSIX too, where a colon is a legal filename character.**
+        # That over-rejects `notes:2026.txt` on macOS, and the alternative is
+        # worse: the workspace would accept a path on one platform and refuse it
+        # on the other, so an agent definition that worked on the maintainer's
+        # macOS build would fail on the Windows one it actually ships to (§1
+        # constraint 7). One rule, stated in terms of what is portable.
+        #
+        # A drive letter is the legitimate colon and is absolute, so it falls
+        # through to the containment check rather than being caught here.
         if ":" in text and not Path(text).is_absolute():
             msg = (
-                f"{candidate!r} is not a valid workspace path: ':' names an "
-                f"alternate data stream, which is a hidden write. Use a plain "
-                f"file name."
+                f"{candidate!r} is not a valid workspace path: ':' is not "
+                f"allowed in a file name, because on Windows it writes a hidden "
+                f"alternate data stream rather than the file you named. Use a "
+                f"plain name such as 'notes.txt'."
             )
             raise SandboxViolationError(msg)
 

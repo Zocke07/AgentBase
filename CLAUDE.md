@@ -562,6 +562,38 @@ ten-minute approval window waits for a decision it can no longer act on. Expiry
 settles the row rather than leaving it pending forever, which is what §4's
 `expired` status is for.
 
+**A denial stops a call, not a run — the supervisor routes around it.** Watched
+live, and it is the most interesting thing the gate run produced after the
+acceptance criterion itself.
+
+The sequence: the user denied `overwrite notes.txt`; the worker was told plainly
+and called `finish` with "Permission denied: cannot overwrite notes.txt"; the
+supervisor read that, spawned a **second** copy of the same definition
+(`escaper-2`, deduplicated by `register_agent`), and it asked for the same
+overwrite again.
+
+Nothing here is broken and nothing is bypassed. The second attempt stopped at
+the gate exactly like the first, the user was asked again, and the file was
+never modified — §1 constraint 5 held on every attempt. The `tool.denied`
+reason does tell the *agent* not to retry, and that agent did not; the
+supervisor is a different agent, and all it sees is a worker's summary saying
+the task failed.
+
+Two consequences worth carrying.
+
+*For Phase 7:* a user can be asked the same question several times in one run,
+so a dialog that assumes one question per decision will feel broken. Rendering
+the approval history for a run — approved, denied, denied again — is more
+useful than showing only what is currently outstanding.
+
+*For the product generally:* "deny" currently means "not this call", not "not
+this run". Making a denial sticky (a supervisor told that this exact call was
+already refused) is a real feature and is not in this phase. It is also not
+purely a convenience: a supervisor that can re-ask indefinitely turns a single
+"no" into a war of attrition, and the only things bounding it today are the step
+limit and the agent cap. Recorded rather than fixed, because the fix belongs
+with whatever Phase 7 learns about how these dialogs actually feel to use.
+
 **A restart makes every pending approval unanswerable, so startup expires them.**
 A pending row's waiter is an `asyncio.Future` in the process that created it.
 After a restart, resolving one would update a database and unblock nothing, and
@@ -650,6 +682,9 @@ Four warnings from this project's findings, all of which bear directly on the UI
 - **Render `blocked_by` on a `tool.denied`.** "The user said no" and "the agent
   tried to leave the workspace" are the same event type and very different things
   to see in a run.
+- **Expect the same question more than once in a run.** A denial stops a call,
+  not a run, and a supervisor will spawn a second worker and ask again — watched
+  live. Show a run's approval history, not just what is outstanding.
 - **Test it from inside the webview, not from a terminal.** Phase 1's CORS bug
   and Phase 2's named-event bug were both invisible from `curl` and obvious from
   the page.

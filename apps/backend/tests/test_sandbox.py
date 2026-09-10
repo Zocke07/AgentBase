@@ -136,16 +136,35 @@ def test_a_windows_drive_path_is_rejected(sandbox: Sandbox) -> None:
         sandbox.resolve_path("C:\\Windows\\System32\\drivers\\etc\\hosts")
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="alternate data streams are Windows-only")
-def test_a_windows_alternate_data_stream_is_rejected(sandbox: Sandbox) -> None:
+def test_an_alternate_data_stream_is_rejected_on_every_platform(sandbox: Sandbox) -> None:
     """`notes.txt:hidden` writes a stream most tooling never shows.
 
     It stays inside the root, so the containment check alone does not catch it;
     it is rejected because a tool that claims to have written `notes.txt` and
     actually wrote an invisible stream is lying to the user.
+
+    **Not skipped off Windows.** The hazard is NTFS-specific and the *rule* is
+    not, deliberately: a workspace that accepted this path on macOS and refused
+    it on Windows would mean an agent definition working on one build and
+    failing on the one that ships (§1 constraint 7). The cost is over-rejecting
+    a legal POSIX filename, which the next test pins as a known trade rather
+    than leaving it to be discovered as a bug.
+    """
+    with pytest.raises(SandboxViolationError) as caught:
+        sandbox.resolve_path("notes.txt:hidden")
+
+    assert "Windows" in str(caught.value)
+
+
+def test_a_colon_is_refused_even_where_it_would_be_legal(sandbox: Sandbox) -> None:
+    """The deliberate over-rejection, recorded so it reads as a choice.
+
+    `notes:2026.txt` is a perfectly good filename on macOS and Linux. It is
+    refused anyway, because one portable rule beats two platform-specific ones
+    for a product whose primary target and whose CI target differ.
     """
     with pytest.raises(SandboxViolationError):
-        sandbox.resolve_path("notes.txt:hidden")
+        sandbox.resolve_path("notes:2026.txt")
 
 
 def _link_to_directory(link: Path, target: Path) -> None:
