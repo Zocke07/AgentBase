@@ -11,8 +11,11 @@ mismatch means the installer would ship a different server than the one that
 was tested — the failure mode that makes a release quietly wrong rather than
 obviously broken.
 
-Skipped unless both the installer and the sidecar exist, so it does not force
-a full bundle on every `just test`.
+Skipped unless the installer, the sidecar and 7-Zip all exist, so it does not
+force a full bundle on every `just test`. Pass `--require-build-checks` — as
+`just verify-build` does — to make a missing one of those a failure instead: on
+the release path, "the check did not run" and "the check passed" must not look
+alike.
 """
 
 from __future__ import annotations
@@ -23,8 +26,12 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TAURI_ROOT = REPO_ROOT / "apps" / "desktop" / "src-tauri"
@@ -84,20 +91,42 @@ SIDECAR = _sidecar_source()
 INSTALLER = _installer()
 SEVEN_ZIP = _seven_zip()
 
-pytestmark = [
-    pytest.mark.skipif(sys.platform != "win32", reason="NSIS installer is a Windows artifact"),
-    pytest.mark.skipif(SIDECAR is None, reason="sidecar not built"),
-    pytest.mark.skipif(INSTALLER is None, reason="installer not built"),
-]
+#: The platform skip stays an ordinary skip even under `--require-build-checks`.
+#: The macOS CI job builds a `.app` and there is no NSIS installer there to look
+#: inside; demanding one would fail the job for being macOS.
+pytestmark = pytest.mark.skipif(
+    sys.platform != "win32", reason="NSIS installer is a Windows artifact"
+)
+
+
+def _missing_prerequisite() -> str | None:
+    """What stops these tests reading the installer, if anything does.
+
+    Returned as a sentence rather than a bool so that the release path can say
+    which of the three prerequisites was absent. 7-Zip belongs in this list and
+    not in the bodies below: "no 7-Zip" and "no installer" are both reasons the
+    staleness check did not happen, and a release must be able to tell them
+    apart from the check having passed.
+    """
+    if SIDECAR is None:
+        return f"no built sidecar in {SIDECAR_DIR}; run `just build-sidecar`"
+    if INSTALLER is None:
+        return f"no installer in {BUNDLE_DIR / 'nsis'}; run `just build-installer`"
+    if SEVEN_ZIP is None:
+        return "7-Zip is not installed, so the installer cannot be unpacked"
+    return None
+
+
+@pytest.fixture(autouse=True)
+def _needs_a_build(build_prerequisite: Callable[[str | None], None]) -> None:
+    """Skip without a build; fail if the caller asked for the check explicitly."""
+    build_prerequisite(_missing_prerequisite())
 
 
 def test_installer_carries_the_freshly_built_sidecar(tmp_path: Path) -> None:
     """The whole point: no stale cached binary snuck into the bundle."""
     assert SIDECAR is not None
     assert INSTALLER is not None
-    if SEVEN_ZIP is None:
-        pytest.skip("7-Zip not installed; cannot look inside the NSIS installer")
-
     wanted = bundled_name(SIDECAR.name)
     extracted = tmp_path / "unpacked"
     completed = subprocess.run(  # noqa: S603
@@ -136,9 +165,6 @@ def test_installer_embeds_the_webview2_bootstrapper() -> None:
     outcome this guards against.
     """
     assert INSTALLER is not None
-    if SEVEN_ZIP is None:
-        pytest.skip("7-Zip not installed; cannot look inside the NSIS installer")
-
     completed = subprocess.run(  # noqa: S603
         [str(SEVEN_ZIP), "l", str(INSTALLER)],
         capture_output=True,
@@ -153,12 +179,13 @@ def test_installer_embeds_the_webview2_bootstrapper() -> None:
     )
 
 
-def test_staged_sidecar_matches_the_build() -> None:
+def test_staged_sidecar_matches_the_build(
+    build_prerequisite: Callable[[str | None], None],
+) -> None:
     """Tauri copies externalBin into target/release/; that copy can go stale too."""
     assert SIDECAR is not None
     staged = TAURI_ROOT / "target" / "release" / bundled_name(SIDECAR.name)
-    if not staged.is_file():
-        pytest.skip("no staged copy under target/release/")
+    build_prerequisite(None if staged.is_file() else f"no staged copy at {staged}")
 
     assert _sha256(staged) == _sha256(SIDECAR), (
         "the sidecar staged under target/release/ is stale relative to "

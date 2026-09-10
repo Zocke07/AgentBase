@@ -22,7 +22,7 @@ from agentspace.store.db import Database
 from agentspace.store.settings import SettingsStore
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
     from pathlib import Path
 
 
@@ -114,3 +114,56 @@ def ledger(db: Database, store: EventStore, settings: SettingsStore) -> BudgetLe
 @pytest.fixture
 def secrets() -> SecretStore:
     return SecretStore()
+
+
+# --- Phase 9: verifying built artefacts, without letting the check vanish -----
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    """Add `--require-build-checks`.
+
+    The tests that inspect a *built* artefact — the frozen sidecar and the NSIS
+    installer — skip when there is nothing built, so `just test` stays fast and
+    does not depend on build order. That is right for a dev run and wrong for a
+    release: a CI job that builds an installer and then skips the staleness
+    check has verified nothing, and says so in the same green tick as a job that
+    verified everything.
+
+    So the release path passes this flag (see `just verify-build`) and a missing
+    binary, a missing installer or a missing 7-Zip becomes a failure naming what
+    was absent, instead of a skip nobody reads.
+    """
+    parser.addoption(
+        "--require-build-checks",
+        action="store_true",
+        default=False,
+        help=(
+            "Fail, rather than skip, tests that inspect built artefacts. "
+            "Used after a build so a missing artefact cannot leave a release "
+            "unverified."
+        ),
+    )
+
+
+@pytest.fixture
+def build_prerequisite(request: pytest.FixtureRequest) -> Callable[[str | None], None]:
+    """Skip on a missing build prerequisite — or fail, if the caller demanded it.
+
+    Takes the reason a prerequisite is missing, or ``None`` when nothing is.
+    Kept as a fixture rather than a plain helper so it can read the command-line
+    option, which a module-level `skipif` condition cannot: those are booleans
+    evaluated at import time, before pytest has parsed its arguments.
+    """
+
+    def check(missing: str | None) -> None:
+        if missing is None:
+            return
+        if request.config.getoption("--require-build-checks"):
+            pytest.fail(
+                f"--require-build-checks was given, but {missing}. "
+                f"This check was asked for explicitly, so a skip would be a "
+                f"release verified by nothing."
+            )
+        pytest.skip(missing)
+
+    return check

@@ -12,7 +12,9 @@ alive and holding the port. The in-process tests in ``test_main.py`` cannot
 observe that, because in-process there is only ever one process.
 
 Skipped when the binary has not been built, so `just test` stays fast and does
-not silently depend on build order.
+not silently depend on build order. Pass `--require-build-checks` — as
+`just verify-build` does after a freeze — to turn that skip into a failure, so a
+release cannot go out green on a binary nothing ever launched.
 """
 
 from __future__ import annotations
@@ -32,7 +34,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -72,10 +74,21 @@ def _sidecar_path() -> Path:
 
 SIDECAR = _sidecar_path()
 
-pytestmark = pytest.mark.skipif(
-    not SIDECAR.is_file(),
-    reason=f"sidecar not built ({SIDECAR.name}); run `just build-sidecar`",
-)
+
+@pytest.fixture(autouse=True)
+def _needs_the_frozen_binary(build_prerequisite: Callable[[str | None], None]) -> None:
+    """Skip without a build; fail if the caller asked for the check explicitly.
+
+    `just verify-build` passes `--require-build-checks` after freezing, so a
+    release cannot report a green tick for a binary these tests never launched.
+    This module is the Phase 1 acceptance criterion expressed as a test, and it
+    is the one thing that has to hold on every platform that ships.
+    """
+    build_prerequisite(
+        None
+        if SIDECAR.is_file()
+        else f"sidecar not built ({SIDECAR.name}); run `just build-sidecar`"
+    )
 
 
 def _port_is_open(port: int, host: str = "127.0.0.1") -> bool:
