@@ -1,0 +1,194 @@
+import type {
+  AgentDef,
+  ApprovalResponse,
+  BudgetResponse,
+  CreateAgentRequest,
+  Event,
+  Run,
+  SettingsResponse,
+  ToolResponse,
+  UpdateAgentRequest,
+} from "@agentspace/schemas";
+
+import { resolveSidecarBaseUrl } from "./sidecar";
+
+/**
+ * Typed calls to the sidecar.
+ *
+ * Every request and response type here is imported from `@agentspace/schemas`,
+ * which is generated from the FastAPI OpenAPI document — BUILD_SPEC §5 Phase 7:
+ * "never hand-write the API types". Nothing in this file declares the shape of
+ * a payload; it only says which endpoint returns which generated type, so a
+ * model that changes on the backend breaks the frontend's typecheck rather than
+ * its runtime.
+ *
+ * This module deliberately does **not** touch the run store. Events reach the UI
+ * through the SSE stream and the reducer (§2); an API call that wrote run state
+ * directly would be the second source of truth that architecture exists to
+ * prevent. The only run-shaped thing fetched here is history, and that is fed
+ * through the same reducer as live events.
+ */
+
+/**
+ * A 4xx from the sidecar, carrying the field it blames when it named one.
+ *
+ * §5 Phase 5 made validation failures return `{message, field}` specifically so
+ * §5 Phase 7 could "surface the API's validation errors inline on the offending
+ * field — never a toast that loses which field was wrong". Losing `field` here
+ * would waste that.
+ */
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+    readonly field: string | null = null,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+let cachedBaseUrl: Promise<string> | null = null;
+
+/** The sidecar's origin, resolved once per page load. */
+export function baseUrl(): Promise<string> {
+  cachedBaseUrl ??= resolveSidecarBaseUrl();
+  return cachedBaseUrl;
+}
+
+/** Forget the cached origin. Exists so tests do not leak one into the next. */
+export function resetBaseUrl(): void {
+  cachedBaseUrl = null;
+}
+
+/**
+ * Turn a FastAPI error body into an {@link ApiError}.
+ *
+ * Three shapes reach here and all three carry a field name somewhere different:
+ * Phase 5's `{message, field}`, a plain string `detail`, and Pydantic's 422
+ * `detail: [{loc, msg}]`. Reading only the first would drop the field on exactly
+ * the errors a form most needs it for.
+ */
+function toApiError(status: number, body: unknown): ApiError {
+  const detail = (body as { detail?: unknown } | null)?.detail;
+
+  if (typeof detail === "string") {
+    return new ApiError(status, detail);
+  }
+
+  if (Array.isArray(detail)) {
+    const first = detail[0] as { loc?: unknown; msg?: unknown } | undefined;
+    const loc = Array.isArray(first?.loc) ? first.loc : [];
+    // `loc` is ["body", "field_name"]; the last segment is the field.
+    const field = loc.length > 0 ? String(loc[loc.length - 1]) : null;
+    const message = typeof first?.msg === "string" ? first.msg : `HTTP ${String(status)}`;
+    return new ApiError(status, message, field);
+  }
+
+  if (typeof detail === "object" && detail !== null) {
+    const shaped = detail as { message?: unknown; field?: unknown };
+    return new ApiError(
+      status,
+      typeof shaped.message === "string" ? shaped.message : `HTTP ${String(status)}`,
+      typeof shaped.field === "string" ? shaped.field : null,
+    );
+  }
+
+  return new ApiError(status, `HTTP ${String(status)}`);
+}
+
+async function send(path: string, init?: RequestInit): Promise<Response> {
+  // Built as a plain record rather than spread from `init.headers`, which is a
+  // union including a string-pair array — spreading that yields numeric indices.
+  const headers: Record<string, string> =
+    init?.body === undefined ? {} : { "Content-Type": "application/json" };
+
+  const response = await fetch(`${await baseUrl()}${path}`, { ...init, headers });
+
+  if (!response.ok) {
+    // A body that is not JSON is not a reason to lose the status code.
+    const body: unknown = await response.json().catch(() => null);
+    throw toApiError(response.status, body);
+  }
+
+  return response;
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  return (await (await send(path, init)).json()) as T;
+}
+
+/** For the endpoints that answer 204, where there is nothing to parse. */
+async function requestNoContent(path: string, init?: RequestInit): Promise<void> {
+  await send(path, init);
+}
+
+const asJson = (body: unknown): RequestInit => ({ body: JSON.stringify(body) });
+
+// --- runs -------------------------------------------------------------------
+
+export const listRuns = (limit = 50): Promise<Run[]> =>
+  request<Run[]>(`/runs?limit=${String(limit)}`);
+
+export const getRun = (runId: string): Promise<Run> => request<Run>(`/runs/${runId}`);
+
+export const createRun = (goal: string): Promise<Run> =>
+  request<Run>("/runs", { method: "POST", ...asJson({ goal }) });
+
+/**
+ * A finished run's event log as an array.
+ *
+ * Replay uses the SSE endpoint like live does, so this is not the replay path.
+ * It exists for the one case SSE handles badly: a run that ended before the
+ * dashboard opened, where the stream would deliver the backlog and immediately
+ * close, and where a plain array is simply the honest request.
+ */
+export const getRunHistory = (runId: string): Promise<Event[]> =>
+  request<Event[]>(`/runs/${runId}/events/history`);
+
+export const startDebugRun = (): Promise<Run> =>
+  request<Run>("/debug/fake_run", { method: "POST" });
+
+// --- agents -----------------------------------------------------------------
+
+export const listAgents = (): Promise<AgentDef[]> => request<AgentDef[]>("/agents");
+
+export const createAgent = (body: CreateAgentRequest): Promise<AgentDef> =>
+  request<AgentDef>("/agents", { method: "POST", ...asJson(body) });
+
+export const updateAgent = (id: string, body: UpdateAgentRequest): Promise<AgentDef> =>
+  request<AgentDef>(`/agents/${id}`, { method: "PATCH", ...asJson(body) });
+
+export const deleteAgent = (id: string): Promise<void> =>
+  requestNoContent(`/agents/${id}`, { method: "DELETE" });
+
+export const listTools = (): Promise<ToolResponse[]> => request<ToolResponse[]>("/tools");
+
+// --- approvals --------------------------------------------------------------
+
+/**
+ * Approvals still awaiting an answer.
+ *
+ * The dialog needs this as well as the `approval.requested` event: a user who
+ * opens the window a second after the question was asked would otherwise see
+ * nothing, and the entire point of the gate is that somebody is there to answer.
+ */
+export const listApprovals = (runId?: string): Promise<ApprovalResponse[]> =>
+  request<ApprovalResponse[]>(runId === undefined ? "/approvals" : `/approvals?run_id=${runId}`);
+
+export const resolveApproval = (id: string, approved: boolean): Promise<ApprovalResponse> =>
+  request<ApprovalResponse>(`/approvals/${id}`, { method: "POST", ...asJson({ approved }) });
+
+// --- settings and budget ----------------------------------------------------
+
+export const getBudget = (): Promise<BudgetResponse> => request<BudgetResponse>("/budget");
+
+export const getSettings = (): Promise<SettingsResponse> => request<SettingsResponse>("/settings");
+
+export interface ProviderCatalogue {
+  providers: { name: string; requires_key: boolean }[];
+  models: string[];
+}
+
+export const listProviders = (): Promise<ProviderCatalogue> =>
+  request<ProviderCatalogue>("/settings/providers");

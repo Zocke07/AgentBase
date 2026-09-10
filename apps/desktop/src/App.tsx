@@ -1,16 +1,33 @@
+import type { BudgetResponse, SettingsResponse } from "@agentspace/schemas";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { AgentsView } from "./components/AgentsView";
+import { BudgetMeter } from "./components/BudgetMeter";
+import { RunsView } from "./components/RunsView";
+import * as api from "./lib/api";
 import { connectWithRetry, type SidecarStatus } from "./lib/sidecar";
 
+
 /**
- * Application shell.
+ * The dashboard shell.
  *
- * Phase 1 is the packaging spike, so this page exists to prove one thing: a
- * React view inside the Tauri webview can reach the PyInstaller sidecar that
- * the Rust shell spawned. The live run graph arrives in Phase 7.
+ * Its whole job is to establish that the sidecar is reachable, then hand over to
+ * one of two tabs. Nothing about a run is decided here — that is `RunsView` and,
+ * below it, the reducer.
+ *
+ * The retry loop is inherited from the Phase 1 spike and still earns its place:
+ * the webview is reliably ready before the frozen sidecar has finished unpacking
+ * itself and binding a port, so the first request legitimately fails on almost
+ * every cold start.
  */
+
+type Tab = "runs" | "agents";
+
 export function App() {
   const [status, setStatus] = useState<SidecarStatus>({ kind: "connecting", attempt: 0 });
+  const [tab, setTab] = useState<Tab>("runs");
+  const [budget, setBudget] = useState<BudgetResponse | null>(null);
+  const [settings, setSettings] = useState<SettingsResponse | null>(null);
   const inFlight = useRef<AbortController | null>(null);
 
   const connect = useCallback(() => {
@@ -27,49 +44,88 @@ export function App() {
     };
   }, [connect]);
 
-  return (
-    <main className="shell">
-      <h1 className="shell__title">AgentSpace</h1>
-      <p className="shell__phase">Phase 1 — packaging spike</p>
+  const refreshWorkspace = useCallback(() => {
+    void api.getBudget().then(setBudget).catch(() => undefined);
+    void api.getSettings().then(setSettings).catch(() => undefined);
+  }, []);
 
-      <section className="card" aria-live="polite">
+  useEffect(() => {
+    if (status.kind === "ready") refreshWorkspace();
+  }, [status.kind, refreshWorkspace]);
+
+  if (status.kind !== "ready") {
+    return (
+      <main className="shell shell--waiting">
+        <h1 className="shell__title">AgentSpace</h1>
+
         {status.kind === "connecting" && (
-          <>
-            <span className="dot dot--pending" />
-            <span>
-              Connecting to sidecar<span className="ellipsis" /> (attempt {status.attempt})
-            </span>
-          </>
-        )}
-
-        {status.kind === "ready" && (
-          <>
-            <span className="dot dot--ok" />
-            <span>
-              Sidecar responded <code>{JSON.stringify(status.health)}</code>
-            </span>
-          </>
+          <p className="shell__status">
+            <span className="dot dot--pending" /> Connecting to the sidecar (attempt{" "}
+            {status.attempt})
+          </p>
         )}
 
         {status.kind === "failed" && (
           <>
-            <span className="dot dot--bad" />
-            <span>
-              Sidecar unreachable at <code>{status.baseUrl}</code>
-              <br />
-              <small>{status.message}</small>
-            </span>
+            <p className="shell__status">
+              <span className="dot dot--bad" /> Sidecar unreachable at <code>{status.baseUrl}</code>
+            </p>
+            <p className="shell__detail">{status.message}</p>
+            <button className="button" type="button" onClick={connect}>
+              Retry
+            </button>
           </>
         )}
-      </section>
+      </main>
+    );
+  }
 
-      {status.kind === "ready" && <p className="shell__origin">{status.baseUrl}</p>}
+  return (
+    <div className="app">
+      <header className="app__header">
+        <h1 className="app__title">AgentSpace</h1>
 
-      {status.kind === "failed" && (
-        <button className="retry" type="button" onClick={connect}>
-          Retry
-        </button>
-      )}
-    </main>
+        <nav className="tabs" aria-label="Sections">
+          <button
+            type="button"
+            className={`tab${tab === "runs" ? " tab--active" : ""}`}
+            aria-current={tab === "runs" ? "page" : undefined}
+            onClick={() => {
+              setTab("runs");
+            }}
+          >
+            Runs
+          </button>
+          <button
+            type="button"
+            className={`tab${tab === "agents" ? " tab--active" : ""}`}
+            aria-current={tab === "agents" ? "page" : undefined}
+            onClick={() => {
+              setTab("agents");
+            }}
+          >
+            Agents
+          </button>
+        </nav>
+
+        <div className="app__workspace">
+          {settings !== null && (
+            <span className="app__provider" title="The workspace default; a definition may pin its own">
+              {settings.settings.provider} · {settings.settings.model}
+              {!settings.model_is_priced && (
+                <span className="app__unpriced" role="alert">
+                  unpriced — runs will be refused
+                </span>
+              )}
+            </span>
+          )}
+          <BudgetMeter budget={budget} />
+        </div>
+      </header>
+
+      <div className="app__body">
+        {tab === "runs" ? <RunsView onRunChanged={refreshWorkspace} /> : <AgentsView />}
+      </div>
+    </div>
   );
 }

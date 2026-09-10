@@ -1,0 +1,408 @@
+import type { Event, EventType } from "@agentspace/schemas";
+import { describe, expect, it } from "vitest";
+
+import { LogBuilder, twoAgentRun } from "../test/log";
+
+import { EMPTY_RUN, pendingApprovals, reduce, reduceAll } from "./reducer";
+
+
+
+/**
+ * The run reducer — the UI's half of BUILD_SPEC §2.
+ *
+ * "Every agent action is an append-only event. The UI is a pure projection of
+ * the event log." This function is that projection, and everything the
+ * dashboard shows is derived here and nowhere else. The tests below are
+ * therefore about two separate claims:
+ *
+ *  - it is a *fold*: the same events in the same order give the same state,
+ *    however they were delivered. That is what makes live and replay the same
+ *    rendering path rather than two paths that agree today.
+ *  - it renders the log *honestly*: what an agent claimed and what it actually
+ *    did are separate fields, because CLAUDE.md records three live runs where
+ *    they disagreed.
+ */
+
+const ALL_EVENT_TYPES: EventType[] = [
+  "run.started",
+  "run.completed",
+  "run.failed",
+  "run.paused",
+  "run.cancelled",
+  "agent.spawned",
+  "agent.thinking",
+  "agent.message",
+  "agent.handoff",
+  "agent.completed",
+  "llm.request",
+  "llm.token",
+  "llm.response",
+  "llm.error",
+  "tool.requested",
+  "tool.approved",
+  "tool.denied",
+  "tool.called",
+  "tool.result",
+  "tool.error",
+  "approval.requested",
+  "approval.resolved",
+  "budget.warning",
+  "budget.exceeded",
+  "channel.inbound",
+  "channel.outbound",
+];
+
+// --- it is a fold -----------------------------------------------------------
+
+describe("the reducer as a fold", () => {
+  it("gives the same state whether events arrive one at a time or all at once", () => {
+    const events = twoAgentRun();
+
+    const incremental = events.reduce(reduce, EMPTY_RUN);
+    const bulk = reduceAll(events);
+
+    expect(incremental).toEqual(bulk);
+  });
+
+  it("gives the same state whatever the delivery chunking", () => {
+    /* SSE decides its own frame boundaries and a reconnect re-reads a range, so
+       the client legitimately receives the same log in different batch sizes. */
+    const events = twoAgentRun();
+    const expected = reduceAll(events);
+
+    for (const size of [1, 2, 3, 7, events.length]) {
+      let state = EMPTY_RUN;
+      for (let index = 0; index < events.length; index += size) {
+        state = reduceAll(events.slice(index, index + size), state);
+      }
+      expect(state).toEqual(expected);
+    }
+  });
+
+  it("never mutates the state it was given", () => {
+    const events = twoAgentRun();
+    const start = reduceAll(events.slice(0, 10));
+    const before = structuredClone(start);
+
+    reduceAll(events.slice(10), start);
+
+    expect(start).toEqual(before);
+  });
+
+  it("is a pure function of the events, with no clock in it", () => {
+    /* The whole "pixel-identical replay" criterion rests on this. A reducer
+       that stamped `Date.now()` anywhere would produce a different state on
+       every fold, and no amount of care in the components could recover it. */
+    const events = twoAgentRun();
+
+    expect(JSON.stringify(reduceAll(events))).toEqual(JSON.stringify(reduceAll(events)));
+  });
+
+  it("folds a prefix to exactly the state that prefix produced live", () => {
+    /* Replay scrubbing is this property. Position N of the scrubber must show
+       what the user saw when event N arrived, or the scrubber is a different
+       view of the run rather than the same one. */
+    const events = twoAgentRun();
+
+    let live = EMPTY_RUN;
+    let applied = 0;
+    for (const event of events) {
+      live = reduce(live, event);
+      applied += 1;
+      expect(reduceAll(events.slice(0, applied))).toEqual(live);
+    }
+  });
+});
+
+// --- it handles every event type -------------------------------------------
+
+describe("the event contract", () => {
+  it("recognises every type in the §4 list", () => {
+    /* Phase 2's lesson in a new place: a named SSE event silently bypassed the
+       client for any type it had not registered, and the failure was invisible.
+       An unrecognised type must reach the reducer and be *reported*, never
+       dropped, so 26 types and a client that knows 25 is a visible fact. */
+    for (const type of ALL_EVENT_TYPES) {
+      const log = new LogBuilder();
+      const state = reduce(EMPTY_RUN, log.add(type, {}, "supervisor"));
+      expect(state.unrecognised).toEqual([]);
+    }
+  });
+
+  it("reports an unrecognised type loudly rather than dropping it", () => {
+    const log = new LogBuilder();
+    const rogue = { ...log.add("run.started"), type: "agent.teleported" as EventType };
+
+    const state = reduce(EMPTY_RUN, rogue);
+
+    expect(state.unrecognised).toEqual(["agent.teleported"]);
+  });
+
+  it("survives a payload with every field missing", () => {
+    /* Payloads are `dict[str, Any]` on the wire. A reducer that assumed a field
+       was present would take the dashboard down on a malformed event instead of
+       rendering the rest of a run that is otherwise fine. */
+    for (const type of ALL_EVENT_TYPES) {
+      const log = new LogBuilder();
+      expect(() => reduce(EMPTY_RUN, log.add(type, {}, null))).not.toThrow();
+    }
+  });
+});
+
+// --- it renders the log honestly -------------------------------------------
+
+describe("what an agent claimed versus what it did", () => {
+  it("keeps the terminal summary as a claim, not as an outcome", () => {
+    /* CLAUDE.md, three separate live runs: a run completed with "saved to
+       notes.txt" having made no file call at all. The summary is a model's
+       assertion; the `tool.called` events are what happened. The reducer keeps
+       them in different fields so the UI cannot accidentally present one as
+       the other. */
+    const state = reduceAll(twoAgentRun());
+
+    expect(state.claim).toEqual({
+      kind: "summary",
+      text: "Quarterly report summarised and saved to notes.txt.",
+    });
+    expect(state.toolCalls.map((call) => call.tool)).toEqual(["spawn_agent", "write_file"]);
+  });
+
+  it("records a failure reason as a claim of the same kind", () => {
+    const log = new LogBuilder();
+    const state = reduceAll([log.add("run.failed", { reason: "This run hit its time limit." })]);
+
+    expect(state.status).toBe("failed");
+    expect(state.claim).toEqual({ kind: "reason", text: "This run hit its time limit." });
+  });
+
+  it("counts only executed calls as tool calls", () => {
+    /* A requested call, a denied call and an executed call are three different
+       facts. Only the last one touched anything. */
+    const state = reduceAll(twoAgentRun());
+
+    expect(state.requested).toHaveLength(3);
+    expect(state.denials).toHaveLength(1);
+    expect(state.toolCalls).toHaveLength(2);
+  });
+});
+
+describe("denials", () => {
+  it("carries blocked_by so a traversal attempt is not a declined write", () => {
+    /* CLAUDE.md: "The user said no" and "the agent tried to leave the
+       workspace" are the same event type and very different things to see. */
+    const state = reduceAll(twoAgentRun());
+
+    expect(state.denials[0]).toMatchObject({
+      agent: "researcher",
+      tool: "read_file",
+      blockedBy: "sandbox",
+    });
+  });
+
+  it("leaves blockedBy null when the user simply declined", () => {
+    const log = new LogBuilder();
+    const state = reduceAll([
+      log.add("tool.denied", { tool: "write_file", reason: "The user denied this call." }, "worker"),
+    ]);
+
+    expect(state.denials[0]?.blockedBy).toBeNull();
+  });
+});
+
+describe("approvals", () => {
+  it("keeps the whole history, not only what is outstanding", () => {
+    /* CLAUDE.md, watched live: a denial stops a call, not a run. The supervisor
+       spawned a second worker and asked the same question again. A dialog that
+       only ever shows the outstanding question makes that look like one event. */
+    const log = new LogBuilder();
+    const state = reduceAll([
+      log.add("approval.requested", { approval_id: "a1", tool: "write_file", risk: "medium", prompt: "First ask" }, "escaper"),
+      log.add("approval.resolved", { approval_id: "a1", tool: "write_file", status: "denied" }, "escaper"),
+      log.add("approval.requested", { approval_id: "a2", tool: "write_file", risk: "medium", prompt: "Second ask" }, "escaper-2"),
+      log.add("approval.resolved", { approval_id: "a2", tool: "write_file", status: "denied" }, "escaper-2"),
+    ]);
+
+    expect(state.approvals.map((approval) => approval.status)).toEqual(["denied", "denied"]);
+    expect(state.approvals.map((approval) => approval.agent)).toEqual(["escaper", "escaper-2"]);
+  });
+
+  it("renders the prompt the log recorded rather than composing one", () => {
+    const state = reduceAll(twoAgentRun());
+
+    expect(state.approvals[0]?.prompt).toBe(
+      'Agent "researcher" wants to create notes.txt (31 characters) — Allow / Deny',
+    );
+  });
+
+  it("marks an approval pending until its resolution arrives", () => {
+    const events = twoAgentRun();
+    const uptoRequest = events.findIndex((event) => event.type === "approval.requested") + 1;
+
+    const waiting = reduceAll(events.slice(0, uptoRequest));
+
+    expect(waiting.approvals[0]?.status).toBe("pending");
+    expect(pendingApprovals(waiting)).toHaveLength(1);
+  });
+
+  it("distinguishes a policy's yes from a person's yes", () => {
+    /* `tool.approved` carries `automatic` precisely so "what did this run do
+       without asking me" stays answerable. */
+    const log = new LogBuilder();
+    const state = reduceAll([
+      log.add("approval.requested", { approval_id: "a1", tool: "read_file", risk: "low", prompt: "Read?", automatic: true }, "w"),
+      log.add("approval.resolved", { approval_id: "a1", tool: "read_file", status: "approved", automatic: true }, "w"),
+    ]);
+
+    expect(state.approvals[0]).toMatchObject({ status: "approved", automatic: true });
+  });
+});
+
+describe("agents", () => {
+  it("builds a node per agent from agent.spawned alone", () => {
+    const state = reduceAll(twoAgentRun());
+
+    expect(state.agentOrder).toEqual(["supervisor", "researcher"]);
+    expect(state.agents.researcher).toMatchObject({
+      role: "Gathers source material",
+      definitionName: "researcher",
+      provider: "ollama",
+      model: "qwen3:4b",
+      allowedTools: ["read_file", "write_file"],
+      maxSteps: 6,
+    });
+  });
+
+  it("records the system prompt, because it is why two runs differed", () => {
+    const state = reduceAll(twoAgentRun());
+
+    expect(state.agents.researcher?.systemPrompt).toBe("You find things out.");
+  });
+
+  it("does not treat llm.token as a sign of life", () => {
+    /* CLAUDE.md: deltas arrive 1-10 at a time from Anthropic, and a whole run
+       against a real Ollama model emitted zero of them. An agent that streamed
+       nothing is not an idle agent. */
+    const log = new LogBuilder();
+    const thinking = reduceAll([
+      log.add("agent.spawned", { role: "r" }, "w"),
+      log.add("agent.thinking", { step: 1 }, "w"),
+    ]);
+
+    expect(thinking.agents.w?.activity).toBe("thinking");
+    expect(thinking.agents.w?.streamedText).toBe("");
+  });
+
+  it("accumulates streamed text in arrival order", () => {
+    const state = reduceAll(twoAgentRun());
+
+    expect(state.agents.researcher?.streamedText).toBe("Reading the report.");
+  });
+
+  it("marks an agent completed with the reason the log gives", () => {
+    const state = reduceAll(twoAgentRun());
+
+    expect(state.agents.researcher).toMatchObject({
+      activity: "completed",
+      finishedReason: "finished",
+      steps: 2,
+    });
+  });
+
+  it("shows an agent as waiting while its approval is outstanding", () => {
+    const events = twoAgentRun();
+    const uptoRequest = events.findIndex((event) => event.type === "approval.requested") + 1;
+
+    const waiting = reduceAll(events.slice(0, uptoRequest));
+
+    expect(waiting.agents.researcher?.activity).toBe("waiting");
+  });
+
+  it("creates a node for an agent that only ever appears as an agent_id", () => {
+    /* Defensive, and not hypothetically: `agent.spawned` is emitted by the
+       supervisor for its workers, and a log truncated by a resume can start
+       mid-run. A missing node would drop every subsequent event for it. */
+    const log = new LogBuilder();
+    const state = reduceAll([log.add("agent.thinking", { step: 3 }, "orphan")]);
+
+    expect(state.agents.orphan?.steps).toBe(3);
+  });
+});
+
+describe("handoffs", () => {
+  it("records each one as an edge with its task", () => {
+    const state = reduceAll(twoAgentRun());
+
+    expect(state.handoffs).toEqual([
+      { from: "supervisor", to: "researcher", task: "Find the figures", seq: 9 },
+    ]);
+  });
+});
+
+describe("tokens and budget", () => {
+  it("totals usage from llm.response", () => {
+    const state = reduceAll(twoAgentRun());
+
+    expect(state.inputTokens).toBe(900);
+    expect(state.outputTokens).toBe(100);
+  });
+
+  it("takes the latest budget figures from budget events", () => {
+    const log = new LogBuilder();
+    const state = reduceAll([
+      log.add("budget.warning", { spent_micros: 800, cap_micros: 1000, percent: 80, reason: "80%" }),
+      log.add("budget.exceeded", { spent_micros: 1000, cap_micros: 1000, reason: "over" }),
+    ]);
+
+    expect(state.budget).toMatchObject({ spentMicros: 1000, capMicros: 1000 });
+    expect(state.budgetExceeded).toBe(true);
+  });
+});
+
+describe("run identity", () => {
+  it("takes the goal and limits from run.started", () => {
+    const state = reduceAll(twoAgentRun());
+
+    expect(state.goal).toBe("Summarise the quarterly report");
+    expect(state.limits).toMatchObject({ max_agents_per_run: 4 });
+  });
+
+  it("tracks the run id and head sequence from the events themselves", () => {
+    const events = twoAgentRun();
+    const state = reduceAll(events);
+
+    expect(state.runId).toBe("run-1");
+    expect(state.lastSeq).toBe(events.length);
+  });
+
+  it("starts from a state that renders as an empty run", () => {
+    expect(EMPTY_RUN.agentOrder).toEqual([]);
+    expect(EMPTY_RUN.status).toBe("pending");
+    expect(EMPTY_RUN.claim).toBeNull();
+  });
+});
+
+describe("errors", () => {
+  it("keeps llm and tool errors where the log panel can show them", () => {
+    const log = new LogBuilder();
+    const state = reduceAll([
+      log.add("llm.error", { error: "provider refused" }, "w"),
+      log.add("tool.error", { tool: "read_file", error: "no such file" }, "w"),
+    ]);
+
+    expect(state.errors).toEqual([
+      { agent: "w", kind: "llm", message: "provider refused", seq: 1 },
+      { agent: "w", kind: "tool", message: "no such file", seq: 2 },
+    ]);
+  });
+});
+
+describe("a partial log", () => {
+  it("reduces a run that never reached a terminal event", () => {
+    const events: Event[] = twoAgentRun().slice(0, 12);
+
+    const state = reduceAll(events);
+
+    expect(state.status).toBe("running");
+    expect(state.claim).toBeNull();
+  });
+});
