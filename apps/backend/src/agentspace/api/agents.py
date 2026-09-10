@@ -94,9 +94,14 @@ class ToolResponse(BaseModel):
     name: str
     description: str
     risk: str
-    #: False for every tool in Phase 5. §5 Phase 6 builds the gate and the
-    #: implementations; until it does, an agent permitted a tool is told the
-    #: tool is unavailable rather than having it run ungated (§1 constraint 5).
+    #: Whether an implementation is actually registered behind the name.
+    #:
+    #: False for every tool in Phase 5, and read from the registry rather than
+    #: hardcoded now that Phase 6 has flipped it. Computed rather than asserted
+    #: because the failure it guards against is a catalogue entry with no
+    #: implementation — a tool the editor offers, a definition can allow, and a
+    #: run then refuses. `test_every_catalogue_tool_has_an_implementation` pins
+    #: the two together, and this reports the truth either way.
     available: bool
 
 
@@ -181,7 +186,7 @@ async def delete_agent(request: Request, definition_id: str) -> Response:
 
 
 @router.get("/tools")
-async def list_tools() -> list[ToolResponse]:
+async def list_tools(request: Request) -> list[ToolResponse]:
     """The tool catalogue, with each tool's risk level.
 
     §5 Phase 7 requires the agent editor's "tool checkboxes show each tool's
@@ -189,12 +194,13 @@ async def list_tools() -> list[ToolResponse]:
     at the moment of ticking it". A UI hardcoding that list would drift from
     the catalogue the validator actually uses, so it reads this instead.
     """
+    available = request.app.state.tool_runtime.tools
     return [
         ToolResponse(
             name=tool.name,
             description=tool.description,
             risk=str(tool.risk),
-            available=False,
+            available=tool.name in available,
         )
         for tool in CATALOGUE
     ]

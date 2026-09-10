@@ -46,16 +46,28 @@ from agentspace.orchestrator.control import (
 )
 from agentspace.orchestrator.limits import RunLimits
 from agentspace.orchestrator.run import Mailbox, Run
-from agentspace.tools.catalogue import lookup
-from support import ReconstructedRun, ScriptedProvider, call, reconstruct, says
+from agentspace.tools.builtin.filesystem import WriteFileTool
+from agentspace.tools.catalogue import RiskLevel
+from support import (
+    ReconstructedRun,
+    ScriptedProvider,
+    call,
+    reconstruct,
+    says,
+    tool_runtime,
+)
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from agentspace.budget.ledger import BudgetLedger
     from agentspace.events.store import EventStore
     from agentspace.providers.base import Completion
     from agentspace.secrets import SecretStore
     from agentspace.store.agents import AgentDefStore
+    from agentspace.store.db import Database
     from agentspace.store.settings import SettingsStore
+    from agentspace.tools.runtime import ToolRuntime
 
 pytestmark = pytest.mark.anyio
 
@@ -79,11 +91,27 @@ async def drive(
     secrets: SecretStore,
     script: list[Completion],
     goal: str = "Write the report and save it",
+    runtime: ToolRuntime | None = None,
 ) -> tuple[ScriptedProvider, ReconstructedRun]:
-    """Run a scripted run and reconstruct it from the log alone."""
+    """Run a scripted run and reconstruct it from the log alone.
+
+    Without a ``runtime`` no catalogue tool is offered or executable, which is
+    what the pure-allowlist tests want: they are about what an agent may ask
+    for, not about what happens to a call that is allowed.
+    """
     provider = ScriptedProvider(script)
     run = await store.create_run(goal=goal, origin="ui")
-    await execute_run(store, settings, agents, ledger, secrets, run.id, goal, provider=provider)
+    await execute_run(
+        store,
+        settings,
+        agents,
+        ledger,
+        secrets,
+        run.id,
+        goal,
+        provider=provider,
+        runtime=runtime,
+    )
     return provider, reconstruct(await store.read(run.id))
 
 
@@ -202,6 +230,8 @@ async def test_a_permitted_tool_is_offered_and_not_denied(
     agents: AgentDefStore,
     ledger: BudgetLedger,
     secrets: SecretStore,
+    db: Database,
+    tmp_path: Path,
 ) -> None:
     """An allowlist that denies everything proves nothing.
 
@@ -217,6 +247,13 @@ async def test_a_permitted_tool_is_offered_and_not_denied(
         }
     )
 
+    (tmp_path / "report.md").write_text("the report", encoding="utf-8")
+    # The workspace policy, not the runtime's own — `execute_run` snapshots it
+    # from settings at run start, so setting it on the runtime would be
+    # overwritten and the gate would block with nobody to answer.
+    await settings.update({"auto_approve": [RiskLevel.LOW]})
+    runtime, _ = tool_runtime(store, db, tmp_path)
+
     provider, rebuilt = await drive(
         store,
         settings,
@@ -229,6 +266,7 @@ async def test_a_permitted_tool_is_offered_and_not_denied(
             says("Done.", call("finish", "w2", result="Read it.")),
             says("Done.", call("finish", "s2", result="Complete.")),
         ],
+        runtime=runtime,
     )
 
     assert set(provider.offered_tools[1]) == {
@@ -243,21 +281,26 @@ async def test_a_permitted_tool_is_offered_and_not_denied(
     assert reader.allowed_tools == ("read_file", "write_file")
 
 
-async def test_a_permitted_tool_still_does_not_execute_before_phase_6(
+async def test_a_permitted_tool_without_a_runtime_cannot_execute(
     store: EventStore,
     settings: SettingsStore,
     agents: AgentDefStore,
     ledger: BudgetLedger,
     secrets: SecretStore,
 ) -> None:
-    """§1 constraint 5: nothing reaches the filesystem without the approval gate.
+    """§1 constraint 5, from the other direction: no runtime, no execution.
 
-    Being on an agent's allowlist is permission from the *definition*. It is not
-    permission from the *user*, which is what Phase 6's gate collects — so a
-    permitted catalogue tool is reported unavailable rather than run, and no
-    `tool.called` is written for it. `tool.called` means "this executed"; a
-    Phase 5 that emitted it for a tool with no implementation would be writing a
-    log entry that is not true.
+    Phase 5's version of this test asserted that a permitted catalogue tool was
+    *never* executable, because the gate did not exist. Phase 6 built the gate,
+    so the assertion narrows to the case that is still true and still matters:
+    an agent assembled without a
+    :class:`~agentspace.tools.runtime.ToolRuntime` has no sandbox and no gate,
+    and therefore executes nothing.
+
+    That is not a hypothetical configuration — it is what every orchestration
+    test uses, and it is the supervisor's own state in production. The failure
+    it guards against is an agent that quietly reaches the filesystem when the
+    thing that would have gated it is absent.
     """
     await agents.create(
         {
@@ -284,9 +327,11 @@ async def test_a_permitted_tool_still_does_not_execute_before_phase_6(
 
     reader = rebuilt.agent("reader")
     assert reader.requested_tools == ["read_file", "finish"]
+    # `tool.called` means the call executed. Only `finish` did.
     assert [name for name, _ in reader.tool_calls] == ["finish"]
     assert reader.denied_tools == []
-    assert any("approval gate" in error for error in reader.tool_errors)
+    assert reader.approvals_requested == []
+    assert any("not available in this run" in error for error in reader.tool_errors)
 
 
 # --- what an empty allowlist actually means ----------------------------------
@@ -522,10 +567,10 @@ async def test_a_tool_offered_by_mistake_is_still_refused(store: EventStore) -> 
             allowed_tools=(),
             max_steps=4,
         ),
-        # The mismatch: offered a tool its definition does not permit.
-        tools=[*WORKER_TOOLS, *catalogue_specs([declaration])]
-        if (declaration := lookup("write_file")) is not None
-        else list(WORKER_TOOLS),
+        # The mismatch: offered a tool its definition does not permit, with a
+        # real implementation behind it — so if enforcement ever moved to the
+        # offered list, this call would genuinely write to the disk.
+        tools=[*WORKER_TOOLS, *catalogue_specs([WriteFileTool()])],
         supervisor_name="supervisor",
     )
 

@@ -21,26 +21,112 @@ be able to see.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from agentspace.events.types import Event, EventType
 from agentspace.providers.base import Completion, TextDelta, TokenUsage, ToolCall
+from agentspace.tools.approval import ApprovalService, ApprovalStore
+from agentspace.tools.runtime import ToolRuntime
+from agentspace.tools.sandbox import Sandbox
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncIterator, Iterable
+    from pathlib import Path
 
+    from agentspace.events.store import EventStore
     from agentspace.providers.base import Message, StreamEvent, ToolSpec
+    from agentspace.store.db import Database
+    from agentspace.tools.catalogue import RiskLevel
 
 __all__ = [
     "FakeClock",
     "ReconstructedAgent",
     "ReconstructedRun",
     "ScriptedProvider",
+    "StandingAnswer",
     "call",
     "reconstruct",
     "says",
+    "tool_runtime",
 ]
+
+
+# --- the approval gate, answered without a human -----------------------------
+
+
+class StandingAnswer:
+    """Answers every approval the same way, the instant it is asked.
+
+    A test cannot click a dialog, and an unanswered gate blocks forever — so
+    something has to stand in for the user. This subscribes to the service's
+    own waiter registry rather than reimplementing the gate: the run still
+    writes its `approvals` row, still emits `approval.requested` and
+    `approval.resolved`, and still suspends on the real future. Only the
+    *decision* is supplied from here.
+
+    That distinction is the reason this is not a fake `ApprovalService`. A fake
+    would make every gate test pass without the production gate ever running,
+    which is precisely the class of test this project has already been bitten
+    by — see CLAUDE.md on mutations that pass because the thing under test was
+    never actually reached.
+    """
+
+    def __init__(self, service: ApprovalService, *, approve: bool) -> None:
+        self._service = service
+        self._approve = approve
+        #: Every prompt a user would have been shown, in order. Tests assert on
+        #: these to check §5 Phase 6's "human-legible, not raw JSON" clause.
+        self.prompts: list[str] = []
+        self._task: asyncio.Task[None] | None = None
+
+    async def __aenter__(self) -> StandingAnswer:
+        self._task = asyncio.create_task(self._answer_forever())
+        return self
+
+    async def __aexit__(self, *_: object) -> None:
+        if self._task is not None:
+            self._task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._task
+
+    async def _answer_forever(self) -> None:
+        """Poll for outstanding approvals and settle each one.
+
+        Polling rather than a hook because the production code has no hook, and
+        adding one purely for tests would put a seam in the gate that only
+        tests use.
+        """
+        while True:
+            for approval_id in list(self._service.waiting_on()):
+                record = await self._service.store.get(approval_id)
+                if record is not None:
+                    self.prompts.append(f"{record.tool}: {record.risk}")
+                with contextlib.suppress(Exception):
+                    await self._service.resolve(approval_id, approved=self._approve)
+            await asyncio.sleep(0.005)
+
+
+def tool_runtime(
+    store: EventStore,
+    db: Database,
+    root: Path,
+    *,
+    auto_approve: Iterable[RiskLevel] = (),
+    tools: dict[str, Any] | None = None,
+) -> tuple[ToolRuntime, ApprovalService]:
+    """A real runtime over a real sandbox, gate and tool registry.
+
+    Nothing here is a double except, optionally, the tool table itself. The
+    sandbox is the production one rooted at ``root``, and the approval service
+    is the production one writing to ``db`` — so a test that reaches the
+    filesystem is testing the thing that ships.
+    """
+    service = ApprovalService(ApprovalStore(db), store)
+    runtime = ToolRuntime.build(Sandbox(root), service, auto_approve, tools=tools)
+    return runtime, service
 
 
 # --- the scripted provider ---------------------------------------------------
@@ -174,6 +260,33 @@ class ReconstructedAgent:
     #: Every tool name the agent asked for, whether or not it was permitted.
     requested_tools: list[str] = field(default_factory=list)
 
+    # --- Phase 6: the approval gate ----------------------------------------
+    #
+    # The whole point of the gate is that a user can answer afterwards the
+    # question "what did this run do, and what did I agree to". That is only
+    # answerable from the log if the request, the resolution and the execution
+    # are each in it separately — so the reducer keeps them separate too.
+    auto_approve: tuple[str, ...] = ()
+    #: `(tool, risk)` for every approval this agent was asked to wait on.
+    approvals_requested: list[tuple[str, str]] = field(default_factory=list)
+    #: The human-legible sentence each approval put to the user. In the log
+    #: rather than composed by the client, so a replay shows the words the user
+    #: actually saw — §2 makes the UI a projection, and a client building its
+    #: own wording could display one thing while the log recorded another.
+    approval_prompts: list[str] = field(default_factory=list)
+    #: `(tool, status)` for every approval that came back.
+    approvals_resolved: list[tuple[str, str]] = field(default_factory=list)
+    #: Tools that reached `tool.approved`, and whether policy did it silently.
+    approved_tools: list[tuple[str, bool]] = field(default_factory=list)
+    #: `(tool, reason)` for each denial — an allowlist refusal, a sandbox
+    #: violation, or a user saying no.
+    denials: list[tuple[str, str]] = field(default_factory=list)
+    #: What blocked each denied call, when the payload says. `"sandbox"`
+    #: distinguishes a traversal attempt from a declined dialog.
+    denied_by: list[str | None] = field(default_factory=list)
+    #: Results of tool calls that actually ran.
+    tool_results: list[tuple[str, str]] = field(default_factory=list)
+
 
 @dataclass
 class ReconstructedRun:
@@ -225,6 +338,7 @@ def reconstruct(events: list[Event]) -> ReconstructedRun:
                 agent.definition_name = payload.get("definition_name")
                 agent.system_prompt = payload.get("system_prompt")
                 agent.allowed_tools = tuple(payload.get("allowed_tools") or ())
+                agent.auto_approve = tuple(payload.get("auto_approve") or ())
                 agent.max_steps = payload.get("max_steps")
             case EventType.AGENT_THINKING if agent is not None:
                 agent.steps = max(agent.steps, int(payload.get("step", 0)))
@@ -245,9 +359,29 @@ def reconstruct(events: list[Event]) -> ReconstructedRun:
                 agent.requested_tools.append(str(payload.get("tool")))
             case EventType.TOOL_DENIED if agent is not None:
                 agent.denied_tools.append(str(payload.get("tool")))
+                agent.denials.append((str(payload.get("tool")), str(payload.get("reason"))))
+                blocked = payload.get("blocked_by")
+                agent.denied_by.append(str(blocked) if blocked is not None else None)
+            case EventType.TOOL_APPROVED if agent is not None:
+                agent.approved_tools.append(
+                    (str(payload.get("tool")), bool(payload.get("automatic")))
+                )
+            case EventType.APPROVAL_REQUESTED if agent is not None:
+                agent.approvals_requested.append(
+                    (str(payload.get("tool")), str(payload.get("risk")))
+                )
+                agent.approval_prompts.append(str(payload.get("prompt")))
+            case EventType.APPROVAL_RESOLVED if agent is not None:
+                agent.approvals_resolved.append(
+                    (str(payload.get("tool")), str(payload.get("status")))
+                )
             case EventType.TOOL_CALLED if agent is not None:
                 agent.tool_calls.append(
                     (str(payload.get("tool")), dict(payload.get("args") or {}))
+                )
+            case EventType.TOOL_RESULT if agent is not None:
+                agent.tool_results.append(
+                    (str(payload.get("tool")), str(payload.get("result")))
                 )
             case EventType.TOOL_ERROR if agent is not None:
                 agent.tool_errors.append(str(payload.get("error")))

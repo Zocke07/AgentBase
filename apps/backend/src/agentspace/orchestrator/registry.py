@@ -42,7 +42,6 @@ from agentspace.orchestrator.control import (
     catalogue_specs,
 )
 from agentspace.providers.factory import build_provider
-from agentspace.tools.catalogue import lookup
 
 if TYPE_CHECKING:
     import httpx2
@@ -53,6 +52,7 @@ if TYPE_CHECKING:
     from agentspace.secrets import SecretStore
     from agentspace.store.agents import AgentDef, AgentDefStore
     from agentspace.store.settings import WorkspaceSettings
+    from agentspace.tools.runtime import ToolRuntime
 
 __all__ = ["AgentRegistry", "ProviderPool", "compose_worker_prompt"]
 
@@ -165,25 +165,40 @@ class AgentRegistry:
             definition_id=definition.id,
             definition_name=definition.name,
             allowed_tools=definition.allowed_tools,
+            # Carried as the definition asked for it, not as it will be applied:
+            # the intersection with the workspace policy happens at the moment
+            # of the call, in `ToolRuntime.auto_approve_for`. Narrowing here
+            # too would be the rule in two places, and the copy that drifts is
+            # the one that grants too much.
+            auto_approve=definition.auto_approve,
             max_steps=min(definition.max_steps, self.max_steps_ceiling),
             control_names=WORKER_CONTROL_NAMES,
         )
 
-    def tools_for(self, definition: AgentDef) -> list[ToolSpec]:
+    def tools_for(
+        self, definition: AgentDef, runtime: ToolRuntime | None = None
+    ) -> list[ToolSpec]:
         """What this agent's model is shown.
 
         Exposure, not enforcement — see
         :meth:`agentspace.orchestrator.agent.Agent._permit` for the boundary. An
-        unknown name in `allowed_tools` is skipped rather than raised on: the
-        row was validated when it was written, and a run is not the place to
-        discover that a tool was later removed from the catalogue.
+        allowlist entry with no implementation behind it is skipped rather than
+        raised on: the row was validated when it was written, and a run is not
+        the place to discover that a tool was later removed. Offering a tool
+        that cannot run would spend the agent a step to find out.
+
+        Without a ``runtime`` an agent is shown only its control calls, which is
+        the honest answer for a run that cannot execute a catalogue tool at all.
         """
-        declarations = [
-            declaration
-            for declaration in (lookup(name) for name in definition.allowed_tools)
-            if declaration is not None
+        if runtime is None:
+            return list(WORKER_TOOLS)
+
+        tools = [
+            tool
+            for tool in (runtime.get(name) for name in definition.allowed_tools)
+            if tool is not None
         ]
-        return [*WORKER_TOOLS, *catalogue_specs(declarations)]
+        return [*WORKER_TOOLS, *catalogue_specs(tools)]
 
 
 class ProviderPool:

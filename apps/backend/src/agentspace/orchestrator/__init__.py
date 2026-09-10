@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import time
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from agentspace.budget.ledger import BudgetedProvider, BudgetExceededError
@@ -39,7 +40,8 @@ if TYPE_CHECKING:
     from agentspace.providers.base import Provider
     from agentspace.secrets import SecretStore
     from agentspace.store.agents import AgentDefStore
-    from agentspace.store.settings import SettingsStore
+    from agentspace.store.settings import SettingsStore, WorkspaceSettings
+    from agentspace.tools.runtime import ToolRuntime
 
 __all__ = [
     "SUPERVISOR_NAME",
@@ -67,6 +69,7 @@ async def execute_run(
     run_id: str,
     goal: str,
     *,
+    runtime: ToolRuntime | None = None,
     client: httpx2.AsyncClient | None = None,
     provider: Provider | None = None,
     clock: Callable[[], float] | None = None,
@@ -80,6 +83,10 @@ async def execute_run(
         pass a scripted one; nothing in the shipped app does. It is still
         wrapped by :class:`~agentspace.budget.ledger.BudgetedProvider`, so a
         test cannot accidentally prove the cap holds on a path that bypasses it.
+    :param runtime: the tools, sandbox and approval gate workers execute
+        through. ``None`` gives a run in which no catalogue tool can be called —
+        which is what every test that only exercises orchestration wants, and
+        is never what the application passes.
     :param clock: monotonic time source, injected so the wall-clock limit can
         be tested without a test that actually waits.
     """
@@ -126,6 +133,7 @@ async def execute_run(
         goal=goal,
         registry=registry,
         providers=providers,
+        runtime=_with_workspace_policy(runtime, workspace),
     )
     await run.emit(
         EventType.AGENT_SPAWNED,
@@ -152,6 +160,27 @@ async def execute_run(
         await run.fail(f"The run stopped unexpectedly: {exc}")
     else:
         await _finish(run, outcome)
+
+
+def _with_workspace_policy(
+    runtime: ToolRuntime | None, workspace: WorkspaceSettings
+) -> ToolRuntime | None:
+    """Freeze the workspace approval policy onto the run's tool runtime.
+
+    The runtime is built once, at application start, and the policy is a
+    setting the user can change at any moment — including in the middle of a
+    run. Reading it live would hold a run to different rules at step 1 and step
+    12, exactly as a live roster or a live `max_steps` would, so it is
+    snapshotted here alongside :class:`~agentspace.orchestrator.limits.RunLimits`
+    and the roster.
+
+    The direction of the mistake matters: a policy *widened* mid-run would
+    auto-approve a call the user had not pre-authorized when the run started,
+    which is the gate silently loosening while work is in flight.
+    """
+    if runtime is None:
+        return None
+    return replace(runtime, workspace_auto_approve=tuple(workspace.auto_approve))
 
 
 async def _finish(run: Run, outcome: StepOutcome) -> None:

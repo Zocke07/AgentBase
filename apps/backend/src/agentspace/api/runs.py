@@ -124,6 +124,7 @@ async def _drive_run(request: Request, run_id: str, goal: str) -> None:
         state.secrets,
         run_id,
         goal,
+        runtime=state.tool_runtime,
     )
 
 

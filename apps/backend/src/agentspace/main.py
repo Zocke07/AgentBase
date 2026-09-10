@@ -44,6 +44,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from agentspace.api.agents import router as agents_router
+from agentspace.api.approvals import router as approvals_router
 from agentspace.api.runs import router as runs_router
 from agentspace.api.settings import router as settings_router
 from agentspace.budget.ledger import BudgetLedger
@@ -61,6 +62,9 @@ from agentspace.secrets import SecretStore, parse_secrets_line
 from agentspace.store.agents import AgentDefStore
 from agentspace.store.db import Database
 from agentspace.store.settings import SettingsStore
+from agentspace.tools.approval import ApprovalService, ApprovalStore
+from agentspace.tools.runtime import ToolRuntime
+from agentspace.tools.sandbox import Sandbox
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Iterator
@@ -116,6 +120,19 @@ def create_app(paths: AppPaths | None = None, secrets: SecretStore | None = None
         app.state.agents = AgentDefStore(database, app.state.settings)
         app.state.ledger = BudgetLedger(database, app.state.settings, app.state.store)
 
+        approval_store = ApprovalStore(database)
+        app.state.approvals = ApprovalService(approval_store, app.state.store)
+        app.state.sandbox = Sandbox(resolved.workspace_root)
+        app.state.tool_runtime = ToolRuntime.build(app.state.sandbox, app.state.approvals)
+
+        # A pending approval's waiter was an `asyncio.Future` in whichever
+        # process created it, so nothing survives a restart to answer these.
+        # Left alone they would show up in the Phase 7 dialog as live questions
+        # about runs that ended when the app last closed.
+        orphaned = await approval_store.expire_orphaned_pending()
+        if orphaned:
+            logger.info("expired %d approval(s) left pending by a previous run", orphaned)
+
         try:
             yield
         finally:
@@ -149,6 +166,7 @@ def create_app(paths: AppPaths | None = None, secrets: SecretStore | None = None
         return {"ok": True}
 
     app.include_router(agents_router)
+    app.include_router(approvals_router)
     app.include_router(runs_router)
     app.include_router(settings_router)
 

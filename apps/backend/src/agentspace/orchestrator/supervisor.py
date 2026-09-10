@@ -42,6 +42,7 @@ if TYPE_CHECKING:
     from agentspace.orchestrator.registry import AgentRegistry, ProviderPool
     from agentspace.orchestrator.run import Mailbox, Run
     from agentspace.providers.base import Provider, ToolCall
+    from agentspace.tools.runtime import ToolRuntime
 
 __all__ = ["SUPERVISOR_NAME", "SUPERVISOR_ROLE", "Supervisor", "supervisor_prompt"]
 
@@ -86,6 +87,7 @@ class Supervisor(Agent):
         goal: str,
         registry: AgentRegistry,
         providers: ProviderPool,
+        runtime: ToolRuntime | None = None,
     ) -> None:
         super().__init__(
             run=run,
@@ -103,9 +105,16 @@ class Supervisor(Agent):
             # The supervisor reports to the user, not to another agent. Its
             # own `agent.message` is addressed there.
             supervisor_name="user",
+            # Deliberately no runtime: the supervisor has no `allowed_tools`,
+            # so `_permit` can never return CATALOGUE for it and a runtime
+            # would be unreachable machinery. The one agent present in every
+            # run is the one that touches nothing — see the module docstring.
+            runtime=None,
         )
         self._registry = registry
         self._providers = providers
+        #: Handed to the workers this supervisor spawns, never used by itself.
+        self._runtime_for_workers = runtime
 
     async def _dispatch(self, call: ToolCall, step: int) -> StepOutcome | ToolReply:
         if call.name == "spawn_agent":
@@ -163,8 +172,9 @@ class Supervisor(Agent):
             mailbox=self._mailbox,
             provider=provider,
             spec=spec,
-            tools=self._registry.tools_for(definition),
+            tools=self._registry.tools_for(definition, self._runtime_for_workers),
             supervisor_name=self.name,
+            runtime=self._runtime_for_workers,
         )
         await worker.execute(task)
 

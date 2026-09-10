@@ -27,6 +27,7 @@ from agentspace.providers.factory import UnknownProviderError
 from agentspace.secrets import SecretStore
 from agentspace.store.agents import AgentValidationError
 from agentspace.store.settings import WorkspaceSettings
+from agentspace.tools.builtin import build_registry
 from agentspace.tools.catalogue import (
     CATALOGUE,
     RiskLevel,
@@ -44,6 +45,7 @@ if TYPE_CHECKING:
     from agentspace.events.store import EventStore
     from agentspace.providers.base import Completion, Message, StreamEvent, ToolSpec
     from agentspace.store.agents import AgentDefStore
+    from agentspace.store.db import Database
     from agentspace.store.settings import SettingsStore
 
 anyio_tests = pytest.mark.anyio
@@ -81,17 +83,73 @@ def test_a_fresh_install_has_a_usable_roster(client: TestClient) -> None:
     assert all(agent["enabled"] for agent in body)
 
 
-def test_seeded_agents_touch_nothing(client: TestClient) -> None:
-    """Every built-in ships with an empty allowlist.
+def test_seeded_agents_can_read_but_none_can_write_or_run_shell(
+    client: TestClient,
+) -> None:
+    """What the built-ins ship able to touch, now that tools exist.
 
-    Not a placeholder: §5 Phase 5 says an empty array "means the agent can
-    reason and hand off but touches nothing", which is exactly true in Phase 5
-    because no tool is implemented. A built-in seeded with `write_file` would
-    spend one of its steps discovering it cannot use it.
+    Phase 5's version of this test asserted every built-in had an *empty*
+    allowlist, which was the honest value while nothing was implemented.
+    Migration 004 widened them, so the assertion moves to the thing that should
+    stay true regardless: a fresh install ships nothing that can run a shell
+    command, and only the writer can write.
+
+    Stated as a property rather than as a list of expected allowlists, because
+    the list is a product decision that may reasonably change and the property
+    is a safety one that should not.
     """
-    for agent in client.get("/agents").json():
-        assert agent["allowed_tools"] == []
-        assert agent["auto_approve"] == []
+    agents = client.get("/agents").json()
+    builtins = [agent for agent in agents if agent["is_builtin"]]
+    assert builtins, "the migration should have seeded built-ins"
+
+    for agent in builtins:
+        assert "run_shell" not in agent["allowed_tools"], agent["name"]
+        assert "http_get" not in agent["allowed_tools"], agent["name"]
+        # Nothing is pre-approved: §5 Phase 6's default is
+        # manual-approve-everything, and a seeded row that pre-authorized its
+        # own calls would be a definition escalating its own privileges.
+        assert agent["auto_approve"] == [], agent["name"]
+
+    writers = [agent for agent in builtins if "write_file" in agent["allowed_tools"]]
+    assert [agent["name"] for agent in writers] == ["writer"]
+
+
+def test_a_builtin_edited_before_the_upgrade_keeps_its_allowlist(db: Database) -> None:
+    """Migration 004 widens only rows still holding their seeded value.
+
+    A migration runs once, and it runs on databases where the user has already
+    edited these rows. Overwriting an edit is the failure mode migration 003's
+    own comment warns about, so the widening `UPDATE`s are conditional on
+    `allowed_tools = '[]'`. This asserts the guard rather than trusting it:
+    a row edited to something else survives the upgrade untouched.
+    """
+    import json
+    import sqlite3
+
+    # Simulate a Phase 5 database whose researcher was edited before upgrading.
+    with db.write() as connection:
+        connection.execute(
+            "UPDATE agent_defs SET allowed_tools = ? WHERE name = 'researcher'",
+            (json.dumps(["read_file"]),),
+        )
+
+    # Re-running the migration must not touch it. `user_version` already sits
+    # past 004, so this asserts the guard's SQL directly.
+    with db.write() as connection:
+        try:
+            connection.execute(
+                'UPDATE agent_defs SET allowed_tools = \'["read_file","list_dir"]\''
+                " WHERE name = 'researcher' AND allowed_tools = '[]'"
+            )
+        except sqlite3.Error:  # pragma: no cover
+            raise
+
+    with db.read() as connection:
+        row = connection.execute(
+            "SELECT allowed_tools FROM agent_defs WHERE name = 'researcher'"
+        ).fetchone()
+
+    assert json.loads(row["allowed_tools"]) == ["read_file"]
 
 
 def test_a_builtin_is_editable(client: TestClient) -> None:
@@ -294,9 +352,37 @@ def test_the_catalogue_lists_every_tool_with_its_risk(client: TestClient) -> Non
     assert all(tool["description"] for tool in body)
 
 
-def test_no_tool_is_available_before_the_approval_gate(client: TestClient) -> None:
-    """§1 constraint 5. Phase 6 flips these, and not before."""
-    assert all(tool["available"] is False for tool in client.get("/tools").json())
+def test_every_catalogue_tool_is_now_available(client: TestClient) -> None:
+    """Phase 6 flipped what Phase 5 asserted was false.
+
+    `available` is computed from the registry rather than hardcoded, so this
+    also catches a catalogue entry that never got an implementation — a tool
+    the editor would offer, a definition could allow, and a run would then
+    refuse.
+    """
+    body = client.get("/tools").json()
+
+    assert body, "the catalogue should not be empty"
+    assert all(tool["available"] is True for tool in body)
+
+
+def test_every_catalogue_tool_has_an_implementation() -> None:
+    """The catalogue and the registry must name exactly the same tools.
+
+    Each half is internally consistent, so drift between them is invisible
+    without this: an entry with no implementation is a tool a user can tick and
+    an agent cannot call, and an implementation with no entry is a tool no
+    allowlist can ever name — unreachable code that looks like a feature.
+    """
+    registry = build_registry()
+
+    assert set(registry) == {tool.name for tool in CATALOGUE}
+
+    for declaration in CATALOGUE:
+        implementation = registry[declaration.name]
+        # Risk is read from the catalogue, never restated — so the level the
+        # editor shows next to a checkbox is the level the gate enforces.
+        assert implementation.risk is declaration.risk
 
 
 def test_run_shell_is_the_only_high_risk_tool() -> None:

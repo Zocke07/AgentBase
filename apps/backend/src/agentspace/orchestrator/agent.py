@@ -24,18 +24,26 @@ they do — so an orchestrator relying on step 1 alone would execute the call th
 moment a model asked for something it was never offered. The two read different
 sources on purpose, so neither can quietly become the other's proof.
 
-**On what a tool is in this phase.** The only calls that actually *execute*
-here end a turn, hand work over, or ask for a worker — see
-:mod:`agentspace.orchestrator.control`. A catalogue tool an agent is permitted
-still does not run, because permission from a definition is not permission from
-the user, and collecting the latter is Phase 6's approval gate (§1 constraint
-5). The event sequence is nonetheless the real one — `tool.requested`,
-`tool.called`, `tool.result` — so Phase 6 adds the approval events between the
-first two rather than reshaping what is already here.
+**Two kinds of call, and only one of them is gated.** Control calls — `finish`,
+`handoff`, `spawn_agent` — end a turn, hand work over, or ask for a worker. They
+touch nothing, so they execute directly (see
+:mod:`agentspace.orchestrator.control`). A *catalogue* tool reaches the
+filesystem, the shell or the network, so §1 constraint 5 applies and it travels
+through :meth:`Agent._catalogue_call` instead: sandbox, then approval gate, then
+execution.
+
+That second path is where Phase 6 landed, and its ordering is the security
+design rather than a tidy arrangement. Permission from a definition
+(`allowed_tools`) is not permission from the user, and neither is a substitute
+for the call being *in bounds* — so a path outside the workspace is refused
+before an approval prompt is composed, because a question a user can answer
+wrongly is not a boundary. §5 Phase 6's acceptance criterion is that refusal,
+observable as `tool.denied`.
 """
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Final
@@ -52,13 +60,19 @@ from agentspace.providers.base import (
     Role,
     TextDelta,
 )
+from agentspace.tools.base import ToolArgumentError, ToolExecutionError
 from agentspace.tools.catalogue import is_registered
+from agentspace.tools.sandbox import SandboxViolationError, UrlNotAllowedError
 
 if TYPE_CHECKING:
     from agentspace.orchestrator.run import Mailbox, Run
     from agentspace.providers.base import Provider, ToolCall, ToolSpec
+    from agentspace.tools.catalogue import RiskLevel
+    from agentspace.tools.runtime import ToolRuntime
 
 __all__ = ["Agent", "AgentSpec", "StepOutcome", "ToolReply"]
+
+logger = logging.getLogger("agentspace.orchestrator")
 
 #: What the model is told when it produces prose but calls nothing. Without a
 #: nudge a chatty model burns every step saying it is about to begin.
@@ -79,9 +93,9 @@ class _Permission(Enum):
 
     #: A control call this agent holds. Executes.
     CONTROL = auto()
-    #: A catalogue tool on this agent's allowlist. Permitted by the definition,
-    #: but not executable until Phase 6's approval gate exists.
-    AWAITING_GATE = auto()
+    #: A catalogue tool on this agent's allowlist. Goes to the sandbox and then
+    #: to the approval gate before it executes.
+    CATALOGUE = auto()
     #: A real capability this agent does not have. `tool.denied`.
     DENIED = auto()
     #: Not a tool at all. `tool.error`.
@@ -116,6 +130,10 @@ class AgentSpec:
     #: An allowlist, never a denylist (§5 Phase 5). Names from
     #: :mod:`agentspace.tools.catalogue`.
     allowed_tools: tuple[str, ...] = ()
+    #: Risk levels this definition asks to have pre-approved. Intersected with
+    #: the workspace policy at the moment of the call — it can only narrow it,
+    #: never widen it (§5 Phase 5's security note).
+    auto_approve: tuple[RiskLevel, ...] = ()
     #: Already clamped to the run's global ceiling by the registry.
     max_steps: int = 20
     #: Which control calls this agent holds. A worker's set does not contain
@@ -141,6 +159,7 @@ class AgentSpec:
             "definition_name": self.definition_name,
             "system_prompt": self.system_prompt,
             "allowed_tools": list(self.allowed_tools),
+            "auto_approve": [str(level) for level in self.auto_approve],
             "max_steps": self.max_steps,
         }
 
@@ -178,6 +197,7 @@ class Agent:
         spec: AgentSpec,
         tools: list[ToolSpec],
         supervisor_name: str,
+        runtime: ToolRuntime | None = None,
     ) -> None:
         self._run = run
         self._mailbox = mailbox
@@ -185,6 +205,10 @@ class Agent:
         self._spec = spec
         self._tools = tools
         self._supervisor = supervisor_name
+        #: ``None`` means this agent can execute no catalogue tool — the
+        #: supervisor's case, and a test's. A permitted call then becomes a
+        #: `tool.error` saying so rather than silently doing nothing.
+        self._runtime = runtime
 
     @property
     def name(self) -> str:
@@ -298,7 +322,7 @@ class Agent:
             return _Permission.CONTROL
 
         if name in self._spec.allowed_tools and is_registered(name):
-            return _Permission.AWAITING_GATE
+            return _Permission.CATALOGUE
 
         # A real capability this agent does not hold, versus a name that means
         # nothing anywhere. Both stop the call; only the first is a denial.
@@ -324,13 +348,14 @@ class Agent:
                 return await self._denied(call)
             case _Permission.UNKNOWN:
                 return await self._unknown_tool(call)
-            case _Permission.AWAITING_GATE:
-                return await self._awaiting_gate(call)
+            case _Permission.CATALOGUE:
+                # The sandbox and the approval gate, in that order. A control
+                # call skips both because it touches nothing — that is what
+                # makes it a control call rather than a tool (§1 constraint 5).
+                return await self._catalogue_call(call)
             case _Permission.CONTROL:
                 pass
 
-        # Phase 6 inserts the approval gate exactly here, between the decision
-        # that an agent *may* call something and the record that it *did*.
         await self._emit(EventType.TOOL_CALLED, details)
         return await self._dispatch(call, step)
 
@@ -360,25 +385,138 @@ class Agent:
         )
         return ToolReply(reason)
 
-    async def _awaiting_gate(self, call: ToolCall) -> ToolReply:
-        """Permitted by the definition, and still not executable.
+    async def _catalogue_call(self, call: ToolCall) -> ToolReply:
+        """Sandbox, then gate, then execute — a permitted tool's whole journey.
 
-        A definition's allowlist says which tools this agent *may* ask for. It
-        does not say the user has agreed to any particular call, which is what
-        §5 Phase 6's approval gate collects — so in Phase 5 the call stops here.
-        No `tool.called` is written, because `tool.called` means the call
-        executed and this one did not.
+        The order is §5 Phase 6's, and each step's failure has a different
+        event because they are different facts about the run:
+
+        * no runtime, or no implementation — `tool.error`. The agent is
+          misconfigured, not misbehaving.
+        * malformed arguments — `tool.error`. A bad call it could retry.
+        * **outside the sandbox — `tool.denied`**, before anybody is asked.
+          This is §5 Phase 6's acceptance criterion in one branch.
+        * refused at the gate — `tool.denied`. A person said no.
+        * approved — `tool.approved`, then `tool.called`, then the result.
+
+        `tool.called` appears only on the last path. It means the call
+        executed, and writing it for a call that was blocked would put a false
+        statement in the log — the distinction Phase 5 established when a
+        permitted-but-unimplemented tool deliberately emitted no `tool.called`.
         """
-        error = (
-            f"{call.name!r} is not available yet: tool execution goes through an "
-            f"approval gate that is not built. Continue without it, and say so in "
-            f"your result."
+        runtime = self._runtime
+        tool = runtime.get(call.name) if runtime is not None else None
+        if runtime is None or tool is None:
+            error = (
+                f"{call.name!r} is not available in this run. Continue without "
+                f"it, and say so in your result."
+            )
+            await self._emit(
+                EventType.TOOL_ERROR,
+                {"tool": call.name, "call_id": call.id, "error": error},
+            )
+            return ToolReply(error)
+
+        try:
+            prepared = tool.prepare(call.arguments, runtime.sandbox)
+        except (SandboxViolationError, UrlNotAllowedError) as exc:
+            return await self._sandbox_denied(call, str(exc))
+        except ToolArgumentError as exc:
+            await self._emit(
+                EventType.TOOL_ERROR,
+                {"tool": call.name, "call_id": call.id, "error": str(exc)},
+            )
+            return ToolReply(str(exc))
+
+        decision = await runtime.approvals.request(
+            run_id=self._run.id,
+            agent=self._spec.name,
+            prepared=prepared,
+            risk=tool.risk,
+            auto_approve=runtime.auto_approve_for(self._spec.auto_approve),
+            deadline=self._run.remaining_seconds(),
+        )
+
+        if not decision.allowed:
+            await self._emit(
+                EventType.TOOL_DENIED,
+                {
+                    "tool": call.name,
+                    "args": call.arguments,
+                    "call_id": call.id,
+                    "approval_id": decision.approval_id,
+                    "reason": decision.reason,
+                },
+            )
+            return ToolReply(decision.reason)
+
+        await self._emit(
+            EventType.TOOL_APPROVED,
+            {
+                "tool": call.name,
+                "call_id": call.id,
+                "approval_id": decision.approval_id,
+                "automatic": decision.automatic,
+                "summary": prepared.summary,
+            },
         )
         await self._emit(
-            EventType.TOOL_ERROR,
-            {"tool": call.name, "call_id": call.id, "error": error},
+            EventType.TOOL_CALLED,
+            {"tool": call.name, "args": call.arguments, "call_id": call.id},
         )
-        return ToolReply(error)
+
+        try:
+            result = await tool.execute(prepared, runtime.sandbox)
+        except ToolExecutionError as exc:
+            # The call was allowed and correct and still failed. An ordinary
+            # event in a run: the agent is told and keeps working.
+            await self._emit(
+                EventType.TOOL_ERROR,
+                {"tool": call.name, "call_id": call.id, "error": str(exc)},
+            )
+            return ToolReply(str(exc))
+        except Exception as exc:
+            # A tool raising something unplanned must not take the run with it.
+            # The log says the tool broke, which is true and useful, rather than
+            # the run ending with a traceback the user cannot act on.
+            logger.exception("tool %s failed in run %s", call.name, self._run.id)
+            error = f"{call.name} failed unexpectedly: {exc}"
+            await self._emit(
+                EventType.TOOL_ERROR,
+                {"tool": call.name, "call_id": call.id, "error": error},
+            )
+            return ToolReply(error)
+
+        await self._emit(
+            EventType.TOOL_RESULT,
+            {"tool": call.name, "call_id": call.id, "result": result},
+        )
+        return ToolReply(result)
+
+    async def _sandbox_denied(self, call: ToolCall, reason: str) -> ToolReply:
+        """Blocked at the sandbox layer, with nobody asked.
+
+        §5 Phase 6's acceptance criterion: "an agent instructed to write outside
+        the workspace root is blocked at the sandbox layer, and this is visible
+        in the event log as `tool.denied`". Both halves are here — the refusal
+        happens before :meth:`ApprovalService.request` is reached, and it is
+        recorded as `tool.denied` beside the `tool.requested` that names what
+        was attempted.
+        """
+        await self._emit(
+            EventType.TOOL_DENIED,
+            {
+                "tool": call.name,
+                "args": call.arguments,
+                "call_id": call.id,
+                "reason": reason,
+                # What separates this from an allowlist denial or a user's "no"
+                # when the log is read back. A traversal attempt and a declined
+                # dialog are very different things to see in a run.
+                "blocked_by": "sandbox",
+            },
+        )
+        return ToolReply(reason)
 
     async def _dispatch(self, call: ToolCall, step: int) -> StepOutcome | ToolReply:
         """Carry out one control call.

@@ -112,6 +112,18 @@ class Run:
     def elapsed_seconds(self) -> float:
         return self.clock() - self.started_at
 
+    def remaining_seconds(self) -> float:
+        """How much wall-clock budget is left, never negative.
+
+        The approval gate blocks on this rather than on a timeout of its own.
+        A separate approval timeout would be a second deadline to configure and
+        explain, and the two would disagree: a run with five minutes left and a
+        ten-minute approval window would sit waiting for a decision it could no
+        longer act on. §5 Phase 4 already made "max wall-clock per run" the
+        limit that ends a run, so the gate borrows it rather than competing.
+        """
+        return max(0.0, self.limits.max_run_seconds - self.elapsed_seconds())
+
     def check_deadline(self) -> None:
         """Raise if the run has outlived `max_run_seconds`.
 

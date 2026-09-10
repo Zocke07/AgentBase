@@ -1,15 +1,20 @@
 """The control vocabulary an agent uses to end its turn or delegate.
 
-**These are deliberately not Phase 6 tools, and they do not live in `tools/`.**
-§1 constraint 5 is absolute: every filesystem, shell and network tool call
-passes the approval gate, and that gate is Phase 6. Shipping `read_file` here
-to give the loop something to call would create exactly the ungated path the
-constraint forbids, and building the `Tool` protocol now would pre-empt the
-sandbox and risk model that Phase 6 owns.
+**These are not tools, and they do not live in `tools/`.** §1 constraint 5 is
+absolute: every filesystem, shell and network tool call passes the approval
+gate. What is here passes no gate at all, and the reason it may not is the
+reason it is here — these calls *touch nothing*. They end an agent's turn, hand
+work to another agent, or ask for a worker to exist. Each produces events and
+changes orchestration state, and nothing else.
 
-So this module offers the model only calls that *touch nothing*: they end an
-agent's turn, hand work to another agent, or ask for a worker to exist. Each
-one produces events and changes orchestration state, and nothing else.
+That distinction is what keeps the constraint checkable rather than a matter of
+trust. "Is this gated?" is not a judgement about a call site; it is the question
+of whether the call is in this module or in
+:mod:`agentspace.tools.builtin`, and the two sets are disjoint by construction —
+:meth:`agentspace.orchestrator.agent.Agent._permit` reaches the gate for one and
+never for the other. Adding anything here that reads a file or opens a socket
+would create exactly the ungated path the constraint forbids, so it goes in
+`tools/` instead, where the gate is unavoidable.
 
 **The control vocabulary is not subject to `allowed_tools`.** §5 Phase 5 says
 an empty allowlist "means the agent can reason and hand off but touches
@@ -33,7 +38,7 @@ from agentspace.providers.base import ToolSpec
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from agentspace.tools.catalogue import ToolDeclaration
+    from agentspace.tools.base import Tool
 
 __all__ = [
     "FINISH",
@@ -147,24 +152,26 @@ WORKER_CONTROL_NAMES: Final[frozenset[str]] = frozenset({FINISH.name, HANDOFF.na
 SUPERVISOR_CONTROL_NAMES: Final[frozenset[str]] = WORKER_CONTROL_NAMES | {SPAWN_AGENT.name}
 
 
-def catalogue_specs(declarations: Iterable[ToolDeclaration]) -> list[ToolSpec]:
+def catalogue_specs(tools: Iterable[Tool]) -> list[ToolSpec]:
     """Offer catalogue tools to a model as `ToolSpec`s.
 
-    **The input schema is deliberately open.** A real schema for `write_file`
-    would have to name its arguments, and those are defined by the `Tool`
-    protocol Phase 6 owns — inventing them here would bake in a guess that
-    phase then has to unpick, which §5 says not to do. Nothing executes these
-    calls in Phase 5, so no argument shape is relied upon: an agent permitted a
-    catalogue tool that calls it is told the tool is not available yet, and the
-    arguments it sent are recorded in `tool.requested` exactly as given.
+    **Phase 6 made these schemas real.** Phase 5 offered
+    ``{"type": "object", "additionalProperties": True}`` for every tool,
+    because the argument shapes belonged to the `Tool` protocol this phase
+    owns and guessing them would have been building ahead. Now each tool
+    declares its own :attr:`~agentspace.tools.base.Tool.input_schema` and this
+    reads it, so a model is told that `write_file` needs a `path` and a
+    `content` instead of discovering it by being refused.
 
-    Phase 6 replaces this function with one that reads each tool's real schema.
+    Takes implementations rather than
+    :class:`~agentspace.tools.catalogue.ToolDeclaration`s for the same reason:
+    a declaration knows a tool's name and risk and has no schema to give.
     """
     return [
         ToolSpec(
-            name=declaration.name,
-            description=declaration.description,
-            input_schema={"type": "object", "additionalProperties": True},
+            name=tool.name,
+            description=tool.description,
+            input_schema=tool.input_schema,
         )
-        for declaration in declarations
+        for tool in tools
     ]
