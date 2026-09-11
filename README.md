@@ -9,7 +9,7 @@ The only traffic that leaves it is model inference.
 **Status: Phase 9 of 10 (CI and release).** The application works end to end:
 agents are rows you edit, a supervisor delegates to them, every filesystem,
 shell and network call stops at an approval gate, and the whole run is watchable
-live on a graph — from the dashboard or from Discord and Telegram. What remains
+live on a graph — from the dashboard or from Discord. What remains
 is Phase 10's portfolio pass. See [BUILD_SPEC.md](BUILD_SPEC.md) for the full
 design and phase plan, and [CLAUDE.md](CLAUDE.md) for what each phase actually
 verified.
@@ -81,7 +81,7 @@ upgrading or uninstalling the app does not touch it.
 Once it is installed, the **[User Guide](docs/USER_GUIDE.md)** covers everything
 after the first launch: adding an API key or using a local model, changing
 settings, starting a run, answering approvals, defining agents, and connecting
-Discord or Telegram. Read its first section before anything else — this version
+Discord. Read its first section before anything else — this version
 has no Settings screen, and the guide says where those two setup steps happen
 instead.
 

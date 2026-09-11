@@ -6,7 +6,7 @@ run, folding the log, throttling the edits, surfacing the approval gate.
 :class:`ChannelService` owns the adapters: it starts the enabled ones, restarts
 them when they fall over, and stops them on shutdown.
 
-**Why this is not in the adapters.** Discord and Telegram differ in exactly one
+**Why this is not in the adapters.** Chat platforms differ in exactly one
 thing that matters: how you edit a message you already sent. Everything else —
 who is allowed to ask, what a refusal says, which object starts the run, what
 the reply says at any moment, when it is worth spending an edit — is identical,
@@ -19,10 +19,10 @@ in CLAUDE.md. The benefit of a separate process is crash isolation, which
 :meth:`ChannelService._supervise` provides. The costs of a literal reading are
 Phase 1's orphan-process trap re-run twice (with ``--onefile``, the PID a parent
 holds is the bootloader's, not the server's), a second frozen binary, a second
-extraction on every launch, and a duplicated shutdown handshake. Neither
-`discord.py` nor `python-telegram-bot` needs its own event loop — both run as
-tasks on an existing one — so the reason usually given for the separate process
-does not apply here.
+extraction on every launch, and a duplicated shutdown handshake. `discord.py`
+does not need its own event loop — `Client.start()` runs as a task on an
+existing one — so the reason usually given for the separate process does not
+apply here.
 
 **The gate is reached by the identical path a dashboard run uses.** §1 constraint
 5 ends "no privileged paths for any channel", and the way that is made
@@ -47,17 +47,8 @@ from typing import TYPE_CHECKING, Any, Final
 from agentspace.api.stream import run_events
 from agentspace.channels.base import CHANNEL_NAMES, ChannelName, InboundMessage
 from agentspace.channels.identity import IdentityDirectory, refusal_text
-from agentspace.channels.render import (
-    DISCORD_MESSAGE_LIMIT,
-    TELEGRAM_MESSAGE_LIMIT,
-    fold,
-    render,
-)
-from agentspace.channels.throttle import (
-    DISCORD_EDIT_INTERVAL,
-    TELEGRAM_EDIT_INTERVAL,
-    Throttle,
-)
+from agentspace.channels.render import DISCORD_MESSAGE_LIMIT, fold, render
+from agentspace.channels.throttle import DISCORD_EDIT_INTERVAL, Throttle
 from agentspace.events.types import TERMINAL_RUN_EVENTS, EventType
 
 if TYPE_CHECKING:
@@ -85,7 +76,6 @@ logger = logging.getLogger("agentspace.channels")
 #: the only two numbers `converse` needs from a platform.
 _LIMITS: Final[dict[str, tuple[int, float]]] = {
     "discord": (DISCORD_MESSAGE_LIMIT, DISCORD_EDIT_INTERVAL),
-    "telegram": (TELEGRAM_MESSAGE_LIMIT, TELEGRAM_EDIT_INTERVAL),
 }
 
 #: The keychain names the shell delivers over stdin (§1 constraint 4). A bot
@@ -93,7 +83,6 @@ _LIMITS: Final[dict[str, tuple[int, float]]] = {
 #: this application to a third party and is replayable by anyone who reads it.
 _TOKEN_SECRET: Final[dict[str, str]] = {
     "discord": "discord_bot_token",
-    "telegram": "telegram_bot_token",
 }
 
 #: How many consecutive immediate failures before an adapter is left stopped.
@@ -410,7 +399,6 @@ class ChannelService:
         settings = await self._deps.settings.get()
         enabled: dict[str, bool] = {
             "discord": settings.discord_enabled,
-            "telegram": settings.telegram_enabled,
         }
 
         for channel in CHANNEL_NAMES:
@@ -559,10 +547,10 @@ def _default_factories() -> dict[ChannelName, AdapterFactory]:
     """Build the real adapters, importing their libraries only if asked.
 
     A late import rather than a module-level one so that a build in which
-    `discord.py` or `python-telegram-bot` failed to freeze degrades to one
-    channel being unavailable — with the reason in `GET /channels` — instead of
-    a sidecar that will not start. That is the shape of the Phase 3 `*.sql` bug
-    inverted: an import that is fine everywhere except in the bundle.
+    `discord.py` failed to freeze degrades to the channel being unavailable —
+    with the reason in `GET /channels` — instead of a sidecar that will not
+    start. That is the shape of the Phase 3 `*.sql` bug inverted: an import
+    that is fine everywhere except in the bundle.
     """
 
     def discord_factory(
@@ -572,11 +560,4 @@ def _default_factories() -> dict[ChannelName, AdapterFactory]:
 
         return DiscordAdapter(deps, token, on_refusal)
 
-    def telegram_factory(
-        deps: ChannelDeps, token: str, on_refusal: Callable[[str], None]
-    ) -> ChannelAdapter:
-        from agentspace.channels.telegram_adapter import TelegramAdapter
-
-        return TelegramAdapter(deps, token, on_refusal)
-
-    return {"discord": discord_factory, "telegram": telegram_factory}
+    return {"discord": discord_factory}

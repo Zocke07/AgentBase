@@ -1,11 +1,10 @@
 """Outbound rate limiting, per §5 Phase 8.
 
 The spec asks to "throttle outbound through the adapter", naming Discord's
-global 50 req/s and Telegram's 30 msg/s per chat. Both numbers are far above
-anything this application can produce, and quoting them is slightly misleading
-about where the real limit is: the binding constraint is the *per-route* bucket
-on editing a message, which on Discord is roughly five edits per five seconds
-for one webhook token and on Telegram is about one per second for one chat.
+global 50 req/s. That number is far above anything this application can
+produce, and quoting it is slightly misleading about where the real limit is:
+the binding constraint is the *per-route* bucket on editing a message, which
+on Discord is roughly five edits per five seconds for one webhook token.
 
 A run streams hundreds of events. Editing the message on each one would exhaust
 that bucket in the first second of a run, and the platform's response is a 429
@@ -32,16 +31,12 @@ if TYPE_CHECKING:
 
 __all__ = [
     "DISCORD_EDIT_INTERVAL",
-    "TELEGRAM_EDIT_INTERVAL",
     "Throttle",
 ]
 
 #: Comfortably inside Discord's per-token edit bucket, and fast enough that a
 #: run reads as live.
 DISCORD_EDIT_INTERVAL: Final[float] = 1.6
-
-#: Telegram tolerates about one edit per second per chat.
-TELEGRAM_EDIT_INTERVAL: Final[float] = 1.2
 
 
 class Throttle:

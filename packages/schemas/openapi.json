@@ -195,10 +195,7 @@
         "description": "One allowlist entry: this person, on this channel, is that identity.",
         "properties": {
           "channel": {
-            "enum": [
-              "discord",
-              "telegram"
-            ],
+            "const": "discord",
             "title": "Channel",
             "type": "string"
           },
@@ -363,8 +360,7 @@
             "default": "ui",
             "enum": [
               "ui",
-              "discord",
-              "telegram"
+              "discord"
             ],
             "title": "Origin",
             "type": "string"
@@ -591,8 +587,7 @@
           "origin": {
             "enum": [
               "ui",
-              "discord",
-              "telegram"
+              "discord"
             ],
             "title": "Origin",
             "type": "string"
@@ -955,17 +950,6 @@
               }
             ],
             "title": "Provider"
-          },
-          "telegram_enabled": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Telegram Enabled"
           }
         },
         "title": "UpdateSettingsRequest",
@@ -1127,11 +1111,6 @@
             "default": "anthropic",
             "title": "Provider",
             "type": "string"
-          },
-          "telegram_enabled": {
-            "default": false,
-            "title": "Telegram Enabled",
-            "type": "boolean"
           }
         },
         "title": "WorkspaceSettings",

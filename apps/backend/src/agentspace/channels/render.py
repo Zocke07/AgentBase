@@ -9,11 +9,11 @@ one agree until one of them gains a feature. Here there is only the rebuilding
 one, so a reconnect, a resume or a restart shows what the log says rather than
 what this process happened to witness.
 
-**Plain text, no markdown.** Telegram's MarkdownV2 requires escaping eighteen
-characters and a single unescaped one is a 400 that discards the whole message.
-Agent output is arbitrary text — file contents, shell output, model prose — so
-any markdown mode is a grenade with a long fuse, and the failure lands exactly
-when a run produces something interesting. Discord renders plain text fine.
+**Plain text, no markdown.** Agent output is arbitrary text — file contents,
+shell output, model prose — and Discord's markdown turns a stray `*`, `_` or
+backtick in it into formatting, or swallows it. The decision was originally
+forced by Telegram's MarkdownV2, where an unescaped character is a 400 that
+discards the whole message; Telegram is gone and the reasoning survives it.
 One renderer, no escaping, nothing to get wrong.
 
 **The terminal summary is a claim, and it is rendered beside a count of what
@@ -39,7 +39,6 @@ if TYPE_CHECKING:
 
 __all__ = [
     "DISCORD_MESSAGE_LIMIT",
-    "TELEGRAM_MESSAGE_LIMIT",
     "AgentLine",
     "ChatView",
     "PendingApproval",
@@ -50,9 +49,6 @@ __all__ = [
 
 #: Discord rejects a message body over this outright, rather than truncating.
 DISCORD_MESSAGE_LIMIT: Final[int] = 2000
-
-#: Telegram's is larger, and the same clamp applies for the same reason.
-TELEGRAM_MESSAGE_LIMIT: Final[int] = 4096
 
 #: How many activity lines to keep before clamping starts trimming them. A
 #: chat message is a status board, not a log dump — the log is in the dashboard.

@@ -118,14 +118,16 @@ class WorkspaceSettings(BaseModel):
     # This is the `settings` table earning the shape it was given in Phase 2.
     # The note recorded then was that a key/value table with a JSON value means
     # "Phase 7's settings UI and Phase 8's channel config do not each need a
-    # migration that widens a table", and that is exactly what happens here:
-    # four new settings, one of them a list of objects, and no migration 005.
+    # migration that widens a table", and that is exactly what happened: four
+    # new settings, one of them a list of objects, and no migration to add
+    # them. (Migration 005 exists for the opposite move — removing a channel —
+    # because a stored allowlist entry for it would otherwise fail validation
+    # on every read.)
 
-    #: Both default off. A channel that connected on a fresh install would put
+    #: Off by default. A channel that connected on a fresh install would put
     #: this workspace on a network the moment a token happened to be present,
     #: which is the opposite of what §1 constraint 3 is protecting.
     discord_enabled: bool = False
-    telegram_enabled: bool = False
 
     #: Who may address this workspace from a chat channel, and as whom. Empty
     #: means nobody, which is the only safe reading — see

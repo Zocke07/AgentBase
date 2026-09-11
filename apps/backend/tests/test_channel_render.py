@@ -255,10 +255,10 @@ def test_clamping_keeps_the_goal_and_the_outcome_and_drops_the_middle() -> None:
 def test_the_render_contains_no_markdown_control_characters_of_its_own() -> None:
     """Plain text, deliberately — see the module docstring in `render.py`.
 
-    Telegram's MarkdownV2 requires escaping eighteen characters and an
-    unescaped one is a 400 that loses the entire message. Agent output is
-    arbitrary text, so any markdown mode is a grenade with a long fuse. One
-    plain renderer serves both platforms and cannot be made to fail this way.
+    Agent output is arbitrary text, so any markdown mode is a grenade with a
+    long fuse — originally Telegram's MarkdownV2, where an unescaped character
+    loses the entire message; on Discord a stray `*` or backtick in a file's
+    contents becomes formatting. One plain renderer cannot fail this way.
     """
     events = [*started("**bold** _italic_ `code` [x](y)")]
 

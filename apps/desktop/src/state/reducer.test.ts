@@ -586,8 +586,8 @@ describe("channel-originated runs", () => {
   it("reports neither channel event as unrecognised", () => {
     const log = new LogBuilder();
     const state = reduceAll([
-      log.add("channel.inbound", { channel: "telegram", identity: "owner" }),
-      log.add("channel.outbound", { channel: "telegram", edits: 1 }),
+      log.add("channel.inbound", { channel: "discord", identity: "owner" }),
+      log.add("channel.outbound", { channel: "discord", edits: 1 }),
     ]);
 
     expect(state.unrecognised).toEqual([]);

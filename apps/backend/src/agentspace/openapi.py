@@ -57,6 +57,7 @@ _KNOWN_KEYWORDS: Final[frozenset[str]] = frozenset(
         "$ref",
         "anyOf",
         "additionalProperties",
+        "const",
         "enum",
         "items",
         "properties",
@@ -197,6 +198,11 @@ def _type_of(node: dict[str, Any], path: str, indent: str = "") -> str:
     if "enum" in node:
         return _union([_literal(value, path) for value in node["enum"]], indent)
 
+    # A `Literal` with one member. Pydantic writes it as `const`, not as a
+    # one-element `enum`, and the type is the same: that one literal.
+    if "const" in node:
+        return _literal(node["const"], path)
+
     declared = node.get("type")
 
     if declared == "array":
@@ -229,7 +235,9 @@ def _type_of(node: dict[str, Any], path: str, indent: str = "") -> str:
         # the honest rendering: the schema really does say nothing.
         return "unknown"
 
-    raise UnsupportedSchemaError(path, "no `type`, `$ref`, `anyOf` or `enum` to render")
+    raise UnsupportedSchemaError(
+        path, "no `type`, `$ref`, `anyOf`, `enum` or `const` to render"
+    )
 
 
 #: Beyond this, a union is rendered one member per line. `EventType` has 26

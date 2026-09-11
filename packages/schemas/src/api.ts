@@ -58,7 +58,7 @@ export interface BudgetResponse {
 
 /** One allowlist entry: this person, on this channel, is that identity. */
 export interface ChannelIdentity {
-  channel: "discord" | "telegram";
+  channel: "discord";
   external_user_id: string;
   identity: string;
 }
@@ -96,7 +96,7 @@ export interface CreateAgentRequest {
 
 export interface CreateRunRequest {
   goal: string;
-  origin?: "ui" | "discord" | "telegram";
+  origin?: "ui" | "discord";
   origin_ref?: string | null;
 }
 
@@ -192,7 +192,7 @@ export interface Run {
   id: string;
   goal: string;
   status: "pending" | "running" | "paused" | "completed" | "failed" | "cancelled";
-  origin: "ui" | "discord" | "telegram";
+  origin: "ui" | "discord";
   origin_ref?: string | null;
   created_at: string;
   finished_at?: string | null;
@@ -265,7 +265,6 @@ export interface UpdateSettingsRequest {
   max_run_seconds?: number | null;
   auto_approve?: RiskLevel[] | null;
   discord_enabled?: boolean | null;
-  telegram_enabled?: boolean | null;
   channel_identities?: ChannelIdentity[] | null;
   channel_approvals?: "dashboard_only" | "originator" | null;
 }
@@ -297,7 +296,6 @@ export interface WorkspaceSettings {
   max_agents_per_run?: number;
   max_run_seconds?: number;
   discord_enabled?: boolean;
-  telegram_enabled?: boolean;
   channel_identities?: ChannelIdentity[];
   channel_approvals?: "dashboard_only" | "originator";
 }

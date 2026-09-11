@@ -46,9 +46,7 @@ router = APIRouter()
 #: without anybody remembering this line — the Phase 6 lesson about two lists
 #: that drift, applied before it has a chance to.
 _CHANNEL_SETTINGS: frozenset[str] = frozenset(
-    name
-    for name in WorkspaceSettings.model_fields
-    if name.startswith(("discord_", "telegram_"))
+    name for name in WorkspaceSettings.model_fields if name.startswith("discord_")
 )
 
 
@@ -111,7 +109,6 @@ class UpdateSettingsRequest(BaseModel):
     # meaningful property as `auto_approve`: sending `[]` is how an owner
     # revokes everyone's access, and it must not be read as "not sent".
     discord_enabled: bool | None = None
-    telegram_enabled: bool | None = None
     channel_identities: list[ChannelIdentity] | None = None
     channel_approvals: ChannelApprovalPolicy | None = None
 

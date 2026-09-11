@@ -93,6 +93,18 @@ def test_an_enum_becomes_a_union_of_literals() -> None:
     assert 'export type Subject = "low" | "high";' in emitted
 
 
+def test_a_single_member_literal_becomes_that_literal() -> None:
+    """Pydantic writes `Literal["discord"]` as `const`, not a one-element `enum`.
+
+    The first one appeared when the Telegram channel was removed and
+    `ChannelName` shrank to one member; until then every literal in the API had
+    at least two and the emitter had never met `const`. It refused, correctly.
+    """
+    emitted = _emit({"type": "string", "const": "discord"})
+
+    assert 'export type Subject = "discord";' in emitted
+
+
 def test_a_reference_becomes_the_referenced_name() -> None:
     emitted = emit_typescript(
         _document(

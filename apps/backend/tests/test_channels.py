@@ -9,7 +9,7 @@ The criteria are:
 Both are asserted here against the production objects — the real event store,
 the real SSE cursor, the real `ToolRuntime`, the real `ApprovalService`. The
 only double is the chat platform itself: :class:`FakeReply` stands in for
-Discord's `edit_original_response` and Telegram's `edit_text`, which is exactly
+Discord's `edit_original_response`, which is exactly
 the seam :class:`~agentspace.channels.base.ChannelReply` exists to create. A
 test that faked more than that — a fake gate, a fake launcher — would prove the
 criteria on a path the product does not take, which is the failure mode CLAUDE.md
@@ -616,7 +616,7 @@ async def test_a_disabled_channel_is_never_started(
     await service.aclose()
 
     assert started == []
-    assert [status.enabled for status in service.status()] == [False, False]
+    assert [status.enabled for status in service.status()] == [False]
 
 
 async def test_a_channel_enabled_without_a_token_says_why(
@@ -730,9 +730,7 @@ def _service_with(
 
         return build
 
-    return ChannelService(
-        deps, secrets, {"discord": factory("discord"), "telegram": factory("telegram")}
-    )
+    return ChannelService(deps, secrets, {"discord": factory("discord")})
 
 
 async def _wait_for_run(store: EventStore) -> str:

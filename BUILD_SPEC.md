@@ -8,8 +8,8 @@ document before writing any code. Re-read it at the start of every session.
 ## 0. What we are building
 
 A **local-first desktop application** where multiple AI agents collaborate on tasks, and
-the user watches them work in real time on a live graph. Optionally reachable from Discord
-and Telegram.
+the user watches them work in real time on a live graph. Optionally reachable from Discord.
+*(Telegram was a second channel until 2026-09-11; see the note under Phase 8.)*
 
 It ships as a single installer. The end user is not a developer.
 
@@ -67,8 +67,8 @@ substitute equivalents, do not add the thing they replaced. If you believe one i
 │              ┌─────────────────────────────────────┼───────────────┐         │
 │              │                                     │               │         │
 │     ┌────────▼────────┐                  ┌─────────▼──────┐        │         │
-│     │ Discord adapter │                  │ Telegram adapt │        │         │
-│     │ (outbound WS)   │                  │ (long polling) │        │         │
+│     │ Discord adapter │                  │ (a second chat │        │         │
+│     │ (outbound WS)   │                  │  adapter slot) │        │         │
 │     └─────────────────┘                  └────────────────┘        │         │
 └────────────────────────────────────────────────────────────────────┼─────────┘
                                                                      │ HTTPS
@@ -131,8 +131,7 @@ agent-workspace/
 │   │   │   │   └── builtin/      # read_file, write_file, http_get, shell
 │   │   │   ├── channels/
 │   │   │   │   ├── base.py       # ChannelAdapter protocol
-│   │   │   │   ├── discord_adapter.py
-│   │   │   │   └── telegram_adapter.py
+│   │   │   │   └── discord_adapter.py   # telegram_adapter.py removed 2026-09-11
 │   │   │   └── api/
 │   │   │       ├── runs.py       # POST /runs, GET /runs/{id}
 │   │   │       ├── stream.py     # GET /runs/{id}/events  (SSE)
@@ -172,7 +171,7 @@ CREATE TABLE runs (
   id           TEXT PRIMARY KEY,        -- uuid4
   goal         TEXT NOT NULL,
   status       TEXT NOT NULL,           -- pending|running|paused|completed|failed|cancelled
-  origin       TEXT NOT NULL,           -- ui|discord|telegram
+  origin       TEXT NOT NULL,           -- ui|discord   (telegram until 2026-09-11)
   origin_ref   TEXT,                    -- channel/thread id for replies
   created_at   TEXT NOT NULL,
   finished_at  TEXT
@@ -422,8 +421,12 @@ shown live, and a new agent can be created, edited, and run without leaving the 
   interaction immediately (3s ack limit) and edit the deferred reply as events stream.
   Throttle outbound through the adapter; Discord's global cap is 50 req/s with tighter
   per-channel limits.
-- **Telegram**: `python-telegram-bot`, long polling (not webhooks — no inbound port). Leave
-  privacy mode on. Respect 30 msg/s per chat.
+- ~~**Telegram**: `python-telegram-bot`, long polling (not webhooks — no inbound port). Leave
+  privacy mode on. Respect 30 msg/s per chat.~~ **Removed 2026-09-11**, a §6 deviation
+  agreed with the maintainer: the adapter was built and never held a session (no bot token
+  ever existed), and its library was one of the two largest in the frozen sidecar. The
+  `ChannelAdapter` protocol stays so a second channel can return; CLAUDE.md's decisions
+  list has the reasoning.
 - Map external user IDs to an internal identity so budget and permissions apply uniformly
   regardless of origin.
 - A run started from Discord must appear live in the dashboard, and vice versa. Same event

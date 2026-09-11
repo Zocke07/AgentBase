@@ -83,6 +83,7 @@ MIGRATION_FILES: tuple[tuple[int, str], ...] = (
     (2, "002_spend_and_settings.sql"),
     (3, "003_agent_defs.sql"),
     (4, "004_approvals.sql"),
+    (5, "005_drop_telegram.sql"),
 )
 
 #: Applied in order, each exactly once, lowest version first.

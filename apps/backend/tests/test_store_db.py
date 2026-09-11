@@ -15,6 +15,7 @@ and now runs the whole chain rather than a single step.
 
 from __future__ import annotations
 
+import json
 import pathlib
 import sqlite3
 from typing import TYPE_CHECKING
@@ -23,6 +24,7 @@ import pytest
 
 from agentspace.store import db as db_module
 from agentspace.store.db import LATEST_SCHEMA_VERSION, Database, Migration
+from agentspace.store.settings import SettingsStore
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -253,6 +255,85 @@ def test_write_rolls_back_on_error(db: Database) -> None:
         row = connection.execute("SELECT id FROM runs WHERE id = 'rollback-me'").fetchone()
 
     assert row is None
+
+
+# --- migration 005 -----------------------------------------------------------
+
+
+def test_upgrade_drops_the_telegram_allowlist_entries_and_keeps_the_rest(
+    app_paths: AppPaths,
+) -> None:
+    """A v4 database with a Telegram identity in its allowlist must still open.
+
+    `channel_identities` is validated against the channels this build speaks,
+    so an entry for the removed channel would fail on every read — taking
+    `GET /settings`, and with it every run, down with it. The migration removes
+    exactly those entries, keeps every other one, and drops the dead
+    `telegram_enabled` row.
+    """
+    four = tuple(m for m in db_module.MIGRATIONS if m.version <= 4)
+    original = db_module.MIGRATIONS
+    db_module.MIGRATIONS = four
+    first = Database(app_paths.db_path)
+    try:
+        first.connect()
+        assert first.schema_version == 4
+        with first.write() as connection:
+            connection.executemany(
+                "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)",
+                [
+                    (
+                        "channel_identities",
+                        json.dumps(
+                            [
+                                {
+                                    "channel": "discord",
+                                    "external_user_id": "1",
+                                    "identity": "owner",
+                                },
+                                {
+                                    "channel": "telegram",
+                                    "external_user_id": "2",
+                                    "identity": "owner",
+                                },
+                                {
+                                    "channel": "discord",
+                                    "external_user_id": "3",
+                                    "identity": "friend",
+                                },
+                            ]
+                        ),
+                        "2026-09-01T00:00:00+00:00",
+                    ),
+                    ("telegram_enabled", "true", "2026-09-01T00:00:00+00:00"),
+                    ("discord_enabled", "true", "2026-09-01T00:00:00+00:00"),
+                ],
+            )
+    finally:
+        first.close()
+        db_module.MIGRATIONS = original
+
+    upgraded = Database(app_paths.db_path)
+    upgraded.connect()
+    try:
+        assert upgraded.schema_version == LATEST_SCHEMA_VERSION
+        with upgraded.read() as connection:
+            rows = {
+                row["key"]: json.loads(row["value"])
+                for row in connection.execute("SELECT key, value FROM settings")
+            }
+        assert rows["channel_identities"] == [
+            {"channel": "discord", "external_user_id": "1", "identity": "owner"},
+            {"channel": "discord", "external_user_id": "3", "identity": "friend"},
+        ]
+        assert "telegram_enabled" not in rows
+        assert rows["discord_enabled"] is True
+
+        # And the model reads it: this is the read that used to fail.
+        settings = SettingsStore(upgraded)._get_sync()
+        assert [entry.external_user_id for entry in settings.channel_identities] == ["1", "3"]
+    finally:
+        upgraded.close()
 
 
 # --- migration 002 -----------------------------------------------------------

@@ -3,16 +3,19 @@
 §5 Phase 8: "Both adapters normalize to `{channel, external_user_id, text,
 thread_ref, ts}` and emit `channel.inbound`." :class:`InboundMessage` is that
 tuple, and it is the *only* shape the rest of the application ever sees — a
-`discord.Interaction` and a `telegram.Update` both stop here.
+`discord.Interaction` stops here.
 
-**Two protocols, not one, because the platforms differ in one place only.**
+**Two protocols, not one, because a platform differs in one place only.**
 :class:`ChannelAdapter` is the long-lived connection: start it, close it, ask
 whether it is healthy. :class:`ChannelReply` is a single conversation's reply
 handle, and it exists because "edit the message you already sent" is the one
-operation Discord and Telegram genuinely implement differently. Everything
-between those two — identity, refusal, starting the run, folding the log,
-throttling, emitting `channel.outbound` — is shared, so a bug fixed in one
-channel is fixed in both.
+operation chat platforms genuinely implement differently. Everything between
+those two — identity, refusal, starting the run, folding the log, throttling,
+emitting `channel.outbound` — is shared, so a second channel would inherit
+all of it and implement only the edit. There was a second one, Telegram, and
+it was removed on 2026-09-11 having never held a session (CLAUDE.md records
+the decision); the seam stays, because it is what made removing it a matter
+of deleting one file.
 
 **`display_name` is for reading, never for deciding.** A chat user controls
 their own display name, so authorizing on it would let anyone impersonate an
@@ -41,9 +44,9 @@ __all__ = [
 #: The channels this application speaks. Deliberately the same strings §4 gives
 #: `runs.origin`, minus `ui`, so a run's origin column and its adapter name are
 #: never two spellings of one fact.
-ChannelName = Literal["discord", "telegram"]
+ChannelName = Literal["discord"]
 
-CHANNEL_NAMES: Final[tuple[ChannelName, ...]] = ("discord", "telegram")
+CHANNEL_NAMES: Final[tuple[ChannelName, ...]] = ("discord",)
 
 #: What caused this message to reach us. §1 constraint 6 permits exactly two
 #: triggers — "explicit commands/mentions only" — and recording which one fired
@@ -57,9 +60,9 @@ TriggerKind = Literal["command", "mention"]
 class InboundMessage:
     """One normalized message from a chat channel.
 
-    :param thread_ref: where a reply belongs — a Discord channel id or a
-        Telegram chat id. Stored as `runs.origin_ref` (§4), which is what makes
-        a run resumable as a conversation rather than only as a row.
+    :param thread_ref: where a reply belongs — a Discord channel id. Stored
+        as `runs.origin_ref` (§4), which is what makes a run resumable as a
+        conversation rather than only as a row.
     """
 
     channel: ChannelName
@@ -105,9 +108,9 @@ class ChannelReply(Protocol):
       platforms' rate limits without the throttle having to be clever, and it
       is also the better reading experience: a run's status stays in one place
       instead of scrolling away.
-    - :meth:`ask` offers an approval affordance — buttons on Discord, an inline
-      keyboard on Telegram. It is allowed to do nothing, and does when the
-      workspace policy keeps approvals in the dashboard.
+    - :meth:`ask` offers an approval affordance — buttons, on Discord. It is
+      allowed to do nothing, and does when the workspace policy keeps approvals
+      in the dashboard.
     - :meth:`close` releases whatever the platform needs releasing.
     """
 

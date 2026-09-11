@@ -56,7 +56,6 @@ interface Form {
   max_run_seconds: string;
   auto_approve: RiskLevel[];
   discord_enabled: boolean;
-  telegram_enabled: boolean;
   channel_identities: ChannelIdentity[];
   channel_approvals: "dashboard_only" | "originator";
 }
@@ -80,7 +79,6 @@ function fromSettings(settings: WorkspaceSettings): Form {
     max_run_seconds: String(settings.max_run_seconds ?? ""),
     auto_approve: [...(settings.auto_approve ?? [])],
     discord_enabled: settings.discord_enabled ?? false,
-    telegram_enabled: settings.telegram_enabled ?? false,
     channel_identities: [...(settings.channel_identities ?? [])],
     channel_approvals: settings.channel_approvals ?? "dashboard_only",
   };
@@ -114,7 +112,6 @@ function diff(opened: Form, form: Form): UpdateSettingsRequest {
   }
   if (form.auto_approve.join() !== opened.auto_approve.join()) patch.auto_approve = form.auto_approve;
   if (form.discord_enabled !== opened.discord_enabled) patch.discord_enabled = form.discord_enabled;
-  if (form.telegram_enabled !== opened.telegram_enabled) patch.telegram_enabled = form.telegram_enabled;
   if (JSON.stringify(form.channel_identities) !== JSON.stringify(opened.channel_identities)) {
     patch.channel_identities = form.channel_identities;
   }
@@ -449,7 +446,7 @@ function SettingsForm({
       <section className="settings__section">
         <h2>Chat channels</h2>
         <div className="settings__channels">
-          {(["discord", "telegram"] as const).map((channel) => {
+          {(["discord"] as const).map((channel) => {
             const status = channels.find((entry) => entry.channel === channel);
             const enabledKey = `${channel}_enabled` as const;
             return (
@@ -732,7 +729,8 @@ function IdentityList({
   error: string | null;
   onChange: (identities: ChannelIdentity[]) => void;
 }) {
-  const [channel, setChannel] = useState<ChannelIdentity["channel"]>("discord");
+  // The one channel this build speaks. A second one would make this a select.
+  const channel: ChannelIdentity["channel"] = "discord";
   const [externalId, setExternalId] = useState("");
   const [identity, setIdentity] = useState("");
 
@@ -773,16 +771,9 @@ function IdentityList({
         </ul>
       )}
       <div className="settings__identity-add">
-        <select
-          value={channel}
-          onChange={(changed) => {
-            setChannel(changed.target.value === "telegram" ? "telegram" : "discord");
-          }}
-          aria-label="Channel"
-        >
-          <option value="discord">discord</option>
-          <option value="telegram">telegram</option>
-        </select>
+        <span className="settings__identity-channel" aria-label="Channel">
+          {channel}
+        </span>
         <input
           value={externalId}
           placeholder="account id on that channel"

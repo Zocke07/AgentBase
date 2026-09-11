@@ -50,7 +50,7 @@ SECRET_KEYS: Final[frozenset[str]] = frozenset(
     {
         "anthropic_api_key",
         "openai_api_key",
-        # §5 Phase 8's bot tokens. A bot token is a credential in exactly the
+        # §5 Phase 8's bot token. A bot token is a credential in exactly the
         # sense an API key is — it authenticates this application to a third
         # party and is replayable by anyone who reads it — so it takes the same
         # route: OS keychain to stdin, never `.env`, never SQLite, never `argv`.
@@ -58,7 +58,6 @@ SECRET_KEYS: Final[frozenset[str]] = frozenset(
         # change and would have written a live credential into a file that sits
         # on disk in the clear beside the event log.
         "discord_bot_token",
-        "telegram_bot_token",
     }
 )
 

@@ -47,16 +47,15 @@ const KEYCHAIN_SERVICE: &str = "dev.agentspace.desktop";
 /// Keychain account names, which double as the JSON field names in the stdin
 /// handshake. Must match `agentspace.secrets.SECRET_KEYS`.
 ///
-/// The two bot tokens arrived with the Phase 8 channel adapters. A bot token is
-/// a credential in the same sense an API key is — it authenticates this
+/// The bot token arrived with the Phase 8 channel adapter. A bot token is a
+/// credential in the same sense an API key is — it authenticates this
 /// application to a third party and is replayable by anyone who reads it — so it
 /// travels the same route and never touches the `settings` table, which sits on
 /// disk in the clear beside the event log.
-const SECRET_NAMES: [&str; 4] = [
+const SECRET_NAMES: [&str; 3] = [
     "anthropic_api_key",
     "openai_api_key",
     "discord_bot_token",
-    "telegram_bot_token",
 ];
 
 #[derive(Default)]

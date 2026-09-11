@@ -53,18 +53,6 @@ def test_an_empty_allowlist_admits_nobody() -> None:
     assert IdentityDirectory([]).resolve("discord", "4210") is None
 
 
-def test_an_identity_does_not_cross_channels() -> None:
-    """The channel is half the key, and this is not hypothetical.
-
-    Discord and Telegram both issue purely numeric user ids from overlapping
-    ranges, so a lookup keyed on the id alone would eventually hand a Telegram
-    stranger the identity of the Discord owner.
-    """
-    directory = IdentityDirectory([OWNER])
-
-    assert directory.resolve("telegram", "4210") is None
-
-
 def test_surrounding_whitespace_in_configuration_still_matches() -> None:
     """Narrowing-safe normalisation only.
 
@@ -111,15 +99,6 @@ def test_a_duplicate_entry_is_refused_rather_than_silently_shadowed() -> None:
                 ChannelIdentity(channel="discord", external_user_id="1", identity="someone"),
             ]
         )
-
-
-def test_the_same_external_id_on_two_channels_is_not_a_duplicate() -> None:
-    IdentityDirectory.validated(
-        [
-            ChannelIdentity(channel="discord", external_user_id="1", identity="owner"),
-            ChannelIdentity(channel="telegram", external_user_id="1", identity="owner"),
-        ]
-    )
 
 
 @pytest.mark.parametrize("blank", ["", "   "])

@@ -8,7 +8,7 @@ and the second one is the load-bearing one.
 `channel.inbound` is answerable a month later.
 
 *Authorization.* A Discord bot invited to a server can be invoked by anybody in
-that server, and a Telegram bot by anybody who finds it. §1 constraint 6 stops
+that server. §1 constraint 6 stops
 the bot ingesting ambient chatter; it does not stop a stranger typing the
 command deliberately, which is an *explicit* trigger and therefore permitted by
 that constraint. What stops them is this table: an external id with no entry
@@ -117,7 +117,8 @@ def refusal_text(channel: ChannelName) -> str:
     The corresponding `channel.inbound` event records the full detail, because
     the owner is the one who needs to be able to add them.
     """
-    where = "this Discord account" if channel == "discord" else "this Telegram account"
+    # One channel today; the parameter stays so a second one names itself.
+    where = {"discord": "this Discord account"}[channel]
     return (
         f"This agent workspace is not configured to accept requests from {where}. "
         f"Nothing was run."

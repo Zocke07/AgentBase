@@ -17,7 +17,6 @@ dependencies = [
     # Discord is a stateful websocket with a heartbeat and a resume protocol,
     # and reimplementing that is a project, not an adapter.
     "discord-py>=2.4.0",
-    "python-telegram-bot>=21.0",
 ]
 
 [dependency-groups]
@@ -90,11 +89,11 @@ ignore = [
 # conforming to the protocol. Same exemption, same scope and same reasoning as
 # the test doubles below: ARG002 only, so ARG001 keeps its signal.
 "src/agentspace/tools/builtin/**" = ["ARG002"]
-# `discord.py` passes the Button object to its own decorator's callback and
-# `python-telegram-bot` passes a context to every handler. Neither is read here,
-# and renaming either to `_x` would stop the library recognising the signature.
-# Same exemption, same scope and same reasoning as the two below: ARG002 only,
-# so ARG001 keeps the signal that caught a real unused parameter in Phase 3.
+# `discord.py` passes the Button object to its own decorator's callback. It is
+# not read here, and renaming it to `_x` would stop the library recognising the
+# signature. Same exemption, same scope and same reasoning as the two below:
+# ARG002 only, so ARG001 keeps the signal that caught a real unused parameter
+# in Phase 3.
 "src/agentspace/channels/*_adapter.py" = ["ARG002"]
 "tests/**" = [
     "S101",  # assert is the point of a test

@@ -39,7 +39,7 @@ RunStatus = Literal["pending", "running", "paused", "completed", "failed", "canc
 TERMINAL_RUN_STATUSES: frozenset[str] = frozenset({"completed", "failed", "cancelled"})
 
 #: §4 `runs.origin`.
-RunOrigin = Literal["ui", "discord", "telegram"]
+RunOrigin = Literal["ui", "discord"]
 
 
 class EventType(StrEnum):

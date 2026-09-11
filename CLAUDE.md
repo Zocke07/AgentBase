@@ -1159,8 +1159,9 @@ debug script speaks the reducer's dialect. `GET /settings` publishes
 **Not done here, still open.** The event log has no windowing; the exact-type
 filter, hidden tokens and search made a 291-event run comfortable and nothing
 larger has been measured. The scrubber refolds from zero on every leftward
-tick. Telegram, the Discord live path and macOS were not touched. The
-untracked `docs/USER_GUIDE.md` still describes the window it predates.
+tick. The Discord live path and macOS were not touched (Telegram has since
+been removed). The untracked `docs/USER_GUIDE.md` still describes the window
+it predates.
 
 Next up: **Phase 10 — Portfolio artifacts.** Do not start it before re-reading
 BUILD_SPEC §5 Phase 10. Two things bear on it directly:
@@ -1741,8 +1742,9 @@ Phase 3 specifically:
 
 Phase 8 specifically:
 
-- **Telegram has never held a session, but its transport has now run.** No bot
-  token exists for it, so nothing has polled an update or answered a message.
+- ~~**Telegram has never held a session, but its transport has now run.**~~
+  **Removed 2026-09-11** — see the decisions list. Kept for the record: no bot
+  token ever existed for it, so nothing ever polled an update or answered a message.
   What *has* happened, in the frozen-binary check below, is the hand-assembled
   `initialize`/`start`/`start_polling` lifecycle executing for real and reaching
   `POST https://api.telegram.org/bot.../getMe`, which returned 401 and surfaced
@@ -1751,9 +1753,7 @@ Phase 8 specifically:
   it was the part most likely to be silently wrong. It is not. What remains
   untested is everything after a successful `getMe`: the poller delivering an
   update, privacy mode's effect on group messages, and the reply path.
-- **No approval has been answered from Telegram**, and `_OWNERS` — the in-memory
-  map deciding who may press an inline-keyboard button — has never been read in
-  anger. Its Discord counterpart has.
+- ~~**No approval has been answered from Telegram**~~ Moot: removed 2026-09-11.
 - **The bot has only ever been in one guild, with one user.** Nothing has
   exercised two guilds, a guild joined while running (`on_guild_join`), two
   people using the bot at once, or the mention trigger — the live run used the
@@ -2158,18 +2158,19 @@ component. `src/test/` still holds the log builder; container tests mock
 real), and `api.ts` itself is tested against a stubbed `fetch`.
 
 Phase 8 filled in `channels/`, which §3 sketches as three files and which is
-seven. `base.py` (the normalized `InboundMessage` and the two protocols),
-`discord_adapter.py` and `telegram_adapter.py` are §3's; the other four each
-carry something the adapters would otherwise duplicate. `identity.py` is the
+six (seven until Telegram was removed on 2026-09-11). `base.py` (the
+normalized `InboundMessage` and the two protocols) and `discord_adapter.py`
+are §3's; the other four each carry something a second adapter would
+otherwise duplicate. `identity.py` is the
 allowlist — the security boundary of the phase, and the one thing that must not
 have two implementations. `render.py` is the chat projection: `fold` and
 `render`, pure, no I/O. `throttle.py` is the edit cadence. `service.py` holds
 both `converse` — one whole conversation, from the allowlist check to the last
 edit — and `ChannelService`, which supervises the adapters.
 
-The split between `service.py` and the adapters is the load-bearing one:
-Discord and Telegram differ in exactly one thing, which is how you edit a
-message you already sent, and that difference is the whole of `ChannelReply`.
+The split between `service.py` and the adapter is the load-bearing one:
+chat platforms differ in exactly one thing, which is how you edit a message
+you already sent, and that difference is the whole of `ChannelReply`.
 Everything else — who may ask, what a refusal says, which object starts the run,
 what the reply says at any moment, when an edit is worth spending — is shared,
 so a bug fixed in one channel is fixed in both.
@@ -2202,6 +2203,35 @@ say".
 
 Recorded here as they happen, so a later session does not re-litigate them.
 
+- **2026-09-11 — Telegram is removed; Discord is the only channel.** A §6
+  deviation from §5 Phase 8, which names both, agreed with the maintainer. The
+  adapter never held a session — no bot token ever existed — and
+  `python-telegram-bot` was one of the two largest libraries in the frozen
+  sidecar, so what shipped was untested code and 5 MB of bundle. Removed
+  outright rather than hidden: the adapter file, the dependency, the settings
+  field, the secret name on both sides of the stdin handshake, the settings-tab
+  toggle. The `ChannelAdapter`/`ChannelReply` seam stays, because it is what
+  made the removal a matter of deleting one file. Migration 005 drops any
+  stored Telegram allowlist entry — an entry for a channel the build no longer
+  speaks fails validation on every read, which would take `GET /settings` and
+  every run down with it — and it fired on the dev database with a seeded
+  entry: `schema v5`, the Discord entry kept, the Telegram one gone. The
+  OpenAPI emitter gained `const`, because a one-member `Literal` is written
+  that way and the API had never had one.
+- **2026-09-11 — the product is AgentSpace; the repository is AgentBase.** Asked
+  and settled: the name is in the bundle identifier `dev.agentspace.desktop`,
+  which is the data directory and the keychain service, so renaming it moves
+  every install's data and orphans stored keys; `v0.1.0` shipped under it; and
+  the planned "spaces" feature is what the name means. The repository name is
+  a URL and stays.
+- **2026-09-11 — the run on screen stays until the next one has loaded.**
+  Switching runs wiped the store first and filled it later, so every switch
+  showed an empty run for the length of a fetch, and the panel was keyed on the
+  run id so the graph canvas was rebuilt as well. `open` now takes the history
+  and changes the store once; `RunsView` reads the store's run against its own
+  and withholds everything that is *about* the run — head status, approval
+  buttons, cancel, scrubber — while they differ. Sampled per frame in a
+  browser: zero empty frames either way.
 - **2026-09-11 — a cancel is cooperative, at the deadline check.** It lands
   before the run's next model call — the one place a run can stop and still
   write a coherent terminal event — and it releases an agent blocked on the

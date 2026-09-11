@@ -1,7 +1,7 @@
 """The one place that knows how to start a run.
 
 Phase 4 put this inline in `POST /runs`, which was right while there was one
-caller. Phase 8 adds two more — a Discord command and a Telegram command — and
+caller. Phase 8 added a second — a Discord command — and
 this project has been bitten seven times by the same shape: a list of things
 duplicated at two call sites, correct at both on the day it was written, and
 silently divergent afterwards. Phase 1's CORS origins, Phase 2's named SSE

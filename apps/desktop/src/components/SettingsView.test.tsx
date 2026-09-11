@@ -45,12 +45,11 @@ const settings: SettingsResponse = {
     max_agents_per_run: 5,
     max_run_seconds: 600,
     discord_enabled: false,
-    telegram_enabled: false,
     channel_identities: [],
     channel_approvals: "dashboard_only",
   },
   configured_secrets: ["anthropic_api_key"],
-  known_secrets: ["anthropic_api_key", "discord_bot_token", "openai_api_key", "telegram_bot_token"],
+  known_secrets: ["anthropic_api_key", "discord_bot_token", "openai_api_key"],
   supported_providers: ["anthropic", "ollama", "openai"],
   model_is_priced: true,
 };
@@ -71,7 +70,6 @@ beforeEach(() => {
   mocked.verifySettings.mockResolvedValue({ ok: true, provider: "anthropic", model: "claude-opus-5" });
   mocked.getChannels.mockResolvedValue([
     { channel: "discord", enabled: false, configured: false, running: false, failures: 0, last_error: null, refused: [] },
-    { channel: "telegram", enabled: false, configured: false, running: false, failures: 0, last_error: null, refused: [] },
   ]);
   vi.mocked(keychain.keychainAvailable).mockReturnValue(false);
 });
@@ -185,7 +183,7 @@ describe("keys", () => {
     await loaded();
 
     const rows = screen.getAllByTestId(/^secret-/);
-    expect(rows).toHaveLength(4);
+    expect(rows).toHaveLength(3);
     expect(screen.getByTestId("secret-anthropic_api_key").textContent).toContain("set");
     expect(screen.getByTestId("secret-openai_api_key").textContent).toContain("not set");
   });

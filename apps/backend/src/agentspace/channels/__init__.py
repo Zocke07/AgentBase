@@ -1,4 +1,4 @@
-"""Chat channels — Discord and Telegram, reaching the same run the UI does.
+"""Chat channels — Discord, reaching the same run the UI does.
 
 §5 Phase 8's last requirement is that "a run started from Discord must appear
 live in the dashboard, and vice versa. Same event log, no special-casing." The
@@ -40,11 +40,11 @@ from agentspace.channels.identity import (
 from agentspace.channels.render import ChatView, fold, render
 from agentspace.channels.throttle import Throttle
 
-# `service` and the two adapters are deliberately NOT re-exported here.
+# `service` and the adapter are deliberately NOT re-exported here.
 # `agentspace.store.settings` imports `ChannelIdentity` from this package, and a
-# package __init__ that reached the adapters would make loading the settings
-# model import `discord.py` and `python-telegram-bot` — turning a freeze problem
-# in either library into a sidecar that cannot read its own configuration.
+# package __init__ that reached the adapter would make loading the settings
+# model import `discord.py` — turning a freeze problem in that library into a
+# sidecar that cannot read its own configuration.
 # Import `agentspace.channels.service` explicitly instead.
 
 __all__ = [
