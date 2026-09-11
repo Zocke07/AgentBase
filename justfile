@@ -357,8 +357,27 @@ _build-installer:
 # Check the built sidecar and installer — run AFTER a build, never before.
 [group('build')]
 [working-directory('apps/backend')]
-verify-build:
+verify-build: setup
     uv run pytest tests/test_sidecar_binary.py tests/test_installer_bundle.py --require-build-checks -v
+
+# Install the produced installer on THIS machine and run the installed sidecar
+# with Python scrubbed from its environment.
+#
+# This is §5 Phase 9's "runs on a second Windows machine with no Python
+# installed", as close as one machine can state it — see CLAUDE.md's "The
+# machine reality" for why the literal form is unavailable. In CI it runs on a
+# fresh windows-latest runner against the artefact the build job uploaded, which
+# is a different machine from any developer's and the exact bytes a user gets.
+#
+# It installs software, so it is not part of `just test` and never will be.
+# `AGENTSPACE_INSTALLER_DIR` points it at an installer somewhere other than the
+# local bundle directory.
+#
+# Install the built installer here and run it with no Python on PATH.
+[group('build')]
+[working-directory('apps/backend')]
+verify-installed: setup
+    uv run pytest tests/test_installed_app.py --install-smoke -v
 
 # Production build of the frontend bundle.
 [group('run')]

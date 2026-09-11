@@ -219,9 +219,9 @@ def test_every_recipe_ci_runs_works_on_a_clean_clone() -> None:
     }
     assert invoked, "the workflow runs no `just` recipes, which cannot be right"
 
-    # These two read artefacts an earlier step produced and install nothing, so
-    # they are exempt by inspection rather than by rule.
-    for recipe in sorted(invoked - {"verify-build", "check-tauri"}):
+    # `check-tauri` is cargo alone — it reads a sidecar an earlier step froze and
+    # installs nothing — so it is exempt by inspection rather than by rule.
+    for recipe in sorted(invoked - {"check-tauri"}):
         assert recipe in direct, f"{recipe!r} is not a recipe in the justfile"
         assert depends_on_setup(recipe), (
             f"`just {recipe}` never reaches `setup`, so it works only where "
@@ -230,13 +230,45 @@ def test_every_recipe_ci_runs_works_on_a_clean_clone() -> None:
         )
 
 
+def test_the_smoke_job_installs_the_artefact_the_build_job_uploaded() -> None:
+    """§5 Phase 9's "second Windows machine", as close as this project can get.
+
+    See CLAUDE.md's "The machine reality": there will be no second Windows
+    machine, so a fresh runner stands in for it. Three things make that honest
+    rather than cosmetic, and each is pinned here. It must wait on the build, or
+    there is nothing to install. It must run on Windows, because the artefact is
+    an NSIS installer. And it must install the *downloaded* artefact — the bytes a
+    user would get — rather than rebuilding locally, which is what
+    `AGENTSPACE_INSTALLER_DIR` pointing at the download directory guarantees.
+    """
+    smoke = _workflow()["jobs"]["smoke"]
+
+    assert smoke["needs"] == "build"
+    assert smoke["runs-on"] == "windows-latest"
+
+    downloads = [s for s in smoke["steps"] if "download-artifact" in str(s.get("uses", ""))]
+    assert len(downloads) == 1, "the smoke job must download the build job's artefact"
+    assert downloads[0]["with"]["name"] == "AgentSpace-windows-installer"
+
+    runs = [s for s in smoke["steps"] if "just verify-installed" in str(s.get("run", ""))]
+    assert len(runs) == 1, "the smoke job must run `just verify-installed`"
+    assert "AGENTSPACE_INSTALLER_DIR" in runs[0].get("env", {}), (
+        "verify-installed must be pointed at the downloaded artefact, or it falls "
+        "back to a local bundle directory that does not exist on the runner"
+    )
+
+
 def test_the_release_job_only_fires_for_a_version_tag() -> None:
     """Publishing is deliberate. Every other green run still leaves an artefact."""
     release = _workflow()["jobs"]["release"]
 
     assert "refs/tags/v" in release["if"]
-    assert release["needs"] == "build", (
-        "the release job must wait on the build job, which waits on the tests"
+    needs = release["needs"]
+    gates = [needs] if isinstance(needs, str) else list(needs)
+    assert "build" in gates, "the release job must wait on the build job"
+    assert "smoke" in gates, (
+        "the release job must wait on the smoke job: an installer that built but "
+        "did not run on a clean machine is exactly the one that must not ship"
     )
     assert release["permissions"]["contents"] == "write"
 

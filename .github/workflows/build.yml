@@ -124,12 +124,48 @@ jobs:
           path: apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
 
+  smoke:
+    name: install and run with no Python on the path
+    # §5 Phase 9's acceptance criterion says the installer "runs on a second
+    # Windows machine with no Python installed". There is no second Windows
+    # machine and there will not be one (CLAUDE.md, "The machine reality"), so
+    # this is the nearest thing that can be stated: a fresh windows-latest runner
+    # is a different machine — no .venv, no node_modules, no toolchain state —
+    # and the installed sidecar is launched with Python scrubbed from PATH. It
+    # runs against the artefact the build job uploaded, not a rebuild: the bytes
+    # a user would download are the bytes that have to work.
+    #
+    # The runner does ship Python system-wide, which is why the scrub is
+    # asserted before anything is launched — a scrub that quietly failed would
+    # make the whole job a green no-op.
+    needs: build
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/toolchain
+
+      - name: Download the installer the build job produced
+        uses: actions/download-artifact@v8
+        with:
+          name: AgentSpace-windows-installer
+          path: dist
+
+      - name: Install it, and run the installed sidecar with no Python
+        env:
+          AGENTSPACE_INSTALLER_DIR: ${{ github.workspace }}/dist
+        run: just verify-installed
+
   release:
     name: publish the Windows installer
     # Only for a version tag. Every other green run still leaves the installer
     # downloadable as a workflow artefact from its own run page.
+    #
+    # Needs `smoke` as well as `build`: an installer that built but did not run
+    # on a clean machine is exactly the one that must not become a release.
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    needs: [build, smoke]
     runs-on: ubuntu-latest
     permissions:
       contents: write

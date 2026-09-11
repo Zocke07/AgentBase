@@ -144,6 +144,17 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         ),
     )
 
+    parser.addoption(
+        "--install-smoke",
+        action="store_true",
+        default=False,
+        help=(
+            "Install the produced installer on this machine and run the installed "
+            "sidecar with Python scrubbed from its environment. Off by default "
+            "because it installs software; `just verify-installed` passes it."
+        ),
+    )
+
 
 @pytest.fixture
 def build_prerequisite(request: pytest.FixtureRequest) -> Callable[[str | None], None]:
