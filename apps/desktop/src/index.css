@@ -807,6 +807,20 @@ body {
   font-style: italic;
 }
 
+/* The previous run, kept on screen while the next one's history is fetched.
+   Dimmed rather than removed: an empty panel and back was a flash on every
+   switch, and a veil over what is already there is not. */
+.run-panel--loading .run-projection,
+.run-panel--loading .approval {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.run-projection,
+.approval {
+  transition: opacity 120ms ease-out;
+}
+
 /* --- the scrubber --------------------------------------------------------- */
 
 .scrubber {
@@ -842,10 +856,29 @@ body {
   font-family: var(--mono);
   font-size: 0.75rem;
   color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* Fixed width whether it holds the notice and the button or the one-line
+   "latest" state, so the range input beside it never changes length while
+   the thumb is being dragged. Wide enough for the longer of the two. */
+.scrubber__state {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 21rem;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .scrubber__notice {
   color: var(--accent);
+  font-size: 0.75rem;
+}
+
+.scrubber__latest {
+  color: var(--muted);
   font-size: 0.75rem;
 }
 

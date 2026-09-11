@@ -45,6 +45,13 @@ export interface RunPanelProps {
   /** See {@link ApprovalPanelProps.readOnly}. */
   approvalReadOnly: ApprovalPanelProps["readOnly"];
   onResolveApproval: ApprovalPanelProps["onResolve"];
+  /**
+   * The run on screen is the previous one while the next one's history is
+   * fetched. The projection stays — dimmed, its controls disabled — rather than
+   * collapsing to an empty run and back, which read as a flash on every
+   * switch. Transport, like the scrubber: replay never sets it.
+   */
+  loading?: boolean;
 }
 
 export function RunPanel({
@@ -56,8 +63,12 @@ export function RunPanel({
   onCursorChange,
   approvalReadOnly,
   onResolveApproval,
+  loading = false,
 }: RunPanelProps) {
   const scrubbed = cursor < events.length;
+  // Room for the widest reading the counter will show — "28 / 28" — so the
+  // track beside it does not move as the number changes under the thumb.
+  const counterWidth = `${String(String(events.length).length * 2 + 3)}ch`;
 
   // The selection is the caller's and survives a scrub; the agent it names may
   // not exist yet at this cursor. One decision here, handed to the graph, the
@@ -66,7 +77,11 @@ export function RunPanel({
   const selectedName = selected === null ? null : selectedAgent;
 
   return (
-    <div className="run-panel" data-testid="run-panel">
+    <div
+      className={`run-panel${loading ? " run-panel--loading" : ""}`}
+      data-testid="run-panel"
+      aria-busy={loading}
+    >
       <div className="scrubber" data-testid="scrubber">
         <label className="scrubber__control">
           <span className="scrubber__label">Replay</span>
@@ -75,31 +90,40 @@ export function RunPanel({
             min={0}
             max={events.length}
             value={cursor}
+            disabled={loading}
             aria-label="Position in the event log"
             onChange={(changed) => {
               onCursorChange(Number(changed.target.value));
             }}
           />
         </label>
-        <span className="scrubber__position">
+        <span className="scrubber__position" data-testid="scrub-position" style={{ minWidth: counterWidth }}>
           {cursor} / {events.length}
         </span>
-        {scrubbed && (
-          <>
-            <span className="scrubber__notice" data-testid="scrub-notice">
-              Showing an earlier point in this run.
-            </span>
-            <button
-              type="button"
-              className="button button--small"
-              onClick={() => {
-                onCursorChange(events.length);
-              }}
-            >
-              Jump to end
-            </button>
-          </>
-        )}
+        {/* Always rendered, fixed width. The range input shares this flex row
+            and takes what is left of it: a slot that came and went with the
+            scrub state changed the track's length under the pointer mid-drag. */}
+        <span className="scrubber__state" data-testid="scrub-state">
+          {scrubbed ? (
+            <>
+              <span className="scrubber__notice" data-testid="scrub-notice">
+                Showing an earlier point in this run.
+              </span>
+              <button
+                type="button"
+                className="button button--small"
+                disabled={loading}
+                onClick={() => {
+                  onCursorChange(events.length);
+                }}
+              >
+                Jump to end
+              </button>
+            </>
+          ) : (
+            <span className="scrubber__latest">Showing the latest event.</span>
+          )}
+        </span>
       </div>
 
       <ApprovalPanel
