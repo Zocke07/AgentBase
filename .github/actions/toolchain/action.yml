@@ -6,12 +6,17 @@
 # settings models, Phase 8's `SECRET_NAMES`, and twice more besides — so the
 # shared half is factored out rather than duplicated and hoped over.
 #
-# Every action below is pinned to its current major, each checked against the
-# repository it comes from on 2026-09-11 rather than written from memory. That
-# was worth doing: the first draft pinned five of them two to five majors behind,
-# on the node20 runtime that current majors have moved off. Nothing here had ever
-# run, so a stale pin would have failed at the first step on both runners with
-# no local symptom whatsoever.
+# Every action below is pinned to a ref that was confirmed to resolve through
+# GitHub's `git/ref` API on 2026-09-11, not written from memory and not inferred
+# from a tag listing. Both of those failed here: the first draft pinned five
+# actions two to five majors behind, and the correction then pinned
+# `setup-uv@v10` — a major tag that does not exist, which failed run #1 at the
+# first step on both runners.
+#
+# `setup-uv` is therefore an exact version. astral-sh publishes bare major tags
+# only through v7 while shipping v10.1.0, so there is no `v10` to follow; an
+# exact pin is also the more reproducible choice. The others do publish bare
+# majors, and those were each checked rather than assumed.
 name: Toolchain
 description: Install just, uv and Node, and restore this repository's redirected package caches.
 
@@ -29,7 +34,7 @@ runs:
     # `requires-python = "==3.12.*"` and uv fetches the interpreter itself, which
     # is exactly what the README tells a human to rely on.
     - name: Install uv
-      uses: astral-sh/setup-uv@v10
+      uses: astral-sh/setup-uv@v10.1.0
       with:
         # Its default is "auto", which caches uv's *own* default directory —
         # a directory these recipes never write to, because the justfile
