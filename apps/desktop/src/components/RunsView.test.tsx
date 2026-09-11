@@ -30,7 +30,9 @@ vi.mock("../lib/api", () => ({
   baseUrl: vi.fn(() => Promise.resolve("http://x")),
 }));
 
-vi.mock("../lib/events", () => ({
+// Only the transport is replaced; the module's pure helpers stay real.
+vi.mock("../lib/events", async (importOriginal) => ({
+  ...(await importOriginal<typeof events>()),
   streamRun: vi.fn(),
 }));
 
@@ -71,10 +73,15 @@ async function deliver(batch: Event[]) {
   });
 }
 
-async function pick(user: ReturnType<typeof userEvent.setup>, goal: string) {
+/**
+ * Pick a run from the list and wait for its panel. A run whose history already
+ * ended it opens no stream, so only a live one is waited on for its handlers.
+ */
+async function pick(user: ReturnType<typeof userEvent.setup>, goal: string, live = true) {
   await user.click(await screen.findByRole("button", { name: new RegExp(goal) }));
   await waitFor(() => {
-    expect(handlers).not.toBeNull();
+    expect(screen.getByTestId("run-panel")).toBeDefined();
+    if (live) expect(handlers).not.toBeNull();
   });
 }
 
@@ -106,7 +113,7 @@ describe("refreshing the picker and the meter", () => {
     mocked.getRunHistory.mockResolvedValue(twoAgentRun());
     render(<RunsView onRunChanged={onRunChanged} blocker={null} />);
 
-    await pick(user, "quarterly");
+    await pick(user, "quarterly", false);
     await waitFor(() => {
       expect(screen.getByTestId("run-status").textContent).toBe("completed");
     });
@@ -122,7 +129,7 @@ describe("refreshing the picker and the meter", () => {
     const log = twoAgentRun();
     mocked.getRunHistory.mockResolvedValue(log);
     render(<RunsView onRunChanged={onRunChanged} blocker={null} />);
-    await pick(user, "quarterly");
+    await pick(user, "quarterly", false);
     await waitFor(() => {
       expect(screen.getByTestId("run-status").textContent).toBe("completed");
     });

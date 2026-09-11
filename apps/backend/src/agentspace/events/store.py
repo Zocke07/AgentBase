@@ -272,3 +272,34 @@ class EventStore:
                 "UPDATE runs SET status = ?, finished_at = ? WHERE id = ?",
                 (status, finished_at, run_id),
             )
+
+    async def fail_orphaned_runs(self, reason: str) -> list[str]:
+        """Fail every run a previous process left unfinished. Called at startup.
+
+        A run's orchestrator is an ``asyncio`` task in the process that started
+        it; a crash or a closed window ends the task and nothing else. The row
+        stayed ``running`` forever — at the top of the picker — and opening it
+        held a stream that never ended, because nothing would ever append its
+        terminal event. The dashboard said "live" about a run that had been
+        dead since the app last closed.
+
+        The terminal event is appended first, so the log stays the authority
+        on what happened (§2) and a replay shows the run ending with a reason;
+        the row is moved to match. Runs already at a terminal status are not
+        touched: the sweep must not rewrite history it did not create.
+        """
+        orphaned = await asyncio.to_thread(self._unfinished_run_ids_sync)
+        for run_id in orphaned:
+            await self.append(run_id, EventType.RUN_FAILED, {"reason": reason})
+            await self.set_run_status(run_id, "failed")
+        return orphaned
+
+    def _unfinished_run_ids_sync(self) -> list[str]:
+        placeholders = ", ".join("?" for _ in _TERMINAL_STATUSES)
+        with self._db.read() as connection:
+            rows = connection.execute(
+                f"SELECT id FROM runs WHERE status NOT IN ({placeholders}) "  # noqa: S608
+                "ORDER BY created_at, rowid",
+                tuple(sorted(_TERMINAL_STATUSES)),
+            ).fetchall()
+        return [str(row["id"]) for row in rows]

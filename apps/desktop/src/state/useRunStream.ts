@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
 import { baseUrl, getRunHistory } from "../lib/api";
-import { streamRun } from "../lib/events";
+import { isTerminal, streamRun } from "../lib/events";
 
 import { useRunStore } from "./runStore";
 
@@ -13,10 +13,10 @@ import { useRunStore } from "./runStore";
  * state directly — that is the reducer's job, and a second writer would be the
  * ad-hoc message §2 forbids.
  *
- * **History is fetched first, then the stream attaches.** The subscription
- * replays the whole log anyway, so this is not about completeness; it is about a
- * finished run rendering immediately instead of after a round trip that ends in
- * an instant close. The store's duplicate handling makes the overlap free.
+ * **History is fetched first, then the stream attaches after it.** A finished
+ * run renders immediately instead of after a round trip that ends in an instant
+ * close, and the stream is asked for what the history did not have — it used
+ * to replay the whole log a second time, every frame parsed and dropped.
  *
  * **Frames are handed over once per animation frame, not once each.** Every
  * `llm.token` is its own SSE frame and its own task, and every store update is
@@ -51,15 +51,28 @@ export function useRunStream(runId: string | null): void {
 
     const attach = async () => {
       const origin = await baseUrl();
+      let afterSeq = 0;
 
       try {
         const history = await getRunHistory(runId);
         if (cancelled) return null;
-        if (history.length > 0) loadHistory(history);
+        if (history.length > 0) {
+          loadHistory(history);
+          afterSeq = Math.max(...history.map((event) => event.seq));
+
+          // The history ends the run: there is nothing to stream, and asking
+          // would get an empty response that `EventSource` treats as a drop
+          // and retries once a second for as long as the run stays open.
+          const last = history.find((event) => event.seq === afterSeq);
+          if (last !== undefined && isTerminal(last.type)) {
+            setConnection({ kind: "closed", reason: "run-finished" });
+            return null;
+          }
+        }
       } catch {
         // A history fetch that fails is not fatal: the stream carries the same
-        // events. Reporting it would put an error on screen for a run that is
-        // about to render correctly anyway.
+        // events, from the beginning. Reporting it would put an error on screen
+        // for a run that is about to render correctly anyway.
       }
 
       if (cancelled) return null;
@@ -88,7 +101,7 @@ export function useRunStream(runId: string | null): void {
           // an event at all, which nothing downstream can render.
           console.warn("agentspace: dropped a frame that was not an event", raw);
         },
-      });
+      }, { afterSeq });
     };
 
     const pending = attach();

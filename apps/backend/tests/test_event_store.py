@@ -245,3 +245,49 @@ async def test_max_seq_reports_the_current_head(store: EventStore) -> None:
         await store.append(run_id, EventType.AGENT_MESSAGE, {})
 
     assert await store.max_seq(run_id) == 3
+
+
+# --- orphaned runs ------------------------------------------------------------
+
+
+async def test_orphaned_runs_are_failed_at_startup_with_a_terminal_event(
+    store: EventStore,
+) -> None:
+    """A run left `running` by a crash or by closing the app stays `running`
+    forever otherwise: it sits at the top of the picker, and opening it holds
+    a stream that never ends, because nothing will ever append its terminal
+    event. The sweep appends `run.failed` — so the log stays the authority on
+    what happened — and moves the row to match.
+    """
+    running = await store.create_run(goal="was running", origin="ui")
+    await store.set_run_status(running.id, "running")
+    await store.append(running.id, EventType.RUN_STARTED, {"goal": "was running"})
+    pending = await store.create_run(goal="never started", origin="ui")
+    finished = await store.create_run(goal="finished", origin="ui")
+    await store.append(finished.id, EventType.RUN_COMPLETED, {"summary": "done"})
+    await store.set_run_status(finished.id, "completed")
+
+    failed = await store.fail_orphaned_runs("the app closed while this run was in progress")
+
+    assert sorted(failed) == sorted([running.id, pending.id])
+
+    for run_id in (running.id, pending.id):
+        run = await store.get_run(run_id)
+        assert run is not None
+        assert run.status == "failed"
+        assert run.finished_at is not None
+        last = (await store.read(run_id))[-1]
+        assert last.type is EventType.RUN_FAILED
+        assert "closed" in str(last.payload["reason"])
+
+    untouched = await store.get_run(finished.id)
+    assert untouched is not None
+    assert untouched.status == "completed"
+    assert [event.type for event in await store.read(finished.id)] == [EventType.RUN_COMPLETED]
+
+
+async def test_the_orphan_sweep_is_a_no_op_on_a_clean_table(store: EventStore) -> None:
+    done = await store.create_run(goal="g", origin="ui")
+    await store.set_run_status(done.id, "failed")
+
+    assert await store.fail_orphaned_runs("reason") == []

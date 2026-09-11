@@ -75,9 +75,26 @@ describe("streamRun", () => {
   it("subscribes to the run's event endpoint", () => {
     const stream = harness();
 
-    streamRun("http://127.0.0.1:8787", "run-1", { onEvent: vi.fn() }, stream.factory);
+    streamRun("http://127.0.0.1:8787", "run-1", { onEvent: vi.fn() }, { factory: stream.factory });
 
     expect(stream.source.url).toBe("http://127.0.0.1:8787/runs/run-1/events");
+  });
+
+  it("asks the server to start after what it already holds", () => {
+    /* `EventSource` cannot set `Last-Event-ID` on its first connection, so a
+       client that has loaded the history used to receive the whole log a
+       second time and drop every frame. The cursor goes in the URL instead;
+       the server takes whichever of the two is further along. */
+    const stream = harness();
+
+    streamRun(
+      "http://127.0.0.1:8787",
+      "run-1",
+      { onEvent: vi.fn() },
+      { factory: stream.factory, afterSeq: 12 },
+    );
+
+    expect(stream.source.url).toBe("http://127.0.0.1:8787/runs/run-1/events?after_seq=12");
   });
 
   it("delivers every event that arrives on onmessage", () => {
@@ -87,7 +104,7 @@ describe("streamRun", () => {
     const onEvent = vi.fn();
     const log = new LogBuilder();
 
-    streamRun("http://x", "run-1", { onEvent }, stream.factory);
+    streamRun("http://x", "run-1", { onEvent }, { factory: stream.factory });
     stream.source.deliver(log.add("run.started", { goal: "g" }));
     stream.source.deliver(log.add("agent.spawned", { role: "r" }, "supervisor"));
 
@@ -100,7 +117,7 @@ describe("streamRun", () => {
     const onClosed = vi.fn();
     const log = new LogBuilder();
 
-    streamRun("http://x", "run-1", { onEvent: vi.fn(), onClosed }, stream.factory);
+    streamRun("http://x", "run-1", { onEvent: vi.fn(), onClosed }, { factory: stream.factory });
     stream.source.deliver(log.add("run.started", { goal: "g" }));
     expect(stream.source.closeCount).toBe(0);
 
@@ -116,7 +133,7 @@ describe("streamRun", () => {
       const stream = harness();
       const log = new LogBuilder();
 
-      streamRun("http://x", "run-1", { onEvent: vi.fn() }, stream.factory);
+      streamRun("http://x", "run-1", { onEvent: vi.fn() }, { factory: stream.factory });
       stream.source.deliver(log.add(type, {}));
 
       expect(stream.source.closeCount).toBe(1);
@@ -128,7 +145,7 @@ describe("streamRun", () => {
     const stream = harness();
     const log = new LogBuilder();
 
-    streamRun("http://x", "run-1", { onEvent: vi.fn() }, stream.factory);
+    streamRun("http://x", "run-1", { onEvent: vi.fn() }, { factory: stream.factory });
     stream.source.deliver(log.add("run.paused", {}));
 
     expect(stream.source.closeCount).toBe(0);
@@ -141,7 +158,7 @@ describe("streamRun", () => {
     const onError = vi.fn();
     const onClosed = vi.fn();
 
-    streamRun("http://x", "run-1", { onEvent: vi.fn(), onError, onClosed }, stream.factory);
+    streamRun("http://x", "run-1", { onEvent: vi.fn(), onError, onClosed }, { factory: stream.factory });
     stream.source.fail(FakeEventSource.CONNECTING);
 
     expect(onError).toHaveBeenCalledWith("reconnecting to the event stream");
@@ -153,7 +170,7 @@ describe("streamRun", () => {
     const onError = vi.fn();
     const onClosed = vi.fn();
 
-    streamRun("http://x", "run-1", { onEvent: vi.fn(), onError, onClosed }, stream.factory);
+    streamRun("http://x", "run-1", { onEvent: vi.fn(), onError, onClosed }, { factory: stream.factory });
     stream.source.fail(FakeEventSource.CLOSED);
 
     expect(onError).toHaveBeenCalledWith("the event stream closed and will not reconnect");
@@ -165,7 +182,7 @@ describe("streamRun", () => {
     const onEvent = vi.fn();
     const log = new LogBuilder();
 
-    const handle = streamRun("http://x", "run-1", { onEvent }, stream.factory);
+    const handle = streamRun("http://x", "run-1", { onEvent }, { factory: stream.factory });
     handle.close();
     stream.source.deliver(log.add("agent.thinking", { step: 1 }, "w"));
 
@@ -178,7 +195,7 @@ describe("streamRun", () => {
     const stream = harness();
     const onClosed = vi.fn();
 
-    const handle = streamRun("http://x", "run-1", { onEvent: vi.fn(), onClosed }, stream.factory);
+    const handle = streamRun("http://x", "run-1", { onEvent: vi.fn(), onClosed }, { factory: stream.factory });
     handle.close();
     handle.close();
 
@@ -197,7 +214,7 @@ describe("streamRun", () => {
     const onError = vi.fn();
     const onBadFrame = vi.fn();
 
-    streamRun("http://x", "run-1", { onEvent, onError, onBadFrame }, stream.factory);
+    streamRun("http://x", "run-1", { onEvent, onError, onBadFrame }, { factory: stream.factory });
     stream.source.deliverRaw("{not json");
 
     expect(onEvent).not.toHaveBeenCalled();
@@ -209,7 +226,7 @@ describe("streamRun", () => {
     const stream = harness();
     const onOpen = vi.fn();
 
-    streamRun("http://x", "run-1", { onEvent: vi.fn(), onOpen }, stream.factory);
+    streamRun("http://x", "run-1", { onEvent: vi.fn(), onOpen }, { factory: stream.factory });
     stream.source.open();
 
     expect(onOpen).toHaveBeenCalledTimes(1);

@@ -1683,7 +1683,7 @@
     },
     "/runs/{run_id}/events": {
       "get": {
-        "description": "Server-sent events for one run, resumable via `Last-Event-ID`.",
+        "description": "Server-sent events for one run, resumable via `Last-Event-ID`.\n\n``after_seq`` is the same cursor by another route. A browser's\n``EventSource`` cannot send ``Last-Event-ID`` on its *first* connection,\nso a client that had already loaded the history had no way to say so and\nreceived the whole log a second time. When both are present the header\nwins if it is further along: a browser reconnecting keeps the original\nURL, query included, and adds the header for the last frame it saw.",
         "operationId": "stream_run_events_runs__run_id__events_get",
         "parameters": [
           {
@@ -1693,6 +1693,17 @@
             "schema": {
               "title": "Run Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after_seq",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "After Seq",
+              "type": "integer"
             }
           }
         ],

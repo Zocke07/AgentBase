@@ -28,7 +28,9 @@ vi.mock("./lib/api", () => ({
   baseUrl: vi.fn(() => Promise.resolve("http://x")),
 }));
 
-vi.mock("./lib/events", () => ({
+// Only the transport is replaced; the module's pure helpers stay real.
+vi.mock("./lib/events", async (importOriginal) => ({
+  ...(await importOriginal<typeof events>()),
   streamRun: vi.fn(),
 }));
 

@@ -24,7 +24,9 @@ vi.mock("../lib/api", () => ({
   baseUrl: vi.fn(() => Promise.resolve("http://x")),
 }));
 
-vi.mock("../lib/events", () => ({
+// Only the transport is replaced; the module's pure helpers stay real.
+vi.mock("../lib/events", async (importOriginal) => ({
+  ...(await importOriginal<typeof events>()),
   streamRun: vi.fn(),
 }));
 
@@ -95,7 +97,7 @@ describe("useRunStream", () => {
     expect(updates).toBe(1);
   });
 
-  it("loads history before attaching the stream", async () => {
+  it("loads history first, then asks the stream for what came after it", async () => {
     const log = twoAgentRun();
     vi.mocked(api.getRunHistory).mockResolvedValue(log.slice(0, 10));
 
@@ -103,6 +105,23 @@ describe("useRunStream", () => {
 
     expect(useRunStore.getState().events).toHaveLength(10);
     expect(vi.mocked(events.streamRun)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(events.streamRun).mock.calls[0]?.[3]).toEqual({ afterSeq: 10 });
+  });
+
+  it("does not open a stream for a run whose history already ended it", async () => {
+    /* With `after_seq` at the terminal event the server would send nothing and
+       close, and `EventSource` treats every ended response as a drop: a
+       finished run would be re-requested once a second for as long as it was
+       open. The history says the run is over; the connection says so too. */
+    vi.mocked(api.getRunHistory).mockResolvedValue(twoAgentRun());
+
+    renderHook(() => { useRunStream("run-1"); });
+    await waitFor(() => {
+      expect(useRunStore.getState().connection).toEqual({ kind: "closed", reason: "run-finished" });
+    });
+
+    expect(vi.mocked(events.streamRun)).not.toHaveBeenCalled();
+    expect(useRunStore.getState().view.status).toBe("completed");
   });
 
   it("delivers nothing, and closes the stream, once the run is switched away from", async () => {

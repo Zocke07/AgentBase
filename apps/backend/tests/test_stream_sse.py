@@ -187,6 +187,31 @@ def test_last_event_id_resumes_after_the_cursor(client: TestClient) -> None:
     assert [event["seq"] for event in events] == list(range(13, 21))
 
 
+def test_after_seq_in_the_query_resumes_like_the_header(client: TestClient) -> None:
+    """`EventSource` cannot send `Last-Event-ID` on its first connection, so a
+    client that has already loaded the history had no way to say so and
+    received the whole log a second time. The query parameter is the same
+    cursor by another route."""
+    run = client.post("/debug/fake_run?step_ms=0").json()
+
+    body = client.get(f"/runs/{run['id']}/events?after_seq=12").text
+
+    assert [event["seq"] for event in _parse_frames(body)] == list(range(13, 21))
+
+
+def test_the_header_wins_over_the_query_when_it_is_further_along(client: TestClient) -> None:
+    """A browser reconnecting keeps the original URL, `after_seq` included,
+    and adds `Last-Event-ID` for the last frame it saw — which is later. Taking
+    the query would replay everything since the history loaded."""
+    run = client.post("/debug/fake_run?step_ms=0").json()
+
+    body = client.get(
+        f"/runs/{run['id']}/events?after_seq=12", headers={"Last-Event-ID": "15"}
+    ).text
+
+    assert [event["seq"] for event in _parse_frames(body)] == list(range(16, 21))
+
+
 def test_last_event_id_beyond_the_head_yields_nothing_and_closes(client: TestClient) -> None:
     run = client.post("/debug/fake_run?step_ms=0").json()
 

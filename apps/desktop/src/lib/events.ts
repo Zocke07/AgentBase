@@ -16,9 +16,10 @@ import type { Event, EventType } from "@agentspace/schemas";
  * **`Last-Event-ID` is the browser's job, not ours.** `EventSource` records the
  * `id:` of the last frame and sends it back on reconnect by itself, which is why
  * the server publishes the per-run `seq` as the frame id. There is no way to set
- * it on the initial connection — so a fresh subscription always replays the run
- * from the beginning, and the store's duplicate handling is what makes that a
- * non-event rather than a bug.
+ * it on the *initial* connection, so a subscription opened after the history
+ * was loaded says where it stands in the URL instead (`after_seq`); the server
+ * takes whichever of the two is further along, and the store's duplicate
+ * handling covers whatever overlap remains.
  *
  * **The server closes the stream when the run ends, and `EventSource` treats a
  * closed stream as a disconnect.** Left alone it would reconnect a second later,
@@ -43,6 +44,11 @@ const TERMINAL: ReadonlySet<EventType> = new Set<EventType>([
   "run.failed",
   "run.cancelled",
 ]);
+
+/** Whether an event ends its run — after it, there is nothing to stream. */
+export function isTerminal(type: EventType): boolean {
+  return TERMINAL.has(type);
+}
 
 export interface RunStreamHandlers {
   onEvent: (event: Event) => void;
@@ -72,6 +78,12 @@ export type EventSourceFactory = (url: string) => EventSource;
 
 const defaultFactory: EventSourceFactory = (url) => new EventSource(url);
 
+export interface RunStreamOptions {
+  factory?: EventSourceFactory;
+  /** Ask for events after this `seq` only — the head of an already-loaded history. */
+  afterSeq?: number;
+}
+
 /** Parse one frame body, returning null rather than throwing on nonsense. */
 export function parseFrame(data: string): Event | null {
   try {
@@ -97,9 +109,14 @@ export function streamRun(
   baseUrl: string,
   runId: string,
   handlers: RunStreamHandlers,
-  factory: EventSourceFactory = defaultFactory,
+  options: RunStreamOptions = {},
 ): RunStreamHandle {
-  const source = factory(`${baseUrl}/runs/${runId}/events`);
+  const factory = options.factory ?? defaultFactory;
+  const resume =
+    options.afterSeq !== undefined && options.afterSeq > 0
+      ? `?after_seq=${String(options.afterSeq)}`
+      : "";
+  const source = factory(`${baseUrl}/runs/${runId}/events${resume}`);
   let closed = false;
 
   const shutdown = (reason: "run-finished" | "cancelled") => {

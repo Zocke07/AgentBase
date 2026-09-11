@@ -150,6 +150,20 @@ def create_app(paths: AppPaths | None = None, secrets: SecretStore | None = None
         if orphaned:
             logger.info("expired %d approval(s) left pending by a previous run", orphaned)
 
+        # And the runs those approvals belonged to, along with every other run
+        # the last process left unfinished. Their orchestrators were tasks in
+        # that process; nothing will ever append their terminal event, so the
+        # dashboard said "live" about runs dead since the app last closed.
+        # After the approval sweep, so the log reads: question expired, run
+        # failed — the order it happened in.
+        interrupted = await app.state.store.fail_orphaned_runs(
+            "The app closed while this run was in progress, so it did not finish."
+        )
+        if interrupted:
+            logger.info(
+                "failed %d run(s) left unfinished by a previous process", len(interrupted)
+            )
+
         # Started after the approval sweep above, so a channel cannot surface a
         # question left over from the last process as though it were live.
         app.state.channels = ChannelService(

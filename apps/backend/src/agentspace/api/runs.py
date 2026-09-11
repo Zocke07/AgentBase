@@ -168,14 +168,26 @@ async def get_run_events(request: Request, run_id: str, after_seq: int = 0) -> l
 
 
 @router.get("/runs/{run_id}/events")
-async def stream_run_events(request: Request, run_id: str) -> StreamingResponse:
-    """Server-sent events for one run, resumable via `Last-Event-ID`."""
+async def stream_run_events(
+    request: Request,
+    run_id: str,
+    after_seq: Annotated[int, Query(ge=0)] = 0,
+) -> StreamingResponse:
+    """Server-sent events for one run, resumable via `Last-Event-ID`.
+
+    ``after_seq`` is the same cursor by another route. A browser's
+    ``EventSource`` cannot send ``Last-Event-ID`` on its *first* connection,
+    so a client that had already loaded the history had no way to say so and
+    received the whole log a second time. When both are present the header
+    wins if it is further along: a browser reconnecting keeps the original
+    URL, query included, and adds the header for the last frame it saw.
+    """
     await _require_run(request, run_id)
 
-    after_seq = parse_last_event_id(request.headers.get("last-event-id"))
+    resume_from = max(after_seq, parse_last_event_id(request.headers.get("last-event-id")))
 
     return StreamingResponse(
-        run_stream(_store(request), _bus(request), run_id, after_seq),
+        run_stream(_store(request), _bus(request), run_id, resume_from),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
     )

@@ -123,3 +123,27 @@ async def test_list_runs_orders_by_creation_not_insertion(store: EventStore) -> 
     listed = await store.list_runs()
 
     assert [run.id for run in listed] == [second.id, first.id]
+
+
+# --- a restart -----------------------------------------------------------------
+
+
+def test_a_restart_fails_the_runs_the_last_process_left_unfinished(app_paths: AppPaths) -> None:
+    """The orchestrator is a task in the process that started it. When that
+    process goes — a crash, or the window closing — the row stayed `running`
+    forever and the dashboard said "live" about a run that would never end.
+    """
+    with TestClient(create_app(app_paths, secrets=SecretStore())) as first:
+        # A run the previous process created and never finished. The debug run
+        # is a background task in the app; a bare created row stands in for a
+        # crash mid-flight, which is the case that cannot be scripted.
+        created = first.post("/runs", json={"goal": "interrupted"}).json()
+
+    with TestClient(create_app(app_paths, secrets=SecretStore())) as second:
+        run = second.get(f"/runs/{created['id']}").json()
+        events = second.get(f"/runs/{created['id']}/events/history").json()
+
+    assert run["status"] == "failed"
+    assert run["finished_at"] is not None
+    assert events[-1]["type"] == "run.failed"
+    assert "closed" in events[-1]["payload"]["reason"]
