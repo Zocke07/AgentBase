@@ -85,11 +85,25 @@ def _installer() -> Path | None:
     return found[0] if found else None
 
 
-@pytest.fixture(autouse=True)
-def _requested(request: pytest.FixtureRequest) -> None:
-    """Never run unless asked: this installs software on the host."""
+def _skip_unless_requested(request: pytest.FixtureRequest) -> None:
     if not request.config.getoption("--install-smoke"):
         pytest.skip("needs --install-smoke (see `just verify-installed`)")
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _requested(request: pytest.FixtureRequest) -> None:
+    """Never run unless asked: this module installs software on the host.
+
+    Module-scoped, and that scope is load-bearing. The first version was
+    function-scoped, and pytest instantiates higher-scoped fixtures first — so the
+    module-scoped `installed` fixture below ran *before* this skip ever executed,
+    on every plain `just test`. Locally that silently reinstalled the app, because
+    an installer was sitting in the bundle directory; on the CI runner it failed
+    loudly, because there was none. A check that gates a side effect has to run
+    before the side effect, and with fixtures that means matching or exceeding its
+    scope.
+    """
+    _skip_unless_requested(request)
 
 
 def _python_free_environment() -> dict[str, str]:
@@ -156,17 +170,23 @@ def _surviving_processes() -> list[str]:
 
 
 @pytest.fixture(scope="module")
-def installed() -> Path:
+def installed(request: pytest.FixtureRequest) -> Path:
     """Install the produced installer, and return the installed sidecar.
 
     Module-scoped: installing once and asserting several things about the result
     is the point, and `/S` twice would only prove the installer is idempotent,
-    which Phase 1 already covers. That scope is also why this does not use the
-    `build_prerequisite` fixture — it is function-scoped, and a missing installer
-    should fail here regardless: reaching this code means `--install-smoke` was
-    passed, so the check was asked for explicitly and a skip would be a release
-    verified by nothing.
+    which Phase 1 already covers.
+
+    It checks the option itself rather than trusting `_requested` to have run
+    first. The fixture that performs a side effect is the one that must refuse
+    to, whatever the instantiation order turns out to be — relying on a separate
+    autouse fixture is exactly what installed the app behind `just test`'s back.
+    Once past that check, a missing installer is a failure rather than a skip:
+    the check was asked for explicitly, and a skip would be a release verified by
+    nothing.
     """
+    _skip_unless_requested(request)
+
     installer = _installer()
     if installer is None:
         pytest.fail(
