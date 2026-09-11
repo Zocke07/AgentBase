@@ -21,6 +21,7 @@ usage, never the estimate.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Final
 
@@ -304,13 +305,13 @@ class BudgetedProvider:
             messages, tools, system=system, max_tokens=max_tokens
         )
 
-        await self._ledger.record(
+        cost = await self._ledger.record(
             run_id=self._run_id,
             provider=completion.provider,
             model=completion.model,
             usage=completion.usage,
         )
-        return completion
+        return replace(completion, cost_micros=cost)
 
     async def stream(
         self,
@@ -344,12 +345,14 @@ class BudgetedProvider:
             messages, tools, system=system, max_tokens=max_tokens
         ):
             if isinstance(event, Completion):
-                await self._ledger.record(
+                cost = await self._ledger.record(
                     run_id=self._run_id,
                     provider=event.provider,
                     model=event.model,
                     usage=event.usage,
                 )
+                yield replace(event, cost_micros=cost)
+                continue
             yield event
 
 

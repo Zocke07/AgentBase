@@ -136,6 +136,9 @@ _FAKE_RUN_SCRIPT: Final[tuple[tuple[EventType, str | None, dict[str, Any]], ...]
     (EventType.RUN_COMPLETED, None, {"summary": "Quarterly report summarised."}),
 )
 
+#: Statuses after which a run cannot be cancelled: it has already ended.
+_TERMINAL: Final[frozenset[str]] = frozenset({"completed", "failed", "cancelled"})
+
 #: Milliseconds between scripted events. 20 x 500 ms = the 10 seconds in §5.
 DEFAULT_STEP_MS: Final[int] = 500
 
@@ -225,6 +228,29 @@ async def list_runs(
 @router.get("/runs/{run_id}")
 async def get_run(request: Request, run_id: str) -> Run:
     return await _require_run(request, run_id)
+
+
+@router.post("/runs/{run_id}/cancel", status_code=202)
+async def cancel_run(request: Request, run_id: str) -> Run:
+    """Ask a run to stop.
+
+    202, not 200: the run stops at its next check, before its next model
+    call, and writes `run.cancelled` itself — the stream is where that is
+    seen, and the row returned here may still say `running`. A finished run
+    is a 409 naming its status; one this process is not driving — the
+    scripted debug run, or a row from before a restart — is a 409 too.
+    """
+    run = await _require_run(request, run_id)
+    if run.status in _TERMINAL:
+        raise HTTPException(status_code=409, detail=f"run {run_id} is already {run.status}")
+
+    launcher: RunLauncher = request.app.state.launcher
+    if not await launcher.cancel(run_id, "Cancelled by the user."):
+        raise HTTPException(
+            status_code=409,
+            detail=f"run {run_id} is not being driven by this process and cannot be cancelled",
+        )
+    return run
 
 
 @router.get("/runs/{run_id}/events/history")

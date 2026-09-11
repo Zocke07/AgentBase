@@ -36,6 +36,7 @@ if TYPE_CHECKING:
 __all__ = [
     "Mailbox",
     "Run",
+    "RunCancelledError",
     "RunDeadlineExceededError",
     "SpawnRefusedError",
 ]
@@ -45,6 +46,19 @@ class RunDeadlineExceededError(RuntimeError):
     """The run exceeded `max_run_seconds`.
 
     Carries a reason fit to show a user; it becomes the `run.failed` payload.
+    """
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+class RunCancelledError(RuntimeError):
+    """The user asked the run to stop.
+
+    Raised from the same check as the deadline and handled the same way, so
+    a cancel lands where the run can still write a coherent terminal event.
+    Carries the reason that becomes the `run.cancelled` payload.
     """
 
     def __init__(self, reason: str) -> None:
@@ -77,6 +91,10 @@ class Run:
     clock: Callable[[], float] = time.monotonic
     started_at: float = field(default=0.0, init=False)
     _agents: list[str] = field(default_factory=list, init=False)
+    #: Set by `request_cancel`; consumed by `check_deadline`. A flag rather
+    #: than a task cancellation so the run stops between model calls, where
+    #: it can still write a terminal event, instead of mid-request.
+    _cancel_reason: str | None = field(default=None, init=False)
 
     # --- lifecycle ---------------------------------------------------------
 
@@ -96,6 +114,21 @@ class Run:
     async def fail(self, reason: str) -> None:
         await self.emit(EventType.RUN_FAILED, {"reason": reason})
         await self.store.set_run_status(self.id, "failed")
+
+    async def cancel(self, reason: str) -> None:
+        await self.emit(EventType.RUN_CANCELLED, {"reason": reason})
+        await self.store.set_run_status(self.id, "cancelled")
+
+    # --- cancellation -------------------------------------------------------
+
+    def request_cancel(self, reason: str) -> None:
+        """Ask the run to stop at its next check. The first reason wins."""
+        if self._cancel_reason is None:
+            self._cancel_reason = reason
+
+    @property
+    def cancel_requested(self) -> bool:
+        return self._cancel_reason is not None
 
     # --- the event sequence ------------------------------------------------
 
@@ -132,7 +165,12 @@ class Run:
         a cancelled coroutine mid-request cannot.
 
         :raises RunDeadlineExceededError: with a reason fit to show a user.
+        :raises RunCancelledError: when the user asked the run to stop. Checked
+            first — a cancel is a decision, the deadline is an accident.
         """
+        if self._cancel_reason is not None:
+            raise RunCancelledError(self._cancel_reason)
+
         elapsed = self.elapsed_seconds()
         if elapsed >= self.limits.max_run_seconds:
             msg = (

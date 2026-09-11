@@ -310,13 +310,29 @@ body {
   text-align: center;
 }
 
+.runs-view__strip {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.3rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
 .runs-view__connection {
   margin: 0;
-  padding: 0.35rem 1rem;
-  border-bottom: 1px solid var(--border);
   color: var(--muted);
   font-family: var(--mono);
   font-size: 0.6875rem;
+}
+
+.runs-view__strip-error {
+  margin: 0;
+  color: var(--bad);
+  font-size: 0.75rem;
+}
+
+.runs-view__strip .button {
+  margin-left: auto;
 }
 
 .runs-view__error,

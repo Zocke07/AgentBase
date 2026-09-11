@@ -290,6 +290,9 @@ class ApprovalService:
         self._store = store
         self._events = events
         self._waiters: dict[str, asyncio.Future[ApprovalStatus]] = {}
+        #: Runs whose pending questions were released by a cancel, so the
+        #: denial that follows can say why rather than blaming the clock.
+        self._released: set[str] = set()
 
     @property
     def store(self) -> ApprovalStore:
@@ -378,12 +381,17 @@ class ApprovalService:
             )
 
         if status is ApprovalStatus.EXPIRED:
+            why = (
+                "this run was cancelled"
+                if run_id in self._released
+                else "this run ran out of time"
+            )
             return ApprovalDecision(
                 allowed=False,
                 status=status,
                 reason=(
                     f"The request to {prepared.summary} was not answered before "
-                    f"this run ran out of time, so it did not happen."
+                    f"{why}, so it did not happen."
                 ),
                 approval_id=record.id,
             )
@@ -449,6 +457,30 @@ class ApprovalService:
             approval_id=settled.id,
             automatic=True,
         )
+
+    async def release_run(self, run_id: str) -> int:
+        """Settle every pending question of a cancelled run as expired.
+
+        The gate borrows the run's wall clock, so an agent blocked on it would
+        otherwise notice a cancel only when the approval expired — ten minutes
+        by default. The rows are settled as `expired` (§4's `approvals.status`
+        has no `cancelled`, and a fifth value would be a migration for no
+        reader) and the waiters are woken with that answer; the denial that
+        follows says the run was cancelled rather than blaming the clock.
+        Tolerates the race where a person answered in the last instant.
+        """
+        self._released.add(run_id)
+        released = 0
+        for record in await self._store.list_pending(run_id):
+            try:
+                await self._store.settle(record.id, ApprovalStatus.EXPIRED)
+            except ApprovalNotPendingError:
+                continue
+            waiter = self._waiters.get(record.id)
+            if waiter is not None and not waiter.done():
+                waiter.set_result(ApprovalStatus.EXPIRED)
+            released += 1
+        return released
 
     async def _wait(self, approval_id: str, deadline: float | None) -> ApprovalStatus:
         """Block until resolved, or until the run's deadline passes."""

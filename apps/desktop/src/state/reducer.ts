@@ -171,6 +171,8 @@ export interface RunView {
   readonly errors: readonly RunError[];
   readonly inputTokens: number;
   readonly outputTokens: number;
+  /** The ledger's figure for every model call so far, summed from `llm.response`. */
+  readonly costMicros: number;
   readonly budget: Budget | null;
   readonly budgetExceeded: boolean;
   readonly lastSeq: number;
@@ -196,6 +198,7 @@ export const EMPTY_RUN: RunView = {
   errors: [],
   inputTokens: 0,
   outputTokens: 0,
+  costMicros: 0,
   budget: null,
   budgetExceeded: false,
   lastSeq: 0,
@@ -375,6 +378,7 @@ export function reduce(state: RunView, event: Event): RunView {
         ...next,
         inputTokens: next.inputTokens + (int(payload, "input_tokens") ?? 0),
         outputTokens: next.outputTokens + (int(payload, "output_tokens") ?? 0),
+        costMicros: next.costMicros + (int(payload, "cost_micros") ?? 0),
       };
       return agent === null ? totalled : withAgent(totalled, agent, seq, thinkingAgain);
     }

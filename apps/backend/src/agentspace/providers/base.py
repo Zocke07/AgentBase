@@ -106,6 +106,10 @@ class Completion:
     usage: TokenUsage
     tool_calls: tuple[ToolCall, ...] = ()
     stop_reason: str | None = None
+    #: What this call cost, in integer micros. Filled in by the budget wrapper
+    #: the moment it records the spend, so the figure in the event log is the
+    #: figure in the ledger. ``None`` from a provider that was not wrapped.
+    cost_micros: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -43,6 +43,13 @@ describe("RunSummary", () => {
     expect(screen.getByTestId("budget-exceeded").textContent).toContain("cap");
   });
 
+  it("shows what the run cost, from the log", () => {
+    render(<RunSummary view={reduceAll(twoAgentRun())} />);
+
+    // 1200 + 800 micros from the fixture's two priced calls.
+    expect(screen.getByTestId("fact-cost").textContent).toBe("$0.0020");
+  });
+
   it("shows neither when there is nothing to show", () => {
     render(<RunSummary view={reduceAll(twoAgentRun())} />);
 

@@ -1681,6 +1681,46 @@
         "summary": "Get Run"
       }
     },
+    "/runs/{run_id}/cancel": {
+      "post": {
+        "description": "Ask a run to stop.\n\n202, not 200: the run stops at its next check, before its next model\ncall, and writes `run.cancelled` itself \u2014 the stream is where that is\nseen, and the row returned here may still say `running`. A finished run\nis a 409 naming its status; one this process is not driving \u2014 the\nscripted debug run, or a row from before a restart \u2014 is a 409 too.",
+        "operationId": "cancel_run_runs__run_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Run"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Run"
+      }
+    },
     "/runs/{run_id}/events": {
       "get": {
         "description": "Server-sent events for one run, resumable via `Last-Event-ID`.\n\n``after_seq`` is the same cursor by another route. A browser's\n``EventSource`` cannot send ``Last-Event-ID`` on its *first* connection,\nso a client that had already loaded the history had no way to say so and\nreceived the whole log a second time. When both are present the header\nwins if it is further along: a browser reconnecting keeps the original\nURL, query included, and adds the header for the last frame it saw.",

@@ -25,13 +25,18 @@ from agentspace.events.types import EventType
 from agentspace.orchestrator.agent import Agent, AgentSpec, StepOutcome
 from agentspace.orchestrator.limits import RunLimits
 from agentspace.orchestrator.registry import AgentRegistry, ProviderPool
-from agentspace.orchestrator.run import Mailbox, Run, RunDeadlineExceededError
+from agentspace.orchestrator.run import (
+    Mailbox,
+    Run,
+    RunCancelledError,
+    RunDeadlineExceededError,
+)
 from agentspace.orchestrator.supervisor import SUPERVISOR_NAME, Supervisor
 from agentspace.providers.base import ProviderError
 from agentspace.providers.factory import UnknownProviderError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, MutableMapping
 
     import httpx2
 
@@ -73,6 +78,7 @@ async def execute_run(
     client: httpx2.AsyncClient | None = None,
     provider: Provider | None = None,
     clock: Callable[[], float] | None = None,
+    live: MutableMapping[str, Run] | None = None,
 ) -> None:
     """Drive one run from `run.started` to a terminal event.
 
@@ -89,6 +95,9 @@ async def execute_run(
         is never what the application passes.
     :param clock: monotonic time source, injected so the wall-clock limit can
         be tested without a test that actually waits.
+    :param live: where the :class:`Run` is registered for the duration of the
+        run, so that `POST /runs/{id}/cancel` can reach it. Removed on the way
+        out, whatever the outcome.
     """
     workspace = await settings.get()
     limits = RunLimits.from_settings(workspace)
@@ -100,6 +109,30 @@ async def execute_run(
         limits=limits,
         clock=clock if clock is not None else time.monotonic,
     )
+
+    if live is not None:
+        live[run_id] = run
+    try:
+        await _execute(run, agents, ledger, secrets, workspace, runtime, client, provider)
+    finally:
+        if live is not None:
+            live.pop(run_id, None)
+
+
+async def _execute(
+    run: Run,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+    workspace: WorkspaceSettings,
+    runtime: ToolRuntime | None,
+    client: httpx2.AsyncClient | None,
+    provider: Provider | None,
+) -> None:
+    """`execute_run` proper, once the run is registered as live."""
+    run_id = run.id
+    goal = run.goal
+    limits = run.limits
 
     await run.start()
 
@@ -147,6 +180,8 @@ async def execute_run(
 
     try:
         outcome = await supervisor.execute(goal)
+    except RunCancelledError as exc:
+        await run.cancel(exc.reason)
     except RunDeadlineExceededError as exc:
         await run.fail(exc.reason)
     except BudgetExceededError as exc:

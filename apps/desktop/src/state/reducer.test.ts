@@ -427,6 +427,20 @@ describe("tokens and budget", () => {
     expect(state.outputTokens).toBe(100);
   });
 
+  it("totals what the run cost from llm.response", () => {
+    /* The ledger's figure travels in the event, so a replay can say what a
+       run cost without a side query — and an unwrapped provider, which sends
+       null, adds nothing rather than breaking the fold. */
+    const log = new LogBuilder();
+    const state = reduceAll([
+      log.add("llm.response", { input_tokens: 1, output_tokens: 1, cost_micros: 1200 }, "a"),
+      log.add("llm.response", { input_tokens: 1, output_tokens: 1, cost_micros: 800 }, "a"),
+      log.add("llm.response", { input_tokens: 1, output_tokens: 1, cost_micros: null }, "a"),
+    ]);
+
+    expect(state.costMicros).toBe(2000);
+  });
+
   it("takes the latest budget figures from budget events", () => {
     const log = new LogBuilder();
     const state = reduceAll([

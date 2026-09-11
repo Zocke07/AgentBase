@@ -298,6 +298,7 @@ class ReconstructedRun:
     handoffs: list[tuple[str, str, str]] = field(default_factory=list)
     input_tokens: int = 0
     output_tokens: int = 0
+    cost_micros: int = 0
     budget_events: list[str] = field(default_factory=list)
 
     def agent(self, name: str) -> ReconstructedAgent:
@@ -330,6 +331,9 @@ def reconstruct(events: list[Event]) -> ReconstructedRun:
             case EventType.RUN_FAILED:
                 run.status = "failed"
                 run.outcome = payload.get("reason")
+            case EventType.RUN_CANCELLED:
+                run.status = "cancelled"
+                run.outcome = payload.get("reason")
             case EventType.AGENT_SPAWNED if agent is not None:
                 agent.role = payload.get("role")
                 agent.model = payload.get("model")
@@ -355,6 +359,7 @@ def reconstruct(events: list[Event]) -> ReconstructedRun:
             case EventType.LLM_RESPONSE:
                 run.input_tokens += int(payload.get("input_tokens", 0))
                 run.output_tokens += int(payload.get("output_tokens", 0))
+                run.cost_micros += int(payload.get("cost_micros") or 0)
             case EventType.TOOL_REQUESTED if agent is not None:
                 agent.requested_tools.append(str(payload.get("tool")))
             case EventType.TOOL_DENIED if agent is not None:

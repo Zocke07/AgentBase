@@ -25,6 +25,7 @@ import { RunsView } from "./RunsView";
 vi.mock("../lib/api", () => ({
   listRuns: vi.fn(),
   createRun: vi.fn(),
+  cancelRun: vi.fn(),
   getRunHistory: vi.fn(),
   resolveApproval: vi.fn(),
   baseUrl: vi.fn(() => Promise.resolve("http://x")),
@@ -216,6 +217,70 @@ describe("runs that happen elsewhere", () => {
       expect(mocked.listRuns).toHaveBeenCalledTimes(2);
     });
     expect(onRunChanged).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("cancelling a run", () => {
+  it("offers to cancel the selected run while it is going, and asks the sidecar when clicked", async () => {
+    /* `run.cancelled` was in the contract and nothing produced it; a runaway
+       run could only be stopped by closing the app. */
+    const user = userEvent.setup();
+    mocked.listRuns.mockResolvedValue([row("running")]);
+    mocked.cancelRun.mockResolvedValue(row("running"));
+    render(<RunsView onRunChanged={vi.fn()} blocker={null} />);
+    await pick(user, "quarterly");
+    await deliver(twoAgentRun().slice(0, 3));
+
+    await user.click(screen.getByRole("button", { name: "Cancel run" }));
+
+    expect(mocked.cancelRun).toHaveBeenCalledWith("run-1");
+    // Nothing changes locally: the run says `run.cancelled` over the stream.
+    expect(screen.getByTestId("run-status").textContent).toBe("running");
+  });
+
+  it("says it is stopping until the run actually ends", async () => {
+    /* A cancel is cooperative: the run stops before its *next* model call,
+       and on a local model the one in flight can take half a minute. The
+       button used to revert to "Cancel run" the moment the request returned,
+       which read as though nothing had happened. */
+    const user = userEvent.setup();
+    mocked.listRuns.mockResolvedValue([row("running")]);
+    mocked.cancelRun.mockResolvedValue(row("running"));
+    render(<RunsView onRunChanged={vi.fn()} blocker={null} />);
+    await pick(user, "quarterly");
+    const log = twoAgentRun();
+    await deliver(log.slice(0, 3));
+
+    await user.click(screen.getByRole("button", { name: "Cancel run" }));
+
+    const stopping = await screen.findByRole("button", { name: "Stopping…" });
+    expect(stopping).toHaveProperty("disabled", true);
+
+    await deliver(log.slice(3));
+    expect(screen.queryByRole("button", { name: /Stopping|Cancel run/ })).toBeNull();
+  });
+
+  it("does not offer to cancel a run that has ended", async () => {
+    const user = userEvent.setup();
+    mocked.listRuns.mockResolvedValue([row("completed")]);
+    mocked.getRunHistory.mockResolvedValue(twoAgentRun());
+    render(<RunsView onRunChanged={vi.fn()} blocker={null} />);
+    await pick(user, "quarterly", false);
+
+    expect(screen.queryByRole("button", { name: "Cancel run" })).toBeNull();
+  });
+
+  it("shows the sidecar's refusal beside the button", async () => {
+    const user = userEvent.setup();
+    mocked.listRuns.mockResolvedValue([row("running")]);
+    mocked.cancelRun.mockRejectedValue(new Error("run run-1 is already completed"));
+    render(<RunsView onRunChanged={vi.fn()} blocker={null} />);
+    await pick(user, "quarterly");
+    await deliver(twoAgentRun().slice(0, 3));
+
+    await user.click(screen.getByRole("button", { name: "Cancel run" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain("already completed");
   });
 });
 

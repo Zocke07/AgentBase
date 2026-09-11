@@ -62,6 +62,10 @@ export function RunsView({ onRunChanged, blocker }: RunsViewProps) {
   const [goal, setGoal] = useState("");
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  /** The run the sidecar accepted a cancel for; it stops at its next check. */
+  const [stopping, setStopping] = useState<string | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
 
   const view = useRunStore((state) => state.view);
@@ -162,6 +166,31 @@ export function RunsView({ onRunChanged, blocker }: RunsViewProps) {
     }
   };
 
+  // Whether the selected run is one that can still be stopped: the log says
+  // it has not ended. Not the connection — a run whose stream is between
+  // reconnects is still a run.
+  const cancellable =
+    runId !== null && headStatus !== null && !TERMINAL_STATUSES.has(headStatus);
+
+  const cancel = async () => {
+    if (runId === null) return;
+    setCancelling(true);
+    setCancelError(null);
+    try {
+      await api.cancelRun(runId);
+      // Deliberately no change to the run's state: it writes `run.cancelled`
+      // itself and that arrives over the stream (§2). Until then it is still
+      // running, and the badge should say so — but the button has to say the
+      // cancel was accepted, because a cooperative stop lands before the
+      // *next* model call and the one in flight can take half a minute.
+      setStopping(runId);
+    } catch (failure) {
+      setCancelError(failure instanceof Error ? failure.message : String(failure));
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const resolveApproval = useCallback(async (id: string, approved: boolean) => {
     await api.resolveApproval(id, approved);
     // Deliberately no local state change: the answer produces `approval.resolved`
@@ -222,6 +251,7 @@ export function RunsView({ onRunChanged, blocker }: RunsViewProps) {
                 onClick={() => {
                   setSelectedAgent(null);
                   setStartError(null);
+                  setCancelError(null);
                   setRunId(run.id);
                 }}
               >
@@ -250,9 +280,26 @@ export function RunsView({ onRunChanged, blocker }: RunsViewProps) {
           </p>
         ) : (
           <>
-            <p className="runs-view__connection" data-testid="connection-status">
-              {connectionLabel(connection, gaps)}
-            </p>
+            <div className="runs-view__strip">
+              <p className="runs-view__connection" data-testid="connection-status">
+                {connectionLabel(connection, gaps)}
+              </p>
+              {cancelError !== null && (
+                <p className="runs-view__strip-error" role="alert">
+                  {cancelError}
+                </p>
+              )}
+              {cancellable && (
+                <button
+                  type="button"
+                  className="button button--small button--danger"
+                  disabled={cancelling || stopping === runId}
+                  onClick={() => void cancel()}
+                >
+                  {stopping === runId ? "Stopping…" : cancelling ? "Cancelling…" : "Cancel run"}
+                </button>
+              )}
+            </div>
             {/* Keyed on the run so a panel that threw on one run does not
                 stay in its fallback when another is opened. */}
             <ErrorBoundary key={runId} label="the run view">

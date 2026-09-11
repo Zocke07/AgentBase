@@ -138,6 +138,15 @@ export const createRun = (goal: string): Promise<Run> =>
   request<Run>("/runs", { method: "POST", ...asJson({ goal }) });
 
 /**
+ * Ask a run to stop. Answers 202 with the row as it stands — the run stops at
+ * its next check and writes `run.cancelled` itself, which arrives over the
+ * stream like everything else. A 409 names the status of a run that cannot
+ * be cancelled.
+ */
+export const cancelRun = (runId: string): Promise<Run> =>
+  request<Run>(`/runs/${runId}/cancel`, { method: "POST" });
+
+/**
  * A finished run's event log as an array.
  *
  * Replay uses the SSE endpoint like live does, so this is not the replay path.

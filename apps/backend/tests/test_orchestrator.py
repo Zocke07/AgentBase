@@ -45,6 +45,7 @@ if TYPE_CHECKING:
     from agentspace.events.store import EventStore
     from agentspace.secrets import SecretStore
     from agentspace.store.agents import AgentDefStore
+    from agentspace.store.db import Database
     from agentspace.store.settings import SettingsStore
 
 pytestmark = pytest.mark.anyio
@@ -200,6 +201,36 @@ async def test_token_usage_is_recoverable_from_the_log(
 
     assert rebuilt.input_tokens == 5 * 100
     assert rebuilt.output_tokens == 5 * 50
+
+
+async def test_the_cost_of_each_model_call_is_in_the_log(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+    db: Database,
+) -> None:
+    """What a run cost was in the `spend` table and nowhere a person could see
+    it: `llm.response` carried tokens and not money. The budget wrapper knows
+    the figure the moment it records it, so the event carries it too, and the
+    log's total is the ledger's total for the run."""
+    run_id, rebuilt = await drive(store, settings, agents, ledger, secrets, TWO_WORKER_SCRIPT)
+
+    costs = [
+        event.payload["cost_micros"]
+        for event in await store.read(run_id)
+        if event.type is EventType.LLM_RESPONSE
+    ]
+    assert len(costs) == 5
+    assert all(isinstance(cost, int) and cost > 0 for cost in costs)
+
+    with db.read() as connection:
+        row = connection.execute(
+            "SELECT SUM(cost_micros) AS total FROM spend WHERE run_id = ?", (run_id,)
+        ).fetchone()
+    assert sum(costs) == row["total"]
+    assert rebuilt.cost_micros == sum(costs)
 
 
 async def test_streamed_tokens_reach_the_log(

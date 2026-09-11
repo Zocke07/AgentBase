@@ -300,6 +300,10 @@ class Agent:
                 "text": completion.text,
                 "input_tokens": completion.usage.input_tokens,
                 "output_tokens": completion.usage.output_tokens,
+                # The ledger's figure, so a replay can total what a run cost
+                # without a side query. None only from an unwrapped provider,
+                # which nothing in the shipped app produces.
+                "cost_micros": completion.cost_micros,
                 "stop_reason": completion.stop_reason,
                 "tool_calls": [
                     {"id": call.id, "name": call.name, "arguments": call.arguments}

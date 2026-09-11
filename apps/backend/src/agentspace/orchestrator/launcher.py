@@ -34,7 +34,9 @@ if TYPE_CHECKING:
 
     from agentspace.budget.ledger import BudgetLedger
     from agentspace.events.store import EventStore
-    from agentspace.events.types import Run, RunOrigin
+    from agentspace.events.types import Run as RunRow
+    from agentspace.events.types import RunOrigin
+    from agentspace.orchestrator.run import Run
     from agentspace.providers.base import Provider
     from agentspace.secrets import SecretStore
     from agentspace.store.agents import AgentDefStore
@@ -70,6 +72,10 @@ class RunLauncher:
     #: reference to a bare task, so without this the loop may garbage-collect a
     #: run that is still going. Drained by the lifespan handler on shutdown.
     tasks: set[asyncio.Task[Any]] = field(default_factory=set)
+    #: The runs in flight in this process, by id. `execute_run` registers
+    #: each on entry and removes it on exit, so a cancel can reach a run that
+    #: is actually going and nothing else.
+    live: dict[str, Run] = field(default_factory=dict)
 
     async def launch(
         self,
@@ -77,8 +83,8 @@ class RunLauncher:
         *,
         origin: RunOrigin = "ui",
         origin_ref: str | None = None,
-        prologue: Callable[[Run], Awaitable[None]] | None = None,
-    ) -> Run:
+        prologue: Callable[[RunRow], Awaitable[None]] | None = None,
+    ) -> RunRow:
         """Create the run, run ``prologue`` against it, then start it.
 
         :param prologue: appended to the log before the orchestrator emits
@@ -100,6 +106,23 @@ class RunLauncher:
         task.add_done_callback(self.tasks.discard)
         return task
 
+    async def cancel(self, run_id: str, reason: str) -> bool:
+        """Ask a live run to stop. False if no such run is live here.
+
+        Cooperative: the run notices at its next deadline check, before its
+        next model call, and writes `run.cancelled` itself — nothing here
+        appends a terminal event, for the reason `_drive` gives. An agent
+        blocked on the approval gate is released so it does not wait for the
+        wall clock.
+        """
+        run = self.live.get(run_id)
+        if run is None:
+            return False
+        run.request_cancel(reason)
+        if self.runtime is not None:
+            await self.runtime.approvals.release_run(run_id)
+        return True
+
     async def _drive(self, run_id: str, goal: str) -> None:
         """Hand one run to the orchestrator.
 
@@ -117,4 +140,5 @@ class RunLauncher:
             goal,
             runtime=self.runtime,
             provider=self.provider,
+            live=self.live,
         )

@@ -1,4 +1,4 @@
-import { ellipsise, formatCount } from "../lib/format";
+import { ellipsise, formatCount, formatMicros } from "../lib/format";
 import type { RunView } from "../state/reducer";
 
 /**
@@ -74,6 +74,12 @@ export function RunSummary({ view }: RunSummaryProps) {
           <dd data-testid="fact-tokens">
             {formatCount(view.inputTokens)} in / {formatCount(view.outputTokens)} out
           </dd>
+        </div>
+        <div>
+          <dt>Cost</dt>
+          {/* Summed from the ledger's figure on each `llm.response` — the same
+              integer the budget meter is built from, never a float here. */}
+          <dd data-testid="fact-cost">{formatMicros(view.costMicros)}</dd>
         </div>
         <div>
           <dt>Errors</dt>

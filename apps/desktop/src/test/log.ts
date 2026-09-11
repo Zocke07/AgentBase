@@ -68,7 +68,7 @@ export function twoAgentRun(): Event[] {
     ),
     log.add("agent.thinking", { step: 1 }, "supervisor"),
     log.add("llm.request", { provider: "ollama", model: "qwen3:4b", step: 1, messages: [] }, "supervisor"),
-    log.add("llm.response", { text: "", input_tokens: 400, output_tokens: 40, stop_reason: "tool_use" }, "supervisor"),
+    log.add("llm.response", { text: "", input_tokens: 400, output_tokens: 40, cost_micros: 1200, stop_reason: "tool_use" }, "supervisor"),
     log.add("tool.requested", { tool: "spawn_agent", args: { agent: "researcher" }, call_id: "c1" }, "supervisor"),
     log.add("tool.called", { tool: "spawn_agent", args: { agent: "researcher" }, call_id: "c1" }, "supervisor"),
     log.add(
@@ -91,7 +91,7 @@ export function twoAgentRun(): Event[] {
     log.add("llm.request", { provider: "ollama", model: "qwen3:4b", step: 1, messages: [] }, "researcher"),
     log.add("llm.token", { text: "Reading " }, "researcher"),
     log.add("llm.token", { text: "the report." }, "researcher"),
-    log.add("llm.response", { text: "Reading the report.", input_tokens: 500, output_tokens: 60, stop_reason: "tool_use" }, "researcher"),
+    log.add("llm.response", { text: "Reading the report.", input_tokens: 500, output_tokens: 60, cost_micros: 800, stop_reason: "tool_use" }, "researcher"),
 
     // A call that is refused at the sandbox, with nobody asked.
     log.add("tool.requested", { tool: "read_file", args: { path: "../../secrets" }, call_id: "c2" }, "researcher"),
