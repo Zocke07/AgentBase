@@ -58,7 +58,12 @@ export function RunPanel({
   onResolveApproval,
 }: RunPanelProps) {
   const scrubbed = cursor < events.length;
+
+  // The selection is the caller's and survives a scrub; the agent it names may
+  // not exist yet at this cursor. One decision here, handed to the graph, the
+  // aside and the log alike, so they cannot disagree about who is selected.
   const selected = selectedAgent === null ? null : (view.agents[selectedAgent] ?? null);
+  const selectedName = selected === null ? null : selectedAgent;
 
   return (
     <div className="run-panel" data-testid="run-panel">
@@ -107,7 +112,7 @@ export function RunPanel({
         <RunSummary view={view} />
 
         <div className="run-panel__canvas">
-          <RunGraph view={view} selectedAgent={selectedAgent} onSelectAgent={onSelectAgent} />
+          <RunGraph view={view} selectedAgent={selectedName} onSelectAgent={onSelectAgent} />
 
           {selected !== null && (
             <aside className="agent-detail" data-testid="agent-detail">
@@ -162,7 +167,7 @@ export function RunPanel({
           events={events}
           cursor={cursor}
           agents={view.agentOrder}
-          selectedAgent={selectedAgent}
+          selectedAgent={selectedName}
           onSelectAgent={onSelectAgent}
         />
       </div>

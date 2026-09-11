@@ -133,6 +133,25 @@ describe("the cursor", () => {
     expect(store().view.status).toBe("completed");
   });
 
+  it("keeps folding the head while the view is scrubbed back", () => {
+    /* The picker's badge and the "did this run finish while I watched" check
+       need the state at the head, whatever the scrubber shows. Folding it
+       alongside costs one `reduce` per event and is the same fold. */
+    const events = twoAgentRun();
+    store().open("run-1");
+    for (const event of events.slice(0, 10)) store().appendEvent(event);
+    store().setCursor(4);
+
+    for (const event of events.slice(10)) store().appendEvent(event);
+
+    expect(store().view.status).toBe("running");
+    expect(store().headView.status).toBe("completed");
+    expect(store().headView.eventCount).toBe(events.length);
+
+    store().follow();
+    expect(store().view).toBe(store().headView);
+  });
+
   it("clamps a cursor outside the log", () => {
     const events = twoAgentRun();
     store().open("run-1");
@@ -180,6 +199,25 @@ describe("duplicate and repeated delivery", () => {
     for (const event of events) store().appendEvent(event);
 
     expect(store().events.map((event) => event.seq)).toEqual(events.map((event) => event.seq));
+  });
+
+  it("counts a gap in the sequence rather than hiding it", () => {
+    /* The server re-reads from SQLite on any anomaly precisely so the client
+       never sees a gap, and the store's contract says "no gaps". A contract
+       that is asserted in a comment and checked nowhere is the kind Phase 2's
+       named-event bug hid behind. The event is kept — dropping it would lose
+       more — and the gap is counted where the connection label can say so. */
+    const [first, , third, fourth] = twoAgentRun();
+    if (first === undefined || third === undefined || fourth === undefined) throw new Error("fixture");
+    store().open("run-1");
+    store().appendEvent(first);
+    store().appendEvent(third);
+
+    expect(store().events.map((event) => event.seq)).toEqual([1, 3]);
+    expect(store().gaps).toBe(1);
+
+    store().appendEvent(fourth);
+    expect(store().gaps).toBe(1);
   });
 
   it("orders a history that arrives unsorted", () => {

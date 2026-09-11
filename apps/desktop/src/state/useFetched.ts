@@ -15,19 +15,27 @@ import { useCallback, useEffect, useState } from "react";
  * `load` must be stable — wrap it in `useCallback` — or the effect refetches on
  * every render. The `token` is what makes an explicit `reload()` refetch without
  * changing `load` itself.
+ *
+ * `loading` is derived rather than stored: a request is in flight from the
+ * moment a `token` is issued until the response for *that* token lands. Storing
+ * it separately would mean a render where the token had moved on and the flag
+ * had not — which is exactly the render where a list reads "No runs yet."
  */
 export function useFetched<T>(
   load: () => Promise<T>,
   initial: T,
-): { data: T; error: string | null; reload: () => void } {
+): { data: T; error: string | null; loading: boolean; reload: () => void } {
   const [data, setData] = useState<T>(initial);
   const [error, setError] = useState<string | null>(null);
   const [token, setToken] = useState(0);
+  const [settledToken, setSettledToken] = useState(-1);
 
   useEffect(() => {
-    // Guards against a response arriving after the component went away, which
-    // is ordinary when a user switches tabs while a request is in flight.
+    // Guards against a response arriving after the component went away, or
+    // after a newer request was issued — both ordinary when a user switches
+    // tabs or clicks retry while a request is in flight.
     let live = true;
+    const mine = token;
 
     void load()
       .then((value) => {
@@ -38,6 +46,9 @@ export function useFetched<T>(
       })
       .catch((failure: unknown) => {
         if (live) setError(failure instanceof Error ? failure.message : String(failure));
+      })
+      .finally(() => {
+        if (live) setSettledToken(mine);
       });
 
     return () => {
@@ -46,8 +57,10 @@ export function useFetched<T>(
   }, [load, token]);
 
   const reload = useCallback(() => {
+    // A retry is a fresh question: the old answer's error does not apply to it.
+    setError(null);
     setToken((current) => current + 1);
   }, []);
 
-  return { data, error, reload };
+  return { data, error, loading: settledToken !== token, reload };
 }

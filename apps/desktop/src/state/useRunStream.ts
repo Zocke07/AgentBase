@@ -61,6 +61,13 @@ export function useRunStream(runId: string | null): void {
         onError: (message) => {
           if (!cancelled) setConnection({ kind: "error", message });
         },
+        onBadFrame: (raw) => {
+          // Loud, but not on the connection indicator: the stream is fine and
+          // the next frame will be read. The reducer's `unrecognised` list is
+          // for a *type* this build does not know; this is a frame that is not
+          // an event at all, which nothing downstream can render.
+          console.warn("agentspace: dropped a frame that was not an event", raw);
+        },
       });
     };
 

@@ -25,18 +25,25 @@ export interface RunsViewProps {
   onRunChanged: () => void;
 }
 
-function connectionLabel(connection: ReturnType<typeof useRunStore.getState>["connection"]): string {
+function connectionLabel(
+  connection: ReturnType<typeof useRunStore.getState>["connection"],
+  gaps: number,
+): string {
+  // A gap is the server's "no gaps, no repeats" contract failing on the client
+  // side. It should never show; if it does, it is the most important thing on
+  // this line.
+  const suffix = gaps === 0 ? "" : ` · ${String(gaps)} gap${gaps === 1 ? "" : "s"} in the log`;
   switch (connection.kind) {
     case "idle":
       return "no run selected";
     case "connecting":
-      return "connecting…";
+      return `connecting…${suffix}`;
     case "live":
-      return "live";
+      return `live${suffix}`;
     case "closed":
-      return "run finished — stream closed";
+      return `run finished — stream closed${suffix}`;
     case "error":
-      return connection.message;
+      return `${connection.message}${suffix}`;
   }
 }
 
@@ -50,10 +57,12 @@ export function RunsView({ onRunChanged }: RunsViewProps) {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
 
   const view = useRunStore((state) => state.view);
+  const headView = useRunStore((state) => state.headView);
   const events = useRunStore((state) => state.events);
   const cursor = useRunStore((state) => state.cursor);
   const following = useRunStore((state) => state.following);
   const connection = useRunStore((state) => state.connection);
+  const gaps = useRunStore((state) => state.gaps);
   const setCursor = useRunStore((state) => state.setCursor);
 
   useRunStream(runId);
@@ -62,9 +71,6 @@ export function RunsView({ onRunChanged }: RunsViewProps) {
   const runList = useFetched(loadRuns, NO_RUNS);
   const runs = runList.data;
 
-  // A run that has just reached a terminal event is one whose spend is final
-  // and whose row in the picker is out of date, so this is the moment both are
-  // worth re-reading. Keyed on the status rather than on a timer.
   const finished =
     view.status === "completed" || view.status === "failed" || view.status === "cancelled";
 
@@ -74,15 +80,27 @@ export function RunsView({ onRunChanged }: RunsViewProps) {
   // reason to offer buttons. `following` is the store's word for "at the head".
   const approvalReadOnly = finished ? "finished" : following ? null : "replay";
 
+  // The picker's row for the selected run is a snapshot of the `runs` table;
+  // the log knows more the moment an event arrives. When the two disagree the
+  // row is stale, and so — if the run just ended — is the month's spend. Keyed
+  // on the *head's* status, not the scrubbed view's: opening a finished run or
+  // dragging the slider across its terminal event changes nothing about the
+  // run, and used to refetch three endpoints anyway.
+  const selectedRow = runs.find((run) => run.id === runId);
+  const headStatus = headView.eventCount > 0 ? headView.status : null;
+  const rowStale = selectedRow !== undefined && headStatus !== null && selectedRow.status !== headStatus;
+
   useEffect(() => {
-    if (finished) {
+    if (rowStale) {
       onRunChanged();
       runList.reload();
     }
+    // Deliberately keyed on the head status alone: a row still stale after the
+    // reload (the table lags the log by a write) must not loop until it agrees.
     // `runList.reload` is stable; depending on the whole object would refire
     // this on every fetch it triggers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [finished, onRunChanged]);
+  }, [headStatus, onRunChanged]);
 
   const start = async () => {
     const trimmed = goal.trim();
@@ -157,16 +175,25 @@ export function RunsView({ onRunChanged }: RunsViewProps) {
                 className={`run-list__item${run.id === runId ? " run-list__item--selected" : ""}`}
                 onClick={() => {
                   setSelectedAgent(null);
+                  setStartError(null);
                   setRunId(run.id);
                 }}
               >
-                <span className={`status status--${run.status}`}>{run.status}</span>
+                {/* The log is the authority on the selected run; the row is a
+                    snapshot that says "pending" for the whole of a live run. */}
+                {run.id === runId && headStatus !== null ? (
+                  <span className={`status status--${headStatus}`}>{headStatus}</span>
+                ) : (
+                  <span className={`status status--${run.status}`}>{run.status}</span>
+                )}
                 <span className="run-list__goal">{run.goal}</span>
                 <span className="run-list__time">{clockTime(run.created_at)}</span>
               </button>
             </li>
           ))}
-          {runs.length === 0 && <li className="run-list__empty">No runs yet.</li>}
+          {runs.length === 0 && (
+            <li className="run-list__empty">{runList.loading ? "Loading…" : "No runs yet."}</li>
+          )}
         </ul>
       </aside>
 
@@ -178,7 +205,7 @@ export function RunsView({ onRunChanged }: RunsViewProps) {
         ) : (
           <>
             <p className="runs-view__connection" data-testid="connection-status">
-              {connectionLabel(connection)}
+              {connectionLabel(connection, gaps)}
             </p>
             <RunPanel
               view={view}

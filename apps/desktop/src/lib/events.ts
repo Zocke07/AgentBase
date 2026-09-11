@@ -49,7 +49,15 @@ export interface RunStreamHandlers {
   /** Called when the stream attaches, drops, or ends because the run ended. */
   onOpen?: () => void;
   onClosed?: (reason: "run-finished" | "cancelled") => void;
+  /** The *connection* is in trouble: reconnecting, or gone for good. */
   onError?: (message: string) => void;
+  /**
+   * One frame could not be read. Deliberately not `onError`: that is rendered
+   * as the connection's state and nothing resets it until a reconnect, so a
+   * single bad frame used to label a perfectly live stream as failed for the
+   * rest of the run.
+   */
+  onBadFrame?: (raw: string) => void;
 }
 
 export interface RunStreamHandle {
@@ -108,7 +116,7 @@ export function streamRun(
   source.onmessage = (message: MessageEvent<string>) => {
     const event = parseFrame(message.data);
     if (event === null) {
-      handlers.onError?.("received a frame that was not an event");
+      handlers.onBadFrame?.(message.data);
       return;
     }
 

@@ -17,6 +17,8 @@ import type { AgentDef } from "@agentspace/schemas";
 
 export interface AgentListProps {
   agents: readonly AgentDef[];
+  /** The roster is being fetched; `agents` is whatever was last known. */
+  loading: boolean;
   selectedId: string | null;
   onSelect: (id: string) => void;
   onCreate: () => void;
@@ -27,6 +29,7 @@ export interface AgentListProps {
 
 export function AgentList({
   agents,
+  loading,
   selectedId,
   onSelect,
   onCreate,
@@ -49,7 +52,12 @@ export function AgentList({
         </p>
       )}
 
-      {agents.length === 0 && <p className="roster__empty">No agent definitions yet.</p>}
+      {agents.length === 0 &&
+        (loading ? (
+          <p className="roster__empty">Loading…</p>
+        ) : (
+          <p className="roster__empty">No agent definitions yet.</p>
+        ))}
 
       <ul className="roster__list">
         {agents.map((agent) => (

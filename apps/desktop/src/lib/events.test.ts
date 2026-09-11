@@ -186,16 +186,23 @@ describe("streamRun", () => {
     expect(onClosed).toHaveBeenCalledTimes(1);
   });
 
-  it("reports a malformed frame instead of throwing", () => {
+  it("reports a malformed frame instead of throwing, and not as a connection error", () => {
+    /* One bad frame used to go through `onError`, which the store renders as
+       the connection's state — so the status line read "received a frame that
+       was not an event" for the rest of the run while events kept arriving,
+       because only a reconnect ever set it back to live. A bad frame is a fact
+       about one frame; the stream is fine. */
     const stream = harness();
     const onEvent = vi.fn();
     const onError = vi.fn();
+    const onBadFrame = vi.fn();
 
-    streamRun("http://x", "run-1", { onEvent, onError }, stream.factory);
+    streamRun("http://x", "run-1", { onEvent, onError, onBadFrame }, stream.factory);
     stream.source.deliverRaw("{not json");
 
     expect(onEvent).not.toHaveBeenCalled();
-    expect(onError).toHaveBeenCalledWith("received a frame that was not an event");
+    expect(onError).not.toHaveBeenCalled();
+    expect(onBadFrame).toHaveBeenCalledWith("{not json");
   });
 
   it("signals the connection opening", () => {

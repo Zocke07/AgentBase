@@ -124,7 +124,16 @@ export function App() {
       </header>
 
       <div className="app__body">
-        {tab === "runs" ? <RunsView onRunChanged={refreshWorkspace} /> : <AgentsView />}
+        {/* Both tabs stay mounted. Unmounting the runs tab closed its stream
+            and forgot which run was open, so a visit to the agents tab meant
+            re-picking the run and re-downloading its whole log — and any
+            approval that arrived meanwhile went unseen until it expired. */}
+        <div className="app__view" hidden={tab !== "runs"}>
+          <RunsView onRunChanged={refreshWorkspace} />
+        </div>
+        <div className="app__view" hidden={tab !== "agents"}>
+          <AgentsView />
+        </div>
       </div>
     </div>
   );

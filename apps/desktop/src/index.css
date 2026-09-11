@@ -140,6 +140,16 @@ body {
   overflow: hidden;
 }
 
+.app__view {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* The UA's `[hidden]` loses to any author `display`, so say it here. */
+.app__view[hidden] {
+  display: none;
+}
+
 .tabs {
   display: flex;
   gap: 0.25rem;

@@ -42,7 +42,10 @@ export function AgentsView() {
 
   const agents = roster.data;
   const selected = agents.find((agent) => agent.id === selectedId) ?? null;
-  const error = actionError ?? roster.error;
+  // Every fetch this tab depends on reports here. A failed `/tools` used to
+  // render an editor with no checkboxes and no explanation — and a save from
+  // that state would have sent an empty allowlist.
+  const error = actionError ?? roster.error ?? tools.error ?? catalogue.error;
 
   const save = async (body: CreateAgentRequest) => {
     // No try/catch: the editor renders the failure inline against the field the
@@ -87,6 +90,7 @@ export function AgentsView() {
     <div className="agents-view">
       <AgentList
         agents={agents}
+        loading={roster.loading}
         selectedId={selectedId}
         error={error}
         onSelect={(id) => {

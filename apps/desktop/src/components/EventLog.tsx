@@ -103,13 +103,19 @@ function describe(event: Event): string {
 }
 
 export function EventLog({ events, cursor, agents, selectedAgent, onSelectAgent }: EventLogProps) {
-  const [family, setFamily] = useState<string>("all");
+  const [chosenFamily, setFamily] = useState<string>("all");
 
   const families = useMemo(() => {
     const seen = new Set<string>();
     for (const event of events.slice(0, cursor)) seen.add(eventFamily(event.type));
     return [...seen].sort((left, right) => left.localeCompare(right));
   }, [events, cursor]);
+
+  // The filter outlives the log it was chosen against: switch to a run with no
+  // `channel.*` rows, or scrub to before the first `tool.*`, and a filter on
+  // that family hides every row behind a select showing nothing. A family the
+  // current rows do not contain is not a filter, it is "all".
+  const family = families.includes(chosenFamily) ? chosenFamily : "all";
 
   const rows = useMemo(
     () =>

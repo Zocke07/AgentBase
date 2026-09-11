@@ -42,10 +42,18 @@ export function ellipsise(value: string, limit: number): string {
   return collapsed.length <= limit ? collapsed : `${collapsed.slice(0, limit - 1)}…`;
 }
 
+/**
+ * `JSON.stringify`, typed as it behaves: it returns `undefined` for a value it
+ * cannot serialise — a function, a symbol, `undefined` itself. The lib types
+ * say `string`. Nothing off the wire is one of those values, and a log panel
+ * that threw on the first one would take the whole run view down with it.
+ */
+const stringify = (value: unknown): string | undefined => JSON.stringify(value);
+
 /** A one-line rendering of a tool call's arguments, for the log. */
 export function summariseArgs(args: Record<string, unknown>): string {
   const parts = Object.entries(args).map(([key, value]) => {
-    const rendered = typeof value === "string" ? value : JSON.stringify(value);
+    const rendered = typeof value === "string" ? value : (stringify(value) ?? String(value));
     return `${key}=${ellipsise(rendered, 40)}`;
   });
   return parts.join(" ");
