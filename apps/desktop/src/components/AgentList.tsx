@@ -1,4 +1,5 @@
 import type { AgentDef } from "@agentspace/schemas";
+import { useState } from "react";
 
 /**
  * The roster — §5 Phase 7's `AgentList.tsx`: "every defined agent, its role,
@@ -13,6 +14,9 @@ import type { AgentDef } from "@agentspace/schemas";
  * 409. That refusal is rendered rather than pre-empted by hiding the button:
  * §5 Phase 5 guards the delete path deliberately, and a user who tries deserves
  * to be told why rather than to find a missing control.
+ *
+ * Delete asks first, inline. A user-authored system prompt is unrecoverable,
+ * and one misclick on a row used to send the request.
  */
 
 export interface AgentListProps {
@@ -25,6 +29,8 @@ export interface AgentListProps {
   onToggleEnabled: (agent: AgentDef) => void;
   onDelete: (agent: AgentDef) => void;
   error: string | null;
+  /** The row whose request is in flight; its controls are disabled meanwhile. */
+  busyId: string | null;
 }
 
 export function AgentList({
@@ -36,7 +42,10 @@ export function AgentList({
   onToggleEnabled,
   onDelete,
   error,
+  busyId,
 }: AgentListProps) {
+  const [confirming, setConfirming] = useState<string | null>(null);
+
   return (
     <section className="roster" data-testid="agent-list">
       <header className="roster__head">
@@ -94,6 +103,7 @@ export function AgentList({
                 <input
                   type="checkbox"
                   checked={agent.enabled ?? true}
+                  disabled={busyId === agent.id}
                   onChange={() => {
                     onToggleEnabled(agent);
                   }}
@@ -103,17 +113,45 @@ export function AgentList({
                 <span>{agent.enabled === false ? "disabled" : "enabled"}</span>
               </label>
 
-              <button
-                type="button"
-                className="button button--small button--danger"
-                onClick={() => {
-                  onDelete(agent);
-                }}
-                aria-label={`Delete ${agent.name}`}
-                data-testid={`delete-${agent.name}`}
-              >
-                Delete
-              </button>
+              {confirming === agent.id ? (
+                <span className="roster__confirm">
+                  <span>Delete {agent.name}?</span>
+                  <button
+                    type="button"
+                    className="button button--small button--danger"
+                    disabled={busyId === agent.id}
+                    onClick={() => {
+                      setConfirming(null);
+                      onDelete(agent);
+                    }}
+                    aria-label={`Delete ${agent.name}`}
+                  >
+                    Delete
+                  </button>
+                  <button
+                    type="button"
+                    className="button button--small"
+                    onClick={() => {
+                      setConfirming(null);
+                    }}
+                  >
+                    Keep
+                  </button>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="button button--small button--danger"
+                  disabled={busyId === agent.id}
+                  onClick={() => {
+                    setConfirming(agent.id);
+                  }}
+                  aria-label={`Delete ${agent.name}…`}
+                  data-testid={`delete-${agent.name}`}
+                >
+                  Delete
+                </button>
+              )}
             </div>
           </li>
         ))}

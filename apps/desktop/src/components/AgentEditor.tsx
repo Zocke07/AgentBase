@@ -2,10 +2,11 @@ import type {
   AgentDef,
   CreateAgentRequest,
   ProviderCatalogueResponse,
+  RiskLevel,
   ToolResponse,
   UpdateAgentRequest,
 } from "@agentspace/schemas";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ApiError } from "../lib/api";
 
@@ -60,6 +61,8 @@ export interface AgentEditorProps {
   /** Patch `agent` with only the fields the user changed. */
   onPatch: (patch: UpdateAgentRequest) => Promise<void>;
   onCancel: () => void;
+  /** Told whenever the form starts or stops differing from what it opened with. */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 interface FormState {
@@ -69,11 +72,19 @@ interface FormState {
   provider: string;
   model: string;
   allowed_tools: string[];
+  auto_approve: RiskLevel[];
   max_steps: string;
   enabled: boolean;
 }
 
+const RISK_LEVELS: readonly RiskLevel[] = ["low", "medium", "high"];
+
+const isRiskLevel = (value: string): value is RiskLevel =>
+  (RISK_LEVELS as readonly string[]).includes(value);
+
 const INHERIT = "";
+/** The key for a message the server did not attribute to a field. */
+const FORM = "\u0000form";
 
 /** The form as the API wants it. */
 function toRequest(form: FormState): CreateAgentRequest {
@@ -85,6 +96,7 @@ function toRequest(form: FormState): CreateAgentRequest {
     provider: form.provider === INHERIT ? null : form.provider,
     model: form.model === INHERIT ? null : form.model,
     allowed_tools: form.allowed_tools,
+    auto_approve: form.auto_approve,
     max_steps: trimmed === "" ? null : Number(trimmed),
     enabled: form.enabled,
   };
@@ -112,6 +124,7 @@ function initial(agent: AgentDef | null): FormState {
     provider: agent?.provider ?? INHERIT,
     model: agent?.model ?? INHERIT,
     allowed_tools: [...(agent?.allowed_tools ?? [])],
+    auto_approve: (agent?.auto_approve ?? []).filter(isRiskLevel),
     // Empty means "whatever this workspace allows". Defaulting to a literal
     // here is the Phase 5 bug: a definition rejected for a field the caller
     // never supplied, whenever the workspace cap sits below that literal.
@@ -128,25 +141,30 @@ export function AgentEditor({
   onCreate,
   onPatch,
   onCancel,
+  onDirtyChange,
 }: AgentEditorProps) {
   // `opened` is what the form started from; the diff on save is against it.
   const [opened] = useState<FormState>(() => initial(agent));
   const [form, setForm] = useState<FormState>(opened);
-  const [fieldError, setFieldError] = useState<{ field: string | null; message: string } | null>(
-    null,
-  );
+  // Messages by field; `FORM` for one the server did not attribute. A map
+  // rather than one slot because the pre-flight below can name two at once.
+  const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
   const [saving, setSaving] = useState(false);
+
+  const dirty = Object.keys(changedFields(toRequest(opened), toRequest(form))).length > 0;
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
     // Clear the error on the field being corrected, so the message goes away
     // when the user acts on it rather than only on the next submit.
-    if (fieldError?.field === key) setFieldError(null);
+    setErrors(({ [key]: _cleared, ...rest }) => rest);
   };
 
   /** The inline message for one input, or null. */
-  const errorFor = (field: string): string | null =>
-    fieldError !== null && fieldError.field === field ? fieldError.message : null;
+  const errorFor = (field: string): string | null => errors[field] ?? null;
 
   // Which provider the model field is for: the pinned one, else the
   // workspace's. Everything about the model field follows from this.
@@ -159,6 +177,15 @@ export function AgentEditor({
   const strayModel =
     form.model !== INHERIT && !freeText && !knownModels.includes(form.model) ? form.model : null;
 
+  const toggleRisk = (level: RiskLevel) => {
+    setForm((current) => ({
+      ...current,
+      auto_approve: current.auto_approve.includes(level)
+        ? current.auto_approve.filter((item) => item !== level)
+        : RISK_LEVELS.filter((item) => item === level || current.auto_approve.includes(item)),
+    }));
+  };
+
   const toggleTool = (name: string) => {
     setForm((current) => ({
       ...current,
@@ -170,9 +197,20 @@ export function AgentEditor({
 
   const submit = async (submitted: SubmitEvent | { preventDefault: () => void }) => {
     submitted.preventDefault();
-    setSaving(true);
-    setFieldError(null);
+    setErrors({});
 
+    // The server would refuse these too; a round trip for a form that is
+    // visibly incomplete is a round trip for nothing. It stays the authority
+    // on everything else — uniqueness, the step cap, the tool catalogue.
+    const incomplete: Record<string, string> = {};
+    if (form.name.trim() === "") incomplete.name = "Give the agent a name.";
+    if (form.system_prompt.trim() === "") incomplete.system_prompt = "Give the agent a system prompt.";
+    if (Object.keys(incomplete).length > 0) {
+      setErrors(incomplete);
+      return;
+    }
+
+    setSaving(true);
     const body = toRequest(form);
 
     // Editing: only what changed. Nothing changed is nothing to send — the
@@ -207,12 +245,9 @@ export function AgentEditor({
   /** Put a save failure on the field the server named, or on the form. */
   function report(failure: unknown) {
     if (failure instanceof ApiError) {
-      setFieldError({ field: failure.field, message: failure.message });
+      setErrors({ [failure.field ?? FORM]: failure.message });
     } else {
-      setFieldError({
-        field: null,
-        message: failure instanceof Error ? failure.message : String(failure),
-      });
+      setErrors({ [FORM]: failure instanceof Error ? failure.message : String(failure) });
     }
   }
 
@@ -411,6 +446,39 @@ export function AgentEditor({
         )}
       </fieldset>
 
+      <fieldset className="editor__tools">
+        <legend>Calls this agent may make without asking</legend>
+        <p className="editor__hint">
+          Narrows the workspace policy for this agent only — it can never widen it.
+          Nothing ticked means the workspace policy applies as it is.
+        </p>
+        <div className="editor__risks">
+          {RISK_LEVELS.map((level) => (
+            <label key={level} className="editor__tool">
+              <input
+                type="checkbox"
+                checked={form.auto_approve.includes(level)}
+                onChange={() => {
+                  toggleRisk(level);
+                }}
+                data-testid={`auto-${level}`}
+              />
+              <span className={`risk risk--${level}`}>{level}</span>
+              <span className="editor__tool-description">
+                {level === "low" && "reads inside the workspace"}
+                {level === "medium" && "writes inside the workspace, fetches a public URL"}
+                {level === "high" && "runs a shell command"}
+              </span>
+            </label>
+          ))}
+        </div>
+        {errorFor("auto_approve") !== null && (
+          <span className="editor__error" role="alert" data-testid="error-auto_approve">
+            {errorFor("auto_approve")}
+          </span>
+        )}
+      </fieldset>
+
       <label className="editor__checkbox">
         <input
           type="checkbox"
@@ -423,9 +491,9 @@ export function AgentEditor({
         <span>Available to the supervisor</span>
       </label>
 
-      {fieldError !== null && fieldError.field === null && (
+      {errorFor(FORM) !== null && (
         <p className="editor__error editor__error--form" role="alert" data-testid="error-form">
-          {fieldError.message}
+          {errorFor(FORM)}
         </p>
       )}
 

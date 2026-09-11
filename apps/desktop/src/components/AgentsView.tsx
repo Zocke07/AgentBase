@@ -41,6 +41,17 @@ export function AgentsView({ workspaceProvider }: AgentsViewProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editing, setEditing] = useState<"none" | "new" | "existing">("none");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  // The editor says when its form differs from what it opened with; a click
+  // that would throw that away is held until the user says which they meant.
+  const [dirty, setDirty] = useState(false);
+  const [held, setHeld] = useState<(() => void) | null>(null);
+
+  /** Run `action` now, or hold it behind the unsaved-changes question. */
+  const guarded = (action: () => void) => {
+    if (dirty && editing !== "none") setHeld(() => action);
+    else action();
+  };
 
   const loadAgents = useCallback(() => api.listAgents(), []);
   const loadTools = useCallback(() => api.listTools(), []);
@@ -75,16 +86,20 @@ export function AgentsView({ workspaceProvider }: AgentsViewProps) {
 
   const toggleEnabled = async (agent: AgentDef) => {
     setActionError(null);
+    setBusyId(agent.id);
     try {
       await api.updateAgent(agent.id, { enabled: !(agent.enabled ?? true) });
       roster.reload();
     } catch (failure) {
       setActionError(failure instanceof Error ? failure.message : String(failure));
+    } finally {
+      setBusyId(null);
     }
   };
 
   const remove = async (agent: AgentDef) => {
     setActionError(null);
+    setBusyId(agent.id);
     try {
       await api.deleteAgent(agent.id);
       if (selectedId === agent.id) {
@@ -96,6 +111,8 @@ export function AgentsView({ workspaceProvider }: AgentsViewProps) {
       // A built-in refuses deletion with a 409 and a message saying so. Showing
       // it is the point — §5 Phase 5 guards the delete path deliberately.
       setActionError(failure instanceof Error ? failure.message : String(failure));
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -106,13 +123,18 @@ export function AgentsView({ workspaceProvider }: AgentsViewProps) {
         loading={roster.loading}
         selectedId={selectedId}
         error={error}
+        busyId={busyId}
         onSelect={(id) => {
-          setSelectedId(id);
-          setEditing("existing");
+          guarded(() => {
+            setSelectedId(id);
+            setEditing("existing");
+          });
         }}
         onCreate={() => {
-          setSelectedId(null);
-          setEditing("new");
+          guarded(() => {
+            setSelectedId(null);
+            setEditing("new");
+          });
         }}
         onToggleEnabled={(agent) => void toggleEnabled(agent)}
         onDelete={(agent) => void remove(agent)}
@@ -125,6 +147,33 @@ export function AgentsView({ workspaceProvider }: AgentsViewProps) {
             enabled here is one the supervisor can put to work.
           </p>
         ) : (
+          <>
+            {held !== null && (
+              <div className="editor__unsaved" role="alert" data-testid="unsaved">
+                <span>This agent has unsaved changes.</span>
+                <button
+                  type="button"
+                  className="button button--small button--danger"
+                  onClick={() => {
+                    const action = held;
+                    setHeld(null);
+                    setDirty(false);
+                    action();
+                  }}
+                >
+                  Discard
+                </button>
+                <button
+                  type="button"
+                  className="button button--small"
+                  onClick={() => {
+                    setHeld(null);
+                  }}
+                >
+                  Keep editing
+                </button>
+              </div>
+            )}
           <AgentEditor
             // Remount on a different definition so the form state starts from
             // the row being edited rather than the one before it.
@@ -135,10 +184,14 @@ export function AgentsView({ workspaceProvider }: AgentsViewProps) {
             workspaceProvider={workspaceProvider}
             onCreate={create}
             onPatch={patch}
+            onDirtyChange={setDirty}
             onCancel={() => {
-              setEditing("none");
+              guarded(() => {
+                setEditing("none");
+              });
             }}
           />
+          </>
         )}
       </div>
     </div>

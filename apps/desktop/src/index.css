@@ -1325,6 +1325,32 @@ body {
   font-size: 0.75rem;
 }
 
+.editor__risks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.editor__unsaved {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--warn);
+  border-radius: 0.5rem;
+  color: var(--warn);
+  font-size: 0.8125rem;
+}
+
+.roster__confirm {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  color: var(--bad);
+  font-size: 0.75rem;
+}
+
 .editor__hint--field {
   display: block;
   margin-top: 0.25rem;

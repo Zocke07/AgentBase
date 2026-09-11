@@ -112,7 +112,62 @@ describe("editing", () => {
     render(<AgentsView workspaceProvider="ollama" />);
 
     await user.click(await screen.findByTestId("delete-writer"));
+    await user.click(screen.getByRole("button", { name: "Delete writer" }));
 
     expect((await screen.findByTestId("roster-error")).textContent).toContain("cannot be deleted");
+  });
+
+  it("asks before deleting, and a second click is what deletes", async () => {
+    /* A user-authored system prompt is unrecoverable; one misclick on a
+       row's Delete used to send the request. */
+    const user = userEvent.setup();
+    mocked.deleteAgent.mockResolvedValue(undefined);
+    render(<AgentsView workspaceProvider="ollama" />);
+
+    await user.click(await screen.findByTestId("delete-writer"));
+    expect(mocked.deleteAgent).not.toHaveBeenCalled();
+    expect(screen.getByTestId("agent-row-writer").textContent).toContain("Delete writer?");
+
+    await user.click(screen.getByRole("button", { name: "Keep" }));
+    expect(screen.queryByRole("button", { name: "Keep" })).toBeNull();
+    expect(mocked.deleteAgent).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTestId("delete-writer"));
+    await user.click(screen.getByRole("button", { name: "Delete writer" }));
+    expect(mocked.deleteAgent).toHaveBeenCalledWith("def-1");
+  });
+
+  it("asks before discarding an edit in progress", async () => {
+    const user = userEvent.setup();
+    mocked.listAgents.mockResolvedValue([writer, { ...writer, id: "def-2", name: "critic" }]);
+    render(<AgentsView workspaceProvider="ollama" />);
+    await user.click(await screen.findByText("writer"));
+    await user.type(await screen.findByTestId("field-role"), " and more");
+
+    await user.click(screen.getByText("critic"));
+
+    // Still editing the writer, with the question shown.
+    expect(screen.getByTestId("agent-editor").textContent).toContain("Edit writer");
+    expect(screen.getByTestId("unsaved").textContent).toContain("unsaved");
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("agent-editor").textContent).toContain("Edit critic");
+    });
+  });
+
+  it("disables a row's controls while its request is in flight", async () => {
+    const user = userEvent.setup();
+    let release: () => void = () => undefined;
+    mocked.updateAgent.mockReturnValue(new Promise<AgentDef>((resolve) => { release = () => { resolve(writer); }; }));
+    render(<AgentsView workspaceProvider="ollama" />);
+
+    await user.click(await screen.findByTestId("toggle-writer"));
+
+    expect(screen.getByTestId("toggle-writer")).toHaveProperty("disabled", true);
+    expect(screen.getByTestId("delete-writer")).toHaveProperty("disabled", true);
+    release();
+    await waitFor(() => {
+      expect(screen.getByTestId("toggle-writer")).toHaveProperty("disabled", false);
+    });
   });
 });

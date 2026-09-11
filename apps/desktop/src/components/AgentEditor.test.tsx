@@ -75,6 +75,13 @@ function editor(
   return { onSave };
 }
 
+/** The two fields the editor refuses to send empty. */
+async function complete(user: ReturnType<typeof userEvent.setup>, name = "an_agent") {
+  const nameField = screen.getByTestId<HTMLInputElement>("field-name");
+  if (nameField.value === "") await user.type(nameField, name);
+  await user.type(screen.getByTestId("field-system-prompt"), "You do the thing.");
+}
+
 const modelOptions = () =>
   [...screen.getByTestId<HTMLSelectElement>("field-model").options].map((option) => option.value);
 
@@ -87,6 +94,7 @@ describe("validation errors land on the field the server blamed", () => {
     editor({ onSave });
 
     await user.type(screen.getByTestId("field-name"), "researcher");
+    await complete(user);
     await user.click(screen.getByRole("button", { name: "Create agent" }));
 
     expect(screen.getByTestId("error-name").textContent).toBe(
@@ -103,6 +111,7 @@ describe("validation errors land on the field the server blamed", () => {
     );
     editor({ onSave });
 
+    await complete(user);
     await user.click(screen.getByRole("button", { name: "Create agent" }));
 
     expect(screen.getByTestId("error-max_steps").textContent).toContain("above this workspace");
@@ -115,6 +124,7 @@ describe("validation errors land on the field the server blamed", () => {
     );
     editor({ onSave });
 
+    await complete(user);
     await user.click(screen.getByRole("button", { name: "Create agent" }));
 
     expect(screen.getByTestId("error-allowed_tools").textContent).toContain("unknown tool");
@@ -125,6 +135,7 @@ describe("validation errors land on the field the server blamed", () => {
     const onSave = vi.fn().mockRejectedValue(new ApiError(500, "the sidecar is unreachable"));
     editor({ onSave });
 
+    await complete(user);
     await user.click(screen.getByRole("button", { name: "Create agent" }));
 
     expect(screen.getByTestId("error-form").textContent).toBe("the sidecar is unreachable");
@@ -136,6 +147,7 @@ describe("validation errors land on the field the server blamed", () => {
     editor({ onSave });
 
     await user.type(screen.getByTestId("field-name"), "taken");
+    await complete(user);
     await user.click(screen.getByRole("button", { name: "Create agent" }));
     expect(screen.queryByTestId("error-name")).not.toBeNull();
 
@@ -163,6 +175,7 @@ describe("the tool allowlist", () => {
 
     await user.type(screen.getByTestId("field-name"), "shell_user");
     await user.click(screen.getByTestId("tool-run_shell"));
+    await complete(user);
     await user.click(screen.getByRole("button", { name: "Create agent" }));
 
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ allowed_tools: ["run_shell"] }));
@@ -205,6 +218,7 @@ describe("the model field follows the provider", () => {
     await user.selectOptions(screen.getByTestId("field-provider"), "ollama");
     await user.type(screen.getByTestId("field-name"), "local");
     await user.type(screen.getByTestId("field-model"), "qwen3:4b");
+    await complete(user);
     await user.click(screen.getByRole("button", { name: "Create agent" }));
 
     expect(onSave).toHaveBeenCalledWith(
@@ -235,6 +249,40 @@ describe("the model field follows the provider", () => {
   });
 });
 
+describe("the approval policy", () => {
+  it("offers the three risk levels, badged, and sends the ticked ones", async () => {
+    /* §4 gives every definition an `auto_approve` column and the reducer
+       reads it; no editor field ever reached it. It narrows the workspace
+       policy — it can never widen it — and an empty list means inherit. */
+    const user = userEvent.setup();
+    const { onSave } = editor();
+
+    await user.type(screen.getByTestId("field-name"), "quiet");
+    await user.click(screen.getByTestId("auto-low"));
+    await complete(user);
+    await user.click(screen.getByRole("button", { name: "Create agent" }));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ auto_approve: ["low"] }));
+    expect(screen.getByTestId("agent-editor").textContent).toContain("never widen");
+  });
+});
+
+describe("before the round trip", () => {
+  it("refuses an empty name and an empty prompt itself, on the fields", async () => {
+    /* The server would say the same; a request for a form that is visibly
+       incomplete is a round trip for nothing. The server stays the
+       authority on everything else. */
+    const user = userEvent.setup();
+    const { onSave } = editor();
+
+    await user.click(screen.getByRole("button", { name: "Create agent" }));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByTestId("error-name").textContent).toContain("name");
+    expect(screen.getByTestId("error-system_prompt").textContent).toContain("prompt");
+  });
+});
+
 describe("what gets sent", () => {
   it("omits max_steps when the field is blank, rather than inventing one", async () => {
     /* CLAUDE.md, Phase 5: "a default that duplicates a value the user can change
@@ -245,6 +293,7 @@ describe("what gets sent", () => {
     const { onSave } = editor();
 
     await user.type(screen.getByTestId("field-name"), "plain");
+    await complete(user);
     await user.click(screen.getByRole("button", { name: "Create agent" }));
 
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ max_steps: null }));
@@ -255,6 +304,7 @@ describe("what gets sent", () => {
     const { onSave } = editor();
 
     await user.type(screen.getByTestId("field-name"), "inheritor");
+    await complete(user);
     await user.click(screen.getByRole("button", { name: "Create agent" }));
 
     expect(onSave).toHaveBeenCalledWith(
