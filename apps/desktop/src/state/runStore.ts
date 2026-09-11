@@ -61,7 +61,14 @@ export interface RunStoreState {
   readonly gaps: number;
 
   open: (runId: string) => void;
+  /** One event. The same as `appendEvents([event])`. */
   appendEvent: (event: Event) => void;
+  /**
+   * A batch, folded in one update. The SSE client hands over a frame's worth
+   * at a time so a burst of `llm.token`s is one render rather than one each;
+   * the fold is the same, called less.
+   */
+  appendEvents: (batch: readonly Event[]) => void;
   loadHistory: (events: readonly Event[]) => void;
   setCursor: (cursor: number) => void;
   follow: () => void;
@@ -88,32 +95,45 @@ export const useRunStore = create<RunStoreState>()((set, get) => ({
   },
 
   appendEvent: (event) => {
-    const { events, cursor, following, headView } = get();
-    const head = events.at(-1)?.seq ?? 0;
+    get().appendEvents([event]);
+  },
 
-    // A resumed stream re-reads from its cursor, and a fresh EventSource
-    // re-reads from the beginning, so the same event legitimately arrives twice.
-    // Dropping anything at or below the head makes both harmless, and is why the
-    // client never has to reason about *why* a duplicate turned up.
-    if (event.seq <= head) return;
+  appendEvents: (batch) => {
+    const { events, cursor, following } = get();
+    let { headView, gaps } = get();
+    let head = events.at(-1)?.seq ?? 0;
+    const accepted: Event[] = [];
 
-    const nextEvents = [...events, event];
-    const gaps = get().gaps + (event.seq > head + 1 ? 1 : 0);
-    const nextHead = reduce(headView, event);
+    for (const event of batch) {
+      // A resumed stream re-reads from its cursor, and a fresh EventSource
+      // re-reads from the beginning, so the same event legitimately arrives
+      // twice. Dropping anything at or below the head makes both harmless, and
+      // is why the client never has to reason about *why* a duplicate turned up.
+      if (event.seq <= head) continue;
+
+      if (event.seq > head + 1) gaps += 1;
+      head = event.seq;
+      accepted.push(event);
+      headView = reduce(headView, event);
+    }
+
+    if (accepted.length === 0) return;
+
+    const nextEvents = [...events, ...accepted];
 
     // Scrubbed back: keep collecting, leave the view where the user put it.
     // Yanking the cursor to the head because an event arrived would make the
     // scrubber unusable on a live run.
     if (!following) {
-      set({ events: nextEvents, headView: nextHead, gaps });
+      set({ events: nextEvents, headView, gaps });
       return;
     }
 
     set({
       events: nextEvents,
-      cursor: cursor + 1,
-      view: nextHead,
-      headView: nextHead,
+      cursor: cursor + accepted.length,
+      view: headView,
+      headView,
       gaps,
     });
   },

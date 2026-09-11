@@ -175,6 +175,55 @@ describe("the cursor", () => {
   });
 });
 
+describe("batched delivery", () => {
+  it("reaches the same state as one event at a time, in one update", () => {
+    /* The SSE client hands the store a frame's worth of events at once so a
+       burst of `llm.token`s is one render, not fifty. The batch must fold to
+       exactly what the singles fold to — it is the same path, called less. */
+    const events = twoAgentRun();
+    store().open("run-1");
+    for (const event of events) store().appendEvent(event);
+    const singly = store();
+
+    useRunStore.getState().reset();
+    store().open("run-1");
+    let updates = 0;
+    const unsubscribe = useRunStore.subscribe(() => {
+      updates += 1;
+    });
+    store().appendEvents(events);
+    unsubscribe();
+
+    expect(store().view).toEqual(singly.view);
+    expect(store().cursor).toBe(singly.cursor);
+    expect(store().events).toEqual(singly.events);
+    expect(updates).toBe(1);
+  });
+
+  it("drops duplicates inside a batch and against what it already holds", () => {
+    const events = twoAgentRun();
+    store().open("run-1");
+    store().appendEvents(events.slice(0, 5));
+
+    store().appendEvents([...events.slice(3, 8), ...events.slice(6, 8)]);
+
+    expect(store().events.map((event) => event.seq)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+
+  it("collects a batch without moving a scrubbed view", () => {
+    const events = twoAgentRun();
+    store().open("run-1");
+    store().appendEvents(events.slice(0, 10));
+    store().setCursor(4);
+    const whileScrubbed = store().view;
+
+    store().appendEvents(events.slice(10));
+
+    expect(store().view).toBe(whileScrubbed);
+    expect(store().headView.status).toBe("completed");
+  });
+});
+
 describe("duplicate and repeated delivery", () => {
   it("ignores an event it already holds", () => {
     /* A reconnect re-reads from the client's cursor and a fresh EventSource

@@ -60,10 +60,14 @@ beforeEach(() => {
   mocked.getRunHistory.mockResolvedValue([]);
 });
 
-/** Deliver events over the mocked stream, as the SSE client would. */
-function deliver(batch: Event[]) {
-  act(() => {
+/**
+ * Deliver events over the mocked stream, as the SSE client would, and wait
+ * for the paint on which `useRunStream` hands them to the store.
+ */
+async function deliver(batch: Event[]) {
+  await act(async () => {
     for (const event of batch) handlers?.onEvent(event);
+    await new Promise((resolve) => requestAnimationFrame(resolve));
   });
 }
 
@@ -84,7 +88,7 @@ describe("refreshing the picker and the meter", () => {
     expect(mocked.listRuns).toHaveBeenCalledTimes(1);
 
     mocked.listRuns.mockResolvedValue([row("completed")]);
-    deliver(twoAgentRun());
+    await deliver(twoAgentRun());
 
     await waitFor(() => {
       expect(mocked.listRuns).toHaveBeenCalledTimes(2);
@@ -142,7 +146,7 @@ describe("refreshing the picker and the meter", () => {
     render(<RunsView onRunChanged={vi.fn()} />);
     await pick(user, "quarterly");
 
-    deliver(twoAgentRun().slice(0, 3));
+    await deliver(twoAgentRun().slice(0, 3));
 
     expect(screen.getByTestId("run-list").textContent).toContain("running");
     expect(screen.getByTestId("run-list").textContent).not.toContain("pending");
