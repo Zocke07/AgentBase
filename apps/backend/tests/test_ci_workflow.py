@@ -134,6 +134,28 @@ def test_the_built_artefacts_are_verified_after_the_build_not_before() -> None:
     )
 
 
+def test_the_rust_shell_is_linted_after_the_sidecar_exists() -> None:
+    """Counterintuitive, and load-bearing: the lint cannot run before the build.
+
+    `tauri-build`'s build script validates `externalBin` and runs for every cargo
+    invocation, clippy included. With no frozen sidecar in `binaries/` it fails
+    with "resource path ... doesn't exist" before clippy has linted a line — which
+    is how CI run #3 failed on both platforms while passing on a dev machine,
+    where a sidecar from the last build is already sitting there.
+
+    So a lint step placed first, which is where anybody would reasonably put it,
+    is broken in a way only CI can see. Pinned here so it stays where it works.
+    """
+    build = _job("build")
+    built = _step_index(build, "just build-installer")
+    linted = _step_index(build, "just check-tauri")
+
+    assert built < linted, (
+        "`just check-tauri` runs before `just build-installer`, so tauri-build "
+        "will fail on a missing externalBin before clippy lints anything"
+    )
+
+
 def test_only_the_windows_installer_is_published() -> None:
     """§5 Phase 9 and §7: macOS is built to catch breakage, never published."""
     uploads = [

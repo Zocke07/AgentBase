@@ -314,7 +314,12 @@ dev-app: build-sidecar _dev-app
 _dev-app:
     npx --no-install tauri dev
 
-# Typecheck the Rust shell without producing a binary.
+# Lint the Rust shell without producing a binary.
+#
+# Needs a frozen sidecar in `binaries/` first. `tauri-build`'s build script
+# validates `externalBin` on every cargo invocation, clippy included, so without
+# one this fails on a missing resource path rather than on anything it linted.
+# Run `just build-sidecar` first, or run this after a build.
 [group('build')]
 [working-directory('apps/desktop/src-tauri')]
 check-tauri:
