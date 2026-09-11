@@ -20,6 +20,11 @@ Requires [`just`](https://just.systems), [`uv`](https://docs.astral.sh/uv/),
 Node (see `.nvmrc`), and — from Phase 1 onward — the Rust MSVC toolchain plus
 the Visual Studio C++ build tools. Python 3.12 is fetched by `uv`.
 
+The **[Developer Guide](docs/DEVELOPER_GUIDE.md)** covers the rest: the three
+ways to run the app from source, how to debug each half, how the tests are
+built, and the checklists for adding an event type, a setting, a secret, a
+migration, a tool or a provider without tripping a guard.
+
 ```
 just setup   # install dependencies
 just check   # lint + typecheck
@@ -57,7 +62,9 @@ right for `just test` and wrong for a release, so this recipe passes
 
 Download `AgentSpace_<version>_x64-setup.exe` from the
 [latest release](../../releases/latest), or from the artefacts of any green
-[build run](../../actions/workflows/build.yml).
+[build run](../../actions/workflows/build.yml). Every release has been installed
+and run by CI on a clean Windows machine with Python removed from its
+environment before it was published.
 
 **The build is unsigned, so Windows will warn you once.** SmartScreen shows
 *"Windows protected your PC"* — click **More info**, then **Run anyway**. That is
@@ -70,6 +77,13 @@ The installer needs no administrator rights and installs for the current user
 only. Your data — the event log, agent definitions and the agent workspace —
 lives in `%LOCALAPPDATA%\dev.agentspace.desktop`, outside the installation, so
 upgrading or uninstalling the app does not touch it.
+
+Once it is installed, the **[User Guide](docs/USER_GUIDE.md)** covers everything
+after the first launch: adding an API key or using a local model, changing
+settings, starting a run, answering approvals, defining agents, and connecting
+Discord or Telegram. Read its first section before anything else — this version
+has no Settings screen, and the guide says where those two setup steps happen
+instead.
 
 ## CI
 

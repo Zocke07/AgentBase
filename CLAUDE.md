@@ -60,17 +60,21 @@ received **52 of 52** events over the same SSE endpoint, two `write_file` calls
 stopped at the approval gate and were answered by pressing **Allow** in Discord,
 and `reminder.txt` appeared on disk with exactly the 16 bytes the prompt named.
 
-**Phase 9 — CI and release.** Complete but for one clause. §5 Phase 9 asks for
-"a green CI run [that] produces a downloadable installer that runs on a second
-Windows machine with no Python installed". Run #5 is green on all four jobs, and
-its uploaded installer was downloaded, installed and run — so everything holds
-except *second machine*, which needs hardware nobody here has. The repository is
-public at `Zocke07/AgentBase`.
+**Phase 9 — CI and release.** Complete. The repository is public at
+`Zocke07/AgentBase`; CI is green on five jobs across Windows and macOS; `v0.1.0`
+is a real GitHub release with the installer attached, published by the workflow
+itself. §5 Phase 9's criterion ends "runs on a second Windows machine with no
+Python installed", and there is no second Windows machine and will not be one —
+so a `smoke` job installs the uploaded artefact on a fresh `windows-latest`
+runner and launches the *installed* sidecar with Python scrubbed from its
+environment. That is the nearest thing the criterion can mean here, and it runs
+on every push rather than once. See "The machine reality" and "What CI actually
+found" below.
 
-It took five runs. Four failed, three of those on defects in the workflow rather
-than in the product, and the fifth passed every job on both platforms. The one
-real bug was a macOS-only type error that no Windows run could see. See
-"What CI actually found" below.
+Eight runs to get there. Five failed — four on defects in the workflow or its
+tests rather than in the product, one on a macOS-only type error no Windows run
+could see — and every failure was of a kind that no local check could have
+caught, which is the whole argument for the phase.
 
 ### What the first real API call showed
 
@@ -1082,6 +1086,9 @@ keeping.
 | 3 | pass | pass | fail | Rust lint ran before the sidecar existed |
 | 4 | pass | pass | fail | no `node_modules` in the build job |
 | 5 | pass | pass | pass | — |
+| tag `v0.1.0` | pass | pass | pass | — (release job fired, first time) |
+| 7 | fail | pass | skipped | the new smoke test installed on every `just test` |
+| 8 | pass | pass | pass | — (smoke job: 3 passed on a clean runner) |
 
 **The gate held, twice, before anything else was proven.** Runs #1 and #2 left
 `build` *skipped* rather than bundling an installer from code the tests had not
@@ -1156,6 +1163,39 @@ exact tag. A 404 on a ref means the ref is absent. The lesson is narrow and
 useful: check ref *existence* with `GET /repos/{o}/{r}/git/ref/tags/{tag}`, not by
 reading a summarised tag listing. Doing that confirmed the other six pins were
 correct and found this one wrong.
+
+**The release job worked first time, and `v0.1.0` exists.** Pushing the tag
+ran the whole pipeline again and then `gh release create` attached the 27.6 MB
+installer to a public release whose body carries the SmartScreen note. That was
+the last path in the workflow that had never executed.
+
+**The smoke job replaces the clause that cannot be met, and it found a real
+dependency on the way.** The first version of its environment scrub dropped
+`TEMP`/`TMP`, and the installed sidecar died with `[PYI-32164:ERROR] Could not
+create temporary directory!` — a `--onefile` binary extracts itself there before
+running a line of Python. Not the dependency the test hunts, but a dependency,
+and one every real machine satisfies; `run_shell`'s allowlist keeps the same two
+variables for the same reason. The scrub is asserted before anything launches —
+`python`/`python3`/`pythonw` unreachable on the child `PATH`, no `PYTHON*`
+passing through, and the host required to *have* Python so the scrub is a real
+change — because a scrub that quietly failed would make the job a green no-op.
+Mutation: passing the host `PATH` through fails with `python is still reachable
+at .venv\Scripts\python.EXE`. On the runner: **3 passed in 15.99s**, against the
+downloaded artefact, and the release job now needs `smoke` as well as `build`.
+
+**Run #7 is the failure to remember from this phase, because it was reported
+as a success.** The smoke module's `installed` fixture is module-scoped and the
+autouse skip guarding it was function-scoped. pytest instantiates higher-scoped
+fixtures first, so the fixture that installs software ran on every plain
+`just test` *before* the skip executed. On the runner there was no installer and
+it failed loudly. Locally there was one, so it succeeded silently — and
+`uninstall.exe`'s timestamp shows the app being reinstalled at 10:49:33 by the
+very `just ci` whose summary, "636 passed, 3 skipped", was cited as proof the gate
+was clean. Two fixes, either sufficient: the guard is module-scoped now, and the
+side-effecting fixture checks the option itself. The rule that generalises: **the
+thing that performs a side effect is the thing that must refuse to**, whatever
+the instantiation order turns out to be. Verified by timestamp rather than by
+summary this time.
 
 **The artefact was downloaded, installed and run, not merely produced.** The
 27.6 MB installer from run #5 carries CI's own freshly-frozen 24.25 MB sidecar
@@ -1506,19 +1546,17 @@ wildcard would let any page the user has open read from their agent workspace.
 
 Phase 9 specifically:
 
-- **The second Windows machine has still never happened.** This is the one clause
-  of the acceptance criterion left open, and it needs hardware rather than work:
-  "runs on a second Windows machine with no Python installed". The CI-built
-  installer was installed and run here, on a machine that has Python. The frozen
-  sidecar was separately run with a minimal environment and no Python on `PATH`
-  back in Phase 1 and served correctly, which is suggestive and is not the same
-  claim.
-- **The `release` job has never fired.** No tag has been pushed, so
-  `gh release create`, the artefact hand-off from the Windows build job and the
-  `contents: write` permission are all untested. Every green run does leave a
-  downloadable installer as a workflow artefact, which is what the acceptance
-  criterion asks for; a tagged release is the other half of §5 Phase 9's "publish
-  the Windows artefact" and is one push away.
+- ~~**The second Windows machine.**~~ **Closed in substance by the `smoke`
+  job** — see "The machine reality" for why the literal clause is unavailable.
+  What it does not cover, and says so in its docstring: it launches the sidecar
+  rather than the GUI, because a Tauri window on a headless runner is unreliable
+  and the Rust shell is not the half that could need Python. And "no Python
+  installed" is a scrubbed environment on a runner that does have Python, not an
+  uninstalled Python; the scrub is asserted to be real before anything launches.
+- ~~**The `release` job has never fired.**~~ **Closed.** `v0.1.0` was tagged,
+  the pipeline ran green, and `gh release create` attached the installer. It has
+  fired exactly once, on a run that predates the `smoke` job; the `needs: [build,
+  smoke]` it carries now has not been exercised by a tag.
 - **macOS is built and has never been *run*.** The `.app` bundles and the frozen
   sidecar inside it starts, serves and shuts down under `verify-build` — but
   nobody has launched `AgentSpace.app`, opened its webview, or watched the Tauri
@@ -1832,6 +1870,40 @@ Phase 4 specifically:
   follow-through is not implemented, and no test asserts the supervisor
   actually does anything sensible with it.
 
+## The machine reality
+
+**Recorded 2026-09-11, because §5 Phase 9's acceptance criterion assumes
+otherwise and a future session will otherwise read it as unfinished work.**
+
+There is **one** Windows machine — this one, the development machine — and there
+will not be a second. The maintainer's other device is a **Mac**.
+
+Two consequences, and they pull in opposite directions.
+
+*Phase 9's criterion cannot be satisfied literally.* "A green CI run produces a
+downloadable installer that runs on a second Windows machine with no Python
+installed" needs a second Windows machine. The property it is really protecting
+is that the frozen sidecar does not silently depend on the development machine's
+Python installation — and that is testable without one. A GitHub
+`windows-latest` runner *is* a different machine: a clean VM with no `.venv`, no
+`node_modules`, no repository and no toolchain state. It does ship Python
+system-wide, so the honest test is to install the built installer there and launch
+the installed sidecar with Python scrubbed from its environment. That is weaker
+than a friend's laptop in one way and stronger in another: it runs on every
+release, forever, instead of once.
+
+*macOS stops being theoretical.* §1 constraint 7 and §7 both treat macOS as
+build-in-CI-only and never released, which was the right call when no Mac
+existed. One now will. Nothing about that changes v1's scope — §7's non-goal
+stands until it is deliberately revisited — but two things follow immediately.
+The first is that the Mac is a legitimate "machine with no Python and no
+toolchain" for the *macOS* artefact, which the workflow currently does not upload.
+The second is that macOS hard-blocks an unsigned app in a way Windows does not:
+§5 Phase 9's own note contrasts them, and running an unsigned, un-notarized
+`.app` needs `xattr -d com.apple.quarantine` or a right-click Open. So a real Mac
+release needs the notarization work §7 defers, and a Mac *test* needs one command
+the Windows path does not.
+
 ## The constraints that get violated by accident
 
 Restated from BUILD_SPEC §1 because these are the ones a well-meaning refactor
@@ -2034,6 +2106,16 @@ Recorded here as they happen, so a later session does not re-litigate them.
   recipes that had only ever run on warm dev trees, where `node_modules` and a
   stale `binaries/` are always already present. A test resolves the dependency
   graph rather than trusting it.
+- **2026-09-11 — a fresh CI runner stands in for the second Windows machine.**
+  §5 Phase 9's criterion assumes hardware that will not exist. The property it
+  protects — the frozen sidecar does not depend on the development machine's
+  Python — is what the `smoke` job tests, on the downloaded artefact, with the
+  scrub asserted before anything launches. A release now needs it to pass.
+- **2026-09-11 — a fixture that performs a side effect gates itself.** Run #7:
+  a module-scoped fixture installed software before the function-scoped autouse
+  skip meant to stop it ever ran, on every `just test`, under a summary reading
+  "3 skipped". Never rely on a separate fixture having run first to prevent a
+  side effect; the fixture that would do the damage checks the option itself.
 - **2026-09-11 — action refs are verified by existence, not by tag listing.**
   `GET /repos/{owner}/{repo}/git/ref/tags/{tag}` answers the only question that
   matters. Reading a summarised tag list produced `setup-uv@v10`, which is not a
