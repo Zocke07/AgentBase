@@ -1062,6 +1062,106 @@ records for this model, now visible from a phone.
 **52 events became a handful of message edits**, which is the one-message-per-run
 design doing its job — the throttle never had to be clever.
 
+### The frontend pass (2026-09-11)
+
+Between Phase 9 and Phase 10, a full pass over `apps/desktop/src` for the things
+a user hits once every acceptance criterion is met. Three explorers audited the
+state layer, the components and the API surface against the backend; the
+findings were then verified in a real browser and, for the keychain, in the
+real Tauri shell. What follows is the short version — the commit messages
+carry each item's own reasoning.
+
+**The window could not make a fresh install work.** The (untracked) user guide
+said so in as many words — "no Settings screen yet" — and sent people to
+Swagger UI for every setting and to Windows Credential Manager for keys, for a
+product whose §0 success criterion is "no terminal, no config files". Every
+one of the twelve workspace settings was PATCH-able and none was reachable
+from the window; `configured_secrets` was fetched and never rendered; the
+keyring plugin was registered, permitted to the webview, and called by
+nothing. There is a settings tab now, and keys are written from it to the OS
+keychain — verified in the real shell: set from the window, present in
+Credential Manager under `openai_api_key.dev.agentspace.desktop`, sent by the
+Rust shell at the next launch (`[keychain] sending 1 key(s)`), received by
+the sidecar, reported in `configured_secrets`, and present nowhere on disk in
+UTF-8 or UTF-16. The webview's keyring grant was `keyring:default`, which
+includes reading a password back, against the capability file's own
+description; it is set and delete now.
+
+**Twenty-three confirmed bugs, the worst of them a trap.** The approval
+dialog was a full-window modal whose `readOnly` came from the folded status.
+Scrubbed back into an approval span of a finished run, the fold says
+"running", so live Allow/Deny buttons rendered under a backdrop that covered
+the slider, the run list and the tabs, with no close control — a mouse user
+could not drag back out. The others, in the order they were fixed: an
+auto-approved call flashed the dialog between its two events; the activity
+label stuck on "calling the model" through a thirty-second shell command; the
+"Streamed output" glued every model call's text together; a bad frame
+permanently labelled a live stream as failed; every open downloaded the log
+twice; "No runs yet." flashed during the first fetch; the editor sent its
+whole form and undid a roster toggle; the model dropdown could not pin an
+Ollama model and let provider and model disagree; a type filter outlived the
+run it was chosen against; `/tools` failing gave an editor with no checkboxes
+and no explanation; switching to the Agents tab closed the stream and forgot
+the run; the run picker said "pending" for the whole of a live run; opening a
+finished run or dragging the scrubber across its terminal event refetched
+three endpoints; every `llm.token` was a full pass over the log; nothing
+rendered `view.errors`; no error boundary; Start stayed enabled while the
+header said runs would be refused; a Discord-originated run never reached the
+picker; `listApprovals` was written and never called; the debug run said
+`decision` where the reducer reads `status`; a run left `running` by a crash
+stayed `running` forever; `run.cancelled` was in the contract and nothing
+produced it.
+
+**Verified in a browser against `qwen3:4b`, from the page.** A run started
+from the goal box; the badge read `running` from the first tick; the graph
+read *supervisor: running spawn_agent* while the worker worked and *writer:
+waiting for approval* at the gate; Deny had focus when each question
+appeared; two approvals answered from the docked panel, the second saying
+"overwrite"; `hello.txt` on disk with exactly the 24 bytes named. Then:
+cancel while blocked at the gate → `approval.resolved expired`, `tool.denied
+"…before this run was cancelled"`, `run.cancelled`, within a second; replay
+scrubbed into the approval span → the question, no buttons, the read-only
+line, no backdrop, scrubber reachable; tab switch mid-run → stream still
+attached; `auto_approve: ["low","medium"]` → two tool calls, the panel seen
+in 0 of ~2,000 samples at 50 ms. Console clean throughout.
+
+**Two things the browser found that the suite did not.** A cancel is
+cooperative and a local model's call in flight can take half a minute; the
+button reverted to "Cancel run" the moment the request returned and read as
+though nothing had happened — it says "Stopping…" until `run.cancelled`
+arrives now. And the running sidecar predated `known_secrets`, the settings
+tab threw on the missing field, and the app-level boundary took all three
+tabs down: the browser and the sidecar are separately built artefacts, that
+one consumer tolerates an older sidecar, and each tab has its own boundary.
+
+**Structural changes worth knowing.** `headView` in the store is the fold at
+the head, kept while scrubbed, so the picker's badge and "did this run finish
+while I watched" come from the run rather than the scrubber. `appendEvents`
+folds a frame's worth of events in one update. The open run's id lives in
+`App`, so the header's "1 approval waiting" badge can open the run it names
+from any tab; per-run local state in the runs tab is tagged with its run and
+reads as empty for any other. `ApprovalPanel` straddles the identity
+boundary on purpose: question and history inside, action row outside. The
+approval question is docked above the log, which is a recorded deviation
+from §5 Phase 7's "modally" — see the decisions list.
+
+**Backend changes made for the frontend.** Orphaned runs are failed at
+startup with `run.failed` (it fired against real data on first launch: two
+rows pending since 2026-09-09). `GET /runs/{id}/events?after_seq=` resumes
+where the history ended. `POST /runs/{id}/cancel` is cooperative at the
+deadline check and releases an agent blocked on the gate. `PATCH /settings`
+answers `{message, field}`. `/settings/providers` groups models per provider
+and both it and `/settings/verify` have response models, so the one
+hand-written API type is gone. `llm.response` carries `cost_micros`. The
+debug script speaks the reducer's dialect. `GET /settings` publishes
+`known_secrets`.
+
+**Not done here, still open.** The event log has no windowing; the exact-type
+filter, hidden tokens and search made a 291-event run comfortable and nothing
+larger has been measured. The scrubber refolds from zero on every leftward
+tick. Telegram, the Discord live path and macOS were not touched. The
+untracked `docs/USER_GUIDE.md` still describes the window it predates.
+
 Next up: **Phase 10 — Portfolio artifacts.** Do not start it before re-reading
 BUILD_SPEC §5 Phase 10. Two things bear on it directly:
 
@@ -1741,10 +1841,10 @@ Phase 7 specifically:
   HTTP SSE client simultaneously, which is the acceptance criterion and is not
   this: no *browser* was open, so the store's duplicate handling under two real
   `EventSource` clients is still untested.
-- **The graph has never held more than three agents.** `max_agents_per_run` was 3
-  for these runs. The layout is a single row of workers with no wrapping, so a
-  run with a dozen agents will overflow horizontally; the camera zooms out to fit
-  it, which is not the same as a design that handles it.
+- ~~**The graph has never held more than three agents.**~~ **Narrowed in the
+  frontend pass.** Workers wrap at four per row now, and a test lays out six;
+  no live run has held more than two, so the wrapped layout has been seen in
+  jsdom and not on a screen.
 - **Long transcripts are still untested for size, and now for rendering too.**
   `llm.request` carries the full message list on every step, and the event log
   renders every row it is given with no virtualisation. The longest run this
@@ -2047,6 +2147,16 @@ field means.
 `agentspace/openapi.py` sits at the backend package root: it builds the OpenAPI
 document and emits the TypeScript from it, and is what `just schemas` runs.
 
+The frontend pass added `components/SettingsView.tsx` (the settings tab),
+`components/ApprovalPanel.tsx` (replacing `ApprovalDialog.tsx`; docked, two
+halves), `components/ErrorBoundary.tsx` (one per tab and one around the app),
+`lib/keychain.ts` (set and clear only, through the Tauri keyring plugin, with
+the service name from the shell's `keychain_service` command) and tests for
+`api.ts`, `sidecar.ts`, `useFetched`, `useRunStream` and every container
+component. `src/test/` still holds the log builder; container tests mock
+`lib/api` and `lib/events` (spreading the original so the pure helpers stay
+real), and `api.ts` itself is tested against a stubbed `fetch`.
+
 Phase 8 filled in `channels/`, which §3 sketches as three files and which is
 seven. `base.py` (the normalized `InboundMessage` and the two protocols),
 `discord_adapter.py` and `telegram_adapter.py` are §3's; the other four each
@@ -2092,6 +2202,28 @@ say".
 
 Recorded here as they happen, so a later session does not re-litigate them.
 
+- **2026-09-11 — a cancel is cooperative, at the deadline check.** It lands
+  before the run's next model call — the one place a run can stop and still
+  write a coherent terminal event — and it releases an agent blocked on the
+  gate by settling that run's pending approvals as `expired` (§4's status list
+  has no `cancelled`; a fifth value would be a migration for no reader). The
+  run writes `run.cancelled` itself; nothing else appends a terminal event.
+- **2026-09-11 — the picker and the meter refresh when the log knows more
+  than the table.** The rule is "the head's status disagrees with the row's",
+  keyed on the head status, not on the folded one: opening a finished run and
+  scrubbing across its terminal event change nothing about the run and used to
+  refetch three endpoints. A light poll runs only while some listed run is
+  unfinished, so an idle window makes no requests.
+- **2026-09-11 — the settings screen writes keys to the keychain and tells
+  the user to restart.** Keys reach the sidecar over stdin at spawn and nowhere
+  else (§1 constraint 4); a hot-reload path would be a second way for a secret
+  to enter the process and is deliberately not built. The webview holds set
+  and delete permissions only.
+- **2026-09-11 — the frontend tolerates a sidecar older than itself at the
+  one place it bit.** The browser and the sidecar are separately built
+  artefacts and a live check ran a new page against an old process. The
+  generated type stays honest; the consumer of `known_secrets` has a real
+  fallback, typed through a helper so the linter sees the branch.
 - **2026-09-11 — the approval question is a docked panel, not a modal.** §5
   Phase 7 says "surfaced modally", and this is a deliberate deviation under §6,
   agreed with the maintainer. The question is "may this agent overwrite
