@@ -9,6 +9,7 @@ import { useRunStore } from "../state/runStore";
 import { useFetched } from "../state/useFetched";
 import { useRunStream } from "../state/useRunStream";
 
+import { ErrorBoundary } from "./ErrorBoundary";
 import { RunPanel } from "./RunPanel";
 
 /**
@@ -207,16 +208,20 @@ export function RunsView({ onRunChanged }: RunsViewProps) {
             <p className="runs-view__connection" data-testid="connection-status">
               {connectionLabel(connection, gaps)}
             </p>
-            <RunPanel
-              view={view}
-              events={events}
-              cursor={cursor}
-              selectedAgent={selectedAgent}
-              onSelectAgent={setSelectedAgent}
-              onCursorChange={setCursor}
-              approvalReadOnly={approvalReadOnly}
-              onResolveApproval={resolveApproval}
-            />
+            {/* Keyed on the run so a panel that threw on one run does not
+                stay in its fallback when another is opened. */}
+            <ErrorBoundary key={runId} label="the run view">
+              <RunPanel
+                view={view}
+                events={events}
+                cursor={cursor}
+                selectedAgent={selectedAgent}
+                onSelectAgent={setSelectedAgent}
+                onCursorChange={setCursor}
+                approvalReadOnly={approvalReadOnly}
+                onResolveApproval={resolveApproval}
+              />
+            </ErrorBoundary>
           </>
         )}
       </main>

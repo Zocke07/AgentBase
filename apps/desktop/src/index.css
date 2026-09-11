@@ -914,6 +914,44 @@ body {
   font-size: 0.75rem;
 }
 
+/* --- error boundary ------------------------------------------------------- */
+
+/* The inner wrapper has to be invisible to layout: it sits between every
+   grid/flex parent and the child it used to hold directly. */
+.boundary__inner {
+  display: contents;
+}
+
+.boundary {
+  margin: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--bad);
+  border-radius: 0.6rem;
+  background: var(--surface);
+}
+
+.boundary__title {
+  margin: 0 0 0.5rem;
+  font-weight: 600;
+}
+
+.boundary__message {
+  margin: 0 0 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.4rem;
+  background: var(--surface-2);
+  color: var(--bad);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+}
+
+.boundary__hint {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
 /* --- budget meter --------------------------------------------------------- */
 
 .budget {
