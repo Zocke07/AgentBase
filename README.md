@@ -81,9 +81,9 @@ upgrading or uninstalling the app does not touch it.
 Once it is installed, the **[User Guide](docs/USER_GUIDE.md)** covers everything
 after the first launch: adding an API key or using a local model, changing
 settings, starting a run, answering approvals, defining agents, and connecting
-Discord. Read its first section before anything else — this version
-has no Settings screen, and the guide says where those two setup steps happen
-instead.
+Discord. Keys and settings are entered on the app's **Settings** tab; a key is
+written to the operating system's keychain and read the next time the app
+starts, so set it, then restart.
 
 ## CI
 
