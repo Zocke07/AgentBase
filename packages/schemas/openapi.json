@@ -483,6 +483,58 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "ProviderCatalogueResponse": {
+        "description": "What can be selected, and which models are priced, per provider.",
+        "properties": {
+          "models": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Models",
+            "type": "object"
+          },
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderEntry"
+            },
+            "title": "Providers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "providers",
+          "models"
+        ],
+        "title": "ProviderCatalogueResponse",
+        "type": "object"
+      },
+      "ProviderEntry": {
+        "description": "One selectable provider.",
+        "properties": {
+          "free_text_model": {
+            "title": "Free Text Model",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "requires_key": {
+            "title": "Requires Key",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "requires_key",
+          "free_text_model"
+        ],
+        "title": "ProviderEntry",
+        "type": "object"
+      },
       "ResolveApprovalRequest": {
         "additionalProperties": false,
         "description": "A decision on one approval.\n\n``extra=\"forbid\"`` for the reason every request model in this project has\nit: Pydantic's default is to drop an unknown field, which turned a\nmisspelled setting into a `200 OK` that changed nothing once already\n(CLAUDE.md, Phase 4). Here the stakes are higher \u2014 a client that sent\n``{\"approve\": true}`` would have the typo silently read as a denial.",
@@ -949,6 +1001,53 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "VerifyResponse": {
+        "description": "Whether the current settings can build a provider, and why not if not.",
+        "properties": {
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "VerifyResponse",
         "type": "object"
       },
       "WorkspaceSettings": {
@@ -1731,16 +1830,14 @@
     },
     "/settings/providers": {
       "get": {
-        "description": "What can be selected, and which models are priced.\n\nPhase 7's dropdowns read this instead of hardcoding a list that would drift\nfrom `pricing.py` the first time a model is added.",
+        "description": "What can be selected, and which models are priced.\n\nPhase 7's dropdowns read this instead of hardcoding a list that would drift\nfrom `pricing.py` the first time a model is added. Grouped per provider\nbecause a flat list let the editor offer every Anthropic model under\nprovider ``openai`` \u2014 and offered no Ollama model at all, since the wildcard\nprice row is not a model.",
         "operationId": "list_providers_settings_providers_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response List Providers Settings Providers Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ProviderCatalogueResponse"
                 }
               }
             },
@@ -1752,16 +1849,14 @@
     },
     "/settings/verify": {
       "post": {
-        "description": "Check the current settings can actually build a provider.\n\nDeliberately does *not* call the model: that would spend money to answer a\nconfiguration question, and the budget check exists precisely to stop\nunbudgeted calls. It reports whether the credentials and the provider name\nare sufficient to construct one.",
+        "description": "Check the current settings can actually build a provider.\n\nDeliberately does *not* call the model: that would spend money to answer a\nconfiguration question, and the budget check exists precisely to stop\nunbudgeted calls. It reports whether the credentials and the provider name\nare sufficient to construct one. It is also the dashboard's pre-flight \u2014\nthe same refusal a run would get, shown beside the goal box before Start.",
         "operationId": "verify_provider_settings_verify_post",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Verify Provider Settings Verify Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/VerifyResponse"
                 }
               }
             },

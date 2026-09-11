@@ -1,8 +1,13 @@
-import type { AgentDef, CreateAgentRequest, ToolResponse, UpdateAgentRequest } from "@agentspace/schemas";
+import type {
+  AgentDef,
+  CreateAgentRequest,
+  ProviderCatalogueResponse,
+  ToolResponse,
+  UpdateAgentRequest,
+} from "@agentspace/schemas";
 import { useCallback, useState } from "react";
 
 import * as api from "../lib/api";
-import type { ProviderCatalogue } from "../lib/api";
 import { useFetched } from "../state/useFetched";
 
 import { AgentEditor } from "./AgentEditor";
@@ -25,9 +30,14 @@ import { AgentList } from "./AgentList";
 
 const NO_AGENTS: AgentDef[] = [];
 const NO_TOOLS: ToolResponse[] = [];
-const NO_CATALOGUE: ProviderCatalogue = { providers: [], models: [] };
+const NO_CATALOGUE: ProviderCatalogueResponse = { providers: [], models: {} };
 
-export function AgentsView() {
+export interface AgentsViewProps {
+  /** The workspace's provider, so the editor knows what "inherit" means. */
+  workspaceProvider: string | null;
+}
+
+export function AgentsView({ workspaceProvider }: AgentsViewProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editing, setEditing] = useState<"none" | "new" | "existing">("none");
   const [actionError, setActionError] = useState<string | null>(null);
@@ -121,8 +131,8 @@ export function AgentsView() {
             key={editing === "new" ? "new" : (selected?.id ?? "new")}
             agent={editing === "existing" ? selected : null}
             tools={tools.data}
-            providers={catalogue.data.providers.map((provider) => provider.name)}
-            models={catalogue.data.models}
+            catalogue={catalogue.data}
+            workspaceProvider={workspaceProvider}
             onCreate={create}
             onPatch={patch}
             onCancel={() => {

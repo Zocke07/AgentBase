@@ -226,15 +226,49 @@ def test_the_provider_list_reports_which_need_a_key(client: TestClient) -> None:
     assert providers["ollama"]["requires_key"] is False
 
 
-def test_the_model_list_comes_from_the_price_table(client: TestClient) -> None:
+def test_the_model_list_comes_from_the_price_table_grouped_by_provider(
+    client: TestClient,
+) -> None:
     """Phase 7's dropdown reads this instead of hardcoding a list that would
-    drift from pricing.py."""
-    models = client.get("/settings/providers").json()["models"]
+    drift from pricing.py.
 
-    assert "claude-opus-5" in models
-    assert "gpt-4o" in models
-    # The wildcard row is an implementation detail, not a selectable model.
-    assert not any(model.endswith("/*") for model in models)
+    Grouped, because a flat list let the editor offer every Anthropic model
+    under provider ``openai`` and offered no Ollama model at all — the wildcard
+    row is not a selectable model, and Ollama's models are whatever the user has
+    pulled, which no table can enumerate.
+    """
+    body = client.get("/settings/providers").json()
+    models = body["models"]
+
+    assert "claude-opus-5" in models["anthropic"]
+    assert "gpt-4o" in models["openai"]
+    assert "claude-opus-5" not in models["openai"]
+    assert models["ollama"] == []
+    assert not any(model.endswith("/*") for group in models.values() for model in group)
+
+    providers = {p["name"]: p for p in body["providers"]}
+    assert providers["ollama"]["free_text_model"] is True
+    assert providers["anthropic"]["free_text_model"] is False
+
+
+def test_every_supported_provider_has_a_model_group(client: TestClient) -> None:
+    """Two lists that must agree, compared rather than trusted — the shape of
+    Phase 6's `auto_approve` lesson."""
+    body = client.get("/settings/providers").json()
+
+    assert set(body["models"]) == {p["name"] for p in body["providers"]}
+
+
+def test_both_catalogue_endpoints_are_typed_in_the_schema(client: TestClient) -> None:
+    """§5 Phase 7: never hand-write the API types. An endpoint answering an
+    untyped ``dict`` has no schema, and the frontend was hand-writing one."""
+    paths = client.get("/openapi.json").json()["paths"]
+
+    for path, method in (("/settings/providers", "get"), ("/settings/verify", "post")):
+        schema = paths[path][method]["responses"]["200"]["content"]["application/json"][
+            "schema"
+        ]
+        assert "$ref" in schema, f"{method.upper()} {path} answers with no response model"
 
 
 # --- budget ------------------------------------------------------------------

@@ -51,7 +51,10 @@ const tools: ToolResponse[] = [
 beforeEach(() => {
   mocked.listAgents.mockResolvedValue([writer]);
   mocked.listTools.mockResolvedValue(tools);
-  mocked.listProviders.mockResolvedValue({ providers: [{ name: "ollama", requires_key: false }], models: [] });
+  mocked.listProviders.mockResolvedValue({
+    providers: [{ name: "ollama", requires_key: false, free_text_model: true }],
+    models: { ollama: [] },
+  });
 });
 
 describe("what it fetches", () => {
@@ -61,7 +64,7 @@ describe("what it fetches", () => {
        yet." — wrong, and alarming on a fresh install that has three. */
     mocked.listAgents.mockReturnValue(new Promise(() => undefined));
 
-    render(<AgentsView />);
+    render(<AgentsView workspaceProvider="ollama" />);
 
     expect(screen.queryByText("No agent definitions yet.")).toBeNull();
     expect(screen.getByTestId("agent-list").textContent).toContain("Loading");
@@ -74,7 +77,7 @@ describe("what it fetches", () => {
     const user = userEvent.setup();
     mocked.listTools.mockRejectedValue(new Error("GET /tools: HTTP 500"));
 
-    render(<AgentsView />);
+    render(<AgentsView workspaceProvider="ollama" />);
     await user.click(await screen.findByRole("button", { name: "New agent" }));
 
     expect(screen.getByRole("alert").textContent).toContain("GET /tools: HTTP 500");
@@ -84,7 +87,7 @@ describe("what it fetches", () => {
     const user = userEvent.setup();
     mocked.listProviders.mockRejectedValue(new Error("GET /settings/providers: HTTP 500"));
 
-    render(<AgentsView />);
+    render(<AgentsView workspaceProvider="ollama" />);
     await user.click(await screen.findByRole("button", { name: "New agent" }));
 
     expect(screen.getByRole("alert").textContent).toContain("/settings/providers");
@@ -94,7 +97,7 @@ describe("what it fetches", () => {
 describe("editing", () => {
   it("opens the editor on the row that was clicked", async () => {
     const user = userEvent.setup();
-    render(<AgentsView />);
+    render(<AgentsView workspaceProvider="ollama" />);
 
     await user.click(await screen.findByText("writer"));
 
@@ -106,7 +109,7 @@ describe("editing", () => {
   it("reports a refused delete beside the roster rather than hiding the button", async () => {
     const user = userEvent.setup();
     mocked.deleteAgent.mockRejectedValue(new Error("built-in definitions cannot be deleted"));
-    render(<AgentsView />);
+    render(<AgentsView workspaceProvider="ollama" />);
 
     await user.click(await screen.findByTestId("delete-writer"));
 

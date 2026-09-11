@@ -151,6 +151,19 @@ export interface HTTPValidationError {
   detail?: ValidationError[];
 }
 
+/** What can be selected, and which models are priced, per provider. */
+export interface ProviderCatalogueResponse {
+  providers: ProviderEntry[];
+  models: Record<string, string[]>;
+}
+
+/** One selectable provider. */
+export interface ProviderEntry {
+  name: string;
+  requires_key: boolean;
+  free_text_model: boolean;
+}
+
 /**
  * A decision on one approval.
  *
@@ -262,6 +275,14 @@ export interface ValidationError {
   type: string;
   input?: unknown;
   ctx?: Record<string, unknown>;
+}
+
+/** Whether the current settings can build a provider, and why not if not. */
+export interface VerifyResponse {
+  ok: boolean;
+  reason?: string | null;
+  provider?: string | null;
+  model?: string | null;
 }
 
 /** Everything the user can configure that is not a secret. */

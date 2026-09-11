@@ -21,6 +21,7 @@ vi.mock("./lib/api", () => ({
   getRunHistory: vi.fn(),
   getBudget: vi.fn(),
   getSettings: vi.fn(),
+  verifySettings: vi.fn(),
   listAgents: vi.fn(),
   listTools: vi.fn(),
   listProviders: vi.fn(),
@@ -42,9 +43,10 @@ beforeEach(() => {
   vi.mocked(events.streamRun).mockReturnValue({ close: vi.fn() });
   mocked.getBudget.mockRejectedValue(new Error("not in this test"));
   mocked.getSettings.mockRejectedValue(new Error("not in this test"));
+  mocked.verifySettings.mockResolvedValue({ ok: true, provider: "ollama", model: "qwen3:4b" });
   mocked.listAgents.mockResolvedValue([]);
   mocked.listTools.mockResolvedValue([]);
-  mocked.listProviders.mockResolvedValue({ providers: [], models: [] });
+  mocked.listProviders.mockResolvedValue({ providers: [], models: {} });
   mocked.getRunHistory.mockResolvedValue([]);
   mocked.listRuns.mockResolvedValue([
     {
@@ -57,6 +59,35 @@ beforeEach(() => {
       finished_at: null,
     },
   ]);
+});
+
+describe("pre-flight", () => {
+  it("puts the sidecar's own refusal beside the goal box before any run is started", async () => {
+    mocked.verifySettings.mockResolvedValue({
+      ok: false,
+      reason: "No API key for anthropic is configured.",
+    });
+
+    render(<App />);
+
+    expect((await screen.findByTestId("preflight")).textContent).toContain("No API key for anthropic");
+  });
+
+  it("refuses to start a run once the month's cap is reached", async () => {
+    mocked.getBudget.mockResolvedValue({
+      period: "2026-09",
+      spent_micros: 20_000_000,
+      cap_micros: 20_000_000,
+      percent_used: 100,
+      spent_display: "$20.0000",
+      cap_display: "$20.0000",
+    });
+
+    render(<App />);
+
+    expect((await screen.findByTestId("preflight")).textContent).toContain("cap");
+    expect(screen.getByRole("button", { name: "Start run" })).toHaveProperty("disabled", true);
+  });
 });
 
 describe("switching tabs", () => {

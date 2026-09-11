@@ -26,7 +26,7 @@ from agentspace.providers.factory import (
     build_provider,
     qualified_model,
 )
-from agentspace.providers.pricing import PRICES, format_micros, is_priced
+from agentspace.providers.pricing import MODELS_BY_PROVIDER, PRICES, format_micros, is_priced
 from agentspace.store.settings import ChannelApprovalPolicy, WorkspaceSettings
 from agentspace.tools.catalogue import RiskLevel
 
@@ -191,20 +191,47 @@ async def update_settings(request: Request, body: UpdateSettingsRequest) -> Sett
     return await _response(request, updated)
 
 
+class ProviderEntry(BaseModel):
+    """One selectable provider."""
+
+    name: str
+    requires_key: bool
+    #: True when the provider serves whatever the user has installed and the
+    #: model name is typed rather than picked — Ollama. False when the models
+    #: are the priced ones in ``models``.
+    free_text_model: bool
+
+
+class ProviderCatalogueResponse(BaseModel):
+    """What can be selected, and which models are priced, per provider."""
+
+    providers: list[ProviderEntry]
+    #: Priced models grouped by provider name. A free-text provider's list is
+    #: empty on purpose: there is nothing to enumerate.
+    models: dict[str, list[str]]
+
+
 @router.get("/settings/providers")
-async def list_providers() -> dict[str, Any]:
+async def list_providers() -> ProviderCatalogueResponse:
     """What can be selected, and which models are priced.
 
     Phase 7's dropdowns read this instead of hardcoding a list that would drift
-    from `pricing.py` the first time a model is added.
+    from `pricing.py` the first time a model is added. Grouped per provider
+    because a flat list let the editor offer every Anthropic model under
+    provider ``openai`` — and offered no Ollama model at all, since the wildcard
+    price row is not a model.
     """
-    return {
-        "providers": [
-            {"name": name, "requires_key": secret is not None}
+    return ProviderCatalogueResponse(
+        providers=[
+            ProviderEntry(
+                name=name,
+                requires_key=secret is not None,
+                free_text_model=f"{name}/*" in PRICES,
+            )
             for name, secret in sorted(SUPPORTED_PROVIDERS.items())
         ],
-        "models": sorted(model for model in PRICES if not model.endswith("/*")),
-    }
+        models={name: MODELS_BY_PROVIDER.get(name, []) for name in sorted(SUPPORTED_PROVIDERS)},
+    )
 
 
 @router.get("/budget")
@@ -224,31 +251,43 @@ async def get_budget(request: Request) -> BudgetResponse:
     )
 
 
+class VerifyResponse(BaseModel):
+    """Whether the current settings can build a provider, and why not if not."""
+
+    ok: bool
+    #: Set when ``ok`` is false: the sentence to show the user.
+    reason: str | None = None
+    #: Set when ``ok`` is true: what was built.
+    provider: str | None = None
+    model: str | None = None
+
+
 @router.post("/settings/verify")
-async def verify_provider(request: Request) -> dict[str, Any]:
+async def verify_provider(request: Request) -> VerifyResponse:
     """Check the current settings can actually build a provider.
 
     Deliberately does *not* call the model: that would spend money to answer a
     configuration question, and the budget check exists precisely to stop
     unbudgeted calls. It reports whether the credentials and the provider name
-    are sufficient to construct one.
+    are sufficient to construct one. It is also the dashboard's pre-flight —
+    the same refusal a run would get, shown beside the goal box before Start.
     """
     settings = await _settings_store(request).get()
 
     try:
         provider = build_provider(settings, _secrets(request))
     except UnknownProviderError as exc:
-        return {"ok": False, "reason": str(exc)}
+        return VerifyResponse(ok=False, reason=str(exc))
     except ProviderAuthError as exc:
-        return {"ok": False, "reason": str(exc)}
+        return VerifyResponse(ok=False, reason=str(exc))
 
     if not is_priced(provider.model):
-        return {
-            "ok": False,
-            "reason": (
+        return VerifyResponse(
+            ok=False,
+            reason=(
                 f"Model {provider.model!r} has no registered price, so runs using it "
                 f"are refused before any API call. Choose a priced model."
             ),
-        }
+        )
 
-    return {"ok": True, "provider": provider.name, "model": provider.model}
+    return VerifyResponse(ok=True, provider=provider.name, model=provider.model)

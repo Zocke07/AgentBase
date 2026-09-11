@@ -83,7 +83,7 @@ describe("refreshing the picker and the meter", () => {
     const user = userEvent.setup();
     const onRunChanged = vi.fn();
     mocked.listRuns.mockResolvedValue([row("running")]);
-    render(<RunsView onRunChanged={onRunChanged} />);
+    render(<RunsView onRunChanged={onRunChanged} blocker={null} />);
     await pick(user, "quarterly");
     expect(mocked.listRuns).toHaveBeenCalledTimes(1);
 
@@ -104,7 +104,7 @@ describe("refreshing the picker and the meter", () => {
     const onRunChanged = vi.fn();
     mocked.listRuns.mockResolvedValue([row("completed")]);
     mocked.getRunHistory.mockResolvedValue(twoAgentRun());
-    render(<RunsView onRunChanged={onRunChanged} />);
+    render(<RunsView onRunChanged={onRunChanged} blocker={null} />);
 
     await pick(user, "quarterly");
     await waitFor(() => {
@@ -121,7 +121,7 @@ describe("refreshing the picker and the meter", () => {
     mocked.listRuns.mockResolvedValue([row("completed")]);
     const log = twoAgentRun();
     mocked.getRunHistory.mockResolvedValue(log);
-    render(<RunsView onRunChanged={onRunChanged} />);
+    render(<RunsView onRunChanged={onRunChanged} blocker={null} />);
     await pick(user, "quarterly");
     await waitFor(() => {
       expect(screen.getByTestId("run-status").textContent).toBe("completed");
@@ -143,7 +143,7 @@ describe("refreshing the picker and the meter", () => {
        ends, so a live run wore "pending" in the picker for its whole duration. */
     const user = userEvent.setup();
     mocked.listRuns.mockResolvedValue([row("pending")]);
-    render(<RunsView onRunChanged={vi.fn()} />);
+    render(<RunsView onRunChanged={vi.fn()} blocker={null} />);
     await pick(user, "quarterly");
 
     await deliver(twoAgentRun().slice(0, 3));
@@ -154,11 +154,32 @@ describe("refreshing the picker and the meter", () => {
 });
 
 describe("starting a run", () => {
+  it("says why a run would be refused, beside the goal box, and does not offer to start one", async () => {
+    /* The header said "unpriced — runs will be refused" and the meter said
+       "further runs are refused" while the Start button stayed live. Every
+       click added a dead `failed` row to the picker, with the reason only in
+       the run's own log. */
+    const user = userEvent.setup();
+    mocked.listRuns.mockResolvedValue([]);
+    render(
+      <RunsView
+        onRunChanged={vi.fn()}
+        blocker="No API key for anthropic. Add one in the settings and restart."
+      />,
+    );
+
+    await user.type(screen.getByTestId("goal-input"), "do a thing");
+
+    expect(screen.getByTestId("preflight").textContent).toContain("No API key for anthropic");
+    expect(screen.getByRole("button", { name: "Start run" })).toHaveProperty("disabled", true);
+    expect(mocked.createRun).not.toHaveBeenCalled();
+  });
+
   it("clears a failed start's message once another run is picked", async () => {
     const user = userEvent.setup();
     mocked.listRuns.mockResolvedValue([row("completed")]);
     mocked.createRun.mockRejectedValue(new Error("the sidecar refused"));
-    render(<RunsView onRunChanged={vi.fn()} />);
+    render(<RunsView onRunChanged={vi.fn()} blocker={null} />);
 
     await user.type(screen.getByTestId("goal-input"), "do a thing");
     await user.click(screen.getByRole("button", { name: "Start run" }));

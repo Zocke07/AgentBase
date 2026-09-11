@@ -24,6 +24,8 @@ import { RunPanel } from "./RunPanel";
 export interface RunsViewProps {
   /** Bumped by the shell whenever spend may have changed, to refresh the meter. */
   onRunChanged: () => void;
+  /** Why a run started now would be refused, or null when one can start. */
+  blocker: string | null;
 }
 
 function connectionLabel(
@@ -50,7 +52,7 @@ function connectionLabel(
 
 const NO_RUNS: Run[] = [];
 
-export function RunsView({ onRunChanged }: RunsViewProps) {
+export function RunsView({ onRunChanged, blocker }: RunsViewProps) {
   const [runId, setRunId] = useState<string | null>(null);
   const [goal, setGoal] = useState("");
   const [starting, setStarting] = useState(false);
@@ -105,7 +107,7 @@ export function RunsView({ onRunChanged }: RunsViewProps) {
 
   const start = async () => {
     const trimmed = goal.trim();
-    if (trimmed === "") return;
+    if (trimmed === "" || blocker !== null) return;
 
     setStarting(true);
     setStartError(null);
@@ -152,10 +154,15 @@ export function RunsView({ onRunChanged }: RunsViewProps) {
               data-testid="goal-input"
             />
           </label>
+          {blocker !== null && (
+            <p className="new-run__preflight" role="status" data-testid="preflight">
+              {blocker}
+            </p>
+          )}
           <button
             type="submit"
             className="button button--primary"
-            disabled={starting || goal.trim() === ""}
+            disabled={starting || goal.trim() === "" || blocker !== null}
           >
             {starting ? "Starting…" : "Start run"}
           </button>

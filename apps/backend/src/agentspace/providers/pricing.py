@@ -32,6 +32,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "MICROS_PER_DOLLAR",
+    "MODELS_BY_PROVIDER",
     "PRICES",
     "ModelPrice",
     "UnknownModelError",
@@ -100,13 +101,16 @@ def _dollars_to_micros(dollars: str) -> int:
     return int(whole) * MICROS_PER_DOLLAR + int(fraction)
 
 
-#: List prices per million tokens.
+#: List prices per million tokens, one table per provider.
 #:
 #: Anthropic rows checked 2026-06-24 against the bundled `claude-api` reference;
 #: OpenAI rows checked 2026-09-09 against developers.openai.com/api/docs/pricing.
 #: Both are standard-tier, short-context, non-batch rates.
-PRICES: Final[dict[str, ModelPrice]] = {
-    # --- Anthropic ---
+#:
+#: Kept per provider so the settings API can say which models belong to which
+#: provider without a second table that would drift from this one. ``PRICES``
+#: and ``MODELS_BY_PROVIDER`` below are two views of these.
+_ANTHROPIC: Final[dict[str, ModelPrice]] = {
     "claude-fable-5-1": _usd("10.00", "50.00"),
     "claude-fable-5": _usd("10.00", "50.00"),
     "claude-opus-5": _usd("5.00", "25.00"),
@@ -116,7 +120,9 @@ PRICES: Final[dict[str, ModelPrice]] = {
     "claude-sonnet-5": _usd("2.00", "10.00"),
     "claude-sonnet-4-6": _usd("3.00", "15.00"),
     "claude-haiku-4-5": _usd("1.00", "5.00"),
-    # --- OpenAI ---
+}
+
+_OPENAI: Final[dict[str, ModelPrice]] = {
     "gpt-6-astra": _usd("10.00", "50.00"),
     "gpt-5.6-sol": _usd("4.00", "20.00"),
     "gpt-5.6-terra": _usd("2.00", "12.00"),
@@ -137,11 +143,27 @@ PRICES: Final[dict[str, ModelPrice]] = {
     "gpt-4o-mini": _usd("0.15", "0.60"),
     "o3": _usd("2.00", "8.00"),
     "o3-mini": _usd("1.10", "4.40"),
-    # --- Local ---
-    #: Inference on the user's own hardware. Registered explicitly at zero so
-    #: that "free" and "we do not know the price" stay different answers; the
-    #: wildcard is documentation, `_lookup` matches any `ollama/` model.
+}
+
+#: Inference on the user's own hardware. Registered explicitly at zero so that
+#: "free" and "we do not know the price" stay different answers; the wildcard
+#: is documentation, `_lookup` matches any `ollama/` model. Ollama serves
+#: whatever the user has pulled, so there is no list of models to offer — the
+#: model name is free text, and ``MODELS_BY_PROVIDER`` says so with an empty
+#: list.
+_LOCAL: Final[dict[str, ModelPrice]] = {
     "ollama/*": ModelPrice(input_micros_per_million=0, output_micros_per_million=0),
+}
+
+PRICES: Final[dict[str, ModelPrice]] = {**_ANTHROPIC, **_OPENAI, **_LOCAL}
+
+#: The selectable models of each provider, for a dropdown. Derived from the
+#: same tables as ``PRICES`` so the two cannot disagree; the wildcard row is an
+#: implementation detail and is not a model anyone can pick.
+MODELS_BY_PROVIDER: Final[dict[str, list[str]]] = {
+    "anthropic": sorted(_ANTHROPIC),
+    "openai": sorted(_OPENAI),
+    "ollama": [],
 }
 
 

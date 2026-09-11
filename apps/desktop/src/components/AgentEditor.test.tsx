@@ -1,4 +1,10 @@
-import type { AgentDef, CreateAgentRequest, ToolResponse, UpdateAgentRequest } from "@agentspace/schemas";
+import type {
+  AgentDef,
+  CreateAgentRequest,
+  ProviderCatalogueResponse,
+  ToolResponse,
+  UpdateAgentRequest,
+} from "@agentspace/schemas";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -27,6 +33,19 @@ const TOOLS: ToolResponse[] = [
   { name: "run_shell", description: "Run a shell command.", risk: "high", available: true },
 ];
 
+const CATALOGUE: ProviderCatalogueResponse = {
+  providers: [
+    { name: "anthropic", requires_key: true, free_text_model: false },
+    { name: "ollama", requires_key: false, free_text_model: true },
+    { name: "openai", requires_key: true, free_text_model: false },
+  ],
+  models: {
+    anthropic: ["claude-opus-5", "claude-sonnet-5"],
+    ollama: [],
+    openai: ["gpt-4o", "gpt-5.4-mini"],
+  },
+};
+
 /**
  * Render the editor. `onSave` stands in for whichever of the two callbacks the
  * mode under test will call — create for a new definition, patch for an edit.
@@ -35,7 +54,9 @@ const TOOLS: ToolResponse[] = [
 type Save = (body: CreateAgentRequest | UpdateAgentRequest) => Promise<void>;
 
 function editor(
-  overrides: Partial<Pick<Parameters<typeof AgentEditor>[0], "agent" | "onCancel">> & {
+  overrides: Partial<
+    Pick<Parameters<typeof AgentEditor>[0], "agent" | "onCancel" | "workspaceProvider">
+  > & {
     onSave?: Save;
   } = {},
 ) {
@@ -44,8 +65,8 @@ function editor(
     <AgentEditor
       agent={overrides.agent ?? null}
       tools={TOOLS}
-      providers={["anthropic", "ollama"]}
-      models={["claude-sonnet-5", "qwen3:4b"]}
+      catalogue={CATALOGUE}
+      workspaceProvider={overrides.workspaceProvider ?? "anthropic"}
       onCreate={onSave}
       onPatch={onSave}
       onCancel={overrides.onCancel ?? vi.fn()}
@@ -53,6 +74,9 @@ function editor(
   );
   return { onSave };
 }
+
+const modelOptions = () =>
+  [...screen.getByTestId<HTMLSelectElement>("field-model").options].map((option) => option.value);
 
 describe("validation errors land on the field the server blamed", () => {
   it("shows a duplicate-name conflict against the name input", async () => {
@@ -150,6 +174,64 @@ describe("the tool allowlist", () => {
     expect(screen.getByTestId("agent-editor").textContent).toContain(
       "every call still stops at the approval gate",
     );
+  });
+});
+
+describe("the model field follows the provider", () => {
+  it("offers only the chosen provider's models", async () => {
+    /* A flat list let a definition pin `claude-opus-5` under provider
+       `openai`, which the backend would refuse at run time — after the run
+       had been started. */
+    const user = userEvent.setup();
+    editor();
+
+    await user.selectOptions(screen.getByTestId("field-provider"), "openai");
+
+    expect(modelOptions()).toEqual(["", "gpt-4o", "gpt-5.4-mini"]);
+  });
+
+  it("offers the workspace provider's models when the provider is inherited", () => {
+    editor({ workspaceProvider: "openai" });
+
+    expect(modelOptions()).toEqual(["", "gpt-4o", "gpt-5.4-mini"]);
+  });
+
+  it("takes a typed model name for a provider with no fixed list", async () => {
+    /* Ollama serves whatever the user has pulled. The old select offered no
+       Ollama model at all, so no definition could ever be pinned to one. */
+    const user = userEvent.setup();
+    const { onSave } = editor();
+
+    await user.selectOptions(screen.getByTestId("field-provider"), "ollama");
+    await user.type(screen.getByTestId("field-name"), "local");
+    await user.type(screen.getByTestId("field-model"), "qwen3:4b");
+    await user.click(screen.getByRole("button", { name: "Create agent" }));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: "ollama", model: "qwen3:4b" }),
+    );
+  });
+
+  it("keeps showing a saved model that is not in the current provider's list", () => {
+    /* Rather than silently displaying "inherit" for a value the form still
+       holds — the mismatch is the thing the user needs to see. */
+    const agent: AgentDef = {
+      id: "def-1",
+      name: "odd",
+      role: "r",
+      system_prompt: "p",
+      provider: "openai",
+      model: "claude-opus-5",
+      allowed_tools: [],
+      is_builtin: false,
+      enabled: true,
+      created_at: "2026-09-10T00:00:00Z",
+      updated_at: "2026-09-10T00:00:00Z",
+    };
+    editor({ agent });
+
+    expect(screen.getByTestId("field-model")).toHaveProperty("value", "claude-opus-5");
+    expect(screen.getByTestId("agent-editor").textContent).toContain("not one of openai's models");
   });
 });
 

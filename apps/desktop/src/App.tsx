@@ -1,4 +1,4 @@
-import type { BudgetResponse, SettingsResponse } from "@agentspace/schemas";
+import type { BudgetResponse, SettingsResponse, VerifyResponse } from "@agentspace/schemas";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AgentsView } from "./components/AgentsView";
@@ -28,6 +28,7 @@ export function App() {
   const [tab, setTab] = useState<Tab>("runs");
   const [budget, setBudget] = useState<BudgetResponse | null>(null);
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
+  const [verified, setVerified] = useState<VerifyResponse | null>(null);
   const inFlight = useRef<AbortController | null>(null);
 
   const connect = useCallback(() => {
@@ -47,11 +48,24 @@ export function App() {
   const refreshWorkspace = useCallback(() => {
     void api.getBudget().then(setBudget).catch(() => undefined);
     void api.getSettings().then(setSettings).catch(() => undefined);
+    // The sidecar's own answer to "would a run be refused right now" — the
+    // same check a run fails on, without a model call.
+    void api.verifySettings().then(setVerified).catch(() => undefined);
   }, []);
 
   useEffect(() => {
     if (status.kind === "ready") refreshWorkspace();
   }, [status.kind, refreshWorkspace]);
+
+  // Why a run started now would be refused, or null. Shown beside the goal
+  // box and disabling Start — the header already said "runs will be refused"
+  // while the button stayed live, and every click added a dead `failed` row.
+  const blocker =
+    verified !== null && !verified.ok
+      ? (verified.reason ?? "The current settings cannot build a provider.")
+      : budget !== null && budget.percent_used >= 100
+        ? `This month's cap of ${budget.cap_display} is reached, so further runs are refused.`
+        : null;
 
   if (status.kind !== "ready") {
     return (
@@ -129,10 +143,10 @@ export function App() {
             re-picking the run and re-downloading its whole log — and any
             approval that arrived meanwhile went unseen until it expired. */}
         <div className="app__view" hidden={tab !== "runs"}>
-          <RunsView onRunChanged={refreshWorkspace} />
+          <RunsView onRunChanged={refreshWorkspace} blocker={blocker} />
         </div>
         <div className="app__view" hidden={tab !== "agents"}>
-          <AgentsView />
+          <AgentsView workspaceProvider={settings?.settings.provider ?? null} />
         </div>
       </div>
     </div>

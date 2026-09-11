@@ -1,4 +1,10 @@
-import type { AgentDef, CreateAgentRequest, ToolResponse, UpdateAgentRequest } from "@agentspace/schemas";
+import type {
+  AgentDef,
+  CreateAgentRequest,
+  ProviderCatalogueResponse,
+  ToolResponse,
+  UpdateAgentRequest,
+} from "@agentspace/schemas";
 import { useState } from "react";
 
 import { ApiError } from "../lib/api";
@@ -26,6 +32,13 @@ import { ApiError } from "../lib/api";
  * from the definition, never from the user. Every call still stops at the
  * approval gate (§1 constraint 5), which is why the hint below says so.
  *
+ * **The model field follows the provider.** The catalogue arrives grouped per
+ * provider, and the model dropdown shows the chosen provider's models — or the
+ * workspace provider's, when the provider is inherited. A flat list once let a
+ * definition pin an Anthropic model under provider `openai`, refused only when
+ * a run tried to use it. A provider with no fixed list (Ollama serves whatever
+ * the user has pulled) gets a text box instead of an empty dropdown.
+ *
  * **An edit sends what the user changed, not the whole form.** The roster's
  * enable toggle and this editor can be open on the same row at once. Sending
  * the whole form on save meant sending the `enabled` the form was opened with,
@@ -39,8 +52,9 @@ export interface AgentEditorProps {
   /** The definition being edited, or null to create a new one. */
   agent: AgentDef | null;
   tools: readonly ToolResponse[];
-  providers: readonly string[];
-  models: readonly string[];
+  catalogue: ProviderCatalogueResponse;
+  /** What "inherit" resolves to right now; null if settings could not be read. */
+  workspaceProvider: string | null;
   /** Create from the whole form. Used when `agent` is null. */
   onCreate: (body: CreateAgentRequest) => Promise<void>;
   /** Patch `agent` with only the fields the user changed. */
@@ -109,8 +123,8 @@ function initial(agent: AgentDef | null): FormState {
 export function AgentEditor({
   agent,
   tools,
-  providers,
-  models,
+  catalogue,
+  workspaceProvider,
   onCreate,
   onPatch,
   onCancel,
@@ -133,6 +147,17 @@ export function AgentEditor({
   /** The inline message for one input, or null. */
   const errorFor = (field: string): string | null =>
     fieldError !== null && fieldError.field === field ? fieldError.message : null;
+
+  // Which provider the model field is for: the pinned one, else the
+  // workspace's. Everything about the model field follows from this.
+  const effectiveProvider = form.provider === INHERIT ? workspaceProvider : form.provider;
+  const providerEntry = catalogue.providers.find((entry) => entry.name === effectiveProvider);
+  const freeText = providerEntry?.free_text_model ?? false;
+  const knownModels = effectiveProvider === null ? [] : (catalogue.models[effectiveProvider] ?? []);
+  // A saved model outside the current provider's list stays visible, labelled,
+  // rather than silently reading as "inherit" while the form still holds it.
+  const strayModel =
+    form.model !== INHERIT && !freeText && !knownModels.includes(form.model) ? form.model : null;
 
   const toggleTool = (name: string) => {
     setForm((current) => ({
@@ -265,9 +290,9 @@ export function AgentEditor({
             data-testid="field-provider"
           >
             <option value={INHERIT}>inherit the workspace default</option>
-            {providers.map((name) => (
-              <option key={name} value={name}>
-                {name}
+            {catalogue.providers.map((entry) => (
+              <option key={entry.name} value={entry.name}>
+                {entry.name}
               </option>
             ))}
           </select>
@@ -280,20 +305,43 @@ export function AgentEditor({
 
         <label className="editor__field">
           <span>Model</span>
-          <select
-            value={form.model}
-            onChange={(changed) => {
-              set("model", changed.target.value);
-            }}
-            data-testid="field-model"
-          >
-            <option value={INHERIT}>inherit the workspace default</option>
-            {models.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
+          {freeText ? (
+            <input
+              value={form.model}
+              placeholder="inherit the workspace default"
+              onChange={(changed) => {
+                set("model", changed.target.value);
+              }}
+              aria-invalid={errorFor("model") !== null}
+              data-testid="field-model"
+            />
+          ) : (
+            <select
+              value={form.model}
+              onChange={(changed) => {
+                set("model", changed.target.value);
+              }}
+              data-testid="field-model"
+            >
+              <option value={INHERIT}>inherit the workspace default</option>
+              {knownModels.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+              {strayModel !== null && <option value={strayModel}>{strayModel}</option>}
+            </select>
+          )}
+          {freeText && (
+            <span className="editor__hint editor__hint--field">
+              {effectiveProvider} serves whatever you have pulled — type the model name.
+            </span>
+          )}
+          {strayModel !== null && (
+            <span className="editor__hint editor__hint--field" data-testid="model-stray">
+              {strayModel} is not one of {effectiveProvider}&apos;s models. A run would refuse it.
+            </span>
+          )}
           {errorFor("model") !== null && (
             <span className="editor__error" role="alert" data-testid="error-model">
               {errorFor("model")}

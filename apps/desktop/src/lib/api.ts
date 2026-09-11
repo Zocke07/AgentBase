@@ -4,10 +4,12 @@ import type {
   BudgetResponse,
   CreateAgentRequest,
   Event,
+  ProviderCatalogueResponse,
   Run,
   SettingsResponse,
   ToolResponse,
   UpdateAgentRequest,
+  VerifyResponse,
 } from "@agentspace/schemas";
 
 import { resolveSidecarBaseUrl } from "./sidecar";
@@ -185,10 +187,12 @@ export const getBudget = (): Promise<BudgetResponse> => request<BudgetResponse>(
 
 export const getSettings = (): Promise<SettingsResponse> => request<SettingsResponse>("/settings");
 
-export interface ProviderCatalogue {
-  providers: { name: string; requires_key: boolean }[];
-  models: string[];
-}
+export const listProviders = (): Promise<ProviderCatalogueResponse> =>
+  request<ProviderCatalogueResponse>("/settings/providers");
 
-export const listProviders = (): Promise<ProviderCatalogue> =>
-  request<ProviderCatalogue>("/settings/providers");
+/**
+ * Whether the current settings can build a provider — the same refusal a run
+ * would get, without a model call. The dashboard's pre-flight before Start.
+ */
+export const verifySettings = (): Promise<VerifyResponse> =>
+  request<VerifyResponse>("/settings/verify", { method: "POST" });
