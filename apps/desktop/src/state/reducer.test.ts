@@ -255,6 +255,25 @@ describe("approvals", () => {
 
     expect(state.approvals[0]).toMatchObject({ status: "approved", automatic: true });
   });
+
+  it("does not treat a policy's question as one a person must answer", () => {
+    /* The gate emits `approval.requested {automatic: true}` and then, as a
+       separate event, `approval.resolved`. Between the two the call is not
+       waiting on anybody — the policy already said yes — so nothing here may
+       report it as pending, or the dialog appears for one render live and for
+       as long as the scrubber sits there on replay. The record still exists,
+       so "what did this run do without asking me" stays answerable. */
+    const log = new LogBuilder();
+    const state = reduceAll([
+      log.add("agent.thinking", { step: 1 }, "w"),
+      log.add("approval.requested", { approval_id: "a1", tool: "read_file", risk: "low", prompt: "Read?", automatic: true }, "w"),
+    ]);
+
+    expect(pendingApprovals(state)).toHaveLength(0);
+    expect(state.approvals).toHaveLength(1);
+    expect(state.approvals[0]).toMatchObject({ automatic: true });
+    expect(state.agents.w?.activity).not.toBe("waiting");
+  });
 });
 
 describe("agents", () => {
@@ -296,6 +315,68 @@ describe("agents", () => {
     const state = reduceAll(twoAgentRun());
 
     expect(state.agents.researcher?.streamedText).toBe("Reading the report.");
+  });
+
+  it("keeps the streamed text of the current model call, not of every call ever made", () => {
+    /* One agent makes several model calls per run. Concatenating all of their
+       output into one string, with no boundary, renders step 4's answer glued
+       to the end of step 1's. What a person watching wants is what the model
+       is saying *now*. */
+    const log = new LogBuilder();
+    const state = reduceAll([
+      log.add("llm.request", { step: 1 }, "w"),
+      log.add("llm.token", { text: "first " }, "w"),
+      log.add("llm.token", { text: "answer" }, "w"),
+      log.add("llm.response", { input_tokens: 1, output_tokens: 1 }, "w"),
+      log.add("llm.request", { step: 2 }, "w"),
+      log.add("llm.token", { text: "second" }, "w"),
+    ]);
+
+    expect(state.agents.w?.streamedText).toBe("second");
+  });
+
+  it("reports what an agent is doing at every point of a tool call, not only at its start", () => {
+    /* §5 Phase 7 asks for "live status colour". The old machine had four
+       transitions and every other event left the label where it was, so an
+       agent running a thirty-second shell command read "calling the model" and
+       an agent whose approval had been granted read "waiting for approval"
+       until its next thinking event. Each row is one event and the activity it
+       must leave behind. */
+    const log = new LogBuilder();
+    const steps: [Event, string][] = [
+      [log.add("agent.spawned", { role: "r" }, "w"), "spawned"],
+      [log.add("agent.thinking", { step: 1 }, "w"), "thinking"],
+      [log.add("llm.request", { step: 1 }, "w"), "calling"],
+      [log.add("llm.response", { input_tokens: 1, output_tokens: 1 }, "w"), "thinking"],
+      [log.add("tool.requested", { tool: "write_file", call_id: "c1" }, "w"), "thinking"],
+      [log.add("approval.requested", { approval_id: "a1", tool: "write_file", risk: "medium", prompt: "?" }, "w"), "waiting"],
+      [log.add("approval.resolved", { approval_id: "a1", tool: "write_file", status: "approved" }, "w"), "thinking"],
+      [log.add("tool.approved", { tool: "write_file", call_id: "c1", approval_id: "a1" }, "w"), "thinking"],
+      [log.add("tool.called", { tool: "write_file", call_id: "c1" }, "w"), "executing"],
+      [log.add("tool.result", { tool: "write_file", call_id: "c1", result: "ok" }, "w"), "thinking"],
+      [log.add("llm.request", { step: 2 }, "w"), "calling"],
+      [log.add("llm.error", { error: "boom" }, "w"), "thinking"],
+      [log.add("tool.called", { tool: "run_shell", call_id: "c2" }, "w"), "executing"],
+      [log.add("tool.error", { tool: "run_shell", call_id: "c2", error: "timed out" }, "w"), "thinking"],
+      [log.add("tool.requested", { tool: "read_file", call_id: "c3" }, "w"), "thinking"],
+      [log.add("tool.denied", { tool: "read_file", call_id: "c3", reason: "no" }, "w"), "thinking"],
+      [log.add("agent.completed", { reason: "finished", steps: 2 }, "w"), "completed"],
+    ];
+
+    let state = EMPTY_RUN;
+    for (const [event, expected] of steps) {
+      state = reduce(state, event);
+      expect(state.agents.w?.activity, `after ${event.type}`).toBe(expected);
+    }
+  });
+
+  it("names the tool an agent is running", () => {
+    const log = new LogBuilder();
+    const running = reduceAll([log.add("tool.called", { tool: "run_shell", call_id: "c1" }, "w")]);
+    expect(running.agents.w?.currentTool).toBe("run_shell");
+
+    const done = reduce(running, log.add("tool.result", { tool: "run_shell", call_id: "c1", result: "" }, "w"));
+    expect(done.agents.w?.currentTool).toBeNull();
   });
 
   it("marks an agent completed with the reason the log gives", () => {

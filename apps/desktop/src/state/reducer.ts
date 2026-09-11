@@ -32,8 +32,18 @@ import { flag, int, record, strings, text, type Payload } from "../lib/payload";
  * repeat the confabulation instead of exposing it.
  */
 
-/** What an agent is doing right now, as far as the log says. */
-export type Activity = "spawned" | "thinking" | "calling" | "waiting" | "completed";
+/**
+ * What an agent is doing right now, as far as the log says.
+ *
+ * Every event an agent emits leaves it in exactly one of these, and the
+ * transition table is pinned by a test that walks a whole tool call. The
+ * original machine had four transitions and left every other event's label
+ * where it was, so an agent running a thirty-second shell command read
+ * "calling the model" and one whose approval had just been granted read
+ * "waiting for approval" until its next thinking event. §5 Phase 7's "live
+ * status colour" is only live if the colour follows the log.
+ */
+export type Activity = "spawned" | "thinking" | "calling" | "waiting" | "executing" | "completed";
 
 export interface AgentNode {
   readonly name: string;
@@ -47,8 +57,11 @@ export interface AgentNode {
   readonly autoApprove: readonly string[];
   readonly maxSteps: number | null;
   readonly activity: Activity;
+  /** The tool being executed while `activity` is `"executing"`; null otherwise. */
+  readonly currentTool: string | null;
   readonly steps: number;
   readonly finishedReason: string | null;
+  /** Streamed output of the *current* model call — reset on each `llm.request`. */
   readonly streamedText: string;
   readonly lastMessage: string | null;
   /** Where this agent first appears — the graph orders nodes by it. */
@@ -204,6 +217,7 @@ const newAgent = (name: string, seq: number): AgentNode => ({
   autoApprove: [],
   maxSteps: null,
   activity: "spawned",
+  currentTool: null,
   steps: 0,
   finishedReason: null,
   streamedText: "",
@@ -342,7 +356,9 @@ export function reduce(state: RunView, event: Event): RunView {
 
     case "llm.request":
       if (agent === null) return next;
-      return withAgent(next, agent, seq, (node) => ({ ...node, activity: "calling" }));
+      // A new call starts a new stream. Keeping the previous call's text would
+      // render step 4's answer glued to the end of step 1's.
+      return withAgent(next, agent, seq, (node) => ({ ...node, activity: "calling", streamedText: "" }));
 
     case "llm.token":
       // Deliberately does *not* change `activity`. CLAUDE.md: deltas arrive
@@ -354,18 +370,22 @@ export function reduce(state: RunView, event: Event): RunView {
         streamedText: node.streamedText + (text(payload, "text") ?? ""),
       }));
 
-    case "llm.response":
-      return {
+    case "llm.response": {
+      const totalled: RunView = {
         ...next,
         inputTokens: next.inputTokens + (int(payload, "input_tokens") ?? 0),
         outputTokens: next.outputTokens + (int(payload, "output_tokens") ?? 0),
       };
+      return agent === null ? totalled : withAgent(totalled, agent, seq, thinkingAgain);
+    }
 
-    case "llm.error":
-      return {
+    case "llm.error": {
+      const recorded: RunView = {
         ...next,
         errors: [...next.errors, { agent, kind: "llm", message: text(payload, "error") ?? "", seq }],
       };
+      return agent === null ? recorded : withAgent(recorded, agent, seq, thinkingAgain);
+    }
 
     // --- tools --------------------------------------------------------------
 
@@ -383,22 +403,32 @@ export function reduce(state: RunView, event: Event): RunView {
         blockedBy: text(payload, "blocked_by"),
         seq,
       };
-      return { ...next, denials: [...next.denials, denial] };
+      const refused: RunView = { ...next, denials: [...next.denials, denial] };
+      return agent === null ? refused : withAgent(refused, agent, seq, thinkingAgain);
     }
 
-    case "tool.called":
+    case "tool.called": {
       // The event that means something *happened*. `tool.requested` is what an
       // agent tried; this is what executed.
-      return { ...next, toolCalls: [...next.toolCalls, toolCallOf(agent, payload, seq)] };
+      const call = toolCallOf(agent, payload, seq);
+      const executing: RunView = { ...next, toolCalls: [...next.toolCalls, call] };
+      return agent === null
+        ? executing
+        : withAgent(executing, agent, seq, (node) => ({ ...node, activity: "executing", currentTool: call.tool }));
+    }
 
-    case "tool.result":
-      return { ...next, toolCalls: attachResult(next.toolCalls, payload) };
+    case "tool.result": {
+      const answered: RunView = { ...next, toolCalls: attachResult(next.toolCalls, payload) };
+      return agent === null ? answered : withAgent(answered, agent, seq, thinkingAgain);
+    }
 
-    case "tool.error":
-      return {
+    case "tool.error": {
+      const failed: RunView = {
         ...next,
         errors: [...next.errors, { agent, kind: "tool", message: text(payload, "error") ?? "", seq }],
       };
+      return agent === null ? failed : withAgent(failed, agent, seq, thinkingAgain);
+    }
 
     // --- approvals ----------------------------------------------------------
 
@@ -413,14 +443,23 @@ export function reduce(state: RunView, event: Event): RunView {
         automatic: flag(payload, "automatic"),
         seq,
       };
-      const waiting = agent === null ? next : withAgent(next, agent, seq, (node) => ({ ...node, activity: "waiting" }));
+      // A policy's yes is not a question. The gate emits the request and its
+      // resolution as two events, and between them nobody is waiting on
+      // anything — so the agent is not "waiting", and `pendingApprovals` below
+      // does not count it. The record still goes in, because "what did this
+      // run do without asking me" is answered from exactly these rows.
+      const waiting =
+        agent === null || requestedApproval.automatic
+          ? next
+          : withAgent(next, agent, seq, (node) => ({ ...node, activity: "waiting" }));
       return { ...waiting, approvals: [...waiting.approvals, requestedApproval] };
     }
 
     case "approval.resolved": {
       const status = text(payload, "status");
       const settled = isApprovalStatus(status) ? status : "expired";
-      return { ...next, approvals: settle(next.approvals, payload, settled) };
+      const resolved: RunView = { ...next, approvals: settle(next.approvals, payload, settled) };
+      return agent === null ? resolved : withAgent(resolved, agent, seq, thinkingAgain);
     }
 
     // --- budget -------------------------------------------------------------
@@ -469,6 +508,16 @@ export function reduceAll(events: readonly Event[], from: RunView = EMPTY_RUN): 
 }
 
 // --- small helpers ----------------------------------------------------------
+
+/**
+ * Back to deciding what to do next: the state between one thing finishing —
+ * a model call, a tool, an approval — and the next event saying what follows.
+ * A completed agent stays completed; a late event for it does not revive it.
+ */
+function thinkingAgain(node: AgentNode): AgentNode {
+  if (node.activity === "completed") return node;
+  return { ...node, activity: "thinking", currentTool: null };
+}
 
 function claimOf(kind: RunClaim["kind"], payload: Payload): RunClaim | null {
   const body = text(payload, kind === "summary" ? "summary" : "reason");
@@ -552,9 +601,21 @@ function isApprovalStatus(value: string | null): value is ApprovalStatus {
 
 // --- derived views the components need --------------------------------------
 
-/** Approvals still awaiting an answer, oldest first. */
+/**
+ * Whether an approval is a question a *person* still has to answer.
+ *
+ * An automatic one never is, even while its `approval.resolved` has not yet
+ * arrived: the policy answered it before the question was written. One rule,
+ * used by the fold's derived views and by the panel that renders them, so the
+ * two cannot disagree about what "pending" means.
+ */
+export function awaitingPerson(approval: ApprovalRecord): boolean {
+  return approval.status === "pending" && !approval.automatic;
+}
+
+/** Approvals a person still has to answer, oldest first. */
 export function pendingApprovals(state: RunView): ApprovalRecord[] {
-  return state.approvals.filter((approval) => approval.status === "pending");
+  return state.approvals.filter(awaitingPerson);
 }
 
 /** Every event type the reducer knows. Exported so a test can assert coverage. */

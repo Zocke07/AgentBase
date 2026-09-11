@@ -2092,6 +2092,40 @@ say".
 
 Recorded here as they happen, so a later session does not re-litigate them.
 
+- **2026-09-11 — the approval question is a docked panel, not a modal.** §5
+  Phase 7 says "surfaced modally", and this is a deliberate deviation under §6,
+  agreed with the maintainer. The question is "may this agent overwrite
+  notes.txt?", and what a person needs in order to answer is the log and the
+  graph *behind* the backdrop. The modal also trapped the user: its `readOnly`
+  came from the folded status, which at a scrubbed position on a finished run
+  says "running", so dragging the replay slider into an approval span rendered
+  live buttons under a backdrop covering the slider, the run list and the tabs,
+  with no close control. The panel sits above the log, is risk-coloured, shows
+  the run's decision history, takes focus on Deny, and does not dismiss on
+  Escape — an answer has to be deliberate.
+- **2026-09-11 — whether an approval can be answered is a transport fact.**
+  The fold says the question was open at this moment; the store's `following`
+  says whether the viewer is standing at the head. Both are true and only the
+  second decides whether to offer buttons. So `ApprovalPanel` straddles the
+  identity boundary on purpose: its question and history are compared live
+  against replay at every position, its action row is excluded like the
+  scrubber is.
+- **2026-09-11 — a policy's yes is not a question.** The gate emits an
+  auto-approved call as `approval.requested {automatic: true}` and then,
+  separately, `approval.resolved`. The reducer used to mark it pending between
+  the two, so the dialog appeared for one render live and for as long as the
+  scrubber sat there on replay. `awaitingPerson` is the one rule for "pending"
+  and excludes automatic records; they stay in the history because "what did
+  this run do without asking me" is answered from exactly those rows.
+- **2026-09-11 — an agent's activity follows the log through a whole tool
+  call.** The original machine had four transitions and left every other
+  event's label where it was: an agent running a thirty-second shell command
+  read "calling the model", one whose approval had been granted read "waiting
+  for approval" until its next thinking event. Every event an agent emits now
+  leaves it in exactly one state, `executing` names the tool, and a test walks
+  a complete tool call event by event. `streamedText` is per model call for
+  the same reason — one blob across all of an agent's calls rendered step 4's
+  answer glued to step 1's.
 - **2026-09-11 — `just typecheck` runs mypy twice, once per target platform.**
   mypy narrows `sys.platform` to the host it runs on, so a Windows-only run
   cannot see a branch that is dead on macOS. That is not theoretical: it is how

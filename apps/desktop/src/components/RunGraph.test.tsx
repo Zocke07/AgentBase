@@ -62,6 +62,26 @@ describe("RunGraph", () => {
     expect(node.textContent).toContain("waiting for approval");
   });
 
+  it("names the tool an agent is running, and stops once the result is in", () => {
+    /* Between `tool.called` and `tool.result` the agent is doing the one thing
+       the log is most interested in. It used to read "waiting for approval"
+       here — the label the approval left behind — for as long as the tool ran. */
+    const events = twoAgentRun();
+    const called = events.findIndex((event) => event.type === "tool.called" && event.agent_id === "researcher") + 1;
+    const running = render(
+      <RunGraph view={reduceAll(events.slice(0, called))} selectedAgent={null} onSelectAgent={vi.fn()} />,
+    );
+    const node = running.getByTestId("agent-node-researcher");
+    expect(node.className).toContain("agent-node--executing");
+    expect(node.textContent).toContain("running write_file");
+    running.unmount();
+
+    const finished = render(
+      <RunGraph view={reduceAll(events.slice(0, called + 1))} selectedAgent={null} onSelectAgent={vi.fn()} />,
+    );
+    expect(finished.getByTestId("agent-node-researcher").textContent).not.toContain("running");
+  });
+
   it("marks the selected node", () => {
     const { getByTestId } = graph("researcher");
 

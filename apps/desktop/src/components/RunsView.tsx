@@ -9,7 +9,6 @@ import { useRunStore } from "../state/runStore";
 import { useFetched } from "../state/useFetched";
 import { useRunStream } from "../state/useRunStream";
 
-import { ApprovalDialog } from "./ApprovalDialog";
 import { RunPanel } from "./RunPanel";
 
 /**
@@ -53,6 +52,7 @@ export function RunsView({ onRunChanged }: RunsViewProps) {
   const view = useRunStore((state) => state.view);
   const events = useRunStore((state) => state.events);
   const cursor = useRunStore((state) => state.cursor);
+  const following = useRunStore((state) => state.following);
   const connection = useRunStore((state) => state.connection);
   const setCursor = useRunStore((state) => state.setCursor);
 
@@ -67,6 +67,12 @@ export function RunsView({ onRunChanged }: RunsViewProps) {
   // worth re-reading. Keyed on the status rather than on a timer.
   const finished =
     view.status === "completed" || view.status === "failed" || view.status === "cancelled";
+
+  // Whether an approval can be answered is about where the viewer stands, not
+  // about the fold. Scrubbed back on a finished run, the fold says "running"
+  // and the approval says "pending" — both true of that moment, neither a
+  // reason to offer buttons. `following` is the store's word for "at the head".
+  const approvalReadOnly = finished ? "finished" : following ? null : "replay";
 
   useEffect(() => {
     if (finished) {
@@ -181,11 +187,8 @@ export function RunsView({ onRunChanged }: RunsViewProps) {
               selectedAgent={selectedAgent}
               onSelectAgent={setSelectedAgent}
               onCursorChange={setCursor}
-            />
-            <ApprovalDialog
-              approvals={view.approvals}
-              onResolve={resolveApproval}
-              readOnly={finished}
+              approvalReadOnly={approvalReadOnly}
+              onResolveApproval={resolveApproval}
             />
           </>
         )}

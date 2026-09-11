@@ -2,11 +2,10 @@ import type { Event } from "@agentspace/schemas";
 
 import type { RunView } from "../state/reducer";
 
+import { ApprovalPanel, type ApprovalPanelProps } from "./ApprovalPanel";
 import { EventLog } from "./EventLog";
 import { RunGraph } from "./RunGraph";
 import { RunSummary } from "./RunSummary";
-
-
 
 /**
  * Everything the dashboard shows about a run.
@@ -27,6 +26,13 @@ import { RunSummary } from "./RunSummary";
  * standing at 12 of them. The projection is identical in both cases; the
  * control that says where you are standing cannot be, and pretending otherwise
  * would mean hiding the length of the run being replayed.
+ *
+ * **The approval panel straddles the line, on purpose.** Its question and
+ * history are a projection of the log and are compared live against replay
+ * like everything in `run-projection`. Whether it can be *answered* is a fact
+ * about where the viewer stands — live at the head, yes; scrubbed back, no —
+ * so its action row is transport, and `readOnly` is decided by the caller from
+ * the store's `following`, never from the folded view.
  */
 
 export interface RunPanelProps {
@@ -36,6 +42,9 @@ export interface RunPanelProps {
   selectedAgent: string | null;
   onSelectAgent: (agent: string | null) => void;
   onCursorChange: (cursor: number) => void;
+  /** See {@link ApprovalPanelProps.readOnly}. */
+  approvalReadOnly: ApprovalPanelProps["readOnly"];
+  onResolveApproval: ApprovalPanelProps["onResolve"];
 }
 
 export function RunPanel({
@@ -45,6 +54,8 @@ export function RunPanel({
   selectedAgent,
   onSelectAgent,
   onCursorChange,
+  approvalReadOnly,
+  onResolveApproval,
 }: RunPanelProps) {
   const scrubbed = cursor < events.length;
   const selected = selectedAgent === null ? null : (view.agents[selectedAgent] ?? null);
@@ -85,6 +96,12 @@ export function RunPanel({
           </>
         )}
       </div>
+
+      <ApprovalPanel
+        approvals={view.approvals}
+        onResolve={onResolveApproval}
+        readOnly={approvalReadOnly}
+      />
 
       <div className="run-projection" data-testid="run-projection">
         <RunSummary view={view} />

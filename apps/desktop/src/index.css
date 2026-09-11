@@ -587,6 +587,9 @@ body {
 .agent-node--calling {
   border-left-color: var(--accent);
 }
+.agent-node--executing {
+  border-left-color: var(--ok);
+}
 .agent-node--waiting {
   border-left-color: var(--warn);
 }
@@ -777,60 +780,74 @@ body {
   font-size: 0.8125rem;
 }
 
-/* --- approval modal ------------------------------------------------------- */
+/* --- approval panel ------------------------------------------------------- */
 
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
+/* Docked above the log, never over it: the log and the graph are what a person
+   needs in order to answer, and a backdrop that covered the scrubber once left a
+   replay with no way out. The left border carries the risk level the gate will
+   enforce, the same colour the editor shows beside the tool checkbox. */
+.approval {
   display: grid;
-  place-items: center;
-  background: rgb(6 8 14 / 72%);
-  z-index: 50;
-}
-
-.modal {
-  width: min(34rem, 92vw);
-  padding: 1.1rem 1.25rem;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem 1.5rem;
+  align-items: start;
+  margin: 0 1rem 0.5rem;
+  padding: 0.75rem 1rem;
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  background: var(--surface);
-  box-shadow: 0 1.5rem 3rem rgb(0 0 0 / 45%);
+  border-left: 4px solid var(--warn);
+  border-radius: 0.6rem;
+  background: var(--surface-2);
 }
 
-.modal__header {
+.approval--low {
+  border-left-color: var(--risk-low);
+}
+.approval--medium {
+  border-left-color: var(--risk-medium);
+}
+.approval--high {
+  border-left-color: var(--risk-high);
+}
+
+.approval__header {
   display: flex;
   gap: 0.6rem;
   align-items: center;
 }
 
-.modal__queue {
+.approval__title {
+  font-weight: 600;
+  font-size: 0.8125rem;
+}
+
+.approval__queue {
   color: var(--muted);
   font-size: 0.75rem;
 }
 
-.modal__prompt {
-  margin: 0.7rem 0 0.35rem;
-  font-size: 1rem;
+.approval__prompt {
+  margin: 0.45rem 0 0.25rem;
+  font-size: 0.95rem;
   line-height: 1.45;
 }
 
-.modal__agent {
+.approval__agent {
   margin: 0;
   color: var(--muted);
   font-size: 0.75rem;
 }
 
-.modal__history {
-  margin-top: 0.75rem;
+.approval__history {
+  margin-top: 0.5rem;
   font-size: 0.75rem;
 }
 
-.modal__history summary {
+.approval__history summary {
   color: var(--muted);
   cursor: pointer;
 }
 
-.modal__history ul {
+.approval__history ul {
   margin: 0.4rem 0 0;
   padding: 0;
   list-style: none;
@@ -860,22 +877,29 @@ body {
   color: var(--muted);
 }
 
-.modal__actions {
+.approval__actions {
   display: flex;
-  gap: 0.6rem;
-  justify-content: flex-end;
-  margin-top: 1rem;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-end;
+  min-width: 14rem;
+  text-align: right;
 }
 
-.modal__error {
-  margin: 0.7rem 0 0;
+.approval__buttons {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.approval__error {
+  margin: 0;
   color: var(--bad);
   font-size: 0.8125rem;
 }
 
-.modal__readonly,
-.modal__note {
-  margin: 0.7rem 0 0;
+.approval__readonly,
+.approval__note {
+  margin: 0;
   color: var(--muted);
   font-size: 0.75rem;
 }

@@ -46,6 +46,8 @@ function activityLabel(agent: AgentNode): string {
       return `thinking · step ${String(agent.steps)}`;
     case "calling":
       return "calling the model";
+    case "executing":
+      return agent.currentTool === null ? "running a tool" : `running ${agent.currentTool}`;
     case "waiting":
       return "waiting for approval";
     case "completed":

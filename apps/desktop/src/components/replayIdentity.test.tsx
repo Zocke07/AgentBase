@@ -48,7 +48,17 @@ function replay(events: ReturnType<typeof twoAgentRun>, cursor?: number) {
   return store();
 }
 
-/** Render the run panel from a store snapshot. */
+/** A finished run, as `RunsView` decides it: from the folded status. */
+function finished(snapshot: ReturnType<typeof store>): boolean {
+  const { status } = snapshot.view;
+  return status === "completed" || status === "failed" || status === "cancelled";
+}
+
+/**
+ * Render the run panel from a store snapshot, deciding the approval panel's
+ * read-only state exactly as `RunsView` does — from the *transport* (`following`)
+ * and the terminal status, never from the folded approval alone.
+ */
 function panel(snapshot: ReturnType<typeof store>) {
   return render(
     <RunPanel
@@ -58,6 +68,8 @@ function panel(snapshot: ReturnType<typeof store>) {
       selectedAgent={null}
       onSelectAgent={() => undefined}
       onCursorChange={() => undefined}
+      approvalReadOnly={finished(snapshot) ? "finished" : snapshot.following ? null : "replay"}
+      onResolveApproval={() => Promise.resolve()}
     />,
   );
 }
@@ -67,9 +79,18 @@ function panel(snapshot: ReturnType<typeof store>) {
  * log. The scrubber is excluded on purpose and the exclusion is the honest one:
  * live at event 12 the log holds 12 events, replayed at 12 it holds 28 and you
  * are standing at 12 of them. See `RunPanel`.
+ *
+ * The approval panel's *question* is included for the same reason the summary
+ * is: it is a fold of the log. Its action row is not — live at the head there
+ * are buttons, replayed to the same position there are none — so it sits
+ * beside the scrubber on the transport side of the line.
  */
 function markup(snapshot: ReturnType<typeof store>): string {
-  return region(snapshot, "run-projection");
+  const rendered = panel(snapshot).container;
+  const projection = rendered.querySelector('[data-testid="run-projection"]');
+  if (projection === null) throw new Error("no run-projection was rendered");
+  const question = rendered.querySelector('[data-testid="approval-question"]');
+  return `${question?.innerHTML ?? ""}\n${projection.innerHTML}`;
 }
 
 /** The whole panel, transport included. Identical only at the head of a run. */
@@ -149,6 +170,29 @@ describe("replay renders identically to live", () => {
     for (const event of events) store().appendEvent(event);
 
     expect(markup(store())).toBe(once);
+  });
+
+  it("shows the question, and no way to answer it, when scrubbed into an approval span", () => {
+    /* The bug this pins: `readOnly` used to come from the folded status, which
+       at this position says "running", so a finished run scrubbed back here
+       rendered live Allow/Deny buttons under a backdrop that covered the
+       scrubber. The fold is right that the question was open at this moment;
+       the transport is right that it cannot be answered from here. */
+    const events = twoAgentRun();
+    const asked = events.findIndex((event) => event.type === "approval.requested") + 1;
+    const { getByTestId, queryByRole } = panel(replay(events, asked));
+
+    expect(getByTestId("approval-question").textContent).toContain("wants to create notes.txt");
+    expect(queryByRole("button", { name: "Allow" })).toBeNull();
+    expect(getByTestId("approval-actions").textContent).toContain("earlier point");
+  });
+
+  it("offers the answer only at the head of a live run", () => {
+    const events = twoAgentRun();
+    const asked = events.findIndex((event) => event.type === "approval.requested") + 1;
+    const { getByRole } = panel(live(events, asked));
+
+    expect(getByRole("button", { name: "Allow" })).toBeDefined();
   });
 
   it("renders nothing run-specific before any event arrives", () => {
