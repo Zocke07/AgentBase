@@ -84,7 +84,7 @@ const isRiskLevel = (value: string): value is RiskLevel =>
 
 const INHERIT = "";
 /** The key for a message the server did not attribute to a field. */
-const FORM = "\u0000form";
+const FORM = "__form__";
 
 /** The form as the API wants it. */
 function toRequest(form: FormState): CreateAgentRequest {
