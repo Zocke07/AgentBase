@@ -299,20 +299,40 @@ _hash path:
 _hash path:
     @echo "{{ path }}" ; echo "  $(wc -c < '{{ path }}') bytes" ; echo "  sha256 $(shasum -a 256 '{{ path }}' | cut -d' ' -f1)"
 
+# Vite's own dev port. `tauri dev` runs `beforeDevCommand` (`npm run dev`)
+# itself, so it needs this free — it does not reuse an already-running server.
+dev_port := "5173"
+
 # Vite dev server on 127.0.0.1:5173.
 [group('run')]
 [working-directory('apps/desktop')]
 dev-desktop:
     npm run --silent dev
 
+# `_check-dev-port` runs before the sidecar rebuild on purpose: a leftover Vite
+# server (a forgotten `dev-desktop`, or a previous `dev-app` whose `tauri dev`
+# died without taking Vite down with it) otherwise fails only once
+# `beforeDevCommand` runs — after ~30s of PyInstaller and cargo output — with a
+# bare "Port 5173 is already in use" naming neither the process nor the cause.
+#
 # Run the desktop app against the dev server. Rebuilds the sidecar first.
 [group('run')]
-dev-app: build-sidecar _dev-app
+dev-app: _check-dev-port build-sidecar _dev-app
 
 [private]
 [working-directory('apps/desktop')]
 _dev-app:
     npx --no-install tauri dev
+
+[private]
+[windows]
+_check-dev-port:
+    @$c = Get-NetTCPConnection -LocalPort {{ dev_port }} -State Listen -ErrorAction SilentlyContinue ; if (-not $c) { exit 0 } ; $procId = $c[0].OwningProcess ; $proc = Get-CimInstance Win32_Process -Filter "ProcessId=$procId" -ErrorAction SilentlyContinue ; $name = "unknown" ; if ($proc) { $name = $proc.Name } ; Write-Error "Port {{ dev_port }} is already in use by PID $procId ($name). tauri dev needs it free — a leftover Vite server (dev-desktop, or a dev-app whose tauri process died without it) is still running. Stop it first: taskkill /PID $procId /T /F" ; exit 1
+
+[private]
+[unix]
+_check-dev-port:
+    @pid=$(lsof -ti tcp:{{ dev_port }} -sTCP:LISTEN 2>/dev/null) ; if [ -n "$pid" ]; then echo "Port {{ dev_port }} is already in use by PID $pid ($(ps -o comm= -p "$pid" 2>/dev/null || echo unknown)). tauri dev needs it free — a leftover Vite server (dev-desktop, or a dev-app whose tauri process died without it) is still running. Stop it first: kill $pid" >&2 ; exit 1 ; fi
 
 # Lint the Rust shell without producing a binary.
 #
