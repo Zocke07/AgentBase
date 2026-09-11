@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from agentspace.budget.ledger import current_period
 from agentspace.channels.identity import ChannelIdentity
@@ -154,30 +154,52 @@ async def get_settings(request: Request) -> SettingsResponse:
     return await _response(request, await _settings_store(request).get())
 
 
+def _reject(message: str, field: str | None) -> HTTPException:
+    """A 400 that says which field, in the shape the agents API uses.
+
+    The form puts the message on the input the server named and only falls
+    back to a form-level message when `field` is None — which it can only do
+    if the body says. The endpoint's docstring promised this for a phase
+    before the body did.
+    """
+    return HTTPException(status_code=400, detail={"message": message, "field": field})
+
+
+def _reject_validation(exc: ValidationError) -> HTTPException:
+    """The first pydantic error, as one line, on the field it names."""
+    first = exc.errors()[0]
+    location = first.get("loc", ())
+    field = str(location[0]) if location else None
+    message = str(first.get("msg", "invalid value"))
+    # Pydantic prefixes a `ValueError` raised in a validator with "Value error, ".
+    return _reject(message.removeprefix("Value error, "), field)
+
+
 @router.patch("/settings")
 async def update_settings(request: Request, body: UpdateSettingsRequest) -> SettingsResponse:
     """Apply a partial settings update.
 
-    Validation failures are 400s with a readable message rather than 500s: this
-    endpoint backs a form, and Phase 7 surfaces the message inline on the
-    offending field.
+    Validation failures are 400s carrying `{message, field}` rather than 500s
+    or bare strings: this endpoint backs a form, and the form surfaces the
+    message inline on the offending field.
     """
     changes: dict[str, Any] = body.model_dump(exclude_none=True)
 
     if not changes:
-        raise HTTPException(status_code=400, detail="no settings were supplied")
+        raise _reject("no settings were supplied", None)
 
     if "provider" in changes and changes["provider"] not in SUPPORTED_PROVIDERS:
         supported = ", ".join(sorted(SUPPORTED_PROVIDERS))
-        raise HTTPException(
-            status_code=400,
-            detail=f"unknown provider {changes['provider']!r}. Supported: {supported}.",
+        raise _reject(
+            f"unknown provider {changes['provider']!r}. Supported: {supported}.", "provider"
         )
 
     try:
         updated = await _settings_store(request).update(changes)
+    except ValidationError as exc:
+        raise _reject_validation(exc) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise _reject(str(exc), None) from exc
 
     # A channel that was just enabled has to connect now, not at the next
     # restart — and this product has no restart button. Reconciling here is

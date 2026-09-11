@@ -183,14 +183,30 @@ def test_ollama_verifies_with_no_key_at_all(app_paths: AppPaths) -> None:
 # --- validation --------------------------------------------------------------
 
 
-def test_an_unknown_provider_is_a_400_not_a_500(client: TestClient) -> None:
+def test_an_unknown_provider_is_a_400_naming_the_field(client: TestClient) -> None:
     """§5 Phase 5 phrases the rule for agent defs; the same applies here —
-    Phase 7 renders this message inline on the offending field."""
+    the settings form renders this message inline on the offending field,
+    which it can only do if the body says which field. The docstring on the
+    endpoint claimed as much while it answered a bare string."""
     response = client.patch("/settings", json={"provider": "hal9000"})
 
     assert response.status_code == 400
-    assert "hal9000" in response.json()["detail"]
-    assert "anthropic" in response.json()["detail"]
+    detail = response.json()["detail"]
+    assert "hal9000" in detail["message"]
+    assert "anthropic" in detail["message"]
+    assert detail["field"] == "provider"
+
+
+def test_a_duplicate_channel_identity_names_its_field(client: TestClient) -> None:
+    """The store refuses it as a pydantic error; the field must survive the
+    trip out rather than arriving as a multi-line traceback string."""
+    entry = {"channel": "discord", "external_user_id": "1", "identity": "owner"}
+    response = client.patch("/settings", json={"channel_identities": [entry, entry]})
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert detail["field"] == "channel_identities"
+    assert "\n" not in detail["message"]
 
 
 def test_a_negative_cap_is_rejected(client: TestClient) -> None:
@@ -203,6 +219,7 @@ def test_an_empty_update_is_rejected(client: TestClient) -> None:
     response = client.patch("/settings", json={})
 
     assert response.status_code == 400
+    assert response.json()["detail"]["field"] is None
 
 
 def test_a_partial_update_leaves_other_fields_alone(client: TestClient) -> None:

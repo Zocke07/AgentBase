@@ -1802,7 +1802,7 @@
         "summary": "Get Settings"
       },
       "patch": {
-        "description": "Apply a partial settings update.\n\nValidation failures are 400s with a readable message rather than 500s: this\nendpoint backs a form, and Phase 7 surfaces the message inline on the\noffending field.",
+        "description": "Apply a partial settings update.\n\nValidation failures are 400s carrying `{message, field}` rather than 500s\nor bare strings: this endpoint backs a form, and the form surfaces the\nmessage inline on the offending field.",
         "operationId": "update_settings_settings_patch",
         "requestBody": {
           "content": {
