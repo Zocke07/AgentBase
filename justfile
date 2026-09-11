@@ -325,10 +325,19 @@ _dev-app:
 check-tauri:
     cargo clippy --all-targets -- -D warnings
 
-# Build the installer (NSIS on Windows, .app on macOS). Rebuilds the sidecar
-# first so the bundle can never pick up a stale one (BUILD_SPEC §5 Phase 1).
+# Depends on `setup` for the same reason `check` does: it has to work on a clean
+# clone. `tauri build` is resolved with `npx --no-install`, and its
+# `beforeBuildCommand` is `npm run build`, so without `node_modules` it fails on
+# npm's unhelpful "could not determine executable to run". That is how CI run #4
+# failed on both platforms — after freezing the sidecar successfully — while
+# working on every dev machine, where `node_modules` is always already there.
+#
+# The sidecar is rebuilt first so the bundle can never pick up a stale one
+# (BUILD_SPEC §5 Phase 1).
+#
+# Build the installer: NSIS on Windows, a .app on macOS.
 [group('build')]
-build-installer: build-sidecar _build-installer
+build-installer: setup build-sidecar _build-installer
 
 [private]
 [working-directory('apps/desktop')]

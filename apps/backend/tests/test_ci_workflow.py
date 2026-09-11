@@ -172,6 +172,64 @@ def test_only_the_windows_installer_is_published() -> None:
     assert uploads[0]["with"]["if-no-files-found"] == "error"
 
 
+def test_every_recipe_ci_runs_works_on_a_clean_clone() -> None:
+    """A recipe that only works on a warm dev tree fails only in CI.
+
+    Twice in this phase. `just check-tauri` passed locally because `binaries/`
+    still held a sidecar from the last build; `just build-installer` passed
+    locally because `node_modules` was already there, and in CI it froze the
+    sidecar and then died on npm's "could not determine executable to run".
+
+    Phase 0 already settled the rule for `check` — it depends on `setup` because
+    its acceptance criterion is a clean clone — and the build path needs the same
+    guarantee. So every recipe the workflow invokes at the top level must either
+    depend on `setup` or need no installed dependencies at all.
+    """
+    justfile = (REPO_ROOT / "justfile").read_text(encoding="utf-8")
+
+    # Recipe lines sit at column zero as `name: dep1 dep2`. Assignments (`x := y`)
+    # and comments are not recipes.
+    direct: dict[str, list[str]] = {}
+    for line in justfile.splitlines():
+        if not line or line[0].isspace() or line.startswith("#") or ":" not in line:
+            continue
+        head, _, tail = line.partition(":")
+        if "=" in head or tail.startswith("="):
+            continue
+        direct[head.strip()] = tail.split()
+
+    def depends_on_setup(recipe: str, seen: frozenset[str] = frozenset()) -> bool:
+        """Whether `setup` is reachable from `recipe`, at any depth.
+
+        Transitively, because `ci` depends on `check` which depends on `setup` —
+        checking only direct dependencies would call that a failure.
+        """
+        if recipe in seen:
+            return False
+        for dependency in direct.get(recipe, []):
+            if dependency == "setup" or depends_on_setup(dependency, seen | {recipe}):
+                return True
+        return False
+
+    invoked = {
+        command.removeprefix("just").strip()
+        for job in _workflow()["jobs"].values()
+        for command in _run_steps(job)
+        if command.startswith("just ")
+    }
+    assert invoked, "the workflow runs no `just` recipes, which cannot be right"
+
+    # These two read artefacts an earlier step produced and install nothing, so
+    # they are exempt by inspection rather than by rule.
+    for recipe in sorted(invoked - {"verify-build", "check-tauri"}):
+        assert recipe in direct, f"{recipe!r} is not a recipe in the justfile"
+        assert depends_on_setup(recipe), (
+            f"`just {recipe}` never reaches `setup`, so it works only where "
+            f"node_modules and .venv already exist — which is every dev machine "
+            f"and no CI runner"
+        )
+
+
 def test_the_release_job_only_fires_for_a_version_tag() -> None:
     """Publishing is deliberate. Every other green run still leaves an artefact."""
     release = _workflow()["jobs"]["release"]
