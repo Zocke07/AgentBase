@@ -1,7 +1,7 @@
 import type { Event, Run } from "@agentspace/schemas";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../lib/api";
 import type { RunStreamHandlers } from "../lib/events";
@@ -150,6 +150,65 @@ describe("refreshing the picker and the meter", () => {
 
     expect(screen.getByTestId("run-list").textContent).toContain("running");
     expect(screen.getByTestId("run-list").textContent).not.toContain("pending");
+  });
+});
+
+describe("runs that happen elsewhere", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("re-reads the picker and the meter while any listed run is still going", async () => {
+    /* A run started from Discord, or one left running in the background, never
+       reached the picker until the user started or finished a run of their own,
+       and the meter did not move while it spent. */
+    vi.useFakeTimers();
+    const onRunChanged = vi.fn();
+    mocked.listRuns.mockResolvedValue([row("running", "run-discord")]);
+    render(<RunsView onRunChanged={onRunChanged} blocker={null} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(mocked.listRuns).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+
+    expect(mocked.listRuns).toHaveBeenCalledTimes(2);
+    expect(onRunChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops polling once every listed run has ended", async () => {
+    vi.useFakeTimers();
+    mocked.listRuns.mockResolvedValue([row("completed"), row("failed", "run-2")]);
+    render(<RunsView onRunChanged={vi.fn()} blocker={null} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+
+    expect(mocked.listRuns).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-reads everything when the window becomes visible again", async () => {
+    /* A setting changed from a browser tab while this window was behind it. */
+    const onRunChanged = vi.fn();
+    mocked.listRuns.mockResolvedValue([row("completed")]);
+    render(<RunsView onRunChanged={onRunChanged} blocker={null} />);
+    await screen.findByRole("button", { name: /quarterly/ });
+
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    await waitFor(() => {
+      expect(mocked.listRuns).toHaveBeenCalledTimes(2);
+    });
+    expect(onRunChanged).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -52,6 +52,11 @@ function connectionLabel(
 
 const NO_RUNS: Run[] = [];
 
+const TERMINAL_STATUSES: ReadonlySet<Run["status"]> = new Set(["completed", "failed", "cancelled"]);
+
+/** How often to re-read the picker and the meter while some run is unfinished. */
+const BACKGROUND_REFRESH_MS = 5_000;
+
 export function RunsView({ onRunChanged, blocker }: RunsViewProps) {
   const [runId, setRunId] = useState<string | null>(null);
   const [goal, setGoal] = useState("");
@@ -104,6 +109,39 @@ export function RunsView({ onRunChanged, blocker }: RunsViewProps) {
     // this on every fetch it triggers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [headStatus, onRunChanged]);
+
+  // Runs that happen elsewhere. The stream covers the selected run; a run
+  // started from Discord, or left going in the background, only reaches the
+  // picker — and only moves the meter — if something re-reads the table. A
+  // light poll while any listed run is unfinished, and nothing at all once
+  // they all are: an idle window makes no requests.
+  const { reload } = runList;
+  const anyUnfinished = runs.some((run) => !TERMINAL_STATUSES.has(run.status));
+  useEffect(() => {
+    if (!anyUnfinished) return;
+    const timer = setInterval(() => {
+      reload();
+      onRunChanged();
+    }, BACKGROUND_REFRESH_MS);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [anyUnfinished, reload, onRunChanged]);
+
+  // And when the window comes back into view: a setting changed from a browser
+  // tab, or a run that ended while this window was behind something.
+  useEffect(() => {
+    const onVisible = () => {
+      if (!document.hidden) {
+        reload();
+        onRunChanged();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [reload, onRunChanged]);
 
   const start = async () => {
     const trimmed = goal.trim();
