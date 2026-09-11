@@ -109,6 +109,7 @@ export function AgentList({
                 onClick={() => {
                   onDelete(agent);
                 }}
+                aria-label={`Delete ${agent.name}`}
                 data-testid={`delete-${agent.name}`}
               >
                 Delete

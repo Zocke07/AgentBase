@@ -293,10 +293,13 @@ body {
   background: var(--surface);
 }
 
+/* Scrolls as a whole when the window is shorter than the panel's minimum
+   rows — at Tauri's 600px floor with a claim block open, the log used to be
+   clipped with no way to reach it. */
 .runs-view__main {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: hidden auto;
 }
 
 .runs-view__placeholder,
@@ -433,6 +436,36 @@ body {
 .run-summary {
   padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--border);
+}
+
+.run-summary__cap {
+  margin: 0.5rem 0 0;
+  color: var(--bad);
+  font-size: 0.8125rem;
+}
+
+.run-summary__errors {
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.75rem;
+}
+
+.run-summary__error {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.1rem 0;
+}
+
+.run-summary__error-who {
+  flex: none;
+  color: var(--bad);
+  font-family: var(--mono);
+}
+
+.run-summary__error-text {
+  color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
 .run-summary__head {
@@ -778,8 +811,12 @@ body {
 
 .log__seq,
 .log__time,
+/* A long agent name (`draft_worker-2`) must not spill into the type column. */
 .log__agent {
+  overflow: hidden;
   color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .log__type {

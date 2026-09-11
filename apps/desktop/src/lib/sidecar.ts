@@ -19,6 +19,12 @@ const DEFAULT_BASE_URL = "http://127.0.0.1:8787";
 /** How long to keep retrying before calling it a failure. */
 const STARTUP_ATTEMPTS = 40;
 const RETRY_DELAY_MS = 250;
+/**
+ * How long one `/health` request may take. A sidecar that accepts the
+ * connection and never answers would otherwise hold an attempt for the
+ * browser's own timeout — minutes — and "connecting (attempt 1)" with it.
+ */
+const HEALTH_TIMEOUT_MS = 2_000;
 
 export interface Health {
   ok: boolean;
@@ -57,7 +63,8 @@ export async function resolveSidecarBaseUrl(): Promise<string> {
 
 /** Fetch `/health`, rejecting on anything that is not a well-formed 200. */
 export async function fetchHealth(baseUrl: string, signal?: AbortSignal): Promise<Health> {
-  const response = await fetch(`${baseUrl}/health`, signal ? { signal } : {});
+  const signals = [AbortSignal.timeout(HEALTH_TIMEOUT_MS), ...(signal ? [signal] : [])];
+  const response = await fetch(`${baseUrl}/health`, { signal: AbortSignal.any(signals) });
 
   if (!response.ok) {
     throw new Error(`sidecar returned HTTP ${String(response.status)}`);

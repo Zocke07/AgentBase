@@ -1,4 +1,4 @@
-import { formatCount } from "../lib/format";
+import { ellipsise, formatCount } from "../lib/format";
 import type { RunView } from "../state/reducer";
 
 /**
@@ -75,7 +75,33 @@ export function RunSummary({ view }: RunSummaryProps) {
             {formatCount(view.inputTokens)} in / {formatCount(view.outputTokens)} out
           </dd>
         </div>
+        <div>
+          <dt>Errors</dt>
+          {/* `llm.error` and `tool.error`. Folded from the start, rendered
+              nowhere until now — an agent that hit five provider errors in
+              a row looked exactly like an agent that was thinking. */}
+          <dd data-testid="fact-errors">{view.errors.length}</dd>
+        </div>
       </dl>
+
+      {view.budgetExceeded && (
+        <p className="run-summary__cap" role="alert" data-testid="budget-exceeded">
+          This run hit the monthly cap. Nothing past this point called a model.
+        </p>
+      )}
+
+      {view.errors.length > 0 && (
+        <ul className="run-summary__errors" data-testid="run-errors">
+          {view.errors.map((error) => (
+            <li key={error.seq} className={`run-summary__error run-summary__error--${error.kind}`}>
+              <span className="run-summary__error-who">
+                {error.agent ?? "run"} · {error.kind === "llm" ? "model" : "tool"}
+              </span>
+              <span className="run-summary__error-text">{ellipsise(error.message, 160)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {view.claim !== null && (
         <div className={`claim claim--${view.claim.kind}`} data-testid="run-claim">

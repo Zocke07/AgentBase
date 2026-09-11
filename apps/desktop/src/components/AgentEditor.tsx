@@ -252,10 +252,11 @@ export function AgentEditor({
             set("role", changed.target.value);
           }}
           aria-invalid={errorFor("role") !== null}
+          aria-describedby={errorFor("role") === null ? undefined : "error-role"}
           data-testid="field-role"
         />
         {errorFor("role") !== null && (
-          <span className="editor__error" role="alert" data-testid="error-role">
+          <span className="editor__error" id="error-role" role="alert" data-testid="error-role">
             {errorFor("role")}
           </span>
         )}
@@ -270,10 +271,16 @@ export function AgentEditor({
             set("system_prompt", changed.target.value);
           }}
           aria-invalid={errorFor("system_prompt") !== null}
+          aria-describedby={errorFor("system_prompt") === null ? undefined : "error-system_prompt"}
           data-testid="field-system-prompt"
         />
         {errorFor("system_prompt") !== null && (
-          <span className="editor__error" role="alert" data-testid="error-system_prompt">
+          <span
+            className="editor__error"
+            id="error-system_prompt"
+            role="alert"
+            data-testid="error-system_prompt"
+          >
             {errorFor("system_prompt")}
           </span>
         )}
@@ -360,10 +367,11 @@ export function AgentEditor({
               set("max_steps", changed.target.value);
             }}
             aria-invalid={errorFor("max_steps") !== null}
+            aria-describedby={errorFor("max_steps") === null ? undefined : "error-max_steps"}
             data-testid="field-max-steps"
           />
           {errorFor("max_steps") !== null && (
-            <span className="editor__error" role="alert" data-testid="error-max_steps">
+            <span className="editor__error" id="error-max_steps" role="alert" data-testid="error-max_steps">
               {errorFor("max_steps")}
             </span>
           )}
