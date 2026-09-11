@@ -27,6 +27,7 @@ vi.mock("../lib/api", () => ({
   listRuns: vi.fn(),
   createRun: vi.fn(),
   cancelRun: vi.fn(),
+  startDebugRun: vi.fn(),
   getRunHistory: vi.fn(),
   resolveApproval: vi.fn(),
   baseUrl: vi.fn(() => Promise.resolve("http://x")),
@@ -62,9 +63,9 @@ const row = (status: Run["status"], id = "run-1"): Run => ({
 });
 
 /** The view with the run selection it no longer owns, held the way `App` holds it. */
-function Harness(props: Omit<RunsViewProps, "runId" | "onSelectRun">) {
+function Harness(props: Omit<RunsViewProps, "runId" | "onSelectRun" | "onOpenSettings">) {
   const [runId, setRunId] = useState<string | null>(null);
-  return <RunsView {...props} runId={runId} onSelectRun={setRunId} />;
+  return <RunsView {...props} runId={runId} onSelectRun={setRunId} onOpenSettings={vi.fn()} />;
 }
 
 /** The handlers the view attached to the most recent stream. */

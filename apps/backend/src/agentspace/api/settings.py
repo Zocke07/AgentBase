@@ -27,6 +27,7 @@ from agentspace.providers.factory import (
     qualified_model,
 )
 from agentspace.providers.pricing import MODELS_BY_PROVIDER, PRICES, format_micros, is_priced
+from agentspace.secrets import SECRET_KEYS
 from agentspace.store.settings import ChannelApprovalPolicy, WorkspaceSettings
 from agentspace.tools.catalogue import RiskLevel
 
@@ -57,6 +58,9 @@ class SettingsResponse(BaseModel):
     settings: WorkspaceSettings
     #: Which API keys are present. Names only — never values.
     configured_secrets: list[str]
+    #: Every secret name the sidecar would accept, present or not, so the
+    #: settings screen can offer a row for each without keeping its own list.
+    known_secrets: list[str]
     supported_providers: list[str]
     #: Whether the selected model has a registered price. A false here means
     #: every run will be refused, so the UI can say so before the user tries.
@@ -140,6 +144,7 @@ async def _response(request: Request, settings: WorkspaceSettings) -> SettingsRe
     return SettingsResponse(
         settings=settings,
         configured_secrets=list(_secrets(request).names),
+        known_secrets=sorted(SECRET_KEYS),
         supported_providers=sorted(SUPPORTED_PROVIDERS),
         # `qualified_model`, not `settings.model`: a provider may namespace
         # what it was given, and the price is looked up under the namespaced

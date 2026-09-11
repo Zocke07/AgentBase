@@ -1,0 +1,99 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { connectWithRetry, fetchHealth, type SidecarStatus } from "./sidecar";
+
+/**
+ * The startup loop. Its comment always said the retry policy was "testable
+ * on its own"; now it is tested.
+ */
+
+let fetchStub: ReturnType<typeof vi.fn<typeof fetch>>;
+
+beforeEach(() => {
+  fetchStub = vi.fn<typeof fetch>();
+  vi.stubGlobal("fetch", fetchStub);
+  vi.useFakeTimers();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+const ok = () => new Response(JSON.stringify({ ok: true }), { status: 200 });
+
+describe("connectWithRetry", () => {
+  it("reports each attempt, then ready, once the sidecar answers", async () => {
+    /* The webview is reliably up before the frozen sidecar has bound its port,
+       so the first request failing is the ordinary case, not an error. */
+    fetchStub
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(ok());
+    const seen: SidecarStatus[] = [];
+
+    const loop = connectWithRetry((status) => seen.push(status));
+    await vi.runAllTimersAsync();
+    await loop;
+
+    expect(seen.map((status) => status.kind)).toEqual(["connecting", "connecting", "connecting", "ready"]);
+    expect(seen.at(-1)).toMatchObject({ kind: "ready", baseUrl: "http://127.0.0.1:8787" });
+  });
+
+  it("gives up with the last error after its attempts run out", async () => {
+    fetchStub.mockRejectedValue(new TypeError("Failed to fetch"));
+    const seen: SidecarStatus[] = [];
+
+    const loop = connectWithRetry((status) => seen.push(status));
+    await vi.runAllTimersAsync();
+    await loop;
+
+    const last = seen.at(-1);
+    expect(last).toMatchObject({ kind: "failed", message: "Failed to fetch" });
+    expect(seen.filter((status) => status.kind === "connecting")).toHaveLength(40);
+  });
+
+  it("stops quietly when aborted", async () => {
+    fetchStub.mockRejectedValue(new TypeError("Failed to fetch"));
+    const controller = new AbortController();
+    const seen: SidecarStatus[] = [];
+
+    const loop = connectWithRetry((status) => seen.push(status), controller.signal);
+    await vi.advanceTimersByTimeAsync(600);
+    controller.abort();
+    await vi.runAllTimersAsync();
+    await loop;
+
+    expect(seen.some((status) => status.kind === "failed")).toBe(false);
+    expect(seen.length).toBeLessThan(40);
+  });
+});
+
+describe("fetchHealth", () => {
+  it("rejects a response that is not a well-formed 200", async () => {
+    fetchStub.mockResolvedValueOnce(new Response("nope", { status: 503 }));
+    await expect(fetchHealth("http://x")).rejects.toThrow("HTTP 503");
+
+    fetchStub.mockResolvedValueOnce(new Response(JSON.stringify({ hello: 1 }), { status: 200 }));
+    await expect(fetchHealth("http://x")).rejects.toThrow("unrecognised");
+  });
+
+  it("gives up on a request that hangs, rather than waiting on the browser", async () => {
+    /* A sidecar that accepts the connection and never answers used to hold an
+       attempt for the browser's own timeout — minutes — and "connecting
+       (attempt 1)" with it. */
+    fetchStub.mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("aborted", "TimeoutError"));
+          });
+        }),
+    );
+
+    const attempt = fetchHealth("http://x");
+    await vi.advanceTimersByTimeAsync(2_500);
+
+    await expect(attempt).rejects.toThrow();
+  });
+});

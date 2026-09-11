@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -17,12 +17,15 @@ vi.mock("./lib/sidecar", () => ({
 }));
 
 vi.mock("./lib/api", () => ({
+  onTransportFailure: vi.fn(() => () => undefined),
   listRuns: vi.fn(),
   getRunHistory: vi.fn(),
   getBudget: vi.fn(),
   getSettings: vi.fn(),
   verifySettings: vi.fn(),
   listApprovals: vi.fn(),
+  getChannels: vi.fn(),
+  updateSettings: vi.fn(),
   listAgents: vi.fn(),
   listTools: vi.fn(),
   listProviders: vi.fn(),
@@ -48,6 +51,7 @@ beforeEach(() => {
   mocked.getSettings.mockRejectedValue(new Error("not in this test"));
   mocked.verifySettings.mockResolvedValue({ ok: true, provider: "ollama", model: "qwen3:4b" });
   mocked.listApprovals.mockResolvedValue([]);
+  mocked.getChannels.mockResolvedValue([]);
   mocked.listAgents.mockResolvedValue([]);
   mocked.listTools.mockResolvedValue([]);
   mocked.listProviders.mockResolvedValue({ providers: [], models: {} });
@@ -91,6 +95,37 @@ describe("pre-flight", () => {
 
     expect((await screen.findByTestId("preflight")).textContent).toContain("cap");
     expect(screen.getByRole("button", { name: "Start run" })).toHaveProperty("disabled", true);
+  });
+});
+
+describe("losing the sidecar after startup", () => {
+  it("says so, and goes back to reconnecting until it answers again", async () => {
+    /* `/health` was checked once at launch. A sidecar that died afterwards left
+       the header frozen and every panel failing on its own with "Failed to
+       fetch", and nothing ever tried again. */
+    let notify: (() => void) | null = null;
+    vi.mocked(api.onTransportFailure).mockImplementation((listener) => {
+      notify = listener;
+      return () => undefined;
+    });
+    render(<App />);
+    await screen.findByTestId("run-list");
+    expect(vi.mocked(sidecar.connectWithRetry)).toHaveBeenCalledTimes(1);
+
+    // The next attempt hangs so the banner can be seen.
+    vi.mocked(sidecar.connectWithRetry).mockImplementation((onStatus) => {
+      onStatus({ kind: "connecting", attempt: 3 });
+      return new Promise(() => undefined);
+    });
+    await act(async () => {
+      notify?.();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId("sidecar-lost").textContent).toContain("attempt 3");
+    expect(vi.mocked(sidecar.connectWithRetry)).toHaveBeenCalledTimes(2);
+    // The rest of the window is still there underneath.
+    expect(screen.getByTestId("run-list")).toBeDefined();
   });
 });
 

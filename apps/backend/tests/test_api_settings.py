@@ -233,6 +233,18 @@ def test_a_partial_update_leaves_other_fields_alone(client: TestClient) -> None:
     assert settings["monthly_cap_micros"] == 500
 
 
+def test_settings_lists_every_secret_the_sidecar_would_accept(client: TestClient) -> None:
+    """The settings screen renders one row per secret — set or not — and must
+    not keep its own copy of the names: Rust has one, Python has one, and a
+    test already holds those two together. The UI reads this instead."""
+    from agentspace.secrets import SECRET_KEYS
+
+    body = client.get("/settings").json()
+
+    assert body["known_secrets"] == sorted(SECRET_KEYS)
+    assert set(body["configured_secrets"]) <= set(body["known_secrets"])
+
+
 # --- provider catalogue ------------------------------------------------------
 
 

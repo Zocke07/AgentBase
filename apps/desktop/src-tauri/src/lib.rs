@@ -68,6 +68,16 @@ fn sidecar_base_url() -> String {
     format!("http://127.0.0.1:{SIDECAR_PORT}")
 }
 
+/// The keychain service the settings screen writes secrets under.
+///
+/// Handed to the webview rather than duplicated there, so the entry the
+/// settings screen creates is the one `send_secrets` reads at the next launch.
+/// The webview writes and clears; reading back stays here, in Rust, at spawn.
+#[tauri::command]
+fn keychain_service() -> String {
+    KEYCHAIN_SERVICE.to_string()
+}
+
 /// Environment variable the sidecar reads its data directory from. Must match
 /// `agentspace.config.DATA_DIR_ENV_VAR`.
 const DATA_DIR_ENV: &str = "AGENTSPACE_DATA_DIR";
@@ -252,7 +262,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_keyring::init())
         .manage(SidecarState::default())
-        .invoke_handler(tauri::generate_handler![sidecar_base_url])
+        .invoke_handler(tauri::generate_handler![sidecar_base_url, keychain_service])
         .setup(|app| {
             spawn_sidecar(app.handle())?;
             Ok(())

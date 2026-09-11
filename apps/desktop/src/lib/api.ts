@@ -2,6 +2,7 @@ import type {
   AgentDef,
   ApprovalResponse,
   BudgetResponse,
+  ChannelStatusResponse,
   CreateAgentRequest,
   Event,
   ProviderCatalogueResponse,
@@ -9,6 +10,7 @@ import type {
   SettingsResponse,
   ToolResponse,
   UpdateAgentRequest,
+  UpdateSettingsRequest,
   VerifyResponse,
 } from "@agentspace/schemas";
 
@@ -99,13 +101,37 @@ function toApiError(status: number, body: unknown): ApiError {
   return new ApiError(status, `HTTP ${String(status)}`);
 }
 
+type TransportListener = () => void;
+const transportListeners = new Set<TransportListener>();
+
+/**
+ * Be told when a request could not reach the sidecar at all — not a 4xx or
+ * 5xx, which is the sidecar answering, but a connection that failed. The
+ * shell uses it to go back to its reconnect loop: `/health` was checked once
+ * at launch, and a sidecar that died afterwards left every panel failing on
+ * its own with "Failed to fetch" while nothing tried again.
+ */
+export function onTransportFailure(listener: TransportListener): () => void {
+  transportListeners.add(listener);
+  return () => {
+    transportListeners.delete(listener);
+  };
+}
+
 async function send(path: string, init?: RequestInit): Promise<Response> {
   // Built as a plain record rather than spread from `init.headers`, which is a
   // union including a string-pair array — spreading that yields numeric indices.
   const headers: Record<string, string> =
     init?.body === undefined ? {} : { "Content-Type": "application/json" };
 
-  const response = await fetch(`${await baseUrl()}${path}`, { ...init, headers });
+  let response: Response;
+  try {
+    response = await fetch(`${await baseUrl()}${path}`, { ...init, headers });
+  } catch (failure) {
+    // `fetch` rejects only when no response came back at all.
+    for (const listener of transportListeners) listener();
+    throw failure;
+  }
 
   if (!response.ok) {
     // A body that is not JSON is not a reason to lose the status code.
@@ -195,6 +221,23 @@ export const resolveApproval = (id: string, approved: boolean): Promise<Approval
 export const getBudget = (): Promise<BudgetResponse> => request<BudgetResponse>("/budget");
 
 export const getSettings = (): Promise<SettingsResponse> => request<SettingsResponse>("/settings");
+
+/**
+ * Change some settings. A PATCH: fields left out are untouched. A refusal is a
+ * 400 carrying `{message, field}`, which the settings screen puts on the input
+ * the server named.
+ */
+export const updateSettings = (patch: UpdateSettingsRequest): Promise<SettingsResponse> =>
+  request<SettingsResponse>("/settings", { method: "PATCH", ...asJson(patch) });
+
+/**
+ * Whether each chat adapter is actually connected — a question `GET /settings`
+ * structurally cannot answer. A token that never reached the keychain, a
+ * library that failed to load and a gateway refusing to connect all present
+ * as a bot that says nothing; this says which.
+ */
+export const getChannels = (): Promise<ChannelStatusResponse[]> =>
+  request<ChannelStatusResponse[]>("/channels");
 
 export const listProviders = (): Promise<ProviderCatalogueResponse> =>
   request<ProviderCatalogueResponse>("/settings/providers");

@@ -202,6 +202,7 @@ export interface Run {
 export interface SettingsResponse {
   settings: WorkspaceSettings;
   configured_secrets: string[];
+  known_secrets: string[];
   supported_providers: string[];
   model_is_priced: boolean;
 }

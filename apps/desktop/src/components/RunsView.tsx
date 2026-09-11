@@ -34,6 +34,8 @@ export interface RunsViewProps {
    */
   runId: string | null;
   onSelectRun: (runId: string | null) => void;
+  /** Take the user to the settings tab — offered beside a pre-flight refusal. */
+  onOpenSettings: () => void;
 }
 
 function connectionLabel(
@@ -80,10 +82,12 @@ export function RunsView({
   pendingApprovals,
   runId,
   onSelectRun,
+  onOpenSettings,
 }: RunsViewProps) {
   const [limit, setLimit] = useState(PAGE);
   const [goal, setGoal] = useState("");
   const [starting, setStarting] = useState(false);
+  const [demoError, setDemoError] = useState<string | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   /** The run the sidecar accepted a cancel for; it stops at its next check. */
@@ -226,6 +230,20 @@ export function RunsView({
     }
   };
 
+  // The scripted run: twenty events, no model, no key. It is what the graph
+  // can show before any provider is configured, and its payloads speak the
+  // reducer's dialect so it renders like a real one.
+  const demo = async () => {
+    setDemoError(null);
+    try {
+      const run = await api.startDebugRun();
+      onSelectRun(run.id);
+      runList.reload();
+    } catch (failure) {
+      setDemoError(failure instanceof Error ? failure.message : String(failure));
+    }
+  };
+
   const resolveApproval = useCallback(async (id: string, approved: boolean) => {
     await api.resolveApproval(id, approved);
     // Deliberately no local state change: the answer produces `approval.resolved`
@@ -257,9 +275,18 @@ export function RunsView({
             />
           </label>
           {blocker !== null && (
-            <p className="new-run__preflight" role="status" data-testid="preflight">
-              {blocker}
-            </p>
+            <div className="new-run__preflight" role="status" data-testid="preflight">
+              <p>{blocker}</p>
+              <div className="new-run__preflight-actions">
+                <button type="button" className="button button--small" onClick={onOpenSettings}>
+                  Open settings
+                </button>
+                <button type="button" className="button button--small" onClick={() => void demo()}>
+                  Try a demo run
+                </button>
+              </div>
+              {demoError !== null && <p className="runs-view__strip-error">{demoError}</p>}
+            </div>
           )}
           <button
             type="submit"

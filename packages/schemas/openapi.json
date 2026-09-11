@@ -641,6 +641,13 @@
             "title": "Configured Secrets",
             "type": "array"
           },
+          "known_secrets": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Known Secrets",
+            "type": "array"
+          },
           "model_is_priced": {
             "title": "Model Is Priced",
             "type": "boolean"
@@ -659,6 +666,7 @@
         "required": [
           "settings",
           "configured_secrets",
+          "known_secrets",
           "supported_providers",
           "model_is_priced"
         ],

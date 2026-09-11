@@ -8,7 +8,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AgentsView } from "./components/AgentsView";
 import { BudgetMeter } from "./components/BudgetMeter";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { RunsView } from "./components/RunsView";
+import { SettingsView } from "./components/SettingsView";
 import * as api from "./lib/api";
 import { connectWithRetry, type SidecarStatus } from "./lib/sidecar";
 
@@ -26,7 +28,7 @@ import { connectWithRetry, type SidecarStatus } from "./lib/sidecar";
  * every cold start.
  */
 
-type Tab = "runs" | "agents";
+type Tab = "runs" | "agents" | "settings";
 
 export function App() {
   const [status, setStatus] = useState<SidecarStatus>({ kind: "connecting", attempt: 0 });
@@ -38,6 +40,10 @@ export function App() {
   // Which run is open. Held here rather than in the runs tab so the header's
   // "approval waiting" badge can open the run it names from any tab.
   const [runId, setRunId] = useState<string | null>(null);
+  // Set when a request failed to reach the sidecar after startup; cleared when
+  // the reconnect loop gets an answer again. The window stays where it was
+  // underneath — a run being watched is still worth watching.
+  const [lost, setLost] = useState<Exclude<SidecarStatus, { kind: "ready" }> | null>(null);
   const inFlight = useRef<AbortController | null>(null);
 
   const connect = useCallback(() => {
@@ -53,6 +59,32 @@ export function App() {
       inFlight.current?.abort();
     };
   }, [connect]);
+
+  // Losing the sidecar after startup. Any request that fails to connect puts
+  // the shell back into its reconnect loop, reported in a banner rather than
+  // by replacing the window; when `/health` answers again everything is
+  // re-read.
+  const reconnecting = useRef(false);
+  useEffect(
+    () =>
+      api.onTransportFailure(() => {
+        if (reconnecting.current) return;
+        reconnecting.current = true;
+        inFlight.current?.abort();
+        const controller = new AbortController();
+        inFlight.current = controller;
+        void connectWithRetry((next) => {
+          if (next.kind === "ready") {
+            reconnecting.current = false;
+            setLost(null);
+            setStatus(next);
+          } else {
+            setLost(next);
+          }
+        }, controller.signal);
+      }),
+    [],
+  );
 
   const refreshWorkspace = useCallback(() => {
     void api.getBudget().then(setBudget).catch(() => undefined);
@@ -114,6 +146,27 @@ export function App() {
 
   return (
     <div className="app">
+      {lost !== null && (
+        <div className="app__lost" role="alert" data-testid="sidecar-lost">
+          <span className="dot dot--bad" />
+          {lost.kind === "connecting" && `Lost the sidecar — reconnecting (attempt ${String(lost.attempt)})`}
+          {lost.kind === "failed" && `Lost the sidecar at ${lost.baseUrl}: ${lost.message}`}
+          {lost.kind === "failed" && (
+            <button
+              type="button"
+              className="button button--small"
+              onClick={() => {
+                reconnecting.current = false;
+                setLost({ kind: "connecting", attempt: 0 });
+                api.onTransportFailure(() => undefined)();
+                connect();
+              }}
+            >
+              Retry
+            </button>
+          )}
+        </div>
+      )}
       <header className="app__header">
         <h1 className="app__title">AgentSpace</h1>
 
@@ -137,6 +190,16 @@ export function App() {
             }}
           >
             Agents
+          </button>
+          <button
+            type="button"
+            className={`tab${tab === "settings" ? " tab--active" : ""}`}
+            aria-current={tab === "settings" ? "page" : undefined}
+            onClick={() => {
+              setTab("settings");
+            }}
+          >
+            Settings
           </button>
         </nav>
 
@@ -175,16 +238,37 @@ export function App() {
             re-picking the run and re-downloading its whole log — and any
             approval that arrived meanwhile went unseen until it expired. */}
         <div className="app__view" hidden={tab !== "runs"}>
+          <ErrorBoundary label="the runs tab">
           <RunsView
             onRunChanged={refreshWorkspace}
             blocker={blocker}
             pendingApprovals={pendingApprovals}
             runId={runId}
             onSelectRun={setRunId}
+            onOpenSettings={() => {
+              setTab("settings");
+            }}
           />
+          </ErrorBoundary>
         </div>
         <div className="app__view" hidden={tab !== "agents"}>
-          <AgentsView workspaceProvider={settings?.settings.provider ?? null} />
+          <ErrorBoundary label="the agents tab">
+            <AgentsView workspaceProvider={settings?.settings.provider ?? null} />
+          </ErrorBoundary>
+        </div>
+        <div className="app__view" hidden={tab !== "settings"}>
+          {/* Each tab has its own boundary: all three are mounted at once, so
+              without it one tab failing to render took the other two down. */}
+          <ErrorBoundary label="the settings tab">
+            <SettingsView
+              onSaved={(reply) => {
+                // The reply is the whole settings document; the header and the
+                // pre-flight follow it without waiting for the next poll.
+                setSettings(reply);
+                refreshWorkspace();
+              }}
+            />
+          </ErrorBoundary>
         </div>
       </div>
     </div>
