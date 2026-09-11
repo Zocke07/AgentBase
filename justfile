@@ -181,13 +181,26 @@ lint-desktop:
 # ---------------------------------------------------------------------------
 
 # Typecheck backend and frontend.
-typecheck: typecheck-backend typecheck-desktop
+#
+# The backend is typechecked twice, once per platform this project targets.
+# `mypy` narrows `sys.platform` to the host it runs on, so a Windows-only run
+# cannot see a branch that is dead on macOS — which is not hypothetical: it is
+# how CI run #2 failed, on a `warn_unreachable` error in a platform branch that
+# was clean here and broken there. `--platform darwin` reproduces that on this
+# machine in twenty seconds instead of a push and a five-minute round trip.
+typecheck: typecheck-backend typecheck-backend-macos typecheck-desktop
 
 # mypy --strict on the Python sidecar.
 [group('typecheck')]
 [working-directory('apps/backend')]
 typecheck-backend:
     uv run mypy
+
+# mypy --strict as if on macOS, which CI builds and this machine cannot run.
+[group('typecheck')]
+[working-directory('apps/backend')]
+typecheck-backend-macos:
+    uv run mypy --platform darwin
 
 # tsc --noEmit on the React frontend.
 [group('typecheck')]

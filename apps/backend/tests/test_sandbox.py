@@ -183,11 +183,20 @@ def _link_to_directory(link: Path, target: Path) -> None:
     try:
         link.symlink_to(target, target_is_directory=True)
     except (OSError, NotImplementedError):
-        if sys.platform != "win32":
-            raise
-        import _winapi
+        # Written as a positive `== "win32"` test, not `!= "win32"` and a bare
+        # re-raise, because mypy narrows `sys.platform` to whatever host it runs
+        # on. It prunes the losing branch of a platform comparison silently, but
+        # only the *branch*: with the re-raise inside the `if`, everything after
+        # it is ordinary code following an always-taken `raise`, which
+        # `warn_unreachable` reports on macOS while Windows stays clean. Keeping
+        # both platforms' code inside branches keeps both hosts quiet, and keeps
+        # `_winapi` — which typeshed marks Windows-only — out of a macOS run.
+        if sys.platform == "win32":
+            import _winapi
 
-        _winapi.CreateJunction(str(target), str(link))
+            _winapi.CreateJunction(str(target), str(link))
+        else:
+            raise
 
 
 def test_a_symlink_pointing_out_of_the_root_is_rejected(
