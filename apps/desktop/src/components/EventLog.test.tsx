@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -157,5 +157,51 @@ describe("filtering by type", () => {
 
     expect(typeFilter().value).toBe("all");
     expect(screen.getAllByRole("listitem")).toHaveLength(firstTool);
+  });
+});
+
+describe("a long log", () => {
+  /* jsdom's stubbed layout gives the scroller a 600px viewport (see
+     `test/setup.ts`), so a thousand rows of 30px is far more than fits. */
+  function longLog(count: number) {
+    const log = new LogBuilder();
+    const events = [log.add("run.started", { goal: "long" })];
+    for (let index = 1; index < count; index += 1) {
+      events.push(log.add("agent.thinking", { step: index }, "supervisor"));
+    }
+    return events;
+  }
+
+  const renderedSeqs = () =>
+    [...document.querySelectorAll(".log__seq")].map((cell) => Number(cell.textContent));
+
+  it("renders only the rows in view, and moves the window with the scroll", () => {
+    const events = longLog(1000);
+    log(events);
+
+    const first = renderedSeqs();
+    expect(first.length).toBeGreaterThan(10);
+    expect(first.length).toBeLessThan(100);
+    // Following the tail: the newest row is in the window.
+    expect(first).toContain(1000);
+    expect(first).not.toContain(1);
+
+    const scroller = document.querySelector<HTMLElement>(".log__rows");
+    if (scroller === null) throw new Error("no scroller");
+    act(() => {
+      scroller.scrollTop = 0;
+      fireEvent.scroll(scroller);
+    });
+
+    const top = renderedSeqs();
+    expect(top).toContain(1);
+    expect(top).not.toContain(1000);
+    expect(top.length).toBeLessThan(100);
+  });
+
+  it("keeps the spacer as tall as every row, so the scrollbar is honest", () => {
+    log(longLog(1000));
+    const list = document.querySelector<HTMLElement>(".log__list");
+    expect(list?.style.height).toBe(`${String(1000 * 30)}px`);
   });
 });

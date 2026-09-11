@@ -13,6 +13,7 @@ import { useCallback, useState } from "react";
 import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
 import { clearSecret, keychainAvailable, setSecret } from "../lib/keychain";
+import { THEMES, useThemeStore, type Theme } from "../lib/theme";
 import { useFetched } from "../state/useFetched";
 
 /**
@@ -242,6 +243,11 @@ function SettingsForm({
       }}
       data-testid="settings-form"
     >
+      {/* Two groups, in the order the spaces design splits them: the rules
+          a run runs under, which a space will own, and the things that are
+          the user's rather than any space's. */}
+      <h2 className="settings__group">How runs work</h2>
+
       {/* --- model --------------------------------------------------------- */}
       <section className="settings__section">
         <h2>Model</h2>
@@ -346,35 +352,10 @@ function SettingsForm({
         </div>
       </section>
 
-      {/* --- keys ---------------------------------------------------------- */}
-      <section className="settings__section" data-testid="keys">
-        <h2>Keys</h2>
-        <p className="settings__hint">
-          Keys live in the operating system&apos;s keychain and are read once, when AgentSpace starts. They
-          are never written to a file or sent to the sidecar by this screen; after setting or clearing
-          one, restart AgentSpace.
-        </p>
-        <KeyRows loaded={loaded} />
-      </section>
-
-      {/* --- budget and limits ---------------------------------------------- */}
+      {/* --- limits and the approval policy ------------------------------- */}
       <section className="settings__section">
-        <h2>Budget and limits</h2>
+        <h2>Limits and approvals</h2>
         <div className="editor__row">
-          <label className="editor__field editor__field--narrow">
-            <span>Monthly cap (USD)</span>
-            <input
-              inputMode="decimal"
-              value={form.cap}
-              onChange={(changed) => {
-                set("cap", changed.target.value);
-                setErrors(({ monthly_cap_micros: _cleared, ...rest }) => rest);
-              }}
-              aria-invalid={errorFor("monthly_cap_micros") !== null}
-              data-testid="setting-cap"
-            />
-            <FieldError field="monthly_cap_micros" message={errorFor("monthly_cap_micros")} />
-          </label>
           <NumberField
             label="Steps per agent"
             field="max_steps_per_agent"
@@ -440,6 +421,44 @@ function SettingsForm({
           </div>
           <FieldError field="auto_approve" message={errorFor("auto_approve")} />
         </fieldset>
+      </section>
+
+      <h2 className="settings__group">Your account and this app</h2>
+
+      {/* --- keys ---------------------------------------------------------- */}
+      <section className="settings__section" data-testid="keys">
+        <h2>Keys</h2>
+        <p className="settings__hint">
+          Keys live in the operating system&apos;s keychain and are read once, when AgentSpace starts. They
+          are never written to a file or sent to the sidecar by this screen; after setting or clearing
+          one, restart AgentSpace.
+        </p>
+        <KeyRows loaded={loaded} />
+      </section>
+
+      {/* --- budget ---------------------------------------------------------- */}
+      <section className="settings__section">
+        <h2>Monthly budget</h2>
+        <p className="settings__hint">
+          One cap for every run, in every space. A run that would take the month past it is refused
+          before it calls a model.
+        </p>
+        <div className="editor__row">
+          <label className="editor__field editor__field--narrow">
+            <span>Monthly cap (USD)</span>
+            <input
+              inputMode="decimal"
+              value={form.cap}
+              onChange={(changed) => {
+                set("cap", changed.target.value);
+                setErrors(({ monthly_cap_micros: _cleared, ...rest }) => rest);
+              }}
+              aria-invalid={errorFor("monthly_cap_micros") !== null}
+              data-testid="setting-cap"
+            />
+            <FieldError field="monthly_cap_micros" message={errorFor("monthly_cap_micros")} />
+          </label>
+        </div>
       </section>
 
       {/* --- channels -------------------------------------------------------- */}
@@ -516,6 +535,8 @@ function SettingsForm({
         </fieldset>
       </section>
 
+      <AppearanceSection />
+
       {errorFor(FORM) !== null && (
         <p className="editor__error editor__error--form" role="alert" data-testid="error-form">
           {errorFor(FORM)}
@@ -529,6 +550,40 @@ function SettingsForm({
         </button>
       </div>
     </form>
+  );
+}
+
+/**
+ * Light or dark. Not part of the form and not saved with it: the theme is a
+ * fact about this window, kept in this browser, and applies the moment it is
+ * chosen — see `lib/theme.ts`.
+ */
+function AppearanceSection() {
+  const theme = useThemeStore((state) => state.theme);
+  const setTheme = useThemeStore((state) => state.setTheme);
+  const label: Record<Theme, string> = { system: "Follow the system", light: "Light", dark: "Dark" };
+
+  return (
+    <section className="settings__section" data-testid="appearance">
+      <h2>Appearance</h2>
+      <div className="settings__theme" role="radiogroup" aria-label="Theme">
+        {THEMES.map((choice) => (
+          <label key={choice}>
+            <input
+              type="radio"
+              name="theme"
+              checked={theme === choice}
+              onChange={() => {
+                setTheme(choice);
+              }}
+              data-testid={`theme-${choice}`}
+            />
+            <span>{label[choice]}</span>
+          </label>
+        ))}
+      </div>
+      <p className="settings__hint">Applies to this window straight away, and is remembered on this computer.</p>
+    </section>
   );
 }
 

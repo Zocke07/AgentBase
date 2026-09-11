@@ -10,8 +10,9 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ellipsise } from "../lib/format";
+import { activityLabel } from "../state/describe";
 import { edgesFor, layout, viewportFor, type AgentNodeData } from "../state/graph";
-import type { AgentNode, RunView } from "../state/reducer";
+import type { RunView } from "../state/reducer";
 
 import "@xyflow/react/dist/style.css";
 
@@ -36,24 +37,6 @@ export interface RunGraphProps {
   view: RunView;
   selectedAgent: string | null;
   onSelectAgent: (name: string | null) => void;
-}
-
-/** How an agent's current activity reads to a person, and how it is coloured. */
-function activityLabel(agent: AgentNode): string {
-  switch (agent.activity) {
-    case "spawned":
-      return "ready";
-    case "thinking":
-      return `thinking · step ${String(agent.steps)}`;
-    case "calling":
-      return "calling the model";
-    case "executing":
-      return agent.currentTool === null ? "running a tool" : `running ${agent.currentTool}`;
-    case "waiting":
-      return "waiting for approval";
-    case "completed":
-      return agent.finishedReason === null ? "done" : `done · ${agent.finishedReason}`;
-  }
 }
 
 function AgentCard({ data }: { data: AgentNodeData }) {

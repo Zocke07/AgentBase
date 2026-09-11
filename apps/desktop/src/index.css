@@ -1,46 +1,185 @@
 /*
- * The dashboard's stylesheet.
+ * The stylesheet.
  *
  * Colours carry meaning here rather than decoration: an agent's node colour is
- * its activity, an event row's tint is its family, and a risk badge's colour is
- * the risk level the approval gate will enforce. Each one is a projection of the
- * event log like everything else on screen.
+ * its activity, an event row's tint is its family, a risk badge's colour is the
+ * risk level the approval gate will enforce, and a run's status colour is one
+ * of the five states a run can be in. Each is a projection of the event log
+ * like everything else on screen. One accent, for the thing to do next.
+ *
+ * Every colour is a token, and every token is defined twice — the light
+ * palette on `:root`, the dark one under the OS preference and again under
+ * the explicit override — so no colour has a single definition and nothing
+ * below this block knows which theme it is in.
  *
  * Nothing here animates a value that comes from the log. §5 Phase 7 asks that a
  * replayed run render identically to the live one, and a transition keyed on
- * arrival time would make the same event look different depending on how it got
- * there.
+ * arrival time would make the same event look different depending on how it
+ * got there.
  */
 
+/* --- tokens --------------------------------------------------------------- */
+
 :root {
+  color-scheme: light;
+
+  --bg: #f3f4f7;
+  --surface: #ffffff;
+  --surface-2: #eceef3;
+  --surface-3: #e2e5ec;
+  --border: #dcdfe7;
+  --border-strong: #bfc5d2;
+  --text: #1a1e29;
+  --muted: #667085;
+  --faint: #98a1b3;
+
+  --accent: #d4622a;
+  --accent-strong: #b8501e;
+  --accent-soft: rgb(212 98 42 / 12%);
+  --on-accent: #ffffff;
+
+  --good: #1f8a5b;
+  --good-soft: rgb(31 138 91 / 12%);
+  --bad: #c43d2c;
+  --bad-soft: rgb(196 61 44 / 10%);
+  --warn: #a86f0c;
+  --warn-soft: rgb(168 111 12 / 12%);
+  --info: #2a6bb0;
+  --info-soft: rgb(42 107 176 / 12%);
+
+  /* The three risk levels, in the order the gate ranks them. */
+  --risk-low: var(--info);
+  --risk-medium: var(--warn);
+  --risk-high: var(--bad);
+
+  /* The run's states. */
+  --status-pending: var(--faint);
+  --status-running: var(--accent);
+  --status-paused: var(--warn);
+  --status-completed: var(--good);
+  --status-failed: var(--bad);
+  --status-cancelled: var(--muted);
+
+  --shadow-1: 0 1px 2px rgb(20 24 40 / 6%), 0 4px 14px rgb(20 24 40 / 6%);
+  --shadow-2: 0 2px 6px rgb(20 24 40 / 10%), 0 12px 32px rgb(20 24 40 / 12%);
+  --radius: 10px;
+  --radius-sm: 6px;
+
+  --rail-width: 13.5rem;
+
+  --mono: ui-monospace, "Cascadia Code", Consolas, "SF Mono", Menlo, monospace;
+
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --bg: #0e1016;
+    --surface: #161922;
+    --surface-2: #1e222d;
+    --surface-3: #272c39;
+    --border: #2a2f3c;
+    --border-strong: #3c4354;
+    --text: #e7e9f0;
+    --muted: #8d95a9;
+    --faint: #626a7e;
+
+    --accent: #ff8f52;
+    --accent-strong: #ffa672;
+    --accent-soft: rgb(255 143 82 / 14%);
+    --on-accent: #1a0f06;
+
+    --good: #6fcf8e;
+    --good-soft: rgb(111 207 142 / 14%);
+    --bad: #f2705d;
+    --bad-soft: rgb(242 112 93 / 14%);
+    --warn: #e8c468;
+    --warn-soft: rgb(232 196 104 / 14%);
+    --info: #6cb4e6;
+    --info-soft: rgb(108 180 230 / 14%);
+
+    --shadow-1: 0 1px 2px rgb(0 0 0 / 40%), 0 4px 14px rgb(0 0 0 / 30%);
+    --shadow-2: 0 2px 6px rgb(0 0 0 / 45%), 0 12px 32px rgb(0 0 0 / 40%);
+  }
+}
+
+:root[data-theme="dark"] {
   color-scheme: dark;
 
-  --bg: #10121b;
-  --surface: #181b27;
-  --surface-2: #1e2231;
-  --border: #262b3d;
-  --text: #e6e9f2;
-  --muted: #8b93ab;
+  --bg: #0e1016;
+  --surface: #161922;
+  --surface-2: #1e222d;
+  --surface-3: #272c39;
+  --border: #2a2f3c;
+  --border-strong: #3c4354;
+  --text: #e7e9f0;
+  --muted: #8d95a9;
+  --faint: #626a7e;
+
   --accent: #ff8f52;
-  --ok: #6cc4d6;
+  --accent-strong: #ffa672;
+  --accent-soft: rgb(255 143 82 / 14%);
+  --on-accent: #1a0f06;
+
+  --good: #6fcf8e;
+  --good-soft: rgb(111 207 142 / 14%);
   --bad: #f2705d;
+  --bad-soft: rgb(242 112 93 / 14%);
   --warn: #e8c468;
-  --good: #7ec98a;
+  --warn-soft: rgb(232 196 104 / 14%);
+  --info: #6cb4e6;
+  --info-soft: rgb(108 180 230 / 14%);
 
-  --risk-low: #6cc4d6;
-  --risk-medium: #e8c468;
-  --risk-high: #f2705d;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 40%), 0 4px 14px rgb(0 0 0 / 30%);
+  --shadow-2: 0 2px 6px rgb(0 0 0 / 45%), 0 12px 32px rgb(0 0 0 / 40%);
+}
 
-  --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+/* --- base ----------------------------------------------------------------- */
 
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  line-height: 1.5;
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+code,
+pre {
+  font-family: var(--mono);
+}
+
+/* A button that reads as a link, for the one word in a sentence that acts. */
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+}
+
+.link:hover {
+  color: var(--accent-strong);
 }
 
 /* --- the waiting shell (Phase 1's, still used before the sidecar answers) -- */
@@ -56,8 +195,7 @@ body {
 }
 
 .shell__title {
-  margin: 0;
-  font-size: 2.25rem;
+  font-size: 2rem;
   font-weight: 650;
   letter-spacing: -0.03em;
 }
@@ -72,7 +210,7 @@ body {
 .shell__detail {
   margin: 0;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: 0.8667rem;
 }
 
 .dot {
@@ -88,7 +226,7 @@ body {
 }
 
 .dot--ok {
-  background: var(--ok);
+  background: var(--good);
 }
 .dot--bad {
   background: var(--bad);
@@ -98,20 +236,15 @@ body {
 
 .app {
   display: grid;
-  grid-template-rows: auto auto 1fr;
+  grid-template-columns: var(--rail-width) minmax(0, 1fr);
   height: 100vh;
 }
 
-/* Without the banner the header takes the first auto row and the body the
-   rest; with it, the banner takes the first. Either way the body fills. */
-.app > .app__header:first-child {
-  grid-row: 1 / 3;
-  align-self: start;
-}
-
-.app__top {
+.app__main {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  min-height: 0;
 }
 
 /* Sidecar lost after startup: a banner over the window, not instead of it. */
@@ -119,65 +252,72 @@ body {
   display: flex;
   gap: 0.6rem;
   align-items: center;
-  padding: 0.4rem 1rem;
+  padding: 0.45rem 1.25rem;
   background: var(--bad);
-  color: #1a0806;
-  font-size: 0.8125rem;
+  color: #fff;
+  font-size: 0.8667rem;
   font-weight: 600;
 }
 
 .app__lost .dot--bad {
-  background: #1a0806;
+  background: #fff;
+}
+
+.app__lost .button {
+  border-color: rgb(255 255 255 / 60%);
+  background: transparent;
+  color: #fff;
 }
 
 .app__header {
   display: flex;
+  flex: none;
   gap: 1.5rem;
   align-items: center;
-  padding: 0.625rem 1rem;
+  min-height: 3.25rem;
+  padding: 0.5rem 1.5rem;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
 
 .app__title {
-  margin: 0;
   font-size: 1.0625rem;
-  font-weight: 650;
-  letter-spacing: -0.02em;
 }
 
 .app__workspace {
   display: flex;
-  gap: 1rem;
+  gap: 1.25rem;
   align-items: center;
   margin-left: auto;
 }
 
 .app__provider {
   color: var(--muted);
-  font-family: var(--mono);
-  font-size: 0.75rem;
+  font-size: 0.8667rem;
 }
 
 .app__unpriced {
   margin-left: 0.5rem;
   color: var(--bad);
+  font-weight: 600;
 }
 
 /* A question waiting on a run the user is not looking at. */
 .app__waiting {
-  padding: 0.2rem 0.6rem;
+  padding: 0.25rem 0.7rem;
   border: 1px solid var(--warn);
-  border-radius: 0.4rem;
-  background: none;
+  border-radius: 999px;
+  background: var(--warn-soft);
   color: var(--warn);
   font: inherit;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
 }
 
 .app__body {
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -191,47 +331,103 @@ body {
   display: none;
 }
 
-.tabs {
+/* --- the rail ------------------------------------------------------------- */
+
+.rail {
   display: flex;
-  gap: 0.25rem;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1rem 0.75rem;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
 }
 
-.tab {
-  padding: 0.3rem 0.85rem;
-  border: 1px solid transparent;
-  border-radius: 0.5rem;
+.rail__brand {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  /* Room under the name for the space switcher, when spaces land. */
+  margin-bottom: 0.5rem;
+}
+
+.rail__logo {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.45rem;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 25%);
+}
+
+.rail__name {
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.rail__sections,
+.rail__bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.rail__bottom {
+  margin-top: auto;
+}
+
+.rail__item {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--muted);
   font: inherit;
-  font-size: 0.8125rem;
+  font-size: 0.9333rem;
+  font-weight: 500;
+  text-align: left;
   cursor: pointer;
 }
 
-.tab:hover {
+.rail__item svg {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  fill: currentcolor;
+}
+
+.rail__item:hover {
+  background: var(--surface-2);
   color: var(--text);
 }
 
-.tab--active {
-  border-color: var(--border);
-  background: var(--surface-2);
-  color: var(--text);
+.rail__item--active,
+.rail__item--active:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 /* --- buttons -------------------------------------------------------------- */
 
 .button {
-  padding: 0.4rem 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: var(--surface-2);
+  padding: 0.45rem 0.95rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
   color: var(--text);
   font: inherit;
-  font-size: 0.8125rem;
+  font-size: 0.8667rem;
+  font-weight: 500;
+  line-height: 1.3;
   cursor: pointer;
 }
 
 .button:hover:not(:disabled) {
-  border-color: var(--muted);
+  background: var(--surface-2);
 }
 
 .button:disabled {
@@ -242,25 +438,35 @@ body {
 .button--primary {
   border-color: var(--accent);
   background: var(--accent);
-  color: #1a1005;
+  color: var(--on-accent);
   font-weight: 600;
 }
 
+.button--primary:hover:not(:disabled) {
+  border-color: var(--accent-strong);
+  background: var(--accent-strong);
+}
+
 .button--small {
-  padding: 0.2rem 0.55rem;
-  font-size: 0.75rem;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
 }
 
 .button--danger:hover:not(:disabled) {
   border-color: var(--bad);
+  background: var(--bad-soft);
   color: var(--bad);
 }
 
 .button--allow {
   border-color: var(--good);
   background: var(--good);
-  color: #06210d;
+  color: #fff;
   font-weight: 600;
+}
+
+.button--allow:hover:not(:disabled) {
+  filter: brightness(1.08);
 }
 
 .button--deny {
@@ -268,41 +474,71 @@ body {
   color: var(--bad);
 }
 
-/* --- status and risk badges ----------------------------------------------- */
+.button--deny:hover:not(:disabled) {
+  background: var(--bad-soft);
+}
+
+/* --- badges --------------------------------------------------------------- */
 
 .status {
-  padding: 0.1rem 0.45rem;
-  border-radius: 0.3rem;
-  background: var(--surface-2);
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
   color: var(--muted);
-  font-size: 0.6875rem;
+  font-size: 0.8rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   white-space: nowrap;
 }
 
+/* A dot in the run's colour, then the word. */
+.status::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--status-pending);
+}
+
 .status--running {
-  color: var(--accent);
+  color: var(--status-running);
 }
-.status--completed {
-  color: var(--good);
-}
-.status--failed,
-.status--cancelled {
-  color: var(--bad);
+.status--running::before {
+  background: var(--status-running);
+  animation: pulse 1.6s ease-in-out infinite;
 }
 .status--paused {
-  color: var(--warn);
+  color: var(--status-paused);
+}
+.status--paused::before {
+  background: var(--status-paused);
+}
+.status--completed {
+  color: var(--status-completed);
+}
+.status--completed::before {
+  background: var(--status-completed);
+}
+.status--failed {
+  color: var(--status-failed);
+}
+.status--failed::before {
+  background: var(--status-failed);
+}
+.status--cancelled {
+  color: var(--status-cancelled);
+}
+.status--cancelled::before {
+  background: var(--status-cancelled);
 }
 
 .risk {
-  padding: 0.05rem 0.4rem;
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
   border: 1px solid currentcolor;
-  border-radius: 0.3rem;
-  font-size: 0.6875rem;
+  border-radius: 999px;
+  font-size: 0.7333rem;
   font-weight: 600;
-  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .risk--low {
@@ -315,11 +551,296 @@ body {
   color: var(--risk-high);
 }
 
+.tag,
+.roster__builtin {
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--muted);
+  font-size: 0.7333rem;
+  font-weight: 500;
+  vertical-align: middle;
+}
+
+/* --- cards ---------------------------------------------------------------- */
+
+.card {
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.card--notice {
+  border-left: 4px solid var(--warn);
+}
+
+.card__title {
+  margin-bottom: 0.25rem;
+  font-size: 1rem;
+}
+
+.card p {
+  margin: 0;
+}
+
+.card__actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: 0.75rem;
+}
+
+/* --- Home ----------------------------------------------------------------- */
+
+.home {
+  height: 100%;
+  padding: 1.5rem 2rem 3rem;
+  overflow-y: auto;
+}
+
+.home__inner {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  width: min(66rem, 100%);
+  margin: 0 auto;
+}
+
+/* A fresh install: nothing to list, so the goal box is the screen. */
+.home--first {
+  display: grid;
+  place-items: center;
+}
+
+.home--first .home__inner {
+  width: min(44rem, 100%);
+  gap: 1rem;
+}
+
+.home__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.home__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.home__head h2 {
+  font-size: 1.0625rem;
+}
+
+.home__empty {
+  margin: 0;
+  color: var(--muted);
+}
+
+.new-run {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1.25rem 1.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.new-run__label {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.home--first .new-run__label {
+  font-size: 1.5rem;
+}
+
+.new-run__goal {
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  resize: vertical;
+}
+
+.new-run__goal::placeholder {
+  color: var(--faint);
+}
+
+.new-run__row {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.new-run__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8667rem;
+}
+
+.field-error {
+  margin: 0;
+  color: var(--bad);
+  font-size: 0.8667rem;
+}
+
+.roster-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.roster-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "name switch"
+    "role switch";
+  gap: 0.1rem 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.roster-card--off {
+  opacity: 0.6;
+}
+
+.roster-card__name {
+  grid-area: name;
+  font-weight: 600;
+}
+
+.roster-card__role {
+  grid-area: role;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.8667rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.switch {
+  display: flex;
+  grid-area: switch;
+  gap: 0.35rem;
+  align-items: center;
+  align-self: center;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+/* --- run cards ------------------------------------------------------------ */
+
+.run-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.run-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-1);
+}
+
+.run-card--selected,
+.run-card--selected:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.run-card--compact {
+  gap: 0.25rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-sm);
+}
+
+.run-card__head {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.run-card__time {
+  margin-left: auto;
+  color: var(--faint);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.run-card__origin {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.run-card__goal {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 0.9333rem;
+  font-weight: 500;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.run-card--compact .run-card__goal {
+  display: block;
+  font-size: 0.8667rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-card__facts {
+  display: flex;
+  gap: 0.75rem;
+  min-height: 1.2em;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.run-card__waiting {
+  color: var(--warn);
+  font-weight: 600;
+}
+
 /* --- runs view ------------------------------------------------------------ */
 
 .runs-view {
   display: grid;
-  grid-template-columns: 19rem 1fr;
+  grid-template-columns: 19rem minmax(0, 1fr);
   height: 100%;
   overflow: hidden;
 }
@@ -328,10 +849,20 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  padding: 0.875rem;
+  padding: 1rem;
   overflow-y: auto;
   border-right: 1px solid var(--border);
   background: var(--surface);
+}
+
+.runs-view__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.runs-view__head h2 {
+  font-size: 1rem;
 }
 
 /* Scrolls as a whole when the window is shorter than the panel's minimum
@@ -340,6 +871,7 @@ body {
 .runs-view__main {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   overflow: hidden auto;
 }
 
@@ -355,259 +887,34 @@ body {
   display: flex;
   gap: 1rem;
   align-items: center;
-  padding: 0.3rem 1rem;
+  padding: 0.35rem 1.25rem;
   border-bottom: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .runs-view__connection {
   margin: 0;
   color: var(--muted);
-  font-family: var(--mono);
-  font-size: 0.6875rem;
+  font-size: 0.8rem;
 }
 
 .runs-view__strip-error {
   margin: 0;
   color: var(--bad);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
 }
 
 .runs-view__strip .button {
   margin-left: auto;
 }
 
-.runs-view__error,
-.roster__error {
-  margin: 0;
-  padding: 0.5rem 0.65rem;
-  border: 1px solid var(--bad);
-  border-radius: 0.5rem;
-  color: var(--bad);
-  font-size: 0.8125rem;
-}
-
-.runs-view__heading {
-  margin: 0.5rem 0 0;
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.new-run {
+.run-list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-}
-
-.new-run span {
-  display: block;
-  margin-bottom: 0.3rem;
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.new-run__preflight {
-  margin: 0;
-  padding: 0.5rem 0.65rem;
-  border: 1px solid var(--warn);
-  border-radius: 0.5rem;
-  color: var(--warn);
-  font-size: 0.8125rem;
-}
-
-.new-run__preflight p {
-  margin: 0 0 0.5rem;
-}
-
-.new-run__preflight-actions {
-  display: flex;
   gap: 0.4rem;
-}
-
-/* --- settings ------------------------------------------------------------- */
-
-.settings {
-  height: 100%;
-  overflow-y: auto;
-}
-
-.settings__form {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-  width: min(52rem, 100%);
-  margin: 0 auto;
-  padding: 1.25rem 1.5rem 3rem;
-}
-
-.settings__section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  padding: 1rem 1.25rem;
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  background: var(--surface);
-}
-
-.settings__section h2 {
-  margin: 0;
-  font-size: 0.9375rem;
-}
-
-.settings__hint,
-.settings__loading {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.75rem;
-}
-
-.settings__error {
-  margin: 0;
-  padding: 0.5rem 0.65rem;
-  border: 1px solid var(--bad);
-  border-radius: 0.5rem;
-  color: var(--bad);
-  font-size: 0.8125rem;
-}
-
-.settings__verify {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  align-items: center;
-}
-
-.settings__verify-result {
-  flex-basis: 100%;
-  margin: 0;
-  color: var(--good);
-  font-size: 0.8125rem;
-}
-
-.settings__verify-result--bad {
-  color: var(--bad);
-}
-
-.settings__key-list,
-.settings__identities {
   margin: 0;
   padding: 0;
   list-style: none;
-}
-
-.settings__key,
-.settings__identity {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  align-items: center;
-  padding: 0.4rem 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 0.8125rem;
-}
-
-.settings__key-name,
-.settings__identity-id {
-  font-family: var(--mono);
-}
-
-.settings__key-state {
-  color: var(--muted);
-}
-
-.settings__key-state--set {
-  color: var(--good);
-}
-
-.settings__key-actions {
-  display: flex;
-  gap: 0.4rem;
-  align-items: center;
-  margin-left: auto;
-}
-
-.settings__key-actions input {
-  width: 18rem;
-  padding: 0.2rem 0.4rem;
-  border: 1px solid var(--border);
-  border-radius: 0.35rem;
-  background: var(--surface-2);
-  color: var(--text);
-  font: inherit;
-  font-size: 0.8125rem;
-}
-
-.settings__channels {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-}
-
-.settings__channel {
-  padding: 0.6rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: var(--surface-2);
-}
-
-.settings__channel-status {
-  margin-top: 0.4rem;
-  color: var(--muted);
-  font-size: 0.75rem;
-}
-
-.settings__channel-error {
-  margin: 0.3rem 0 0;
-  color: var(--bad);
-  font-family: var(--mono);
-  font-size: 0.6875rem;
-  overflow-wrap: anywhere;
-}
-
-.settings__identity-channel {
-  color: var(--muted);
-}
-
-.settings__identity-add {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.settings__identity-add input,
-.settings__identity-add select {
-  padding: 0.25rem 0.4rem;
-  border: 1px solid var(--border);
-  border-radius: 0.35rem;
-  background: var(--surface-2);
-  color: var(--text);
-  font: inherit;
-  font-size: 0.8125rem;
-}
-
-.settings__actions {
-  align-items: center;
-}
-
-.settings__saved {
-  margin-right: auto;
-  color: var(--good);
-  font-size: 0.8125rem;
-}
-
-/* --- run list ------------------------------------------------------------- */
-
-.run-list__waiting {
-  grid-column: 1 / -1;
-  color: var(--warn);
-  font-size: 0.6875rem;
-  font-weight: 600;
 }
 
 .run-list__more {
@@ -616,56 +923,9 @@ body {
   padding: 0.5rem 0;
 }
 
-.run-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.run-list__item {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.2rem 0.5rem;
-  width: 100%;
-  padding: 0.45rem 0.5rem;
-  border: 1px solid transparent;
-  border-radius: 0.5rem;
-  background: none;
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.run-list__item:hover {
-  background: var(--surface-2);
-}
-
-.run-list__item--selected {
-  border-color: var(--border);
-  background: var(--surface-2);
-}
-
-.run-list__goal {
-  overflow: hidden;
-  font-size: 0.8125rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.run-list__time {
-  grid-column: 1 / -1;
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 0.6875rem;
-}
-
 .run-list__empty {
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: 0.8667rem;
 }
 
 /* --- run panel ------------------------------------------------------------ */
@@ -679,27 +939,76 @@ body {
 
 .run-projection {
   display: grid;
-  grid-template-rows: auto minmax(14rem, 1fr) minmax(8rem, 1fr);
+  grid-template-rows: auto auto minmax(12rem, 1fr) minmax(10rem, 1.25fr);
   min-height: 0;
   flex: 1;
 }
 
 .run-summary {
-  padding: 0.75rem 1rem;
+  padding: 0.85rem 1.25rem;
   border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.run-summary__head {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.run-summary__goal {
+  font-size: 1.0625rem;
+}
+
+/* Where a channel-originated run came from. Reads as a caption, because the
+   goal is the headline and this is the provenance under it. */
+.run-summary__origin {
+  margin: 0;
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 0.8667rem;
+}
+
+.run-summary__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+  margin: 0.5rem 0 0;
+}
+
+.run-summary__facts div {
+  display: flex;
+  gap: 0.4rem;
+  align-items: baseline;
+}
+
+.run-summary__facts dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.run-summary__facts dd {
+  margin: 0;
+  font-size: 0.8667rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.run-summary__sandboxed {
+  color: var(--bad);
 }
 
 .run-summary__cap {
   margin: 0.5rem 0 0;
   color: var(--bad);
-  font-size: 0.8125rem;
+  font-size: 0.8667rem;
 }
 
 .run-summary__errors {
   margin: 0.5rem 0 0;
   padding: 0;
   list-style: none;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
 }
 
 .run-summary__error {
@@ -711,7 +1020,7 @@ body {
 .run-summary__error-who {
   flex: none;
   color: var(--bad);
-  font-family: var(--mono);
+  font-weight: 600;
 }
 
 .run-summary__error-text {
@@ -719,68 +1028,19 @@ body {
   overflow-wrap: anywhere;
 }
 
-.run-summary__head {
-  display: flex;
-  gap: 0.65rem;
-  align-items: baseline;
-  flex-wrap: wrap;
-}
-
-.run-summary__goal {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-/* Where a channel-originated run came from. Reads as a caption, because the
-   goal is the headline and this is the provenance under it. */
-.run-summary__origin {
-  margin: 0;
-  flex-basis: 100%;
-  font-size: 0.78rem;
-  color: var(--muted);
-}
-
-.run-summary__facts {
-  display: flex;
-  gap: 1.5rem;
-  margin: 0.6rem 0 0;
-}
-
-.run-summary__facts div {
-  display: flex;
-  gap: 0.4rem;
-  align-items: baseline;
-}
-
-.run-summary__facts dt {
-  color: var(--muted);
-  font-size: 0.75rem;
-}
-
-.run-summary__facts dd {
-  margin: 0;
-  font-family: var(--mono);
-  font-size: 0.8125rem;
-}
-
-.run-summary__sandboxed {
-  color: var(--bad);
-}
-
 .run-summary__unknown {
   margin: 0.6rem 0 0;
   color: var(--warn);
-  font-size: 0.8125rem;
+  font-size: 0.8667rem;
 }
 
 /* The terminal summary is a claim, and is styled to read as one. */
 .claim {
-  margin-top: 0.7rem;
-  padding: 0.55rem 0.75rem;
-  border-left: 3px solid var(--border);
-  background: var(--surface);
-  border-radius: 0 0.4rem 0.4rem 0;
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  border-left: 3px solid var(--border-strong);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--surface-2);
 }
 
 .claim--reason {
@@ -789,22 +1049,30 @@ body {
 
 .claim__label {
   color: var(--muted);
-  font-size: 0.6875rem;
+  font-size: 0.8rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 .claim__text {
   margin: 0.2rem 0 0;
-  font-size: 0.875rem;
+  font-size: 0.9333rem;
 }
 
 .claim__caveat {
   margin: 0.35rem 0 0;
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-style: italic;
+}
+
+/* One sentence about the run at this cursor, above the graph. */
+.now-line {
+  margin: 0;
+  padding: 0.6rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 1rem;
+  font-weight: 500;
 }
 
 /* The previous run, kept on screen while the next one's history is fetched.
@@ -827,14 +1095,14 @@ body {
   display: flex;
   gap: 0.75rem;
   align-items: center;
-  padding: 0.4rem 1rem;
+  padding: 0.45rem 1.25rem;
   border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--surface-2);
 }
 
 .scrubber__control {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.6rem;
   align-items: center;
   flex: 1;
 }
@@ -846,16 +1114,13 @@ body {
 
 .scrubber__label {
   color: var(--muted);
-  font-size: 0.6875rem;
+  font-size: 0.8rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
 }
 
 .scrubber__position {
-  font-family: var(--mono);
-  font-size: 0.75rem;
   color: var(--muted);
+  font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -866,7 +1131,7 @@ body {
 .scrubber__state {
   display: flex;
   flex: 0 0 auto;
-  min-width: 21rem;
+  min-width: 22rem;
   gap: 0.75rem;
   align-items: center;
   justify-content: flex-end;
@@ -874,12 +1139,13 @@ body {
 
 .scrubber__notice {
   color: var(--accent);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 500;
 }
 
 .scrubber__latest {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
 }
 
 /* --- graph ---------------------------------------------------------------- */
@@ -895,28 +1161,44 @@ body {
   flex: 1;
   min-height: 0;
   background: var(--bg);
+
+  /* React Flow's own controls, edges and pattern, in this theme's colours.
+     The un-suffixed names: the `-default` ones are set on `.react-flow`
+     itself and would win over anything declared out here. */
+  --xy-background-pattern-dots-color: var(--border-strong);
+  --xy-controls-button-background-color: var(--surface);
+  --xy-controls-button-background-color-hover: var(--surface-2);
+  --xy-controls-button-color: var(--text);
+  --xy-controls-button-color-hover: var(--text);
+  --xy-controls-button-border-color: var(--border);
+  --xy-controls-box-shadow: var(--shadow-1);
+  --xy-edge-stroke: var(--border-strong);
+  --xy-edge-stroke-width: 1.5;
+  --xy-edge-label-background-color: var(--surface);
+  --xy-edge-label-color: var(--muted);
+  --xy-attribution-background-color: transparent;
 }
 
 .graph--empty {
   display: grid;
   place-content: center;
   color: var(--muted);
-  font-size: 0.875rem;
+  font-size: 0.9333rem;
 }
 
 .agent-node {
   /* Matches NODE_WIDTH / NODE_HEIGHT in state/graph.ts, which React Flow is
      told up front so the camera never waits on a measurement. */
-  box-sizing: border-box;
   width: 200px;
   height: 96px;
   overflow: hidden;
-  padding: 0.5rem 0.65rem;
+  padding: 0.55rem 0.7rem;
   border: 1px solid var(--border);
-  border-left: 3px solid var(--muted);
-  border-radius: 0.5rem;
+  border-left: 3px solid var(--faint);
+  border-radius: var(--radius-sm);
   background: var(--surface);
-  font-size: 0.75rem;
+  box-shadow: var(--shadow-1);
+  font-size: 0.8rem;
 }
 
 .agent-node--thinking,
@@ -924,7 +1206,7 @@ body {
   border-left-color: var(--accent);
 }
 .agent-node--executing {
-  border-left-color: var(--ok);
+  border-left-color: var(--info);
 }
 .agent-node--waiting {
   border-left-color: var(--warn);
@@ -941,55 +1223,53 @@ body {
 /* A name that was handed off to and never spawned. */
 .agent-node--ghost {
   border-style: dashed;
+  box-shadow: none;
   opacity: 0.7;
 }
 
-.agent-node__error {
-  overflow: hidden;
-  color: var(--bad);
-  font-family: var(--mono);
-  font-size: 0.6875rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .agent-node__name {
-  font-size: 0.8125rem;
+  font-size: 0.8667rem;
   font-weight: 650;
 }
 
 .agent-node__role,
 .agent-node__meta {
-  color: var(--muted);
   overflow: hidden;
+  color: var(--muted);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .agent-node__activity {
-  margin-top: 0.2rem;
-  font-family: var(--mono);
-  font-size: 0.6875rem;
+  margin-top: 0.15rem;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.agent-node__error {
+  overflow: hidden;
+  color: var(--bad);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .agent-detail {
-  width: 20rem;
-  padding: 0.75rem;
+  width: 21rem;
+  padding: 0.85rem 1rem;
   overflow-y: auto;
   border-left: 1px solid var(--border);
   background: var(--surface);
-  font-size: 0.8125rem;
+  font-size: 0.8667rem;
 }
 
 .agent-detail h3 {
-  margin: 0;
-  font-size: 0.9375rem;
+  font-size: 1rem;
 }
 
 .agent-detail__role {
   margin: 0.15rem 0 0.6rem;
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.8667rem;
 }
 
 .agent-detail dl {
@@ -998,19 +1278,19 @@ body {
 
 .agent-detail dl div {
   display: grid;
-  grid-template-columns: 9rem 1fr;
+  grid-template-columns: 8rem 1fr;
   gap: 0.5rem;
   padding: 0.15rem 0;
 }
 
 .agent-detail dt {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
 }
 
 .agent-detail dd {
   margin: 0;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   overflow-wrap: anywhere;
 }
 
@@ -1020,7 +1300,7 @@ body {
 
 .agent-detail summary {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   cursor: pointer;
 }
 
@@ -1029,10 +1309,9 @@ body {
   padding: 0.5rem;
   max-height: 14rem;
   overflow: auto;
-  border-radius: 0.4rem;
-  background: var(--bg);
-  font-family: var(--mono);
-  font-size: 0.6875rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 0.7333rem;
   white-space: pre-wrap;
 }
 
@@ -1050,8 +1329,9 @@ body {
   display: flex;
   gap: 1rem;
   align-items: center;
-  padding: 0.4rem 1rem;
+  padding: 0.4rem 1.25rem;
   border-bottom: 1px solid var(--border);
+  font-size: 0.8rem;
 }
 
 .log__filters label {
@@ -1060,33 +1340,28 @@ body {
   align-items: center;
 }
 
+.log__filters select,
+.log__filters input {
+  padding: 0.15rem 0.4rem;
+  font-size: 0.8rem;
+}
+
 .log__filter-label,
 .log__count {
   color: var(--muted);
-  font-size: 0.6875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 .log__count {
   margin-left: auto;
-  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .log__search input {
   width: 11rem;
-  padding: 0.15rem 0.4rem;
-  border: 1px solid var(--border);
-  border-radius: 0.35rem;
-  background: var(--surface-2);
-  color: var(--text);
-  font: inherit;
-  font-size: 0.75rem;
 }
 
 .log__toggle {
   color: var(--muted);
-  font-size: 0.75rem;
 }
 
 /* Floats over the list's bottom edge while the reader is scrolled up. */
@@ -1094,31 +1369,48 @@ body {
   position: absolute;
   right: 1.5rem;
   bottom: 0.75rem;
-  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 40%);
+  box-shadow: var(--shadow-2);
 }
 
 .log__rows {
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Only the rows in view exist. The list is a spacer as tall as every row
+   would be, and each rendered row is placed at its computed offset. */
+.log__list {
+  position: relative;
   margin: 0;
   padding: 0;
-  overflow-y: auto;
   list-style: none;
 }
 
+.log__item {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+}
+
 /* Each row is a button so it can open to its payload from the keyboard too;
-   the button reset below keeps it looking like a row. */
+   the button reset below keeps it looking like a row. Its height is fixed
+   — ROW_PX in EventLog.tsx — so where a row sits is arithmetic. */
 .log__row {
   display: grid;
-  grid-template-columns: 3rem 5rem 8rem 10rem 1fr;
-  gap: 0.6rem;
+  grid-template-columns: 2.75rem 4.5rem minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
   width: 100%;
-  padding: 0.15rem 1rem;
+  height: 30px;
+  padding: 0 1.25rem;
   border: 0;
-  border-left: 2px solid transparent;
+  border-left: 3px solid transparent;
   background: none;
   color: inherit;
-  font-family: var(--mono);
-  font-size: 0.6875rem;
+  font: inherit;
+  font-size: 0.8667rem;
   text-align: left;
   cursor: pointer;
 }
@@ -1128,26 +1420,14 @@ body {
   background: var(--surface-2);
 }
 
-.log__payload {
-  margin: 0;
-  padding: 0.5rem 1rem 0.6rem 4.6rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--mono);
-  font-size: 0.6875rem;
-  line-height: 1.45;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  max-height: 24rem;
-  overflow: auto;
-}
-
 .log__row--run {
   border-left-color: var(--accent);
 }
 .log__row--agent {
-  border-left-color: var(--ok);
+  border-left-color: var(--info);
+}
+.log__row--llm {
+  border-left-color: var(--faint);
 }
 .log__row--tool {
   border-left-color: var(--good);
@@ -1158,32 +1438,61 @@ body {
 .log__row--budget {
   border-left-color: var(--warn);
 }
+.log__row--channel {
+  border-left-color: var(--border-strong);
+}
 
 .log__seq,
-.log__time,
-/* A long agent name (`draft_worker-2`) must not spill into the type column. */
-.log__agent {
+.log__time {
   overflow: hidden;
-  color: var(--muted);
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 0.7333rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.log__sentence {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The raw type, as a chip: what a bug report needs, muted beside the sentence. */
 .log__type {
-  color: var(--text);
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.7333rem;
+  white-space: nowrap;
 }
 
-.log__detail {
-  overflow: hidden;
-  color: var(--muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.log__row:hover .log__type,
+.log__row--open .log__type {
+  background: var(--surface-3);
+}
+
+.log__payload {
+  margin: 0;
+  padding: 0.5rem 1.25rem 0.6rem 4rem;
+  max-height: 24rem;
+  overflow: auto;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.7333rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .log__empty {
-  padding: 1rem;
+  position: static;
+  padding: 1rem 1.25rem;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: 0.8667rem;
 }
 
 /* --- approval panel ------------------------------------------------------- */
@@ -1194,15 +1503,16 @@ body {
    enforce, the same colour the editor shows beside the tool checkbox. */
 .approval {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.5rem 1.5rem;
   align-items: start;
-  margin: 0 1rem 0.5rem;
-  padding: 0.75rem 1rem;
+  margin: 0.75rem 1.25rem 0.25rem;
+  padding: 0.85rem 1.1rem;
   border: 1px solid var(--border);
   border-left: 4px solid var(--warn);
-  border-radius: 0.6rem;
-  background: var(--surface-2);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
 }
 
 .approval--low {
@@ -1222,30 +1532,31 @@ body {
 }
 
 .approval__title {
+  font-size: 0.8667rem;
   font-weight: 600;
-  font-size: 0.8125rem;
 }
 
 .approval__queue {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
 }
 
 .approval__prompt {
-  margin: 0.45rem 0 0.25rem;
-  font-size: 0.95rem;
-  line-height: 1.45;
+  margin: 0.4rem 0 0.25rem;
+  font-size: 1.0625rem;
+  font-weight: 500;
+  line-height: 1.4;
 }
 
 .approval__agent {
   margin: 0;
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
 }
 
 .approval__history {
   margin-top: 0.5rem;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
 }
 
 .approval__history summary {
@@ -1261,10 +1572,13 @@ body {
 
 .approval-history__item {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.6rem;
   padding: 0.15rem 0;
-  font-family: var(--mono);
-  font-size: 0.6875rem;
+}
+
+.approval-history__status {
+  min-width: 4.5rem;
+  font-weight: 600;
 }
 
 .approval-history__item--approved .approval-history__status {
@@ -1297,17 +1611,22 @@ body {
   gap: 0.6rem;
 }
 
+.approval__buttons .button {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.9333rem;
+}
+
 .approval__error {
   margin: 0;
   color: var(--bad);
-  font-size: 0.8125rem;
+  font-size: 0.8667rem;
 }
 
 .approval__readonly,
 .approval__note {
   margin: 0;
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
 }
 
 /* --- error boundary ------------------------------------------------------- */
@@ -1322,7 +1641,7 @@ body {
   margin: 1rem;
   padding: 1rem 1.25rem;
   border: 1px solid var(--bad);
-  border-radius: 0.6rem;
+  border-radius: var(--radius);
   background: var(--surface);
 }
 
@@ -1334,18 +1653,18 @@ body {
 .boundary__message {
   margin: 0 0 0.5rem;
   padding: 0.5rem 0.65rem;
-  border-radius: 0.4rem;
+  border-radius: var(--radius-sm);
   background: var(--surface-2);
   color: var(--bad);
   font-family: var(--mono);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   white-space: pre-wrap;
 }
 
 .boundary__hint {
   margin: 0 0 0.75rem;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: 0.8667rem;
 }
 
 /* --- budget meter --------------------------------------------------------- */
@@ -1354,12 +1673,11 @@ body {
   display: flex;
   gap: 0.5rem;
   align-items: center;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
 }
 
 .budget__label {
   color: var(--muted);
-  font-family: var(--mono);
 }
 
 .budget__bar {
@@ -1368,7 +1686,7 @@ body {
   height: 0.4rem;
   overflow: hidden;
   border-radius: 0.2rem;
-  background: var(--surface-2);
+  background: var(--surface-3);
 }
 
 .budget__fill {
@@ -1385,25 +1703,26 @@ body {
 }
 
 .budget__figure {
-  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .budget__note {
   color: var(--bad);
+  font-weight: 600;
 }
 
 /* --- agents view ---------------------------------------------------------- */
 
 .agents-view {
   display: grid;
-  grid-template-columns: 24rem 1fr;
+  grid-template-columns: 24rem minmax(0, 1fr);
   height: 100%;
   overflow: hidden;
 }
 
 .agents-view__editor {
   display: flex;
-  padding: 1rem;
+  padding: 1.25rem 1.5rem;
   overflow-y: auto;
 }
 
@@ -1411,7 +1730,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  padding: 0.875rem;
+  padding: 1rem;
   overflow-y: auto;
   border-right: 1px solid var(--border);
   background: var(--surface);
@@ -1424,19 +1743,29 @@ body {
 }
 
 .roster__head h2 {
-  margin: 0;
   font-size: 1rem;
 }
 
 .roster__empty {
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: 0.8667rem;
+}
+
+.roster__error,
+.settings__error {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--bad);
+  border-radius: var(--radius-sm);
+  background: var(--bad-soft);
+  color: var(--bad);
+  font-size: 0.8667rem;
 }
 
 .roster__list {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.4rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1444,22 +1773,23 @@ body {
 
 .roster__item {
   border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: var(--surface-2);
+  border-radius: var(--radius);
+  background: var(--surface);
 }
 
 .roster__item--selected {
   border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 
 .roster__item--disabled {
-  opacity: 0.55;
+  opacity: 0.6;
 }
 
 .roster__open {
   display: block;
   width: 100%;
-  padding: 0.5rem 0.6rem;
+  padding: 0.6rem 0.75rem;
   border: none;
   background: none;
   color: var(--text);
@@ -1470,38 +1800,22 @@ body {
 
 .roster__name {
   display: block;
-  font-size: 0.875rem;
+  font-size: 0.9333rem;
   font-weight: 600;
-}
-
-.roster__builtin {
-  margin-left: 0.4rem;
-  padding: 0.05rem 0.35rem;
-  border-radius: 0.25rem;
-  background: var(--border);
-  color: var(--muted);
-  font-size: 0.625rem;
-  font-weight: 500;
-  text-transform: uppercase;
 }
 
 .roster__role,
 .roster__meta {
   display: block;
   color: var(--muted);
-  font-size: 0.75rem;
-}
-
-.roster__meta {
-  font-family: var(--mono);
-  font-size: 0.6875rem;
+  font-size: 0.8rem;
 }
 
 .roster__actions {
   display: flex;
   gap: 0.6rem;
   align-items: center;
-  padding: 0.35rem 0.6rem;
+  padding: 0.35rem 0.75rem;
   border-top: 1px solid var(--border);
 }
 
@@ -1511,7 +1825,15 @@ body {
   align-items: center;
   margin-right: auto;
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
+}
+
+.roster__confirm {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  color: var(--bad);
+  font-size: 0.8rem;
 }
 
 /* --- agent editor --------------------------------------------------------- */
@@ -1519,42 +1841,39 @@ body {
 .editor {
   display: flex;
   flex-direction: column;
-  gap: 0.8rem;
+  gap: 0.9rem;
   width: min(46rem, 100%);
 }
 
 .editor h2 {
-  margin: 0;
-  font-size: 1.0625rem;
+  font-size: 1.125rem;
 }
 
 .editor__field {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.3rem;
   flex: 1;
 }
 
 .editor__field > span:first-child {
   color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 0.8667rem;
+  font-weight: 500;
 }
 
 .editor__field--narrow {
-  max-width: 9rem;
+  max-width: 10rem;
 }
 
 .editor__row {
   display: flex;
-  gap: 0.8rem;
+  gap: 0.9rem;
 }
 
 .editor__error {
   color: var(--bad);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
 }
 
 .editor__error--form {
@@ -1564,7 +1883,13 @@ body {
 .editor__hint {
   margin: 0;
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
+}
+
+.editor__hint--field {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.7333rem;
 }
 
 .editor__risks {
@@ -1580,74 +1905,60 @@ body {
   margin-bottom: 0.75rem;
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--warn);
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
   color: var(--warn);
-  font-size: 0.8125rem;
-}
-
-.roster__confirm {
-  display: flex;
-  gap: 0.4rem;
-  align-items: center;
-  color: var(--bad);
-  font-size: 0.75rem;
-}
-
-.editor__hint--field {
-  display: block;
-  margin-top: 0.25rem;
-  font-size: 0.6875rem;
+  font-size: 0.8667rem;
 }
 
 .editor__tools {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.4rem;
   margin: 0;
-  padding: 0.7rem 0.85rem;
+  padding: 0.75rem 1rem 0.9rem;
   border: 1px solid var(--border);
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
 }
 
 .editor__tools legend {
   padding: 0 0.35rem;
   color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 0.8667rem;
+  font-weight: 500;
 }
 
 .editor__tool {
   display: flex;
   gap: 0.5rem;
   align-items: center;
-  font-size: 0.8125rem;
+  font-size: 0.8667rem;
 }
 
 .editor__tool-name {
   min-width: 7rem;
   font-family: var(--mono);
+  font-size: 0.8rem;
 }
 
 .editor__tool-description {
   overflow: hidden;
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .editor__tool-missing {
   color: var(--warn);
-  font-size: 0.6875rem;
+  font-size: 0.7333rem;
 }
 
 .editor__checkbox {
   display: flex;
   gap: 0.5rem;
   align-items: center;
-  font-size: 0.8125rem;
+  font-size: 0.8667rem;
 }
 
 .editor__actions {
@@ -1656,20 +1967,207 @@ body {
   justify-content: flex-end;
 }
 
+/* --- settings ------------------------------------------------------------- */
+
+.settings {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.settings__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: min(52rem, 100%);
+  margin: 0 auto;
+  padding: 1.5rem 2rem 3rem;
+}
+
+.settings__group {
+  margin: 0.5rem 0 -0.5rem;
+  color: var(--muted);
+  font-size: 0.8667rem;
+  font-weight: 600;
+}
+
+.settings__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.settings__section h2 {
+  font-size: 1rem;
+}
+
+.settings__hint,
+.settings__loading {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.settings__loading {
+  padding: 2rem;
+  text-align: center;
+}
+
+.settings__verify {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.settings__verify-result {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--good);
+  font-size: 0.8667rem;
+}
+
+.settings__verify-result--bad {
+  color: var(--bad);
+}
+
+.settings__key-list,
+.settings__identities {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings__key,
+.settings__identity {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8667rem;
+}
+
+.settings__key:last-child,
+.settings__identity:last-child {
+  border-bottom: 0;
+}
+
+.settings__key-name,
+.settings__identity-id {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+}
+
+.settings__key-state {
+  color: var(--muted);
+}
+
+.settings__key-state--set {
+  color: var(--good);
+  font-weight: 600;
+}
+
+.settings__key-actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin-left: auto;
+}
+
+.settings__key-actions input {
+  width: 18rem;
+  padding: 0.25rem 0.45rem;
+  font-size: 0.8667rem;
+}
+
+.settings__channels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.settings__channel {
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.settings__channel-status {
+  margin-top: 0.4rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.settings__channel-error {
+  margin: 0.3rem 0 0;
+  color: var(--bad);
+  font-family: var(--mono);
+  font-size: 0.7333rem;
+  overflow-wrap: anywhere;
+}
+
+.settings__identity-channel {
+  color: var(--muted);
+}
+
+.settings__identity-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.settings__identity-add input,
+.settings__identity-add select {
+  padding: 0.25rem 0.45rem;
+  font-size: 0.8667rem;
+}
+
+.settings__actions {
+  align-items: center;
+}
+
+.settings__saved {
+  margin-right: auto;
+  color: var(--good);
+  font-size: 0.8667rem;
+}
+
+.settings__theme {
+  display: flex;
+  gap: 1rem;
+}
+
+.settings__theme label {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  font-size: 0.8667rem;
+}
+
 /* --- form controls -------------------------------------------------------- */
 
 input[type="text"],
 input[type="number"],
+input[type="password"],
+input[type="search"],
 input:not([type]),
 textarea,
 select {
-  padding: 0.4rem 0.55rem;
-  border: 1px solid var(--border);
-  border-radius: 0.45rem;
-  background: var(--bg);
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
   color: var(--text);
   font: inherit;
-  font-size: 0.8125rem;
+  font-size: 0.8667rem;
 }
 
 textarea {
@@ -1689,15 +2187,19 @@ button:focus-visible {
   outline-offset: 1px;
 }
 
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
+}
+
 /* --- React Flow overrides ------------------------------------------------- */
 
 .react-flow__attribution {
-  background: transparent;
-  font-size: 0.5625rem;
+  font-size: 0.6rem;
 }
 
 .react-flow__attribution a {
-  color: var(--muted);
+  color: var(--faint);
 }
 
 @keyframes pulse {
@@ -1711,7 +2213,8 @@ button:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dot--pending {
+  .dot--pending,
+  .status--running::before {
     animation: none;
   }
 }

@@ -2,19 +2,21 @@ import type { Event, Run } from "@agentspace/schemas";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../lib/api";
 import type { RunStreamHandlers } from "../lib/events";
 import * as events from "../lib/events";
+import { useRunList } from "../state/runList";
 import { useRunStore } from "../state/runStore";
 import { twoAgentRun } from "../test/log";
 
 import { RunsView, type RunsViewProps } from "./RunsView";
 
 /**
- * The runs tab: the picker, the goal box, and when the chrome around a run
- * goes back to the sidecar for fresh facts.
+ * The Runs section: the picker, and when the chrome around a run goes back to
+ * the sidecar for fresh facts. Starting a run lives on the Home screen and is
+ * tested there; the shell's background poll is tested with the shell.
  *
  * `lib/api` and the SSE client are mocked so the test can hand the stream
  * events one at a time — the thing that distinguishes "this run finished while
@@ -25,9 +27,7 @@ import { RunsView, type RunsViewProps } from "./RunsView";
 
 vi.mock("../lib/api", () => ({
   listRuns: vi.fn(),
-  createRun: vi.fn(),
   cancelRun: vi.fn(),
-  startDebugRun: vi.fn(),
   getRunHistory: vi.fn(),
   resolveApproval: vi.fn(),
   baseUrl: vi.fn(() => Promise.resolve("http://x")),
@@ -63,9 +63,9 @@ const row = (status: Run["status"], id = "run-1"): Run => ({
 });
 
 /** The view with the run selection it no longer owns, held the way `App` holds it. */
-function Harness(props: Omit<RunsViewProps, "runId" | "onSelectRun" | "onOpenSettings">) {
+function Harness(props: Omit<RunsViewProps, "runId" | "onSelectRun" | "onNewRun">) {
   const [runId, setRunId] = useState<string | null>(null);
-  return <RunsView {...props} runId={runId} onSelectRun={setRunId} onOpenSettings={vi.fn()} />;
+  return <RunsView {...props} runId={runId} onSelectRun={setRunId} onNewRun={vi.fn()} />;
 }
 
 /** The handlers the view attached to the most recent stream. */
@@ -73,6 +73,7 @@ let handlers: RunStreamHandlers | null = null;
 
 beforeEach(() => {
   useRunStore.getState().reset();
+  useRunList.getState().reset();
   handlers = null;
   stream.mockImplementation((_origin, _runId, attached) => {
     handlers = attached;
@@ -109,7 +110,7 @@ describe("refreshing the picker and the meter", () => {
     const user = userEvent.setup();
     const onRunChanged = vi.fn();
     mocked.listRuns.mockResolvedValue([row("running")]);
-    render(<Harness onRunChanged={onRunChanged} blocker={null} pendingApprovals={[]} />);
+    render(<Harness onRunChanged={onRunChanged} pendingApprovals={[]} />);
     await pick(user, "quarterly");
     expect(mocked.listRuns).toHaveBeenCalledTimes(1);
 
@@ -130,7 +131,7 @@ describe("refreshing the picker and the meter", () => {
     const onRunChanged = vi.fn();
     mocked.listRuns.mockResolvedValue([row("completed")]);
     mocked.getRunHistory.mockResolvedValue(twoAgentRun());
-    render(<Harness onRunChanged={onRunChanged} blocker={null} pendingApprovals={[]} />);
+    render(<Harness onRunChanged={onRunChanged} pendingApprovals={[]} />);
 
     await pick(user, "quarterly", false);
     await waitFor(() => {
@@ -147,7 +148,7 @@ describe("refreshing the picker and the meter", () => {
     mocked.listRuns.mockResolvedValue([row("completed")]);
     const log = twoAgentRun();
     mocked.getRunHistory.mockResolvedValue(log);
-    render(<Harness onRunChanged={onRunChanged} blocker={null} pendingApprovals={[]} />);
+    render(<Harness onRunChanged={onRunChanged} pendingApprovals={[]} />);
     await pick(user, "quarterly", false);
     await waitFor(() => {
       expect(screen.getByTestId("run-status").textContent).toBe("completed");
@@ -169,13 +170,13 @@ describe("refreshing the picker and the meter", () => {
        ends, so a live run wore "pending" in the picker for its whole duration. */
     const user = userEvent.setup();
     mocked.listRuns.mockResolvedValue([row("pending")]);
-    render(<Harness onRunChanged={vi.fn()} blocker={null} pendingApprovals={[]} />);
+    render(<Harness onRunChanged={vi.fn()} pendingApprovals={[]} />);
     await pick(user, "quarterly");
 
     await deliver(twoAgentRun().slice(0, 3));
 
     expect(screen.getByTestId("run-list").textContent).toContain("running");
-    expect(screen.getByTestId("run-list").textContent).not.toContain("pending");
+    expect(screen.getByTestId("run-list").textContent).not.toContain("not started");
   });
 });
 
@@ -193,7 +194,7 @@ describe("switching runs", () => {
     ]);
     mocked.getRunHistory.mockResolvedValueOnce(log);
     const onRunChanged = vi.fn();
-    render(<Harness onRunChanged={onRunChanged} blocker={null} pendingApprovals={[]} />);
+    render(<Harness onRunChanged={onRunChanged} pendingApprovals={[]} />);
     await pick(user, "quarterly", false);
     await waitFor(() => {
       expect(screen.getByTestId("run-status").textContent).toBe("completed");
@@ -215,7 +216,7 @@ describe("switching runs", () => {
     expect(screen.getByLabelText<HTMLInputElement>("Position in the event log").disabled).toBe(true);
     expect(screen.getByTestId("connection-status").textContent).toContain("loading");
     // The new row wears its own status, not the old head's.
-    expect(second.textContent).toContain("pending");
+    expect(second.textContent).toContain("not started");
     expect(second.textContent).not.toContain("completed");
     expect(onRunChanged).not.toHaveBeenCalled();
 
@@ -230,69 +231,10 @@ describe("switching runs", () => {
   });
 });
 
-describe("runs that happen elsewhere", () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("re-reads the picker and the meter while any listed run is still going", async () => {
-    /* A run started from Discord, or one left running in the background, never
-       reached the picker until the user started or finished a run of their own,
-       and the meter did not move while it spent. */
-    vi.useFakeTimers();
-    const onRunChanged = vi.fn();
-    mocked.listRuns.mockResolvedValue([row("running", "run-discord")]);
-    render(<Harness onRunChanged={onRunChanged} blocker={null} pendingApprovals={[]} />);
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0);
-    });
-    expect(mocked.listRuns).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(5_000);
-    });
-
-    expect(mocked.listRuns).toHaveBeenCalledTimes(2);
-    expect(onRunChanged).toHaveBeenCalledTimes(1);
-  });
-
-  it("stops polling once every listed run has ended", async () => {
-    vi.useFakeTimers();
-    mocked.listRuns.mockResolvedValue([row("completed"), row("failed", "run-2")]);
-    render(<Harness onRunChanged={vi.fn()} blocker={null} pendingApprovals={[]} />);
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0);
-    });
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(30_000);
-    });
-
-    expect(mocked.listRuns).toHaveBeenCalledTimes(1);
-  });
-
-  it("re-reads everything when the window becomes visible again", async () => {
-    /* A setting changed from a browser tab while this window was behind it. */
-    const onRunChanged = vi.fn();
-    mocked.listRuns.mockResolvedValue([row("completed")]);
-    render(<Harness onRunChanged={onRunChanged} blocker={null} pendingApprovals={[]} />);
-    await screen.findByRole("button", { name: /quarterly/ });
-
-    act(() => {
-      document.dispatchEvent(new Event("visibilitychange"));
-    });
-
-    await waitFor(() => {
-      expect(mocked.listRuns).toHaveBeenCalledTimes(2);
-    });
-    expect(onRunChanged).toHaveBeenCalledTimes(1);
-  });
-});
-
 describe("the picker", () => {
   it("shows the day a run was created, not only the time", async () => {
     mocked.listRuns.mockResolvedValue([row("completed")]);
-    render(<Harness onRunChanged={vi.fn()} blocker={null} pendingApprovals={[]} />);
+    render(<Harness onRunChanged={vi.fn()} pendingApprovals={[]} />);
 
     const item = await screen.findByRole("button", { name: /quarterly/ });
     expect(item.textContent).toMatch(/2026-09-1[01]/);
@@ -303,18 +245,18 @@ describe("the picker", () => {
        window a second after the question was asked would otherwise see
        nothing" — and nothing called it. */
     mocked.listRuns.mockResolvedValue([row("running", "run-discord"), row("completed")]);
-    render(<Harness onRunChanged={vi.fn()} blocker={null} pendingApprovals={[APPROVAL]} />);
+    render(<Harness onRunChanged={vi.fn()} pendingApprovals={[APPROVAL]} />);
 
-    const waiting = await screen.findByTestId("run-needs-approval-run-discord");
+    const waiting = await screen.findByTestId("run-row-needs-approval-run-discord");
     expect(waiting.textContent).toContain("approval");
-    expect(screen.queryByTestId("run-needs-approval-run-1")).toBeNull();
+    expect(screen.queryByTestId("run-row-needs-approval-run-1")).toBeNull();
   });
 
   it("offers to load more once the list is as long as it was asked for", async () => {
     const user = userEvent.setup();
     const many = Array.from({ length: 50 }, (_, index) => row("completed", `run-${String(index)}`));
     mocked.listRuns.mockResolvedValue(many);
-    render(<Harness onRunChanged={vi.fn()} blocker={null} pendingApprovals={[]} />);
+    render(<Harness onRunChanged={vi.fn()} pendingApprovals={[]} />);
 
     await user.click(await screen.findByRole("button", { name: "Load more" }));
 
@@ -331,7 +273,7 @@ describe("cancelling a run", () => {
     const user = userEvent.setup();
     mocked.listRuns.mockResolvedValue([row("running")]);
     mocked.cancelRun.mockResolvedValue(row("running"));
-    render(<Harness onRunChanged={vi.fn()} blocker={null} pendingApprovals={[]} />);
+    render(<Harness onRunChanged={vi.fn()} pendingApprovals={[]} />);
     await pick(user, "quarterly");
     await deliver(twoAgentRun().slice(0, 3));
 
@@ -350,7 +292,7 @@ describe("cancelling a run", () => {
     const user = userEvent.setup();
     mocked.listRuns.mockResolvedValue([row("running")]);
     mocked.cancelRun.mockResolvedValue(row("running"));
-    render(<Harness onRunChanged={vi.fn()} blocker={null} pendingApprovals={[]} />);
+    render(<Harness onRunChanged={vi.fn()} pendingApprovals={[]} />);
     await pick(user, "quarterly");
     const log = twoAgentRun();
     await deliver(log.slice(0, 3));
@@ -368,7 +310,7 @@ describe("cancelling a run", () => {
     const user = userEvent.setup();
     mocked.listRuns.mockResolvedValue([row("completed")]);
     mocked.getRunHistory.mockResolvedValue(twoAgentRun());
-    render(<Harness onRunChanged={vi.fn()} blocker={null} pendingApprovals={[]} />);
+    render(<Harness onRunChanged={vi.fn()} pendingApprovals={[]} />);
     await pick(user, "quarterly", false);
 
     expect(screen.queryByRole("button", { name: "Cancel run" })).toBeNull();
@@ -378,51 +320,12 @@ describe("cancelling a run", () => {
     const user = userEvent.setup();
     mocked.listRuns.mockResolvedValue([row("running")]);
     mocked.cancelRun.mockRejectedValue(new Error("run run-1 is already completed"));
-    render(<Harness onRunChanged={vi.fn()} blocker={null} pendingApprovals={[]} />);
+    render(<Harness onRunChanged={vi.fn()} pendingApprovals={[]} />);
     await pick(user, "quarterly");
     await deliver(twoAgentRun().slice(0, 3));
 
     await user.click(screen.getByRole("button", { name: "Cancel run" }));
 
     expect((await screen.findByRole("alert")).textContent).toContain("already completed");
-  });
-});
-
-describe("starting a run", () => {
-  it("says why a run would be refused, beside the goal box, and does not offer to start one", async () => {
-    /* The header said "unpriced — runs will be refused" and the meter said
-       "further runs are refused" while the Start button stayed live. Every
-       click added a dead `failed` row to the picker, with the reason only in
-       the run's own log. */
-    const user = userEvent.setup();
-    mocked.listRuns.mockResolvedValue([]);
-    render(
-      <Harness
-        onRunChanged={vi.fn()}
-        blocker="No API key for anthropic. Add one in the settings and restart."
-        pendingApprovals={[]}
-      />,
-    );
-
-    await user.type(screen.getByTestId("goal-input"), "do a thing");
-
-    expect(screen.getByTestId("preflight").textContent).toContain("No API key for anthropic");
-    expect(screen.getByRole("button", { name: "Start run" })).toHaveProperty("disabled", true);
-    expect(mocked.createRun).not.toHaveBeenCalled();
-  });
-
-  it("clears a failed start's message once another run is picked", async () => {
-    const user = userEvent.setup();
-    mocked.listRuns.mockResolvedValue([row("completed")]);
-    mocked.createRun.mockRejectedValue(new Error("the sidecar refused"));
-    render(<Harness onRunChanged={vi.fn()} blocker={null} pendingApprovals={[]} />);
-
-    await user.type(screen.getByTestId("goal-input"), "do a thing");
-    await user.click(screen.getByRole("button", { name: "Start run" }));
-    expect((await screen.findByRole("alert")).textContent).toContain("refused");
-
-    await pick(user, "quarterly");
-
-    expect(screen.queryByRole("alert")).toBeNull();
   });
 });

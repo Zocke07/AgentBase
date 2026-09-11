@@ -1,4 +1,5 @@
 import { ellipsise, formatCount, formatDuration, formatMicros } from "../lib/format";
+import { STATUS_LABEL } from "../state/describe";
 import type { RunView } from "../state/reducer";
 
 /**
@@ -19,15 +20,6 @@ import type { RunView } from "../state/reducer";
 export interface RunSummaryProps {
   view: RunView;
 }
-
-const STATUS_LABEL: Record<RunView["status"], string> = {
-  pending: "not started",
-  running: "running",
-  paused: "paused",
-  completed: "completed",
-  failed: "failed",
-  cancelled: "cancelled",
-};
 
 export function RunSummary({ view }: RunSummaryProps) {
   const denied = view.denials.length;

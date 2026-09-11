@@ -230,6 +230,10 @@ CREATE TABLE approvals (
 );
 ```
 
+*Phase 11 adds a `spaces` table and a `space_id` on `runs` and `agent_defs`, and changes
+`agent_defs`' uniqueness to `(space_id, name)`. The SQL is in that phase, beside the
+migration that introduces it.*
+
 ### Event types — this list is the contract
 
 ```
@@ -251,7 +255,8 @@ Adding an event type means updating: `events/types.py`, the generated TS types, 
 ## 5. Build phases
 
 Work through these **in order**. Do not start a phase before the previous phase's
-acceptance criteria pass. Do not build ahead.
+acceptance criteria pass. Do not build ahead. *(One exception, decided 2026-09-11: Phase 11
+is built before Phase 10, so the portfolio artefacts show the finished product.)*
 
 ### Phase 0 — Scaffold and cross-platform hygiene
 
@@ -484,6 +489,184 @@ minute deciding whether to look closer. Optimize for that.
 
 **Accept when:** someone with none of this project's toolchain installed can go from `git
 clone` to a running agent graph in under five minutes using only the README.
+
+### Phase 11 — Spaces, and the redesign around them
+
+*Added 2026-09-11 at the maintainer's request. Built **before** Phase 10, because the
+portfolio artefacts — the GIF, the README screenshots, the demo — should show the product
+this phase produces, not the one it replaces. Design first: this section is reviewed by the
+maintainer before any of it is coded (§6, "ask before deviating" — and this changes §4).*
+
+**The idea, in the maintainer's words:** instead of creating standalone agents, let the user
+define a *coworking space* first, and assign agents to live in that space. A run happens in
+a space, with that space's agents, that space's rules, in that space's folder.
+
+**What a space is.** A named container that owns three things: a **roster** (agent
+definitions belong to exactly one space), a **folder** (the sandbox root for every tool call
+in its runs), and **rules** (model, approval policy, run limits — each either inherited from
+the app-wide default or set here). Runs belong to the space they were started in. Everything
+that is the *user's* rather than a space's stays app-wide: API keys and bot tokens (the
+keychain is process-wide by construction, §1 constraint 4), the monthly budget cap (one
+wallet), the Discord connection and its allowlist.
+
+**What a space is not.** Not a tenant, not an account, not a project directory the user
+points at their home folder. §7's non-goals stand. The blast radius of an approval misclick
+is the space's folder, and in v1 that folder is always one this application created.
+
+#### Data model (§4 additions)
+
+```sql
+CREATE TABLE spaces (
+  id            TEXT PRIMARY KEY,        -- uuid4; the default space's is a fixed literal
+  name          TEXT NOT NULL UNIQUE,
+  description   TEXT NOT NULL DEFAULT '',
+  provider      TEXT,                    -- NULL = inherit the app-wide default
+  model         TEXT,                    -- NULL = inherit
+  auto_approve  TEXT,                    -- NULL = inherit; else JSON array, narrows only
+  max_steps_per_agent INTEGER,           -- NULL = inherit; a space may set these either way
+  max_agents_per_run  INTEGER,
+  max_run_seconds     INTEGER,
+  archived      INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT NOT NULL,
+  updated_at    TEXT NOT NULL
+);
+-- agent_defs gains  space_id TEXT NOT NULL REFERENCES spaces(id)
+--   and its UNIQUE(name) becomes UNIQUE(space_id, name): a name is unique in its roster,
+--   which is the only place the supervisor ever resolves one.
+-- runs gains        space_id TEXT NOT NULL REFERENCES spaces(id)
+-- spend, approvals, events are unchanged: they hang off runs, and a run knows its space.
+```
+
+The folder is **not a column**: it is `<data dir>/spaces/<id>/`, derived, so a row cannot
+name a path outside the place the application owns. Renaming a space does not move files.
+
+- **Migration 006** creates `spaces`, inserts the default space (fixed id, name `Main`,
+  every rule NULL — so it behaves exactly as the single workspace does today), and moves the
+  existing workspace folder to become its folder. Then `agent_defs` and `runs` gain
+  `space_id`, backfilled to the default space. **Trap, known in advance:** SQLite will not
+  `ADD COLUMN ... REFERENCES` with a non-NULL default while foreign keys are on, and cannot
+  add `NOT NULL` without one — so both columns arrive by table rebuild (create, copy, drop,
+  rename), and the runner needs a way to run one migration with the FK check deferred. Write
+  the upgrade test first, against a populated v5 database, and assert every run, event,
+  definition, approval and spend row is still there afterwards, with a space.
+- **The default space cannot be archived or deleted.** Something has to receive a run whose
+  space was not named.
+- **A space with runs cannot be deleted; it can be archived.** Runs are history and history
+  is the product (§2). Archived spaces leave the switcher and keep their runs viewable.
+  Deleting a space with no runs deletes its agents.
+
+#### Rules resolve in layers, and the approval layer only narrows
+
+`effective = definition ∩ space ∩ app-wide` for `auto_approve`, extending §5 Phase 5's rule:
+a definition "can never grant a risk level the workspace policy has not enabled", and now
+neither can a space. The Phase 6 reading holds at each layer — an empty/NULL list means
+*inherit*, not *none*. Model and limits are overrides, not narrowings: a space wanting longer
+runs than the default is a legitimate thing, and the wall clock is a cost control that the
+app-wide budget cap still bounds. `run.started` records the effective rules and the space
+(`space: {id, name}`) so a replay can say which rules a run ran under. **No new event
+types** — the §4 list is unchanged, so no three-way update is needed.
+
+#### API
+
+- `GET /spaces`, `POST /spaces`, `GET /spaces/{id}`, `PATCH /spaces/{id}`, `DELETE /spaces/{id}`
+  (409 while it has runs; 409 for the default). `POST /spaces` takes
+  `seed: "empty" | "builtins" | {"copy_from": "<space id>"}` — a new space starts empty,
+  with fresh copies of the three seeded roles, or with copies of another space's roster.
+  Copies are new rows with new ids and `is_builtin = 0`.
+- `GET /agents?space_id=`, `POST /agents` requires `space_id`, `PATCH /agents/{id}` may set
+  `space_id` (a **move**; an in-flight run's roster is a snapshot, per Phase 5, so a move
+  mid-run leaves that run alone), `POST /agents/{id}/copy {space_id}`.
+- `GET /runs?space_id=`; `POST /runs {goal, space_id?}` — omitted means the default space,
+  which is what keeps `POST /debug/fake_run` and today's Discord path working unchanged.
+- `GET /budget?space_id=` adds this space's spend for the period beside the app-wide cap.
+  Derived by joining `spend` to `runs`; no new column.
+- `WorkspaceSettings.channel_space_id` (NULL = default): where `/agent` from Discord runs.
+  *May:* an optional `space` option on the slash command, autocompleted from names.
+- Every filesystem tool resolves against the run's space folder. `Sandbox` is constructed
+  per run from the space, not once per process — and a `write_file` from a run in space A
+  to a path under space B's folder is `tool.denied` with `blocked_by: "sandbox"`, exactly as
+  a path outside the old single root is today.
+
+#### The redesign
+
+This is the visual redesign the maintainer asked for, shaped around spaces so it is done
+once. It replaces the developer dashboard's chrome; it does **not** replace the run
+projection's structure — the graph, the log and the summary stay one pure fold of the log,
+inside the same `run-projection` boundary, and `replayIdentity.test.tsx` keeps passing at
+every step.
+
+- **A sidebar, not tabs.** A persistent left rail: the **space switcher** at the top (current
+  space's name, a list to switch, "New space…"), then the current space's sections — *Home*,
+  *Runs*, *Agents*, *Space settings* — and, pinned to the bottom, the app-wide *Settings*
+  (keys, budget, Discord). The header keeps what is global: the budget meter with the
+  month's spend, the provider · model in use for *this space*, and the "N approvals waiting"
+  badge, which is global and opens the run it names in whatever space it is in.
+- **A Home screen per space.** What a person sees when nothing is open: a large goal box
+  ("What should this space work on?") with a Start button; a **Now** strip — runs in progress
+  and approvals waiting, each a card that opens the run; **Recent runs** as cards (status,
+  goal, started, duration, cost) rather than a dense list; and the **roster** — the space's
+  agents with role and an enable toggle, with "Add an agent" and, for an empty space, "Start
+  from the built-in roles". First-launch guidance lives here too: no key configured → one
+  card saying so with a button to Settings and a button for the demo run; no agents → the
+  seed button; no runs → the goal box is the whole screen.
+- **Plain language first, raw types second.** Every event row gets a sentence — *supervisor
+  asked the model*, *writer wants to write hello.txt (waiting for you)*, *writer wrote
+  hello.txt (24 bytes)* — with the raw `llm.request` / `tool.called` kept as a muted mono
+  chip beside it, because the raw type is what a bug report needs and the sentence is what a
+  person reads. Same for the agent card labels and the run status. The sentences are a pure
+  function of the event, so they live in the reducer's module and are covered by the
+  identity test.
+- **A "Now" line above the graph.** One sentence about the run at this cursor — *writer is
+  waiting for your approval*, *3 agents finished; the supervisor is writing the summary* —
+  derived from the fold, so it is identical live and on replay.
+- **Type and colour.** A system UI stack for prose (Segoe UI on Windows, SF on macOS);
+  monospace only for ids, payloads and code. Base size 14 → 15px, 1.5 line height; the
+  uppercase micro-labels go. **Light theme and dark theme**, following the OS
+  (`prefers-color-scheme`) with an override in Settings; both defined as tokens on `:root`
+  so no colour has a single definition. A softer palette: one accent, the three risk colours
+  (unchanged in meaning — they match the gate), status colours for the five run states,
+  and neutral surfaces with one level of elevation for cards. Nothing on screen is coloured
+  for decoration.
+- **Cards for runs, rows for events.** A run is something to pick; an event is something to
+  scan. The event log keeps its table shape (it is the thing you check the graph against)
+  and gains the sentence column; the picker becomes cards.
+- **The approval panel stays docked** (CLAUDE.md, 2026-09-11) and gets the same restyle:
+  risk-coloured edge, the question in a sentence, the decision history collapsed by default,
+  Deny still focused.
+- **Space settings are one page; app settings are another.** *Space settings*: name,
+  description, the folder (shown as a path, with **Open folder** via the Tauri opener plugin
+  — a new, single-purpose dependency, replacing nothing), model, approval policy, limits,
+  each with "Inherit" as the first choice, and a danger zone (archive; delete when
+  allowed). *Settings*: what the current tab holds minus what moved to spaces, plus theme
+  and `channel_space_id`.
+- **Windowed event log.** Long runs render only the rows in view. Deferred from the frontend
+  pass as "nothing larger than 291 events has been measured"; the redesign touches every row
+  anyway, and the Home screen's cards mean the log is no longer the first thing loaded.
+
+**Order of work, so the gate stays green throughout:** (1) migration 006 and the `spaces`
+store, test first; (2) `space_id` through the launcher, the sandbox-per-run and the roster
+snapshot, verified with two spaces against a real model; (3) the API and regenerated types;
+(4) the sidebar, switcher and Home screen against the existing panels; (5) the run view
+restyle — sentences, the Now line, theme tokens; (6) space and app settings pages; (7) the
+log windowing; (8) Discord's `channel_space_id`. Each step is its own commit or small group,
+and CLAUDE.md records what the live runs showed.
+
+**Accept when:**
+
+1. Two spaces with different rosters; a run started in space A, against a real local model,
+   with a goal that names one of space B's agents by name, never spawns it — the supervisor's
+   roster in `agent.spawned` lists only A's agents, and the log shows the refusal.
+2. A `write_file` in a run in space A lands under A's folder; a `write_file` from the same
+   run to a path under B's folder is `tool.denied` with `blocked_by: "sandbox"`.
+3. A populated v5 database opens as v6 with every run, event, definition, approval and spend
+   row intact and every run and definition in the default space, and the old workspace
+   folder's files are in the default space's folder.
+4. From a fresh data directory, entirely in the window: create a space, seed its roster,
+   set a key, start a run, answer its approval, replay it. Replay is pixel-identical to
+   live in both themes.
+5. `GET /budget` still refuses a run over the app-wide cap regardless of which space it is
+   in, and each space reports its own spend.
+6. Every acceptance criterion from Phases 6, 7 and 8 still holds, run again, in the new UI.
 
 ---
 

@@ -1163,7 +1163,16 @@ tick. The Discord live path and macOS were not touched (Telegram has since
 been removed). The untracked `docs/USER_GUIDE.md` still describes the window
 it predates.
 
-Next up: **Phase 10 — Portfolio artifacts.** Do not start it before re-reading
+Next up: **Phase 11 — Spaces, and the redesign around them**, written into
+BUILD_SPEC §5 on 2026-09-11 and built *before* Phase 10 so the portfolio artefacts
+show the finished product. **It is a design awaiting the maintainer's review: do
+not start coding it until they have read the section and said so.** Two open
+choices are flagged in the design for them — whether a space's folder may ever
+be a directory the user picks (v1 says no, for blast radius), and whether the
+Discord slash command should take a `space` option or only follow the
+`channel_space_id` setting.
+
+After it, **Phase 10 — Portfolio artifacts.** Do not start it before re-reading
 BUILD_SPEC §5 Phase 10. Two things bear on it directly:
 
 - Phase 9's acceptance criterion is met except for "a second Windows machine",

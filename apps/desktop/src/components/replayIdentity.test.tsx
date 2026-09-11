@@ -243,6 +243,6 @@ describe("what the panel refuses to do", () => {
     const { getByTestId } = panel(snapshot);
 
     expect(getByTestId("fact-denied").textContent).toContain("sandbox");
-    expect(getByTestId("event-log").textContent).toContain("[sandbox]");
+    expect(getByTestId("event-log").textContent).toContain("The sandbox stopped researcher");
   });
 });

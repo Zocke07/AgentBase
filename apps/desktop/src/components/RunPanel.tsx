@@ -1,5 +1,6 @@
 import type { Event } from "@agentspace/schemas";
 
+import { nowLine } from "../state/describe";
 import type { RunView } from "../state/reducer";
 
 import { ApprovalPanel, type ApprovalPanelProps } from "./ApprovalPanel";
@@ -134,6 +135,13 @@ export function RunPanel({
 
       <div className="run-projection" data-testid="run-projection">
         <RunSummary view={view} />
+
+        {/* One sentence about the run at this cursor. Derived from the fold,
+            so it is the same sentence live and on replay — and it is the
+            first thing a person reads, above a graph that takes longer. */}
+        <p className="now-line" data-testid="now-line">
+          {nowLine(view)}
+        </p>
 
         <div className="run-panel__canvas">
           <RunGraph view={view} selectedAgent={selectedName} onSelectAgent={onSelectAgent} />

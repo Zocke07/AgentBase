@@ -9,18 +9,28 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AgentsView } from "./components/AgentsView";
 import { BudgetMeter } from "./components/BudgetMeter";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { HomeView } from "./components/HomeView";
+import { Rail, type Section } from "./components/Rail";
 import { RunsView } from "./components/RunsView";
 import { SettingsView } from "./components/SettingsView";
 import * as api from "./lib/api";
 import { connectWithRetry, type SidecarStatus } from "./lib/sidecar";
-
+import { useTheme } from "./lib/theme";
+import { unfinished, useRunList } from "./state/runList";
+import { useRunStore } from "./state/runStore";
 
 /**
- * The dashboard shell.
+ * The shell: a rail of sections on the left, the section on the right, and a
+ * header carrying what is true of the whole workspace rather than of one run
+ * — the month's spend, the provider and model in use, and any approval
+ * waiting anywhere.
  *
- * Its whole job is to establish that the sidecar is reachable, then hand over to
- * one of two tabs. Nothing about a run is decided here — that is `RunsView` and,
- * below it, the reducer.
+ * Its job is to establish that the sidecar is reachable, then hand over.
+ * Nothing about a run is decided here — that is `RunsView` and, below it, the
+ * reducer. What the shell does own is the two lists more than one section
+ * shows (the runs and the roster, in shared stores) and the moments they are
+ * re-read: a light poll while any listed run is unfinished, the window
+ * becoming visible again, and a run being started or finished.
  *
  * The retry loop is inherited from the Phase 1 spike and still earns its place:
  * the webview is reliably ready before the frozen sidecar has finished unpacking
@@ -28,23 +38,29 @@ import { connectWithRetry, type SidecarStatus } from "./lib/sidecar";
  * every cold start.
  */
 
-type Tab = "runs" | "agents" | "settings";
+/** How often to re-read the run list and the meter while some run is unfinished. */
+const BACKGROUND_REFRESH_MS = 5_000;
 
 export function App() {
   const [status, setStatus] = useState<SidecarStatus>({ kind: "connecting", attempt: 0 });
-  const [tab, setTab] = useState<Tab>("runs");
+  const [section, setSection] = useState<Section>("home");
   const [budget, setBudget] = useState<BudgetResponse | null>(null);
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
   const [verified, setVerified] = useState<VerifyResponse | null>(null);
   const [pendingApprovals, setPendingApprovals] = useState<ApprovalResponse[]>([]);
-  // Which run is open. Held here rather than in the runs tab so the header's
-  // "approval waiting" badge can open the run it names from any tab.
+  // Which run is open. Held here rather than in the runs section so that it
+  // survives a section switch, and so the header's "approval waiting" badge
+  // and the Home screen's cards can open a run from anywhere.
   const [runId, setRunId] = useState<string | null>(null);
   // Set when a request failed to reach the sidecar after startup; cleared when
   // the reconnect loop gets an answer again. The window stays where it was
   // underneath — a run being watched is still worth watching.
   const [lost, setLost] = useState<Exclude<SidecarStatus, { kind: "ready" }> | null>(null);
   const inFlight = useRef<AbortController | null>(null);
+
+  // The theme is a fact about this window, applied to the document root and
+  // remembered in this browser; the settings page offers the choice.
+  useTheme();
 
   const connect = useCallback(() => {
     inFlight.current?.abort();
@@ -107,8 +123,57 @@ export function App() {
     if (status.kind === "ready") refreshWorkspace();
   }, [status.kind, refreshWorkspace]);
 
-  // Why a run started now would be refused, or null. Shown beside the goal
-  // box and disabling Start — the header already said "runs will be refused"
+  // Runs that happen elsewhere. The stream covers the open run; a run started
+  // from Discord, or left going in the background, only reaches the list —
+  // and only moves the meter — if something re-reads the table. A light poll
+  // while any listed run is unfinished, and nothing at all once they all are:
+  // an idle window makes no requests.
+  const runs = useRunList((state) => state.runs);
+  const reloadRuns = useRunList((state) => state.load);
+  const anyUnfinished = runs.some(unfinished);
+  useEffect(() => {
+    if (status.kind !== "ready" || !anyUnfinished) return;
+    const timer = setInterval(() => {
+      void reloadRuns();
+      refreshWorkspace();
+    }, BACKGROUND_REFRESH_MS);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [status.kind, anyUnfinished, reloadRuns, refreshWorkspace]);
+
+  // And when the window comes back into view: a setting changed from a browser
+  // tab, or a run that ended while this window was behind something.
+  useEffect(() => {
+    if (status.kind !== "ready") return;
+    const onVisible = () => {
+      if (!document.hidden) {
+        void reloadRuns();
+        refreshWorkspace();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [status.kind, reloadRuns, refreshWorkspace]);
+
+  // The open run's status as its log reports it, for the cards: the table's
+  // row says "pending" for the whole of a live run.
+  const loadedRunId = useRunStore((state) => state.runId);
+  const headView = useRunStore((state) => state.headView);
+  const liveStatus =
+    runId !== null && loadedRunId === runId && headView.eventCount > 0
+      ? { runId, status: headView.status }
+      : null;
+
+  const openRun = useCallback((id: string) => {
+    setRunId(id);
+    setSection("runs");
+  }, []);
+
+  // Why a run started now would be refused, or null. Shown on the Home screen
+  // and disabling Start — the header already said "runs will be refused"
   // while the button stayed live, and every click added a dead `failed` row.
   const blocker =
     verified !== null && !verified.ok
@@ -146,129 +211,125 @@ export function App() {
 
   return (
     <div className="app">
-      {lost !== null && (
-        <div className="app__lost" role="alert" data-testid="sidecar-lost">
-          <span className="dot dot--bad" />
-          {lost.kind === "connecting" && `Lost the sidecar — reconnecting (attempt ${String(lost.attempt)})`}
-          {lost.kind === "failed" && `Lost the sidecar at ${lost.baseUrl}: ${lost.message}`}
-          {lost.kind === "failed" && (
-            <button
-              type="button"
-              className="button button--small"
-              onClick={() => {
-                reconnecting.current = false;
-                setLost({ kind: "connecting", attempt: 0 });
-                api.onTransportFailure(() => undefined)();
-                connect();
-              }}
-            >
-              Retry
-            </button>
-          )}
-        </div>
-      )}
-      <header className="app__header">
-        <h1 className="app__title">AgentSpace</h1>
+      <Rail section={section} onSelect={setSection} />
 
-        <nav className="tabs" aria-label="Sections">
-          <button
-            type="button"
-            className={`tab${tab === "runs" ? " tab--active" : ""}`}
-            aria-current={tab === "runs" ? "page" : undefined}
-            onClick={() => {
-              setTab("runs");
-            }}
-          >
-            Runs
-          </button>
-          <button
-            type="button"
-            className={`tab${tab === "agents" ? " tab--active" : ""}`}
-            aria-current={tab === "agents" ? "page" : undefined}
-            onClick={() => {
-              setTab("agents");
-            }}
-          >
-            Agents
-          </button>
-          <button
-            type="button"
-            className={`tab${tab === "settings" ? " tab--active" : ""}`}
-            aria-current={tab === "settings" ? "page" : undefined}
-            onClick={() => {
-              setTab("settings");
-            }}
-          >
-            Settings
-          </button>
-        </nav>
+      <div className="app__main">
+        {lost !== null && (
+          <div className="app__lost" role="alert" data-testid="sidecar-lost">
+            <span className="dot dot--bad" />
+            {lost.kind === "connecting" && `Lost the sidecar — reconnecting (attempt ${String(lost.attempt)})`}
+            {lost.kind === "failed" && `Lost the sidecar at ${lost.baseUrl}: ${lost.message}`}
+            {lost.kind === "failed" && (
+              <button
+                type="button"
+                className="button button--small"
+                onClick={() => {
+                  reconnecting.current = false;
+                  setLost({ kind: "connecting", attempt: 0 });
+                  api.onTransportFailure(() => undefined)();
+                  connect();
+                }}
+              >
+                Retry
+              </button>
+            )}
+          </div>
+        )}
 
-        <div className="app__workspace">
-          {pendingApprovals.length > 0 && (
-            <button
-              type="button"
-              className="app__waiting"
-              onClick={() => {
-                const first = pendingApprovals[0];
-                if (first === undefined) return;
-                setTab("runs");
-                setRunId(first.run_id);
-              }}
-            >
-              {pendingApprovals.length} approval{pendingApprovals.length === 1 ? "" : "s"} waiting
-            </button>
-          )}
-          {settings !== null && (
-            <span className="app__provider" title="The workspace default; a definition may pin its own">
-              {settings.settings.provider} · {settings.settings.model}
-              {!settings.model_is_priced && (
-                <span className="app__unpriced" role="alert">
-                  unpriced — runs will be refused
-                </span>
-              )}
-            </span>
-          )}
-          <BudgetMeter budget={budget} />
-        </div>
-      </header>
+        <header className="app__header">
+          <h1 className="app__title">
+            {section === "home" && "Home"}
+            {section === "runs" && "Runs"}
+            {section === "agents" && "Agents"}
+            {section === "settings" && "Settings"}
+          </h1>
 
-      <div className="app__body">
-        {/* Both tabs stay mounted. Unmounting the runs tab closed its stream
-            and forgot which run was open, so a visit to the agents tab meant
-            re-picking the run and re-downloading its whole log — and any
-            approval that arrived meanwhile went unseen until it expired. */}
-        <div className="app__view" hidden={tab !== "runs"}>
-          <ErrorBoundary label="the runs tab">
-          <RunsView
-            onRunChanged={refreshWorkspace}
-            blocker={blocker}
-            pendingApprovals={pendingApprovals}
-            runId={runId}
-            onSelectRun={setRunId}
-            onOpenSettings={() => {
-              setTab("settings");
-            }}
-          />
-          </ErrorBoundary>
-        </div>
-        <div className="app__view" hidden={tab !== "agents"}>
-          <ErrorBoundary label="the agents tab">
-            <AgentsView workspaceProvider={settings?.settings.provider ?? null} />
-          </ErrorBoundary>
-        </div>
-        <div className="app__view" hidden={tab !== "settings"}>
-          {/* Each tab has its own boundary: all three are mounted at once, so
-              without it one tab failing to render took the other two down. */}
-          <ErrorBoundary label="the settings tab">
-            <SettingsView
-              onSaved={(reply) => {
-                // The reply is the whole settings document; the header and the
-                // pre-flight follow it without waiting for the next poll.
-                setSettings(reply);
-                refreshWorkspace();
-              }}
-            />
-          </ErrorBoundary>
+          <div className="app__workspace">
+            {pendingApprovals.length > 0 && (
+              <button
+                type="button"
+                className="app__waiting"
+                onClick={() => {
+                  const first = pendingApprovals[0];
+                  if (first === undefined) return;
+                  openRun(first.run_id);
+                }}
+              >
+                {pendingApprovals.length} approval{pendingApprovals.length === 1 ? "" : "s"} waiting
+              </button>
+            )}
+            {settings !== null && (
+              <span className="app__provider" title="The workspace default; a definition may pin its own">
+                {settings.settings.provider} · {settings.settings.model}
+                {!settings.model_is_priced && (
+                  <span className="app__unpriced" role="alert">
+                    unpriced — runs will be refused
+                  </span>
+                )}
+              </span>
+            )}
+            <BudgetMeter budget={budget} />
+          </div>
+        </header>
+
+        <div className="app__body">
+          {/* Every section stays mounted. Unmounting the runs section closed
+              its stream and forgot which run was open, so a visit to another
+              meant re-picking the run and re-downloading its whole log — and
+              any approval that arrived meanwhile went unseen until it
+              expired. Each has its own boundary, because all four are
+              mounted at once and one failing to render used to take the rest
+              down. */}
+          <div className="app__view" hidden={section !== "home"}>
+            <ErrorBoundary label="the Home screen">
+              <HomeView
+                blocker={blocker}
+                pendingApprovals={pendingApprovals}
+                liveStatus={liveStatus}
+                onOpenRun={openRun}
+                onOpenRuns={() => {
+                  setSection("runs");
+                }}
+                onOpenAgents={() => {
+                  setSection("agents");
+                }}
+                onOpenSettings={() => {
+                  setSection("settings");
+                }}
+                onWorkspaceChanged={refreshWorkspace}
+              />
+            </ErrorBoundary>
+          </div>
+          <div className="app__view" hidden={section !== "runs"}>
+            <ErrorBoundary label="the runs section">
+              <RunsView
+                onRunChanged={refreshWorkspace}
+                pendingApprovals={pendingApprovals}
+                runId={runId}
+                onSelectRun={setRunId}
+                onNewRun={() => {
+                  setSection("home");
+                }}
+              />
+            </ErrorBoundary>
+          </div>
+          <div className="app__view" hidden={section !== "agents"}>
+            <ErrorBoundary label="the agents section">
+              <AgentsView workspaceProvider={settings?.settings.provider ?? null} />
+            </ErrorBoundary>
+          </div>
+          <div className="app__view" hidden={section !== "settings"}>
+            <ErrorBoundary label="the settings page">
+              <SettingsView
+                onSaved={(reply) => {
+                  // The reply is the whole settings document; the header and the
+                  // pre-flight follow it without waiting for the next poll.
+                  setSettings(reply);
+                  refreshWorkspace();
+                }}
+              />
+            </ErrorBoundary>
+          </div>
         </div>
       </div>
     </div>

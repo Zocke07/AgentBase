@@ -5,9 +5,10 @@ import type {
   ToolResponse,
   UpdateAgentRequest,
 } from "@agentspace/schemas";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import * as api from "../lib/api";
+import { useRoster } from "../state/roster";
 import { useFetched } from "../state/useFetched";
 
 import { AgentEditor } from "./AgentEditor";
@@ -28,7 +29,6 @@ import { AgentList } from "./AgentList";
  * be the toast §5 Phase 7 explicitly rules out.
  */
 
-const NO_AGENTS: AgentDef[] = [];
 const NO_TOOLS: ToolResponse[] = [];
 const NO_CATALOGUE: ProviderCatalogueResponse = { providers: [], models: {} };
 
@@ -53,34 +53,42 @@ export function AgentsView({ workspaceProvider }: AgentsViewProps) {
     else action();
   };
 
-  const loadAgents = useCallback(() => api.listAgents(), []);
   const loadTools = useCallback(() => api.listTools(), []);
   const loadCatalogue = useCallback(() => api.listProviders(), []);
 
-  const roster = useFetched(loadAgents, NO_AGENTS);
+  // The roster is shared with the Home screen, which has its own toggle for
+  // each agent; one store, so a change on either side shows on both.
+  const agents = useRoster((state) => state.data);
+  const rosterLoading = useRoster((state) => state.loading);
+  const rosterError = useRoster((state) => state.error);
+  const reloadRoster = useRoster((state) => state.load);
+  const ensureRoster = useRoster((state) => state.ensure);
   const tools = useFetched(loadTools, NO_TOOLS);
   const catalogue = useFetched(loadCatalogue, NO_CATALOGUE);
 
-  const agents = roster.data;
+  useEffect(() => {
+    ensureRoster();
+  }, [ensureRoster]);
+
   const selected = agents.find((agent) => agent.id === selectedId) ?? null;
   // Every fetch this tab depends on reports here. A failed `/tools` used to
   // render an editor with no checkboxes and no explanation — and a save from
   // that state would have sent an empty allowlist.
-  const error = actionError ?? roster.error ?? tools.error ?? catalogue.error;
+  const error = actionError ?? rosterError ?? tools.error ?? catalogue.error;
 
   // No try/catch in either: the editor renders the failure inline against the
   // field the server named. See the module note.
   const create = async (body: CreateAgentRequest) => {
     const created = await api.createAgent(body);
     setSelectedId(created.id);
-    roster.reload();
+    void reloadRoster();
     setEditing("none");
   };
 
   const patch = async (changes: UpdateAgentRequest) => {
     if (selected === null) return;
     await api.updateAgent(selected.id, changes);
-    roster.reload();
+    void reloadRoster();
     setEditing("none");
   };
 
@@ -89,7 +97,7 @@ export function AgentsView({ workspaceProvider }: AgentsViewProps) {
     setBusyId(agent.id);
     try {
       await api.updateAgent(agent.id, { enabled: !(agent.enabled ?? true) });
-      roster.reload();
+      void reloadRoster();
     } catch (failure) {
       setActionError(failure instanceof Error ? failure.message : String(failure));
     } finally {
@@ -106,7 +114,7 @@ export function AgentsView({ workspaceProvider }: AgentsViewProps) {
         setSelectedId(null);
         setEditing("none");
       }
-      roster.reload();
+      void reloadRoster();
     } catch (failure) {
       // A built-in refuses deletion with a 409 and a message saying so. Showing
       // it is the point — §5 Phase 5 guards the delete path deliberately.
@@ -120,7 +128,7 @@ export function AgentsView({ workspaceProvider }: AgentsViewProps) {
     <div className="agents-view">
       <AgentList
         agents={agents}
-        loading={roster.loading}
+        loading={rosterLoading}
         selectedId={selectedId}
         error={error}
         busyId={busyId}

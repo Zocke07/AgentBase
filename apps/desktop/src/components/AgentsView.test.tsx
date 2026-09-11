@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../lib/api";
+import { useRoster } from "../state/roster";
 
 import { AgentsView } from "./AgentsView";
 
@@ -49,6 +50,7 @@ const tools: ToolResponse[] = [
 ];
 
 beforeEach(() => {
+  useRoster.getState().reset();
   mocked.listAgents.mockResolvedValue([writer]);
   mocked.listTools.mockResolvedValue(tools);
   mocked.listProviders.mockResolvedValue({
