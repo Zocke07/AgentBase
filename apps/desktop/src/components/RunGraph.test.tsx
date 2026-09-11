@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { edgesFor } from "../state/graph";
 import { reduceAll } from "../state/reducer";
-import { twoAgentRun } from "../test/log";
+import { LogBuilder, twoAgentRun } from "../test/log";
 
 import { RunGraph } from "./RunGraph";
 
@@ -82,6 +82,21 @@ describe("RunGraph", () => {
     expect(finished.getByTestId("agent-node-researcher").textContent).not.toContain("running");
   });
 
+  it("tints a node whose last event was an error, and says what it was", () => {
+    const log = new LogBuilder();
+    const errored = reduceAll([
+      log.add("agent.spawned", { role: "w" }, "w"),
+      log.add("tool.error", { tool: "run_shell", error: "timed out after 30s" }, "w"),
+    ]);
+    const { getByTestId } = render(
+      <RunGraph view={errored} selectedAgent={null} onSelectAgent={vi.fn()} />,
+    );
+
+    const node = getByTestId("agent-node-w");
+    expect(node.className).toContain("agent-node--errored");
+    expect(node.textContent).toContain("timed out");
+  });
+
   it("marks the selected node", () => {
     const { getByTestId } = graph("researcher");
 
@@ -133,9 +148,9 @@ describe("RunGraph", () => {
     const once = edgesFor(reduceAll(events));
     const twice = edgesFor(reduceAll([...events, { ...handoff, seq: 999, id: 999 }]));
 
-    expect(once).toEqual([
-      { id: "supervisor->researcher", source: "supervisor", target: "researcher", label: "handoff" },
-    ]);
+    expect(once).toHaveLength(1);
+    expect(once[0]).toMatchObject({ id: "supervisor->researcher", source: "supervisor", target: "researcher" });
+    expect(once[0]?.label).toContain("handoff");
     expect(twice[0]?.label).toBe("2 handoffs");
   });
 

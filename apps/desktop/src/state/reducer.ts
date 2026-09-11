@@ -59,6 +59,12 @@ export interface AgentNode {
   readonly activity: Activity;
   /** The tool being executed while `activity` is `"executing"`; null otherwise. */
   readonly currentTool: string | null;
+  /**
+   * The message of an `llm.error`/`tool.error` this agent has not yet acted
+   * past. The node is tinted while it is set: an agent thinking about an
+   * error looked exactly like one that was merely thinking.
+   */
+  readonly lastError: string | null;
   readonly steps: number;
   readonly finishedReason: string | null;
   /** Streamed output of the *current* model call — reset on each `llm.request`. */
@@ -177,6 +183,9 @@ export interface RunView {
   readonly budgetExceeded: boolean;
   readonly lastSeq: number;
   readonly eventCount: number;
+  /** `run.started`'s own timestamp, and the latest event's. Never a clock. */
+  readonly startedTs: string | null;
+  readonly latestTs: string | null;
   /** Event types this build does not know about. Rendered, never swallowed. */
   readonly unrecognised: readonly string[];
 }
@@ -203,6 +212,8 @@ export const EMPTY_RUN: RunView = {
   budgetExceeded: false,
   lastSeq: 0,
   eventCount: 0,
+  startedTs: null,
+  latestTs: null,
   unrecognised: [],
 };
 
@@ -221,6 +232,7 @@ const newAgent = (name: string, seq: number): AgentNode => ({
   maxSteps: null,
   activity: "spawned",
   currentTool: null,
+  lastError: null,
   steps: 0,
   finishedReason: null,
   streamedText: "",
@@ -274,6 +286,10 @@ export function reduce(state: RunView, event: Event): RunView {
     runId: state.runId ?? event.run_id,
     lastSeq: Math.max(state.lastSeq, seq),
     eventCount: state.eventCount + 1,
+    // The first event's stamp stands in for `run.started` if a resumed
+    // stream began after it; the latest is always the latest.
+    startedTs: state.startedTs ?? event.ts,
+    latestTs: event.ts,
   };
 
   // One place where an agent becomes known to the run, so no case below has to
@@ -361,7 +377,12 @@ export function reduce(state: RunView, event: Event): RunView {
       if (agent === null) return next;
       // A new call starts a new stream. Keeping the previous call's text would
       // render step 4's answer glued to the end of step 1's.
-      return withAgent(next, agent, seq, (node) => ({ ...node, activity: "calling", streamedText: "" }));
+      return withAgent(next, agent, seq, (node) => ({
+        ...node,
+        activity: "calling",
+        streamedText: "",
+        lastError: null,
+      }));
 
     case "llm.token":
       // Deliberately does *not* change `activity`. CLAUDE.md: deltas arrive
@@ -384,11 +405,14 @@ export function reduce(state: RunView, event: Event): RunView {
     }
 
     case "llm.error": {
+      const message = text(payload, "error") ?? "";
       const recorded: RunView = {
         ...next,
-        errors: [...next.errors, { agent, kind: "llm", message: text(payload, "error") ?? "", seq }],
+        errors: [...next.errors, { agent, kind: "llm", message, seq }],
       };
-      return agent === null ? recorded : withAgent(recorded, agent, seq, thinkingAgain);
+      return agent === null
+        ? recorded
+        : withAgent(recorded, agent, seq, (node) => ({ ...thinkingAgain(node), lastError: message }));
     }
 
     // --- tools --------------------------------------------------------------
@@ -418,7 +442,12 @@ export function reduce(state: RunView, event: Event): RunView {
       const executing: RunView = { ...next, toolCalls: [...next.toolCalls, call] };
       return agent === null
         ? executing
-        : withAgent(executing, agent, seq, (node) => ({ ...node, activity: "executing", currentTool: call.tool }));
+        : withAgent(executing, agent, seq, (node) => ({
+            ...node,
+            activity: "executing",
+            currentTool: call.tool,
+            lastError: null,
+          }));
     }
 
     case "tool.result": {
@@ -427,11 +456,14 @@ export function reduce(state: RunView, event: Event): RunView {
     }
 
     case "tool.error": {
+      const message = text(payload, "error") ?? "";
       const failed: RunView = {
         ...next,
-        errors: [...next.errors, { agent, kind: "tool", message: text(payload, "error") ?? "", seq }],
+        errors: [...next.errors, { agent, kind: "tool", message, seq }],
       };
-      return agent === null ? failed : withAgent(failed, agent, seq, thinkingAgain);
+      return agent === null
+        ? failed
+        : withAgent(failed, agent, seq, (node) => ({ ...thinkingAgain(node), lastError: message }));
     }
 
     // --- approvals ----------------------------------------------------------

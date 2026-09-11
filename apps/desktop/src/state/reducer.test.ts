@@ -370,6 +370,17 @@ describe("agents", () => {
     }
   });
 
+  it("remembers an agent's last error until it does something else", () => {
+    /* The node is tinted while this is set: an agent that hit an error and
+       is thinking about it looked exactly like one that was merely thinking. */
+    const log = new LogBuilder();
+    const errored = reduceAll([log.add("llm.error", { error: "rate limited" }, "w")]);
+    expect(errored.agents.w?.lastError).toBe("rate limited");
+
+    const recovered = reduce(errored, log.add("llm.request", { step: 2 }, "w"));
+    expect(recovered.agents.w?.lastError).toBeNull();
+  });
+
   it("names the tool an agent is running", () => {
     const log = new LogBuilder();
     const running = reduceAll([log.add("tool.called", { tool: "run_shell", call_id: "c1" }, "w")]);
@@ -459,6 +470,17 @@ describe("run identity", () => {
 
     expect(state.goal).toBe("Summarise the quarterly report");
     expect(state.limits).toMatchObject({ max_agents_per_run: 4 });
+  });
+
+  it("keeps when the run started and when its latest event was, from their own ts", () => {
+    /* The summary shows a duration from these. Both come from the log, so a
+       replay shows the same duration the live view did — never a clock. */
+    const events = twoAgentRun();
+    const state = reduceAll(events);
+
+    expect(state.startedTs).toBe(events[0]?.ts);
+    expect(state.latestTs).toBe(events.at(-1)?.ts);
+    expect(reduceAll(events.slice(0, 5)).latestTs).toBe(events[4]?.ts);
   });
 
   it("tracks the run id and head sequence from the events themselves", () => {
@@ -551,10 +573,13 @@ describe("channel-originated runs", () => {
     const before = reduceAll(events);
     const after = reduceAll([...events, { ...extra, seq: events.length + 1 }]);
 
-    expect({ ...after, eventCount: 0, lastSeq: 0 }).toEqual({
+    // Bookkeeping that every event moves — the count, the head, the latest
+    // stamp — is masked; everything about the *run* must be untouched.
+    expect({ ...after, eventCount: 0, lastSeq: 0, latestTs: null }).toEqual({
       ...before,
       eventCount: 0,
       lastSeq: 0,
+      latestTs: null,
     });
   });
 

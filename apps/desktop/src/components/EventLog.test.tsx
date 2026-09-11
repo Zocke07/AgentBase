@@ -28,6 +28,32 @@ function log(events = twoAgentRun(), cursor = events.length) {
 }
 
 const typeFilter = () => screen.getByLabelText<HTMLSelectElement>("Type");
+const rowTypes = () =>
+  [...document.querySelectorAll(".log__type")].map((cell) => cell.textContent);
+
+describe("a row", () => {
+  it("opens to show its whole payload", async () => {
+    /* Rows are one-liners. The panel's job is to be the thing you check the
+       reduced view against, and a one-liner cannot show a tool result or the
+       message list an `llm.request` carried. */
+    const user = userEvent.setup();
+    log();
+
+    const row = document.querySelector<HTMLElement>(".log__row");
+    if (row === null) throw new Error("no row");
+    expect(screen.queryByTestId("log-payload")).toBeNull();
+
+    await user.click(row);
+
+    const payload = screen.getByTestId("log-payload");
+    expect(payload.textContent).toContain('"goal"');
+    expect(payload.textContent).toContain("Summarise the quarterly report");
+    expect(row.getAttribute("aria-expanded")).toBe("true");
+
+    await user.click(row);
+    expect(screen.queryByTestId("log-payload")).toBeNull();
+  });
+});
 
 describe("filtering by type", () => {
   it("narrows the rows to one family", async () => {
@@ -36,8 +62,47 @@ describe("filtering by type", () => {
 
     await user.selectOptions(typeFilter(), "tool");
 
-    const rows = screen.getAllByRole("listitem");
-    expect(rows.every((row) => row.textContent.includes("tool."))).toBe(true);
+    expect(rowTypes().every((type) => type.startsWith("tool."))).toBe(true);
+  });
+
+  it("narrows the rows to one exact type", async () => {
+    /* A family is too coarse to isolate `tool.denied` from `tool.called`,
+       which is the question the log exists to answer. */
+    const user = userEvent.setup();
+    log();
+
+    await user.selectOptions(typeFilter(), "tool.denied");
+
+    expect(rowTypes()).toEqual(["tool.denied"]);
+  });
+
+  it("hides streamed tokens by default, and says how many", async () => {
+    /* 232 of a real run's 288 events were `llm.token`. They are what the
+       agent detail shows as text; in the log they bury everything else. */
+    const user = userEvent.setup();
+    log();
+
+    expect(rowTypes()).not.toContain("llm.token");
+    const toggle = screen.getByLabelText<HTMLInputElement>(/tokens/);
+    expect(toggle.checked).toBe(false);
+    expect(toggle.closest("label")?.textContent).toContain("2");
+
+    await user.click(toggle);
+
+    expect(rowTypes()).toContain("llm.token");
+  });
+
+  it("finds rows by text", async () => {
+    const user = userEvent.setup();
+    log();
+
+    await user.type(screen.getByLabelText("Find"), "notes.txt");
+
+    expect(rowTypes().length).toBeGreaterThan(0);
+    expect(rowTypes().length).toBeLessThan(10);
+    for (const row of document.querySelectorAll(".log__row")) {
+      expect(row.textContent).toContain("notes.txt");
+    }
   });
 
   it("drops a filter the new run has no rows for, instead of showing an empty log", async () => {
@@ -67,7 +132,9 @@ describe("filtering by type", () => {
     );
 
     expect(typeFilter().value).toBe("all");
-    expect(screen.getAllByRole("listitem")).toHaveLength(local.length);
+    // Every row except the streamed tokens, which are hidden by default.
+    const visible = local.filter((event) => event.type !== "llm.token").length;
+    expect(screen.getAllByRole("listitem")).toHaveLength(visible);
   });
 
   it("falls back to every type when the scrubber moves before the filtered family's first event", async () => {

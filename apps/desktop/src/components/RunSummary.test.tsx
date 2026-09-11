@@ -43,6 +43,13 @@ describe("RunSummary", () => {
     expect(screen.getByTestId("budget-exceeded").textContent).toContain("cap");
   });
 
+  it("shows how long the run took, from the events' own timestamps", () => {
+    /* The fixture stamps one second per event; 28 events span 27 seconds. */
+    render(<RunSummary view={reduceAll(twoAgentRun())} />);
+
+    expect(screen.getByTestId("fact-duration").textContent).toBe("27s");
+  });
+
   it("shows what the run cost, from the log", () => {
     render(<RunSummary view={reduceAll(twoAgentRun())} />);
 

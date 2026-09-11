@@ -7,8 +7,9 @@ import {
   useReactFlow,
   type Node,
 } from "@xyflow/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import { ellipsise } from "../lib/format";
 import { edgesFor, layout, viewportFor, type AgentNodeData } from "../state/graph";
 import type { AgentNode, RunView } from "../state/reducer";
 
@@ -56,11 +57,15 @@ function activityLabel(agent: AgentNode): string {
 }
 
 function AgentCard({ data }: { data: AgentNodeData }) {
-  const { agent, selected } = data;
+  const { agent, selected, ghost } = data;
+  const flags =
+    (selected ? " agent-node--selected" : "") +
+    (ghost ? " agent-node--ghost" : "") +
+    (agent.lastError !== null ? " agent-node--errored" : "");
 
   return (
     <div
-      className={`agent-node agent-node--${agent.activity}${selected ? " agent-node--selected" : ""}`}
+      className={`agent-node agent-node--${agent.activity}${flags}`}
       data-testid={`agent-node-${agent.name}`}
     >
       {/* Without these, React Flow silently refuses to draw any edge touching
@@ -71,14 +76,26 @@ function AgentCard({ data }: { data: AgentNodeData }) {
       <Handle type="target" position={Position.Top} />
       <Handle type="source" position={Position.Bottom} />
       <div className="agent-node__name">{agent.name}</div>
-      <div className="agent-node__role">{agent.role ?? "—"}</div>
-      <div className="agent-node__activity">{activityLabel(agent)}</div>
-      <div className="agent-node__meta">
-        {agent.model ?? "no model"}
-        {agent.allowedTools.length > 0 && (
-          <span className="agent-node__tools"> · {agent.allowedTools.length} tools</span>
-        )}
-      </div>
+      {ghost ? (
+        <div className="agent-node__role">handed off to, but never spawned</div>
+      ) : (
+        <>
+          <div className="agent-node__role">{agent.role ?? "—"}</div>
+          <div className="agent-node__activity">{activityLabel(agent)}</div>
+          {agent.lastError !== null ? (
+            <div className="agent-node__error" title={agent.lastError}>
+              error · {ellipsise(agent.lastError, 40)}
+            </div>
+          ) : (
+            <div className="agent-node__meta">
+              {agent.model ?? "no model"}
+              {agent.allowedTools.length > 0 && (
+                <span className="agent-node__tools"> · {agent.allowedTools.length} tools</span>
+              )}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -99,7 +116,7 @@ const nodeTypes = { agent: AgentCard };
  * the two framed the graph differently for a reason that had nothing to do with
  * either the nodes or the log.
  */
-function Camera({ nodes }: { nodes: Node<AgentNodeData>[] }) {
+function Camera({ nodes, userMoved }: { nodes: Node<AgentNodeData>[]; userMoved: boolean }) {
   const flow = useReactFlow();
   const [pane, setPane] = useState<{ width: number; height: number } | null>(null);
   const signature = nodes.map((node) => node.id).join(",");
@@ -121,10 +138,13 @@ function Camera({ nodes }: { nodes: Node<AgentNodeData>[] }) {
 
   useEffect(() => {
     if (pane === null) return;
+    // Once the user has panned or zoomed, the camera is theirs: a new agent
+    // spawning or the pane resizing must not yank it back to the fit.
+    if (userMoved) return;
     void flow.setViewport(viewportFor(nodes, pane.width, pane.height));
     // `nodes` changes identity every render; the ids are what decide the camera.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flow, signature, pane]);
+  }, [flow, signature, pane, userMoved]);
 
   return null;
 }
@@ -132,6 +152,11 @@ function Camera({ nodes }: { nodes: Node<AgentNodeData>[] }) {
 export function RunGraph({ view, selectedAgent, onSelectAgent }: RunGraphProps) {
   const nodes = useMemo(() => layout(view, selectedAgent), [view, selectedAgent]);
   const graphEdges = useMemo(() => edgesFor(view), [view]);
+  // Set the first time the *user* moves the camera. React Flow reports a
+  // programmatic `setViewport` with a null event, so the fit itself does not
+  // count. State rather than a ref so `Camera` re-renders when it flips.
+  const [userMoved, setUserMoved] = useState(false);
+  const moved = useRef(false);
 
   if (view.agentOrder.length === 0) {
     return (
@@ -159,8 +184,14 @@ export function RunGraph({ view, selectedAgent, onSelectAgent }: RunGraphProps) 
         onPaneClick={() => {
           onSelectAgent(null);
         }}
+        onMoveStart={(event) => {
+          if (event !== null && !moved.current) {
+            moved.current = true;
+            setUserMoved(true);
+          }
+        }}
       >
-        <Camera nodes={nodes} />
+        <Camera nodes={nodes} userMoved={userMoved} />
         <Background />
         <Controls showInteractive={false} />
       </ReactFlow>

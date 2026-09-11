@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { twoAgentRun } from "../test/log";
+import { LogBuilder, twoAgentRun } from "../test/log";
 
 import { edgesFor, layout, NODE_HEIGHT, NODE_WIDTH, viewportFor } from "./graph";
 import { reduceAll } from "./reducer";
@@ -55,6 +55,40 @@ describe("layout", () => {
   });
 });
 
+  it("wraps workers onto a second row past four", () => {
+    /* One row per run put a dozen workers 2880px wide and the camera zoomed
+       out until nothing on a node could be read. */
+    const log = new LogBuilder();
+    const events = [log.add("agent.spawned", { role: "s" }, "supervisor")];
+    for (let index = 0; index < 6; index += 1) {
+      events.push(log.add("agent.spawned", { role: "w" }, `w${String(index)}`));
+    }
+    const nodes = layout(reduceAll(events), null);
+
+    const rows = new Set(nodes.filter((n) => n.id !== "supervisor").map((n) => n.position.y));
+    expect(rows.size).toBe(2);
+    const perRow = [...rows].map((y) => nodes.filter((n) => n.position.y === y).length);
+    expect(perRow).toEqual([4, 2]);
+  });
+
+  it("draws a handoff to a name the run never spawned as a ghost node", () => {
+    /* Watched in Phase 6: after a denial the worker handed off to a
+       nonexistent `another_agent`. React Flow drops an edge whose target
+       does not exist — with a console warning and nothing drawn — so the
+       one handoff that most needs seeing was the one that vanished. */
+    const log = new LogBuilder();
+    const state = reduceAll([
+      log.add("agent.spawned", { role: "w" }, "escaper"),
+      log.add("agent.handoff", { to: "another_agent", task: "help" }, "escaper"),
+    ]);
+    const nodes = layout(state, null);
+
+    const ghost = nodes.find((node) => node.id === "another_agent");
+    expect(ghost?.data.ghost).toBe(true);
+    expect(nodes.find((node) => node.id === "escaper")?.data.ghost).toBe(false);
+    expect(edgesFor(state).map((edge) => [edge.source, edge.target])).toEqual([["escaper", "another_agent"]]);
+  });
+
 describe("edgesFor", () => {
   it("makes one edge per handoff", () => {
     expect(edgesFor(view())).toEqual([
@@ -62,7 +96,7 @@ describe("edgesFor", () => {
         id: "supervisor->researcher",
         source: "supervisor",
         target: "researcher",
-        label: "handoff",
+        label: "handoff · Find the figures",
       },
     ]);
   });
@@ -76,6 +110,12 @@ describe("edgesFor", () => {
 
     expect(edges).toHaveLength(1);
     expect(edges[0]?.label).toBe("2 handoffs");
+  });
+
+  it("puts the task on a single handoff's edge", () => {
+    const edges = edgesFor(view());
+
+    expect(edges[0]?.label).toContain("Find the figures");
   });
 
   it("has no edges before anything has been delegated", () => {

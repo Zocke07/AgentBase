@@ -22,6 +22,7 @@ vi.mock("./lib/api", () => ({
   getBudget: vi.fn(),
   getSettings: vi.fn(),
   verifySettings: vi.fn(),
+  listApprovals: vi.fn(),
   listAgents: vi.fn(),
   listTools: vi.fn(),
   listProviders: vi.fn(),
@@ -46,6 +47,7 @@ beforeEach(() => {
   mocked.getBudget.mockRejectedValue(new Error("not in this test"));
   mocked.getSettings.mockRejectedValue(new Error("not in this test"));
   mocked.verifySettings.mockResolvedValue({ ok: true, provider: "ollama", model: "qwen3:4b" });
+  mocked.listApprovals.mockResolvedValue([]);
   mocked.listAgents.mockResolvedValue([]);
   mocked.listTools.mockResolvedValue([]);
   mocked.listProviders.mockResolvedValue({ providers: [], models: {} });
@@ -89,6 +91,35 @@ describe("pre-flight", () => {
 
     expect((await screen.findByTestId("preflight")).textContent).toContain("cap");
     expect(screen.getByRole("button", { name: "Start run" })).toHaveProperty("disabled", true);
+  });
+});
+
+describe("an approval waiting elsewhere", () => {
+  it("is announced in the header, and clicking it opens that run", async () => {
+    /* An approval pending on any run other than the selected one was
+       invisible; the run sat on it until the deadline. */
+    const user = userEvent.setup();
+    mocked.listApprovals.mockResolvedValue([
+      {
+        id: "ap-1",
+        run_id: "run-1",
+        tool: "write_file",
+        args: {},
+        risk: "medium",
+        status: "pending",
+        created_at: "2026-09-10T12:00:00Z",
+      },
+    ]);
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Agents" }));
+
+    const badge = await screen.findByRole("button", { name: /1 approval waiting/ });
+    await user.click(badge);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("run-panel")).toBeDefined();
+    });
+    expect(screen.getByTestId("run-list").closest("[hidden]")).toBeNull();
   });
 });
 

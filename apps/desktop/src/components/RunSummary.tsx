@@ -1,4 +1,4 @@
-import { ellipsise, formatCount, formatMicros } from "../lib/format";
+import { ellipsise, formatCount, formatDuration, formatMicros } from "../lib/format";
 import type { RunView } from "../state/reducer";
 
 /**
@@ -32,6 +32,12 @@ const STATUS_LABEL: Record<RunView["status"], string> = {
 export function RunSummary({ view }: RunSummaryProps) {
   const denied = view.denials.length;
   const sandboxed = view.denials.filter((denial) => denial.blockedBy === "sandbox").length;
+  // From the log's own stamps, so a replay shows the duration the live view
+  // did. A live run's figure grows as events arrive, which is the same rule.
+  const duration =
+    view.startedTs !== null && view.latestTs !== null
+      ? formatDuration(Date.parse(view.latestTs) - Date.parse(view.startedTs))
+      : null;
 
   return (
     <section className="run-summary" data-testid="run-summary">
@@ -75,6 +81,12 @@ export function RunSummary({ view }: RunSummaryProps) {
             {formatCount(view.inputTokens)} in / {formatCount(view.outputTokens)} out
           </dd>
         </div>
+        {duration !== null && (
+          <div>
+            <dt>Duration</dt>
+            <dd data-testid="fact-duration">{duration}</dd>
+          </div>
+        )}
         <div>
           <dt>Cost</dt>
           {/* Summed from the ledger's figure on each `llm.response` — the same

@@ -1,4 +1,9 @@
-import type { BudgetResponse, SettingsResponse, VerifyResponse } from "@agentspace/schemas";
+import type {
+  ApprovalResponse,
+  BudgetResponse,
+  SettingsResponse,
+  VerifyResponse,
+} from "@agentspace/schemas";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AgentsView } from "./components/AgentsView";
@@ -29,6 +34,10 @@ export function App() {
   const [budget, setBudget] = useState<BudgetResponse | null>(null);
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
   const [verified, setVerified] = useState<VerifyResponse | null>(null);
+  const [pendingApprovals, setPendingApprovals] = useState<ApprovalResponse[]>([]);
+  // Which run is open. Held here rather than in the runs tab so the header's
+  // "approval waiting" badge can open the run it names from any tab.
+  const [runId, setRunId] = useState<string | null>(null);
   const inFlight = useRef<AbortController | null>(null);
 
   const connect = useCallback(() => {
@@ -51,6 +60,15 @@ export function App() {
     // The sidecar's own answer to "would a run be refused right now" — the
     // same check a run fails on, without a model call.
     void api.verifySettings().then(setVerified).catch(() => undefined);
+    // Every question waiting anywhere. The run panel shows the selected
+    // run's own; this is for the ones on runs the user is not looking at,
+    // which used to sit unanswered until the deadline.
+    void api
+      .listApprovals()
+      .then((all) => {
+        setPendingApprovals(all.filter((approval) => approval.status === "pending"));
+      })
+      .catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -123,6 +141,20 @@ export function App() {
         </nav>
 
         <div className="app__workspace">
+          {pendingApprovals.length > 0 && (
+            <button
+              type="button"
+              className="app__waiting"
+              onClick={() => {
+                const first = pendingApprovals[0];
+                if (first === undefined) return;
+                setTab("runs");
+                setRunId(first.run_id);
+              }}
+            >
+              {pendingApprovals.length} approval{pendingApprovals.length === 1 ? "" : "s"} waiting
+            </button>
+          )}
           {settings !== null && (
             <span className="app__provider" title="The workspace default; a definition may pin its own">
               {settings.settings.provider} · {settings.settings.model}
@@ -143,7 +175,13 @@ export function App() {
             re-picking the run and re-downloading its whole log — and any
             approval that arrived meanwhile went unseen until it expired. */}
         <div className="app__view" hidden={tab !== "runs"}>
-          <RunsView onRunChanged={refreshWorkspace} blocker={blocker} />
+          <RunsView
+            onRunChanged={refreshWorkspace}
+            blocker={blocker}
+            pendingApprovals={pendingApprovals}
+            runId={runId}
+            onSelectRun={setRunId}
+          />
         </div>
         <div className="app__view" hidden={tab !== "agents"}>
           <AgentsView workspaceProvider={settings?.settings.provider ?? null} />

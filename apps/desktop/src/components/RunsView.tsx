@@ -1,10 +1,10 @@
 
 
-import type { Run } from "@agentspace/schemas";
+import type { ApprovalResponse, Run } from "@agentspace/schemas";
 import { useCallback, useEffect, useState } from "react";
 
 import * as api from "../lib/api";
-import { clockTime } from "../lib/format";
+import { clockDate } from "../lib/format";
 import { useRunStore } from "../state/runStore";
 import { useFetched } from "../state/useFetched";
 import { useRunStream } from "../state/useRunStream";
@@ -26,6 +26,14 @@ export interface RunsViewProps {
   onRunChanged: () => void;
   /** Why a run started now would be refused, or null when one can start. */
   blocker: string | null;
+  /** Every approval waiting anywhere, so a row can say its run is stuck on one. */
+  pendingApprovals: readonly ApprovalResponse[];
+  /**
+   * Which run is open. Owned by the shell so that it survives a tab switch
+   * and so the header's "approval waiting" badge can open the run it names.
+   */
+  runId: string | null;
+  onSelectRun: (runId: string | null) => void;
 }
 
 function connectionLabel(
@@ -54,19 +62,45 @@ const NO_RUNS: Run[] = [];
 
 const TERMINAL_STATUSES: ReadonlySet<Run["status"]> = new Set(["completed", "failed", "cancelled"]);
 
+/** How many runs the picker asks for at a time. */
+const PAGE = 50;
+
 /** How often to re-read the picker and the meter while some run is unfinished. */
 const BACKGROUND_REFRESH_MS = 5_000;
 
-export function RunsView({ onRunChanged, blocker }: RunsViewProps) {
-  const [runId, setRunId] = useState<string | null>(null);
+/** A piece of state that belongs to one run: read as empty for any other. */
+interface PerRun<T> {
+  runId: string | null;
+  value: T;
+}
+
+export function RunsView({
+  onRunChanged,
+  blocker,
+  pendingApprovals,
+  runId,
+  onSelectRun,
+}: RunsViewProps) {
+  const [limit, setLimit] = useState(PAGE);
   const [goal, setGoal] = useState("");
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
-  const [cancelError, setCancelError] = useState<string | null>(null);
   /** The run the sidecar accepted a cancel for; it stops at its next check. */
   const [stopping, setStopping] = useState<string | null>(null);
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  // State that is about one run — the selected agent, a failed cancel's
+  // message — is tagged with the run it belongs to and reads as empty for any
+  // other, so switching runs needs no reset and no effect.
+  const [selection, setSelection] = useState<PerRun<string | null>>({ runId: null, value: null });
+  const [cancelFailure, setCancelFailure] = useState<PerRun<string | null>>({ runId: null, value: null });
+  const selectedAgent = selection.runId === runId ? selection.value : null;
+  const cancelError = cancelFailure.runId === runId ? cancelFailure.value : null;
+  const setSelectedAgent = (value: string | null) => {
+    setSelection({ runId, value });
+  };
+  const setCancelError = (value: string | null) => {
+    setCancelFailure({ runId, value });
+  };
 
   const view = useRunStore((state) => state.view);
   const headView = useRunStore((state) => state.headView);
@@ -79,7 +113,7 @@ export function RunsView({ onRunChanged, blocker }: RunsViewProps) {
 
   useRunStream(runId);
 
-  const loadRuns = useCallback(() => api.listRuns(), []);
+  const loadRuns = useCallback(() => api.listRuns(limit), [limit]);
   const runList = useFetched(loadRuns, NO_RUNS);
   const runs = runList.data;
 
@@ -98,6 +132,8 @@ export function RunsView({ onRunChanged, blocker }: RunsViewProps) {
   // on the *head's* status, not the scrubbed view's: opening a finished run or
   // dragging the slider across its terminal event changes nothing about the
   // run, and used to refetch three endpoints anyway.
+  const waitingRuns = new Set(pendingApprovals.map((approval) => approval.run_id));
+
   const selectedRow = runs.find((run) => run.id === runId);
   const headStatus = headView.eventCount > 0 ? headView.status : null;
   const rowStale = selectedRow !== undefined && headStatus !== null && selectedRow.status !== headStatus;
@@ -156,8 +192,7 @@ export function RunsView({ onRunChanged, blocker }: RunsViewProps) {
     try {
       const run = await api.createRun(trimmed);
       setGoal("");
-      setSelectedAgent(null);
-      setRunId(run.id);
+      onSelectRun(run.id);
       runList.reload();
     } catch (failure) {
       setStartError(failure instanceof Error ? failure.message : String(failure));
@@ -249,10 +284,8 @@ export function RunsView({ onRunChanged, blocker }: RunsViewProps) {
                 type="button"
                 className={`run-list__item${run.id === runId ? " run-list__item--selected" : ""}`}
                 onClick={() => {
-                  setSelectedAgent(null);
                   setStartError(null);
-                  setCancelError(null);
-                  setRunId(run.id);
+                  onSelectRun(run.id);
                 }}
               >
                 {/* The log is the authority on the selected run; the row is a
@@ -263,10 +296,31 @@ export function RunsView({ onRunChanged, blocker }: RunsViewProps) {
                   <span className={`status status--${run.status}`}>{run.status}</span>
                 )}
                 <span className="run-list__goal">{run.goal}</span>
-                <span className="run-list__time">{clockTime(run.created_at)}</span>
+                <span className="run-list__time">{clockDate(run.created_at)}</span>
+                {waitingRuns.has(run.id) && (
+                  <span
+                    className="run-list__waiting"
+                    data-testid={`run-needs-approval-${run.id}`}
+                  >
+                    needs your approval
+                  </span>
+                )}
               </button>
             </li>
           ))}
+          {runs.length >= limit && (
+            <li className="run-list__more">
+              <button
+                type="button"
+                className="button button--small"
+                onClick={() => {
+                  setLimit((current) => current + PAGE);
+                }}
+              >
+                Load more
+              </button>
+            </li>
+          )}
           {runs.length === 0 && (
             <li className="run-list__empty">{runList.loading ? "Loading…" : "No runs yet."}</li>
           )}

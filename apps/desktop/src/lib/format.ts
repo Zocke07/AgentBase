@@ -19,6 +19,29 @@ export function clockTime(iso: string): string {
     .join(":");
 }
 
+/** `2026-09-11 19:03` — the day and the minute, for a list of past runs. */
+export function clockDate(iso: string): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return "—";
+
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return (
+    `${String(at.getFullYear())}-${pad(at.getMonth() + 1)}-${pad(at.getDate())} ` +
+    `${pad(at.getHours())}:${pad(at.getMinutes())}`
+  );
+}
+
+/** `27s`, `1m 32s`, `1h 23m` — a span between two of the log's own timestamps. */
+export function formatDuration(milliseconds: number): string {
+  const total = Math.max(0, Math.round(milliseconds / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  if (hours > 0) return `${String(hours)}h ${String(minutes)}m`;
+  if (minutes > 0) return `${String(minutes)}m ${String(seconds)}s`;
+  return `${String(seconds)}s`;
+}
+
 /**
  * Integer micros as money.
  *
