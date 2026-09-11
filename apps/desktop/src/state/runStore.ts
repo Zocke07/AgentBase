@@ -60,7 +60,13 @@ export interface RunStoreState {
    */
   readonly gaps: number;
 
-  open: (runId: string) => void;
+  /**
+   * Switch the store to a run, with whatever history it already has. One
+   * update: the run on screen stays until this is called, so switching runs
+   * never passes through an empty one. `runId` is what says whose events these
+   * are; a view whose own run differs is looking at the previous one.
+   */
+  open: (runId: string, history?: readonly Event[]) => void;
   /** One event. The same as `appendEvents([event])`. */
   appendEvent: (event: Event) => void;
   /**
@@ -90,8 +96,18 @@ const INITIAL = {
 export const useRunStore = create<RunStoreState>()((set, get) => ({
   ...INITIAL,
 
-  open: (runId) => {
-    set({ ...INITIAL, runId, connection: { kind: "connecting" } });
+  open: (runId, history = []) => {
+    const ordered = [...history].sort((left, right) => left.seq - right.seq);
+    const headView = reduceAll(ordered);
+    set({
+      ...INITIAL,
+      runId,
+      events: ordered,
+      cursor: ordered.length,
+      view: headView,
+      headView,
+      connection: { kind: "connecting" },
+    });
   },
 
   appendEvent: (event) => {

@@ -48,7 +48,7 @@ export interface ApprovalPanelProps {
    * `"finished"`: the run is over. `"replay"`: the viewer has scrubbed back
    * from the head — the question was, or will be, answered at the head.
    */
-  readOnly: "finished" | "replay" | null;
+  readOnly: "finished" | "replay" | "loading" | null;
 }
 
 export function ApprovalPanel({ approvals, onResolve, readOnly }: ApprovalPanelProps) {

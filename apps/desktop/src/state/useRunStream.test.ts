@@ -1,3 +1,4 @@
+import type { Event } from "@agentspace/schemas";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -68,6 +69,17 @@ async function attached(runId = "run-1") {
   return rendered;
 }
 
+/** Open a run whose history ends it: no stream is attached, so wait on the fold. */
+async function attachedFinished(runId = "run-1") {
+  const rendered = renderHook(({ id }: { id: string | null }) => { useRunStream(id); }, {
+    initialProps: { id: runId },
+  });
+  await waitFor(() => {
+    expect(useRunStore.getState().runId).toBe(runId);
+  });
+  return rendered;
+}
+
 function paint() {
   act(() => {
     const pending = frame;
@@ -122,6 +134,40 @@ describe("useRunStream", () => {
 
     expect(vi.mocked(events.streamRun)).not.toHaveBeenCalled();
     expect(useRunStore.getState().view.status).toBe("completed");
+  });
+
+  it("leaves the previous run in the store until the next one's history has arrived", async () => {
+    /* `open` used to wipe the store the moment the run id changed, so every
+       switch rendered an empty run — 0 / 0, no agents, no rows — for the length
+       of a fetch before the real one appeared. The store changes once, when
+       there is something to change it to. */
+    const first = twoAgentRun();
+    vi.mocked(api.getRunHistory).mockResolvedValueOnce(first);
+    const rendered = await attachedFinished();
+    expect(useRunStore.getState().events).toHaveLength(first.length);
+
+    let arrive: (history: Event[]) => void = () => undefined;
+    vi.mocked(api.getRunHistory).mockImplementationOnce(
+      () => new Promise((resolve) => { arrive = resolve; }),
+    );
+    rendered.rerender({ id: "run-2" });
+    await waitFor(() => {
+      expect(vi.mocked(api.getRunHistory)).toHaveBeenLastCalledWith("run-2");
+    });
+
+    // In flight: still run-1, in full, and the store says whose it is.
+    expect(useRunStore.getState().runId).toBe("run-1");
+    expect(useRunStore.getState().events).toHaveLength(first.length);
+
+    await act(async () => {
+      arrive(first.slice(0, 4));
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(useRunStore.getState().runId).toBe("run-2");
+    });
+    expect(useRunStore.getState().events).toHaveLength(4);
+    expect(useRunStore.getState().view.status).toBe("running");
   });
 
   it("delivers nothing, and closes the stream, once the run is switched away from", async () => {

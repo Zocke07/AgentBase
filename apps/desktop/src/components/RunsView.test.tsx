@@ -179,6 +179,57 @@ describe("refreshing the picker and the meter", () => {
   });
 });
 
+describe("switching runs", () => {
+  it("keeps the open run on screen, marked busy, until the next one has loaded", async () => {
+    /* Picking another run used to blank the panel for the length of a fetch:
+       the store was wiped first and the whole panel remounted. Now the panel
+       stays populated and dimmed, its controls disabled, and the picker does
+       not borrow the old run's status for the new row. */
+    const user = userEvent.setup();
+    const log = twoAgentRun();
+    mocked.listRuns.mockResolvedValue([
+      row("completed"),
+      { ...row("pending", "run-2"), goal: "Draft the release notes" },
+    ]);
+    mocked.getRunHistory.mockResolvedValueOnce(log);
+    const onRunChanged = vi.fn();
+    render(<Harness onRunChanged={onRunChanged} blocker={null} pendingApprovals={[]} />);
+    await pick(user, "quarterly", false);
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status").textContent).toBe("completed");
+    });
+
+    let arrive: (history: Event[]) => void = () => undefined;
+    mocked.getRunHistory.mockImplementationOnce(
+      () => new Promise((resolve) => { arrive = resolve; }),
+    );
+    const second = screen.getByRole("button", { name: /release notes/ });
+    await user.click(second);
+    await waitFor(() => {
+      expect(mocked.getRunHistory).toHaveBeenLastCalledWith("run-2");
+    });
+
+    // Still the first run's projection, under a busy panel.
+    expect(screen.getByTestId("run-status").textContent).toBe("completed");
+    expect(screen.getByTestId("run-panel").getAttribute("aria-busy")).toBe("true");
+    expect(screen.getByLabelText<HTMLInputElement>("Position in the event log").disabled).toBe(true);
+    expect(screen.getByTestId("connection-status").textContent).toContain("loading");
+    // The new row wears its own status, not the old head's.
+    expect(second.textContent).toContain("pending");
+    expect(second.textContent).not.toContain("completed");
+    expect(onRunChanged).not.toHaveBeenCalled();
+
+    await act(async () => {
+      arrive(log.slice(0, 3));
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status").textContent).toBe("running");
+    });
+    expect(screen.getByTestId("run-panel").getAttribute("aria-busy")).toBe("false");
+  });
+});
+
 describe("runs that happen elsewhere", () => {
   afterEach(() => {
     vi.useRealTimers();

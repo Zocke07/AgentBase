@@ -18,6 +18,14 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
 export interface ErrorBoundaryProps {
   /** Names the region in the fallback: "the run view", "AgentSpace". */
   label: string;
+  /**
+   * When this changes, a boundary showing its fallback tries again. The
+   * children are *not* remounted for it — `key`ing the boundary itself on the
+   * run id did that, and every run switch rebuilt the graph canvas from
+   * nothing. Only a fallback needs a fresh start; a healthy subtree keeps its
+   * DOM and re-renders with the new run.
+   */
+  resetKey?: string | null;
   children: ReactNode;
 }
 
@@ -37,6 +45,12 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     // The stack goes to the console, where a bug report can find it; the
     // message goes on screen, where a person can.
     console.error(`agentspace: ${this.props.label} failed to render`, error, info.componentStack);
+  }
+
+  override componentDidUpdate(previous: ErrorBoundaryProps): void {
+    if (this.state.error !== null && previous.resetKey !== this.props.resetKey) {
+      this.reset();
+    }
   }
 
   private readonly reset = () => {

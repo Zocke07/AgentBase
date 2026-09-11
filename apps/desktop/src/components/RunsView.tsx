@@ -107,6 +107,7 @@ export function RunsView({
   };
 
   const view = useRunStore((state) => state.view);
+  const loadedRunId = useRunStore((state) => state.runId);
   const headView = useRunStore((state) => state.headView);
   const events = useRunStore((state) => state.events);
   const cursor = useRunStore((state) => state.cursor);
@@ -116,6 +117,13 @@ export function RunsView({
   const setCursor = useRunStore((state) => state.setCursor);
 
   useRunStream(runId);
+
+  // The store holds the previous run until the next one's history arrives, so
+  // that a switch never passes through an empty panel. While the two disagree,
+  // everything on screen that is *about* the run — the head status, the
+  // approval buttons, the cancel button, the scrubber — is about the old one
+  // and is withheld; the projection stays, dimmed, as the loading state.
+  const loading = runId !== null && loadedRunId !== runId;
 
   const loadRuns = useCallback(() => api.listRuns(limit), [limit]);
   const runList = useFetched(loadRuns, NO_RUNS);
@@ -128,7 +136,7 @@ export function RunsView({
   // about the fold. Scrubbed back on a finished run, the fold says "running"
   // and the approval says "pending" — both true of that moment, neither a
   // reason to offer buttons. `following` is the store's word for "at the head".
-  const approvalReadOnly = finished ? "finished" : following ? null : "replay";
+  const approvalReadOnly = loading ? "loading" : finished ? "finished" : following ? null : "replay";
 
   // The picker's row for the selected run is a snapshot of the `runs` table;
   // the log knows more the moment an event arrives. When the two disagree the
@@ -139,7 +147,7 @@ export function RunsView({
   const waitingRuns = new Set(pendingApprovals.map((approval) => approval.run_id));
 
   const selectedRow = runs.find((run) => run.id === runId);
-  const headStatus = headView.eventCount > 0 ? headView.status : null;
+  const headStatus = !loading && headView.eventCount > 0 ? headView.status : null;
   const rowStale = selectedRow !== undefined && headStatus !== null && selectedRow.status !== headStatus;
 
   useEffect(() => {
@@ -363,7 +371,7 @@ export function RunsView({
           <>
             <div className="runs-view__strip">
               <p className="runs-view__connection" data-testid="connection-status">
-                {connectionLabel(connection, gaps)}
+                {loading ? "loading…" : connectionLabel(connection, gaps)}
               </p>
               {cancelError !== null && (
                 <p className="runs-view__strip-error" role="alert">
@@ -381,19 +389,27 @@ export function RunsView({
                 </button>
               )}
             </div>
-            {/* Keyed on the run so a panel that threw on one run does not
-                stay in its fallback when another is opened. */}
-            <ErrorBoundary key={runId} label="the run view">
-              <RunPanel
-                view={view}
-                events={events}
-                cursor={cursor}
-                selectedAgent={selectedAgent}
-                onSelectAgent={setSelectedAgent}
-                onCursorChange={setCursor}
-                approvalReadOnly={approvalReadOnly}
-                onResolveApproval={resolveApproval}
-              />
+            {/* Reset on the run so a panel that threw on one run does not
+                stay in its fallback when another is opened — without
+                remounting a healthy panel, which rebuilt the graph canvas on
+                every switch. */}
+            <ErrorBoundary resetKey={runId} label="the run view">
+              {loadedRunId === null ? (
+                // Nothing to keep on screen yet: the very first open.
+                <p className="runs-view__placeholder">Loading the run…</p>
+              ) : (
+                <RunPanel
+                  view={view}
+                  events={events}
+                  cursor={cursor}
+                  selectedAgent={selectedAgent}
+                  onSelectAgent={setSelectedAgent}
+                  onCursorChange={setCursor}
+                  approvalReadOnly={approvalReadOnly}
+                  onResolveApproval={resolveApproval}
+                  loading={loading}
+                />
+              )}
             </ErrorBoundary>
           </>
         )}
