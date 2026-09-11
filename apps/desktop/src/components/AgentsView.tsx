@@ -1,4 +1,4 @@
-import type { AgentDef, CreateAgentRequest, ToolResponse } from "@agentspace/schemas";
+import type { AgentDef, CreateAgentRequest, ToolResponse, UpdateAgentRequest } from "@agentspace/schemas";
 import { useCallback, useState } from "react";
 
 import * as api from "../lib/api";
@@ -47,15 +47,18 @@ export function AgentsView() {
   // that state would have sent an empty allowlist.
   const error = actionError ?? roster.error ?? tools.error ?? catalogue.error;
 
-  const save = async (body: CreateAgentRequest) => {
-    // No try/catch: the editor renders the failure inline against the field the
-    // server named. See the module note.
-    if (editing === "existing" && selected !== null) {
-      await api.updateAgent(selected.id, body);
-    } else {
-      const created = await api.createAgent(body);
-      setSelectedId(created.id);
-    }
+  // No try/catch in either: the editor renders the failure inline against the
+  // field the server named. See the module note.
+  const create = async (body: CreateAgentRequest) => {
+    const created = await api.createAgent(body);
+    setSelectedId(created.id);
+    roster.reload();
+    setEditing("none");
+  };
+
+  const patch = async (changes: UpdateAgentRequest) => {
+    if (selected === null) return;
+    await api.updateAgent(selected.id, changes);
     roster.reload();
     setEditing("none");
   };
@@ -120,7 +123,8 @@ export function AgentsView() {
             tools={tools.data}
             providers={catalogue.data.providers.map((provider) => provider.name)}
             models={catalogue.data.models}
-            onSave={save}
+            onCreate={create}
+            onPatch={patch}
             onCancel={() => {
               setEditing("none");
             }}

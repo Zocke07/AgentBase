@@ -1,4 +1,4 @@
-import type { AgentDef, CreateAgentRequest, ToolResponse } from "@agentspace/schemas";
+import type { AgentDef, CreateAgentRequest, ToolResponse, UpdateAgentRequest } from "@agentspace/schemas";
 import { useState } from "react";
 
 import { ApiError } from "../lib/api";
@@ -25,6 +25,14 @@ import { ApiError } from "../lib/api";
  * Note what an allowlist does *not* do: ticking `run_shell` grants permission
  * from the definition, never from the user. Every call still stops at the
  * approval gate (§1 constraint 5), which is why the hint below says so.
+ *
+ * **An edit sends what the user changed, not the whole form.** The roster's
+ * enable toggle and this editor can be open on the same row at once. Sending
+ * the whole form on save meant sending the `enabled` the form was opened with,
+ * so toggling in the roster and then saving an unrelated edit undid the
+ * toggle without a word. `UpdateAgentRequest` is a PATCH — omitted fields are
+ * untouched — and the diff is against the snapshot this form started from,
+ * which is the only thing that knows what the user did and did not touch.
  */
 
 export interface AgentEditorProps {
@@ -33,7 +41,10 @@ export interface AgentEditorProps {
   tools: readonly ToolResponse[];
   providers: readonly string[];
   models: readonly string[];
-  onSave: (body: CreateAgentRequest) => Promise<void>;
+  /** Create from the whole form. Used when `agent` is null. */
+  onCreate: (body: CreateAgentRequest) => Promise<void>;
+  /** Patch `agent` with only the fields the user changed. */
+  onPatch: (patch: UpdateAgentRequest) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -49,6 +60,35 @@ interface FormState {
 }
 
 const INHERIT = "";
+
+/** The form as the API wants it. */
+function toRequest(form: FormState): CreateAgentRequest {
+  const trimmed = form.max_steps.trim();
+  return {
+    name: form.name.trim(),
+    role: form.role.trim(),
+    system_prompt: form.system_prompt,
+    provider: form.provider === INHERIT ? null : form.provider,
+    model: form.model === INHERIT ? null : form.model,
+    allowed_tools: form.allowed_tools,
+    max_steps: trimmed === "" ? null : Number(trimmed),
+    enabled: form.enabled,
+  };
+}
+
+/** The fields of `after` that differ from `before` — a PATCH body. */
+function changedFields(before: CreateAgentRequest, after: CreateAgentRequest): UpdateAgentRequest {
+  const patch: UpdateAgentRequest = {};
+  for (const key of Object.keys(after) as (keyof CreateAgentRequest)[]) {
+    const was = before[key];
+    const now = after[key];
+    const same = Array.isArray(was) && Array.isArray(now)
+      ? was.length === now.length && was.every((item, index) => item === now[index])
+      : was === now;
+    if (!same) Object.assign(patch, { [key]: now });
+  }
+  return patch;
+}
 
 function initial(agent: AgentDef | null): FormState {
   return {
@@ -71,10 +111,13 @@ export function AgentEditor({
   tools,
   providers,
   models,
-  onSave,
+  onCreate,
+  onPatch,
   onCancel,
 }: AgentEditorProps) {
-  const [form, setForm] = useState<FormState>(() => initial(agent));
+  // `opened` is what the form started from; the diff on save is against it.
+  const [opened] = useState<FormState>(() => initial(agent));
+  const [form, setForm] = useState<FormState>(opened);
   const [fieldError, setFieldError] = useState<{ field: string | null; message: string } | null>(
     null,
   );
@@ -105,33 +148,48 @@ export function AgentEditor({
     setSaving(true);
     setFieldError(null);
 
-    const trimmed = form.max_steps.trim();
-    const body: CreateAgentRequest = {
-      name: form.name.trim(),
-      role: form.role.trim(),
-      system_prompt: form.system_prompt,
-      provider: form.provider === INHERIT ? null : form.provider,
-      model: form.model === INHERIT ? null : form.model,
-      allowed_tools: form.allowed_tools,
-      max_steps: trimmed === "" ? null : Number(trimmed),
-      enabled: form.enabled,
-    };
+    const body = toRequest(form);
+
+    // Editing: only what changed. Nothing changed is nothing to send — the
+    // server would answer 400 "no fields were supplied", which is true and
+    // not what a person who clicked Save with an untouched form wants to read.
+    if (agent !== null) {
+      const patch = changedFields(toRequest(opened), body);
+      if (Object.keys(patch).length === 0) {
+        setSaving(false);
+        onCancel();
+        return;
+      }
+      try {
+        await onPatch(patch);
+      } catch (failure) {
+        report(failure);
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
 
     try {
-      await onSave(body);
+      await onCreate(body);
     } catch (failure) {
-      if (failure instanceof ApiError) {
-        setFieldError({ field: failure.field, message: failure.message });
-      } else {
-        setFieldError({
-          field: null,
-          message: failure instanceof Error ? failure.message : String(failure),
-        });
-      }
+      report(failure);
     } finally {
       setSaving(false);
     }
   };
+
+  /** Put a save failure on the field the server named, or on the form. */
+  function report(failure: unknown) {
+    if (failure instanceof ApiError) {
+      setFieldError({ field: failure.field, message: failure.message });
+    } else {
+      setFieldError({
+        field: null,
+        message: failure instanceof Error ? failure.message : String(failure),
+      });
+    }
+  }
 
   return (
     <form className="editor" onSubmit={(event) => void submit(event)} data-testid="agent-editor">

@@ -1,4 +1,4 @@
-import type { AgentDef, ToolResponse } from "@agentspace/schemas";
+import type { AgentDef, CreateAgentRequest, ToolResponse, UpdateAgentRequest } from "@agentspace/schemas";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -27,15 +27,27 @@ const TOOLS: ToolResponse[] = [
   { name: "run_shell", description: "Run a shell command.", risk: "high", available: true },
 ];
 
-function editor(overrides: Partial<Parameters<typeof AgentEditor>[0]> = {}) {
-  const onSave = overrides.onSave ?? vi.fn().mockResolvedValue(undefined);
+/**
+ * Render the editor. `onSave` stands in for whichever of the two callbacks the
+ * mode under test will call — create for a new definition, patch for an edit.
+ */
+/** Accepts what either callback would be given, so one double serves both. */
+type Save = (body: CreateAgentRequest | UpdateAgentRequest) => Promise<void>;
+
+function editor(
+  overrides: Partial<Pick<Parameters<typeof AgentEditor>[0], "agent" | "onCancel">> & {
+    onSave?: Save;
+  } = {},
+) {
+  const onSave = vi.fn<Save>(overrides.onSave ?? (() => Promise.resolve()));
   render(
     <AgentEditor
       agent={overrides.agent ?? null}
       tools={TOOLS}
       providers={["anthropic", "ollama"]}
       models={["claude-sonnet-5", "qwen3:4b"]}
-      onSave={onSave}
+      onCreate={onSave}
+      onPatch={onSave}
       onCancel={overrides.onCancel ?? vi.fn()}
     />,
   );
@@ -192,6 +204,59 @@ describe("what gets sent", () => {
     expect(screen.getByTestId("tool-read_file")).toHaveProperty("checked", true);
     expect(screen.getByTestId("tool-run_shell")).toHaveProperty("checked", false);
     expect(screen.getByTestId("field-enabled")).toHaveProperty("checked", false);
+  });
+
+  it("sends only the fields the user changed when editing", async () => {
+    /* The roster's enable toggle and the editor can both be open on the same
+       row. The editor used to send its whole form on save, including the
+       `enabled` it was opened with — so toggling in the roster and then saving
+       an unrelated edit silently undid the toggle. A PATCH carries what the
+       user touched; `UpdateAgentRequest` leaves the rest alone. */
+    const user = userEvent.setup();
+    const agent: AgentDef = {
+      id: "def-1",
+      name: "note_keeper",
+      role: "Keeps notes",
+      system_prompt: "You keep notes.",
+      provider: null,
+      model: null,
+      allowed_tools: ["read_file"],
+      max_steps: 4,
+      auto_approve: [],
+      is_builtin: false,
+      enabled: true,
+      created_at: "2026-09-10T00:00:00Z",
+      updated_at: "2026-09-10T00:00:00Z",
+    };
+    const { onSave } = editor({ agent });
+
+    await user.clear(screen.getByTestId("field-role"));
+    await user.type(screen.getByTestId("field-role"), "Keeps better notes");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    expect(onSave).toHaveBeenCalledWith({ role: "Keeps better notes" });
+  });
+
+  it("closes without a request when nothing was changed", async () => {
+    const user = userEvent.setup();
+    const agent: AgentDef = {
+      id: "def-1",
+      name: "note_keeper",
+      role: "Keeps notes",
+      system_prompt: "p",
+      allowed_tools: [],
+      is_builtin: false,
+      enabled: true,
+      created_at: "2026-09-10T00:00:00Z",
+      updated_at: "2026-09-10T00:00:00Z",
+    };
+    const onCancel = vi.fn();
+    const { onSave } = editor({ agent, onCancel });
+
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(onCancel).toHaveBeenCalled();
   });
 
   it("says a built-in cannot be deleted", () => {
