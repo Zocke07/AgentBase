@@ -38,27 +38,101 @@ router = APIRouter()
 #: is the "~20 events over 10 seconds" §5 Phase 2 asks for. Shaped like a real
 #: run (spawn, think, call a tool, get it approved, hand off, finish) so the
 #: Phase 7 graph has something meaningful to render before an orchestrator
-#: exists to produce it.
+#: exists to produce it — and, since it is what the dashboard shows before any
+#: key is configured, shaped *exactly* like one: each payload carries the keys
+#: the real emitters write and the reducer reads. It once said ``decision``
+#: where the reducer reads ``status`` and ``bytes`` where it reads ``result``,
+#: and the demo run rendered an expired approval with an empty result.
 _FAKE_RUN_SCRIPT: Final[tuple[tuple[EventType, str | None, dict[str, Any]], ...]] = (
     (EventType.RUN_STARTED, None, {"goal": "Summarise the quarterly report"}),
-    (EventType.AGENT_SPAWNED, "supervisor", {"role": "Plans and delegates"}),
-    (EventType.AGENT_THINKING, "supervisor", {"text": "Two subtasks: research, then write."}),
-    (EventType.AGENT_SPAWNED, "researcher", {"role": "Gathers source material"}),
+    (
+        EventType.AGENT_SPAWNED,
+        "supervisor",
+        {"role": "Plans and delegates", "allowed_tools": [], "max_steps": 6},
+    ),
+    (EventType.AGENT_THINKING, "supervisor", {"step": 1}),
+    (
+        EventType.AGENT_SPAWNED,
+        "researcher",
+        {"role": "Gathers source material", "allowed_tools": ["read_file"], "max_steps": 4},
+    ),
     (EventType.AGENT_HANDOFF, "supervisor", {"to": "researcher", "task": "Find the figures"}),
-    (EventType.LLM_REQUEST, "researcher", {"model": "claude-sonnet-5", "input_tokens": 412}),
+    (
+        EventType.LLM_REQUEST,
+        "researcher",
+        {"provider": "demo", "model": "scripted", "step": 1, "messages": []},
+    ),
     (EventType.LLM_TOKEN, "researcher", {"text": "I will start by reading "}),
     (EventType.LLM_TOKEN, "researcher", {"text": "the report from disk."}),
-    (EventType.LLM_RESPONSE, "researcher", {"output_tokens": 38, "stop_reason": "tool_use"}),
-    (EventType.TOOL_REQUESTED, "researcher", {"tool": "read_file", "args": {"path": "q3.md"}}),
-    (EventType.APPROVAL_REQUESTED, "researcher", {"prompt": 'Read "q3.md"?', "risk": "low"}),
-    (EventType.APPROVAL_RESOLVED, "researcher", {"decision": "approved", "by": "user"}),
-    (EventType.TOOL_APPROVED, "researcher", {"tool": "read_file"}),
-    (EventType.TOOL_CALLED, "researcher", {"tool": "read_file", "args": {"path": "q3.md"}}),
-    (EventType.TOOL_RESULT, "researcher", {"tool": "read_file", "bytes": 8214}),
-    (EventType.AGENT_MESSAGE, "researcher", {"text": "Revenue up 12% QoQ; churn flat."}),
-    (EventType.AGENT_COMPLETED, "researcher", {"steps": 4}),
+    (
+        EventType.LLM_RESPONSE,
+        "researcher",
+        {
+            "text": "I will start by reading the report from disk.",
+            "input_tokens": 412,
+            "output_tokens": 38,
+            "stop_reason": "tool_use",
+        },
+    ),
+    (
+        EventType.TOOL_REQUESTED,
+        "researcher",
+        {"tool": "read_file", "args": {"path": "q3.md"}, "call_id": "demo-1"},
+    ),
+    (
+        EventType.APPROVAL_REQUESTED,
+        "researcher",
+        {
+            "approval_id": "demo-approval-1",
+            "tool": "read_file",
+            "args": {"path": "q3.md"},
+            "risk": "low",
+            "prompt": 'Agent "researcher" wants to read q3.md — Allow / Deny',
+            "summary": "read the file q3.md",
+        },
+    ),
+    (
+        EventType.APPROVAL_RESOLVED,
+        "researcher",
+        {
+            "approval_id": "demo-approval-1",
+            "tool": "read_file",
+            "status": "approved",
+            "automatic": False,
+        },
+    ),
+    (
+        EventType.TOOL_APPROVED,
+        "researcher",
+        {
+            "tool": "read_file",
+            "call_id": "demo-1",
+            "approval_id": "demo-approval-1",
+            "automatic": False,
+        },
+    ),
+    (
+        EventType.TOOL_CALLED,
+        "researcher",
+        {"tool": "read_file", "args": {"path": "q3.md"}, "call_id": "demo-1"},
+    ),
+    (
+        EventType.TOOL_RESULT,
+        "researcher",
+        {
+            "tool": "read_file",
+            "call_id": "demo-1",
+            "result": "Q3 revenue: $4.2M (+12% QoQ). Churn: 2.1% (flat).",
+        },
+    ),
+    (
+        EventType.AGENT_MESSAGE,
+        "researcher",
+        {"to": "supervisor", "text": "Revenue up 12% QoQ; churn flat."},
+    ),
+    (EventType.AGENT_COMPLETED, "researcher", {"reason": "finished", "steps": 1}),
     (EventType.AGENT_HANDOFF, "researcher", {"to": "supervisor", "task": "Summary ready"}),
-    (EventType.AGENT_COMPLETED, "supervisor", {"steps": 6}),
+    (EventType.AGENT_COMPLETED, "supervisor", {"reason": "finished", "steps": 1}),
     (EventType.RUN_COMPLETED, None, {"summary": "Quarterly report summarised."}),
 )
 

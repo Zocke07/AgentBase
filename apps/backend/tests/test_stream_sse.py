@@ -347,6 +347,55 @@ def test_fake_run_emits_twenty_events_and_completes(client: TestClient) -> None:
     assert finished["finished_at"] is not None
 
 
+#: The payload keys the dashboard's reducer reads for each event type it folds
+#: (`apps/desktop/src/state/reducer.ts`). Payloads are conventions, not schemas
+#: (`events/types.py`), so this is the one place the convention is written down
+#: from the reader's side. The script must speak it or the demo run renders
+#: wrongly — it showed an *expired* approval and an empty tool result, because
+#: it said ``decision`` where the reducer reads ``status`` and ``bytes`` where
+#: it reads ``result``.
+_KEYS_THE_REDUCER_READS: dict[EventType, set[str]] = {
+    EventType.RUN_STARTED: {"goal"},
+    EventType.RUN_COMPLETED: {"summary"},
+    EventType.AGENT_SPAWNED: {"role"},
+    EventType.AGENT_THINKING: {"step"},
+    EventType.AGENT_HANDOFF: {"to", "task"},
+    EventType.AGENT_COMPLETED: {"reason", "steps"},
+    EventType.LLM_REQUEST: {"provider", "model"},
+    EventType.LLM_TOKEN: {"text"},
+    EventType.LLM_RESPONSE: {"input_tokens", "output_tokens", "stop_reason"},
+    EventType.TOOL_REQUESTED: {"tool", "args", "call_id"},
+    EventType.TOOL_CALLED: {"tool", "args", "call_id"},
+    EventType.TOOL_RESULT: {"tool", "call_id", "result"},
+    EventType.TOOL_APPROVED: {"tool", "approval_id", "automatic"},
+    EventType.APPROVAL_REQUESTED: {"approval_id", "tool", "risk", "prompt"},
+    EventType.APPROVAL_RESOLVED: {"approval_id", "status"},
+    EventType.AGENT_MESSAGE: {"text"},
+}
+
+
+def test_the_fake_run_speaks_the_reducers_dialect(client: TestClient) -> None:
+    """The scripted run is what the dashboard renders before any key exists,
+    and the reducer folds it like a real one: every scripted event must carry
+    the keys the reducer reads for its type, with the values the reducer
+    expects (`status` is an approval status, `result` is a string)."""
+    run = client.post("/debug/fake_run?step_ms=0").json()
+    # The stream, not the history: it waits for the terminal event, so the
+    # whole script has landed by the time it returns.
+    events = _parse_frames(client.get(f"/runs/{run['id']}/events").text)
+
+    for event in events:
+        event_type = EventType(event["type"])
+        expected = _KEYS_THE_REDUCER_READS[event_type]
+        missing = expected - set(event["payload"])
+        assert not missing, f"{event['type']} (seq {event['seq']}) lacks {sorted(missing)}"
+
+    resolved = next(e for e in events if e["type"] == "approval.resolved")
+    assert resolved["payload"]["status"] == "approved"
+    result = next(e for e in events if e["type"] == "tool.result")
+    assert isinstance(result["payload"]["result"], str)
+
+
 def test_fake_run_default_pace_matches_the_spec() -> None:
     """20 events at the default step is the 10 seconds §5 Phase 2 describes."""
     from agentspace.api.runs import _FAKE_RUN_SCRIPT, DEFAULT_STEP_MS
