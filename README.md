@@ -75,9 +75,14 @@ upgrading or uninstalling the app does not touch it.
 
 [`.github/workflows/build.yml`](.github/workflows/build.yml) runs the test job
 before the build job and gates it: lint, typecheck and both test suites must
-pass on Windows *and* macOS before any installer is bundled. macOS is built and
-deliberately not published — it exists to catch cross-platform breakage
-continuously, so an eventual Mac release is a flag flip rather than a port.
+pass on Windows *and* macOS before any installer is bundled. A red test leaves
+the build job skipped rather than producing an artefact nobody should download.
+
+macOS is built and deliberately not published — it exists to catch
+cross-platform breakage continuously, so an eventual Mac release is a flag flip
+rather than a port. It earned that on its first run, with a type error that no
+Windows run could see. `just typecheck` now runs `mypy --platform darwin` too,
+so that class of failure is caught before a push.
 
 A proper README — screenshot, one-command demo, architecture diagram — is
 Phase 10.

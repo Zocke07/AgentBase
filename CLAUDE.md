@@ -60,15 +60,17 @@ received **52 of 52** events over the same SSE endpoint, two `write_file` calls
 stopped at the approval gate and were answered by pressing **Allow** in Discord,
 and `reminder.txt` appeared on disk with exactly the 16 bytes the prompt named.
 
-**Phase 9 — CI and release.** Written and locally verified; **the acceptance
-criterion is not met and cannot be met from this machine.** §5 Phase 9 asks for
+**Phase 9 — CI and release.** Complete but for one clause. §5 Phase 9 asks for
 "a green CI run [that] produces a downloadable installer that runs on a second
-Windows machine with no Python installed", and both halves are out of reach
-here: this repository has **no git remote**, `gh` is not installed, and there is
-one machine. What exists is the workflow, a gate that is asserted rather than
-reviewed, and a real installer built, installed over an existing install, and
-run. See "What Phase 9 established" below for what was executed, and
-"Not verified" for what was not.
+Windows machine with no Python installed". Run #5 is green on all four jobs, and
+its uploaded installer was downloaded, installed and run — so everything holds
+except *second machine*, which needs hardware nobody here has. The repository is
+public at `Zocke07/AgentBase`.
+
+It took five runs. Four failed, three of those on defects in the workflow rather
+than in the product, and the fifth passed every job on both platforms. The one
+real bug was a macOS-only type error that no Windows run could see. See
+"What CI actually found" below.
 
 ### What the first real API call showed
 
@@ -1059,16 +1061,113 @@ design doing its job — the throttle never had to be clever.
 Next up: **Phase 10 — Portfolio artifacts.** Do not start it before re-reading
 BUILD_SPEC §5 Phase 10. Two things bear on it directly:
 
-- Phase 9's acceptance criterion is still open, and it is not something Phase 10
-  can quietly absorb: no CI run has ever executed, because there is no remote to
-  push to. Creating and pushing to a public GitHub repository is the owner's
-  decision, and it is the *only* remaining step — the workflow, the gate and the
-  artefact are all in place and locally verified.
+- Phase 9's acceptance criterion is met except for "a second Windows machine",
+  which needs hardware rather than work. CI is green on `Zocke07/AgentBase` and
+  every green run leaves a downloadable installer. What Phase 10 inherits is a
+  README that can now honestly link to a passing workflow and a real artefact —
+  and a `release` job that has never fired, because no tag has been pushed.
 - `just test-backend-cov` now works. `pytest-cov` was never a declared
   dependency until this phase, which is exactly what §5 Phase 10's "coverage
   visible, not just present" needs.
 
-### What Phase 9 established, and how it was verified
+### What CI actually found
+
+Five runs. The table is the short version; each row below it is a lesson worth
+keeping.
+
+| Run | Windows test | macOS test | build | What stopped it |
+|---|---|---|---|---|
+| 1 | fail | fail | skipped | `astral-sh/setup-uv@v10` is not a ref |
+| 2 | pass | fail | skipped | `mypy` unreachable-statement, macOS only |
+| 3 | pass | pass | fail | Rust lint ran before the sidecar existed |
+| 4 | pass | pass | fail | no `node_modules` in the build job |
+| 5 | pass | pass | pass | — |
+
+**The gate held, twice, before anything else was proven.** Runs #1 and #2 left
+`build` *skipped* rather than bundling an installer from code the tests had not
+validated. That is §5 Phase 9's central requirement — "a red test blocks the
+build job entirely" — observed rather than asserted, and it happened before any
+build had ever succeeded.
+
+**macOS was worth every minute it cost.** Nothing in this project had ever run
+there. It now does: all 635 backend tests and 124 frontend tests pass, the
+PyInstaller freeze produces an arm64 binary — arch-converted, re-signed, its
+macOS SDK version rewritten, with `discord.py` and `python-telegram-bot` inside
+it — `AgentSpace.app` bundles, and `verify-build` reports **12 passed, 4
+skipped**. The 4 are the NSIS-only tests skipping correctly on a platform with no
+NSIS installer. The 12 mean the frozen darwin binary was *launched*: it served
+`/health`, created its database from the bundled migration SQL, streamed a
+20-event SSE run, and exited leaving zero orphan processes. Phase 1's and Phase
+2's acceptance criteria, on macOS, for the first time.
+
+**The one real bug was invisible to every Windows run, by construction.** mypy
+narrows `sys.platform` to the host it runs on, and *silently prunes* the losing
+branch of a platform comparison — but only the branch. `_link_to_directory` in
+`test_sandbox.py` wrote `if sys.platform != "win32": raise` and then the
+Windows-only `_winapi` calls after it, so on macOS those calls are ordinary code
+following an always-taken `raise` and `warn_unreachable` reports them, while
+Windows prunes the whole block and says nothing. One shape, clean on the dev
+machine, broken on the platform nobody here can run. Written as a positive
+`== "win32"` test, both platforms' code sits inside branches and both hosts
+prune.
+
+CLAUDE.md already knew this hazard — it is why `default_data_dir` and
+`_target_triple` take a platform argument — but that helper predated the rule and
+nothing enforced it. So `just typecheck` now runs mypy twice, the second time
+`--platform darwin`, which reproduces the failure here in twenty seconds instead
+of a push and a five-minute round trip. Confirmed by restoring the old shape:
+plain mypy reports `Success` while the darwin pass fails, which is the entire
+argument for it being in the gate.
+
+**Two failures shared one root cause, and it is the oldest lesson in this file
+wearing a new hat: a recipe that has only ever run on a warm dev tree.**
+
+`just check-tauri` passed locally for two independent bad reasons — `binaries/`
+still held a sidecar from the last build, *and* clippy returned a cached result
+in 3.13 seconds without re-linting anything. In CI it failed with `resource path
+binaries\agentspace-sidecar-... doesn't exist`, because `tauri-build`'s build
+script validates `externalBin` on every cargo invocation, clippy included. A lint
+step therefore cannot precede the build, which is exactly where anybody would put
+it. The step moved after `verify-build` and a test pins it there, because the fix
+looks like a mistake and invites reverting.
+
+`just build-installer` passed locally because `node_modules` was already there.
+In CI it froze the sidecar successfully and then died on npm's
+`could not determine executable to run` — `tauri build` is resolved through
+`npx --no-install` and its `beforeBuildCommand` is `npm run build`, so both
+halves need it. Phase 0 settled this rule for `check` (it depends on `setup`
+because its acceptance criterion is a clean clone) and the build path needed the
+same guarantee.
+
+`test_every_recipe_ci_runs_works_on_a_clean_clone` now resolves the justfile's
+dependency graph and asserts every recipe the workflow invokes reaches `setup`.
+It has to be transitive — `ci` depends on `check` depends on `setup`, and a
+direct-only check calls that a failure, which is how the first version of the
+test failed. `verify-build` and `check-tauri` are exempt by inspection: they read
+artefacts an earlier step produced and install nothing.
+
+**The action-version failure was avoidable and the evidence was already in
+hand.** Run #1 died on both runners at the first step because
+`astral-sh/setup-uv@v10` does not exist — astral-sh publishes bare major tags only
+through v7 while shipping v10.1.0. While verifying inputs beforehand,
+`raw.githubusercontent.com/astral-sh/setup-uv/v10/action.yml` had returned 404
+and `v10.1.0` had fetched fine, and that was written off as the CDN wanting an
+exact tag. A 404 on a ref means the ref is absent. The lesson is narrow and
+useful: check ref *existence* with `GET /repos/{o}/{r}/git/ref/tags/{tag}`, not by
+reading a summarised tag listing. Doing that confirmed the other six pins were
+correct and found this one wrong.
+
+**The artefact was downloaded, installed and run, not merely produced.** The
+27.6 MB installer from run #5 carries CI's own freshly-frozen 24.25 MB sidecar
+plus the embedded `MicrosoftEdgeWebview2Setup.exe`. Installed with `/S` over the
+existing install, it launched, answered `/health`, opened the pre-existing data
+directory with all 15 runs and its real settings, and closed leaving zero orphan
+processes. Its sidecar hash differs from a local build, which is correct —
+PyInstaller output is not byte-reproducible across machines — and the property
+that matters was checked inside CI, where `verify-build` compared the installer's
+sidecar against the one that job had just frozen.
+
+### What Phase 9 established before CI ever ran
 
 **The gate is a structure, not an intention.** §5 Phase 9's central requirement
 is an ordering — "a red test blocks the build job entirely" — and it lives in one
@@ -1407,41 +1506,39 @@ wildcard would let any page the user has open read from their agent workspace.
 
 Phase 9 specifically:
 
-- **No CI run has ever executed.** This is the phase's acceptance criterion and
-  it is not met. The repository has no git remote, `gh` is not installed, and
-  creating a public GitHub repository and pushing to it is the owner's decision,
-  not something to be done on their behalf. Everything downstream of that is
-  therefore unverified *as CI*: whether the composite action is found at
-  `./.github/actions/toolchain`, whether the cache key behaves, and whether the
-  `release` job's `gh release create` works. The YAML parses and the job graph is
-  asserted by `test_ci_workflow.py`; that is a different claim.
-
-  The action *versions* are no longer in that list. Every one was checked against
-  its own repository on 2026-09-11, and five of seven had been pinned from memory
-  two to five majors behind — on the node20 runtime the current majors have moved
-  off. The inputs this workflow passes were confirmed to still exist in each new
-  major. That is the one part of a never-executed workflow that can be verified
-  without executing it, and it was worth the twenty minutes: it would have failed
-  at the first step on both runners.
-- **The second Windows machine has still never happened**, so the other half of
-  the criterion — "runs on a second Windows machine with no Python installed" —
-  is untouched. What Phase 9 did was install on *this* machine, which has Python.
-- **macOS has still never run anything.** Every macOS-shaped decision this phase
-  made is reasoning, not observation: that `--bundles app` is the right target,
-  that `just ci` passes there, that the frozen sidecar's POSIX branches
-  (`/usr/bin/pgrep`, `start_new_session`, the process-group kill) behave, and that
-  `channels/` — the first platform-shaped dependency tree in this project —
-  freezes at all. `tauri-plugin-keyring` enabling `apple-native` was checked in
-  its `Cargo.toml`; it was not compiled.
+- **The second Windows machine has still never happened.** This is the one clause
+  of the acceptance criterion left open, and it needs hardware rather than work:
+  "runs on a second Windows machine with no Python installed". The CI-built
+  installer was installed and run here, on a machine that has Python. The frozen
+  sidecar was separately run with a minimal environment and no Python on `PATH`
+  back in Phase 1 and served correctly, which is suggestive and is not the same
+  claim.
 - **The `release` job has never fired.** No tag has been pushed, so
-  `gh release create`, the artefact hand-off from the Windows build job, and the
-  `contents: write` permission are all untested. The path is short and it is
-  still a path nothing has walked.
+  `gh release create`, the artefact hand-off from the Windows build job and the
+  `contents: write` permission are all untested. Every green run does leave a
+  downloadable installer as a workflow artefact, which is what the acceptance
+  criterion asks for; a tagged release is the other half of §5 Phase 9's "publish
+  the Windows artefact" and is one push away.
+- **macOS is built and has never been *run*.** The `.app` bundles and the frozen
+  sidecar inside it starts, serves and shuts down under `verify-build` — but
+  nobody has launched `AgentSpace.app`, opened its webview, or watched the Tauri
+  shell spawn the sidecar there. The keychain path in particular is `apple-native`
+  in the plugin and has never executed.
 - **The workflow was never linted by a workflow linter.** `actionlint` is a Go
-  binary and is not in this toolchain, so the checks are: PyYAML parses both
-  files, the job graph is asserted, and the commands each job runs were executed
-  by hand locally. An input name that GitHub rejects would not have been caught.
-
+  binary and is not in this toolchain. What stands in for it: PyYAML parses both
+  files, `test_ci_workflow.py` asserts the job graph and both orderings, every
+  action ref was confirmed to exist through the `git/ref` API, and the thing now
+  runs green. An input name GitHub merely *warns* about would still go unnoticed.
+- **No pull request has ever run this workflow.** Every run so far was a push to
+  `main`. The `pull_request` trigger and the concurrency group's behaviour on a PR
+  ref are unexercised.
+- **The cache has never been restored, only written.** Each run so far produced a
+  new `.dev/cache` key, so the `restore-keys` prefix fallback has not been
+  exercised and no run has started warm.
+- **Nothing has been measured about cost or duration.** The repository is public
+  so minutes are free, and no attention was paid to how long the jobs take or
+  whether the uncached Rust build is worth caching. Deliberately not cached — see
+  the toolchain action for why — but that decision has never been costed.
 Phase 2 specifically:
 
 - **The browser's own EventSource reconnect.** Resume was verified three ways —
@@ -1922,6 +2019,25 @@ say".
 ## Decisions made mid-build
 
 Recorded here as they happen, so a later session does not re-litigate them.
+
+- **2026-09-11 — `just typecheck` runs mypy twice, once per target platform.**
+  mypy narrows `sys.platform` to the host it runs on, so a Windows-only run
+  cannot see a branch that is dead on macOS. That is not theoretical: it is how
+  CI run #2 failed. `--platform darwin` reproduces it locally in twenty seconds,
+  and the alternative is learning about every such error through a push.
+- **2026-09-11 — the Rust lint runs after the build, not before.**
+  `tauri-build` validates `externalBin` on every cargo invocation, clippy
+  included, so `just check-tauri` cannot run before a sidecar exists. The order
+  looks wrong and is pinned by a test for exactly that reason.
+- **2026-09-11 — every recipe CI invokes must reach `setup`.** Phase 0 settled
+  this for `check` on clean-clone grounds; two failures this phase came from
+  recipes that had only ever run on warm dev trees, where `node_modules` and a
+  stale `binaries/` are always already present. A test resolves the dependency
+  graph rather than trusting it.
+- **2026-09-11 — action refs are verified by existence, not by tag listing.**
+  `GET /repos/{owner}/{repo}/git/ref/tags/{tag}` answers the only question that
+  matters. Reading a summarised tag list produced `setup-uv@v10`, which is not a
+  ref, and failed run #1 on both runners at the first step.
 
 - **2026-09-11 — CI runs `just` recipes, never its own commands.** The test job
   is exactly `just ci` and the build job is `just build-installer` then
