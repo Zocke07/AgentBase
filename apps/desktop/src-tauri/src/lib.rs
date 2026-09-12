@@ -7,7 +7,7 @@
 //! `--onefile` bootloader unpacks to a temp directory and execs the real
 //! interpreter as a child process, so the PID this shell holds is the
 //! bootloader's, not the server's. Killing it leaves the server running and
-//! holding port 8787 - the trap called out in BUILD_SPEC §5 Phase 1.
+//! holding port 8787: the trap called out in BUILD_SPEC §5 Phase 1.
 //!
 //! So this never reaches for `kill` as its opening move. It writes the line
 //! `shutdown` to the sidecar's stdin, then drops the handle, which closes the
@@ -47,8 +47,8 @@ const KEYCHAIN_SERVICE: &str = "dev.agentspace.desktop";
 /// handshake. Must match `agentspace.secrets.SECRET_KEYS`.
 ///
 /// The bot token arrived with the Phase 8 channel adapter. A bot token is a
-/// credential in the same sense an API key is - it authenticates this
-/// application to a third party and is replayable by anyone who reads it - so it
+/// credential in the same sense an API key is (it authenticates this
+/// application to a third party and is replayable by anyone who reads it), so it
 /// travels the same route and never touches the `settings` table, which sits on
 /// disk in the clear beside the event log.
 const SECRET_NAMES: [&str; 3] = [
@@ -67,7 +67,7 @@ const INSTANCE_ENV: &str = "AGENTSPACE_INSTANCE";
 /// The tag for this launch, minted once and handed to both the sidecar and
 /// the webview.
 ///
-/// The port is fixed, so whatever holds it answers `/health` - a copy of this
+/// The port is fixed, so whatever holds it answers `/health`: a copy of this
 /// app still shutting down, a dev sidecar left in a terminal. Until the tag
 /// existed nothing could tell the webview that the process answering was not
 /// the one this shell spawned: the packaged app once attached to the dev
@@ -120,7 +120,7 @@ fn data_dir(app: &AppHandle) -> Result<PathBuf, tauri::Error> {
     match std::env::var_os(DATA_DIR_ENV) {
         Some(inherited) => Ok(PathBuf::from(inherited)),
         // `app_local_data_dir()`, deliberately, not `app_data_dir()`. On
-        // Windows the latter is %APPDATA% - the *roaming* profile, which is
+        // Windows the latter is %APPDATA%: the *roaming* profile, which is
         // copied to and from a server on every logon in a domain environment.
         // Roaming a live SQLite database (plus its -wal and -shm files, an
         // agent workspace and logs) invites corruption and bloats every logon.
@@ -135,8 +135,8 @@ fn data_dir(app: &AppHandle) -> Result<PathBuf, tauri::Error> {
 ///
 /// The one path-opening command the webview may call, and it opens nothing
 /// it is merely told to: the path has to resolve inside the data directory
-/// this shell spawned the sidecar with. A space's folder always does - it is
-/// `<data dir>/spaces/<id>` by construction - and anything else is refused
+/// this shell spawned the sidecar with. A space's folder always does
+/// (it is `<data dir>/spaces/<id>` by construction), and anything else is refused
 /// with a sentence rather than opened. The plugin's own JavaScript commands
 /// are not granted to the webview at all; this is the whole surface.
 #[tauri::command]
@@ -146,7 +146,7 @@ fn reveal_folder(app: AppHandle, path: String) -> Result<(), String> {
     let root = data_dir(&app).map_err(|error| error.to_string())?;
     let root = std::fs::canonicalize(&root).map_err(|error| error.to_string())?;
     let wanted = std::fs::canonicalize(&path)
-        .map_err(|_| format!("{path} does not exist yet - it is created by the first run"))?;
+        .map_err(|_| format!("{path} does not exist yet: it is created by the first run"))?;
     if !wanted.starts_with(&root) {
         return Err(format!("{path} is not inside AgentSpace's data directory"));
     }
@@ -161,14 +161,14 @@ fn reveal_folder(app: AppHandle, path: String) -> Result<(), String> {
 /// Start the sidecar and keep its handle for shutdown.
 ///
 /// The data directory is resolved here, through Tauri's path API, and handed
-/// over at spawn time - BUILD_SPEC §5 Phase 2 asks for exactly that. The
+/// over at spawn time; BUILD_SPEC §5 Phase 2 asks for exactly that. The
 /// sidecar can resolve an OS app-data directory by itself and falls back to
 /// doing so, but the two answers are only incidentally equal: Tauri derives
 /// its path from the bundle identifier, so letting each side guess separately
 /// is how an upgrade quietly starts reading a different, empty database.
 ///
 /// It travels as an environment variable rather than `argv` for the same
-/// reason API keys will in Phase 3 - `argv` is world-readable via `ps` - and
+/// reason API keys will in Phase 3 (`argv` is world-readable via `ps`), and
 /// keeping one channel for spawn-time configuration avoids a second, weaker
 /// one appearing later.
 fn spawn_sidecar(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
@@ -186,7 +186,8 @@ fn spawn_sidecar(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     // refuses it by the instance tag; this line is for whoever reads the log.
     if port_is_open(SIDECAR_PORT) {
         eprintln!(
-            "[sidecar] port {SIDECAR_PORT} is already in use - another AgentSpace, or a dev              sidecar? This app's sidecar will not be able to bind it."
+            "[sidecar] port {SIDECAR_PORT} is already in use: another AgentSpace, or a dev \
+             sidecar? This app's sidecar will not be able to bind it."
         );
     }
 
@@ -243,8 +244,8 @@ fn spawn_sidecar(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
 /// bearing:
 ///
 /// * **stdin, never `argv`.** A command-line argument is readable by any
-///   process on the machine - `Get-CimInstance Win32_Process` on Windows, `ps`
-///   elsewhere - for as long as the process lives. stdin is a private pipe
+///   process on the machine (`Get-CimInstance Win32_Process` on Windows, `ps`
+///   elsewhere) for as long as the process lives. stdin is a private pipe
 ///   between exactly these two processes.
 /// * **Exactly one line, first.** The sidecar consumes the first line as this
 ///   handshake and then treats the stream as the shutdown watchdog it has been
@@ -323,7 +324,7 @@ fn shutdown_sidecar(app: &AppHandle) {
         std::thread::sleep(Duration::from_millis(100));
     }
 
-    // 3. Backstop. `kill` consumes the handle, so stdin closes here too - the
+    // 3. Backstop. `kill` consumes the handle, so stdin closes here too: the
     //    real server still gets its EOF even if the bootloader dies first.
     eprintln!("[sidecar] did not exit within {SHUTDOWN_GRACE:?}; killing");
     if let Err(error) = child.kill() {
@@ -344,7 +345,7 @@ fn port_is_open(port: u16) -> bool {
 /// # Panics
 ///
 /// Panics if the Tauri application cannot be built, which means a malformed
-/// `tauri.conf.json` - unrecoverable and worth failing loudly at startup.
+/// `tauri.conf.json`, unrecoverable and worth failing loudly at startup.
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
