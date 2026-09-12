@@ -376,7 +376,9 @@ budget and leave an event log that says it produced nothing. **Deliberately not
 fixed in Phase 5**: it is a Provider-protocol design decision, not an
 agent-registry one, and it should be made where its cost across all three
 providers is visible. Recorded here so Phase 7 does not conclude the loop is
-broken when it renders five empty responses.
+broken when it renders five empty responses. **Fixed in the open-items sweep
+(2026-09-12)** — the cost was small: `Completion.thinking`, read by two
+adapters, written into `llm.response`, and one sentence on the page.
 
 **A model that returns nothing at all is a real failure mode, and the step limit
 is the only thing that ends it.** `_NO_TOOL_NUDGE` assumes prose to push back
@@ -618,13 +620,13 @@ so a dialog that assumes one question per decision will feel broken. Rendering
 the approval history for a run — approved, denied, denied again — is more
 useful than showing only what is currently outstanding.
 
-*For the product generally:* "deny" currently means "not this call", not "not
-this run". Making a denial sticky (a supervisor told that this exact call was
-already refused) is a real feature and is not in this phase. It is also not
-purely a convenience: a supervisor that can re-ask indefinitely turns a single
-"no" into a war of attrition, and the only things bounding it today are the step
-limit and the agent cap. Recorded rather than fixed, because the fix belongs
-with whatever Phase 7 learns about how these dialogs actually feel to use.
+*For the product generally:* ~~"deny" currently means "not this call", not
+"not this run".~~ **Closed in the open-items sweep (2026-09-12):** a denial
+sticks for the run. The reasoning that stood until then: a supervisor that can
+re-ask indefinitely turns a single "no" into a war of attrition, and the only
+things bounding it were the step limit and the agent cap. Phase 7 then showed
+a person being asked the same question twice in one run, which was the thing
+the fix was waiting on.
 
 **Every settled approval status has now been produced by a real run.** One
 `write_file` was approved over HTTP and the file appeared; a second was denied
@@ -1197,6 +1199,94 @@ yes, and shows the sidecar's refusal on a no — five jsdom tests. It has not
 been clicked in a browser: the page outside Tauri talks to 8787, which the
 installed app was holding, and closing the maintainer's app was not mine to
 do.
+
+### The open-items sweep (2026-09-12)
+
+The maintainer asked for everything this file and BUILD_SPEC recorded as
+unfinished or found-and-not-fixed to be fixed, portfolio work excepted. Nine
+were fixable on this machine and are; each has its own commit and its own
+tests. The struck-through entries under "Not verified" say which. What was
+not fixable here, and why, is at the end.
+
+**The shell can now tell its own sidecar from a stranger on the port.** The
+port is fixed, so whatever holds it answers `/health`, and the packaged app
+once attached to a dev sidecar and rendered the dev data directory with
+nothing anywhere saying so. The shell mints a tag per launch, passes it in
+the environment beside the data directory, `/health` echoes it, and the
+webview refuses a healthy answer that carries a different tag — or none —
+naming what it found. A wrong tag is *retried* rather than failed at once,
+because a copy of the app closed a second ago answers for a moment more and
+then the new sidecar binds; a stranger that stays is reported when the
+attempts run out. A plain browser tab has no shell and compares nothing.
+One test now compares every constant `lib.rs` and the sidecar declare in
+common — port, shutdown line, both environment variables — the way
+`test_secrets.py` already compared the secret names.
+
+**`http_get` connects to the address the sandbox checked.** `check_url`'s
+own docstring conceded DNS rebinding and said the fix was the connection
+pinned to the checked address, in the client. `Sandbox.resolve_url` returns
+the address beside the yes; the tool puts it in the URL it connects to and
+carries the name in the `Host` header and, over TLS, as the SNI, so the
+certificate is still verified against the name. The test makes a second
+resolution *raise* rather than merely answer differently. And the first real
+fetches this tool has ever made: `example.com` over HTTPS and HTTP through a
+pinned Cloudflare address — which serves many names, so the SNI and Host
+being right is what made it answer at all — `github.com` truncated at 20,000
+characters as designed, and its HTTP form reported as a 301 rather than
+followed.
+
+**A budget crossing is seen exactly once.** `record` read the period's total
+before taking the write lock and added its own cost to it, so two runs
+recording at the same moment saw the same "before" and each an "after"
+without the other's cost. Held at that read point until both had read, the
+old code reported *zero* warnings for a month that had just gone past 80%.
+Both totals are read inside the `BEGIN IMMEDIATE` transaction now.
+
+**A model's reasoning travels in `llm.response`.** `Completion.thinking` is
+`None` when the provider exposed none and the text when it did — never part
+of `text`, never a `TextDelta`. Ollama reads `message.thinking` and
+concatenates it across frames; Anthropic reads thinking blocks and folds
+`thinking_delta` frames; OpenAI's chat API has no such field. The event
+sentence reads "the model said nothing" or "the model reasoned, then said
+nothing" — before this they were one row. Verified against the real daemon:
+asked for a sum with 200 output tokens, `qwen3:4b` spent every one of them
+thinking and returned no text at all, on both transports, with 437 and 605
+characters of reasoning where the log used to show an empty response. That
+is the Phase 5 finding, reproduced, and now legible.
+
+**A denial sticks for the run.** The same tool with the same arguments, from
+any agent in the run, is denied by the earlier answer without a question: a
+row is still written and both approval events still emitted, marked
+automatic and carrying `precedent` — the id of the decision they rest on —
+so the history shows the question came up again and the dialog never shows
+a question nobody is asked. Different arguments are a different question and
+are asked. The history row says "by your earlier answer" where an approval
+says "by policy": a policy only ever says yes.
+
+**A worker's handoff tells the supervisor what to do with it.** A worker
+still cannot spawn — that would let any agent widen the run from inside its
+own turn — but the supervisor's spawn result now says the name and task to
+pass to `spawn_agent` when the roster knows the name, or that it does not
+and which names it does. `tool.result` records `handoff: {to, known}`. Two
+tests drive both cases, including a scripted supervisor that takes the hint
+and the run completing on the agent the worker asked for.
+
+**Coverage the notes said was missing.** `_on_mention` has five behavioural
+tests; `tauri://localhost` is pinned by name with its reconnect preflight,
+since a parametrisation over the allowlist would only have shrunk if it were
+removed.
+
+**Not fixable here, and still open.** The browser's automatic `EventSource`
+reconnect, two browser clients on one run, the pixel comparison in both
+themes, the delete button clicked in a browser, and the Phase 11 refusal of
+another space's agent seen live all need a browser on 8787 or a model that
+happens to name the agent — the installed app has held 8787 all day. macOS
+needs the Mac. OpenAI needs a key. A tag with the `smoke` job in its
+`needs` has not been pushed. The throttle has not been under pressure. The
+scrubber still refolds from zero on a leftward tick, which nothing has
+measured to be slow. `docs/USER_GUIDE.md` is untracked and predates the
+window; it goes with the portfolio work. And the NSIS installer following a
+registry `InstallLocation` is the installer's behaviour, not this code's.
 
 ### The frontend pass (2026-09-11)
 
@@ -1812,14 +1902,17 @@ Phase 11 specifically:
   same DOM under two token sets is the same pixels by construction; but the
   pixel comparison from Phase 7 has not been rerun under the redesign in
   either theme.
-- **Two things the packaged launch showed, neither fixed here.** With the dev
+- **Two things the packaged launch showed, one now fixed.** With the dev
   sidecar still listening on 8787, the packaged app's own sidecar could not
   bind and the webview attached to the *dev* one — it rendered the dev data
   directory's runs and its "Open folder" sent the dev path, which
   `reveal_folder` refused as outside the installed app's data directory.
   Correct behaviour from the check, and a hazard from the fixed port: nothing
-  tells the shell the sidecar it is talking to is not the one it spawned. And
-  the NSIS installer follows the `InstallLocation` an earlier install left in
+  told the shell the sidecar it was talking to was not the one it spawned.
+  ~~Not fixed here.~~ **Closed in the open-items sweep**: the shell tags each
+  launch, `/health` echoes the tag, and the webview refuses a stranger by
+  name. Verified in tests and in the frozen binary, not yet in the packaged
+  app against a real stranger on the port. And the NSIS installer follows the `InstallLocation` an earlier install left in
   the registry — this machine's went to `D:\Z\Master\Code\AgentSpace`, not
   `%LOCALAPPDATA%\AgentSpace` — so "installed over the existing install" is
   only true of whichever location the registry remembers.
@@ -1940,8 +2033,9 @@ Phase 8 specifically:
 - **The bot has only ever been in one guild, with one user.** Nothing has
   exercised two guilds, a guild joined while running (`on_guild_join`), two
   people using the bot at once, or the mention trigger — the live run used the
-  slash command both times. `_on_mention` is covered by nothing but its own
-  reading.
+  slash command both times. ~~`_on_mention` is covered by nothing but its own
+  reading.~~ It has five behavioural tests now (the sweep); it has still never
+  fired against a real server.
 - ~~**Nothing has been packaged since `discord.py` and `python-telegram-bot`
   were added.**~~ **Checked, and it works.** The two largest dependencies in the
   tree are also the two the adapters import *lazily*, inside a factory, so that
@@ -2041,18 +2135,14 @@ Phase 6 specifically:
   enforceable in-process cross-platform. A shell command that calls `curl`
   reaches the internet. The container wrapper §5 Phase 6's addendum describes is
   the answer and is explicitly not part of the shared build.
-- **`http_get` has never fetched a real URL.** Every network test runs against
-  an `httpx2.MockTransport`, exactly as the providers do. The *refusals* are
-  well covered — scheme, loopback, private, link-local, redirect — and a real
-  page has never been retrieved, so a wrong default header or a redirect shape
-  the mock does not reproduce would pass. It is also the one built-in no live
-  run has called.
-- **DNS rebinding defeats `check_url`.** The check resolves the hostname and the
-  connection resolves it again, so a name that answers public at check time and
-  private at connect time reaches a private address. Closing it means pinning
-  the connection to the checked address, which is a property of the HTTP client
-  rather than of the sandbox. Recorded in the module docstring rather than
-  quietly implied to be handled.
+- ~~**`http_get` has never fetched a real URL.**~~ **Closed in the sweep.**
+  `https://example.com/`, `http://example.com/` and `https://github.com/` were
+  fetched through the tool for real — through a pinned address, with the
+  redirect on `http://github.com/` reported rather than followed. It is still
+  the one built-in no live *run* has called.
+- ~~**DNS rebinding defeats `check_url`.**~~ **Closed in the sweep.** The
+  connection is made to the address the check saw, with the name in the `Host`
+  header and the SNI; the resolver is asked once. See the sweep's notes.
 - ~~**No approval has ever been resolved from the webview.**~~ **Closed in
   Phase 7.** A `write_file` call was approved by clicking **Allow** in a real
   browser and the file appeared on disk with the expected content; a second was
@@ -2082,11 +2172,12 @@ Phase 6 specifically:
   directory in the shipped app and a test asserts that, but no *installed* build
   has created it. The Phase 2 lesson about `%APPDATA%` versus `%LOCALAPPDATA%`
   was found by installing and looking, not by reading.
-- **A worker-initiated `handoff` still does not re-delegate**, and Phase 6 made
-  it visible: after being denied, the escaper handed off to a nonexistent
-  `another_agent` and the supervisor did nothing with it. The event is real, the
-  follow-through is not implemented, and no test asserts the supervisor behaves
-  sensibly. Carried forward unchanged from Phase 4.
+- ~~**A worker-initiated `handoff` still does not re-delegate**~~, and Phase 6
+  made it visible: after being denied, the escaper handed off to a nonexistent
+  `another_agent` and the supervisor did nothing with it. **Narrowed in the
+  sweep**: a worker still cannot spawn, by design, but the supervisor is now
+  told the name and task to pass to `spawn_agent`, or that the name is not on
+  the roster and which are, and two tests assert it acts on each.
 
 Phase 5 specifically:
 
@@ -2139,19 +2230,17 @@ Phase 4 specifically:
   appended events for two agents at once, so `seq` ordering has not had to
   carry any orchestration meaning. Parallel workers are a real feature and a
   real risk to the reconstruction guarantee; they are not in this phase.
-- **The budget crossing race is still open, and is now reachable.** Phase 3
-  noted that two runs appending concurrently at the 80% threshold could both
-  observe the crossing. `POST /runs` now starts runs, so two concurrent runs is
-  an ordinary thing a user can do. Untested.
+- ~~**The budget crossing race is still open, and is now reachable.**~~
+  **Closed in the sweep.** Both totals are read inside the write transaction;
+  held at the old read point, the old code warned zero times for a crossing.
 - **Long transcripts.** `llm.request` carries the full message list, so a run
   that goes many steps writes the conversation into the log repeatedly, growing
   quadratically. Correct for reconstruction and untested for size. Nothing has
   run long enough to care yet.
-- **A worker-initiated `handoff` does not re-delegate.** It records
+- ~~**A worker-initiated `handoff` does not re-delegate.**~~ It records
   `agent.handoff`, completes the worker, and hands the request back to the
-  supervisor as text for it to act on. The event is real; the automatic
-  follow-through is not implemented, and no test asserts the supervisor
-  actually does anything sensible with it.
+  supervisor — by design. **Narrowed in the sweep**: the supervisor is told
+  what to call, and tests assert it does.
 
 ## The machine reality
 
@@ -2398,6 +2487,27 @@ say".
 
 Recorded here as they happen, so a later session does not re-litigate them.
 
+- **2026-09-12 — a denial sticks for the run; a different call is a different
+  question.** The match is the tool and the arguments as the model sent them.
+  Matching on the resolved summary instead would have tied it to wording that
+  legitimately changes ("create" becomes "overwrite"), and matching looser
+  than exact would deny calls the person never saw. The cost is that a model
+  which varies its arguments slightly is asked again — bounded, as before, by
+  the step limit and the agent cap.
+- **2026-09-12 — the launch tag travels in the environment, and is not a
+  secret.** It is a label so the webview can recognise the shell's own
+  sidecar, not a credential; the keychain-to-stdin route is for values that
+  must not be readable by another process, and this one may be. Unique per
+  launch is all it has to be, and the process id plus the clock gives that
+  without a random-number crate.
+- **2026-09-12 — a wrong launch tag is retried, not failed at once.** A copy of
+  this app closed a second ago still answers `/health` for a moment, with its
+  own tag, and then the new sidecar binds. Failing immediately would make a
+  quick relaunch fail; retrying costs ten seconds before a real stranger is
+  reported, by name.
+- **2026-09-12 — `Completion.thinking` is `None` for "none exposed", never
+  `""`.** "The model reasoned and said nothing" and "the provider exposes no
+  reasoning" are different rows, and the log should not have to guess which.
 - **2026-09-12 — a run can be deleted; an event cannot.** §2's append-only
   rule is about the log *within* a run — a hole in it means a run that cannot
   be reconstructed. Removing a whole run leaves every surviving log complete,
