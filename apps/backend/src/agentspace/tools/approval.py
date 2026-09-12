@@ -183,6 +183,33 @@ class ApprovalStore:
     async def list_pending(self, run_id: str | None = None) -> list[ApprovalRecord]:
         return await asyncio.to_thread(self._list_pending_sync, run_id)
 
+    async def find_denied(
+        self, run_id: str, tool: str, args: dict[str, Any]
+    ) -> ApprovalRecord | None:
+        """The earliest denial in this run of exactly this call, if any.
+
+        "Exactly" is the tool and the arguments as the model sent them: the
+        same question, not a similar one. Different content in the same file
+        is a different question and is asked. Compared as parsed objects, so
+        key order in the stored JSON does not decide it.
+        """
+        return await asyncio.to_thread(self._find_denied_sync, run_id, tool, args)
+
+    def _find_denied_sync(
+        self, run_id: str, tool: str, args: dict[str, Any]
+    ) -> ApprovalRecord | None:
+        with self._db.read() as connection:
+            rows = connection.execute(
+                "SELECT * FROM approvals WHERE run_id = ? AND tool = ? AND status = ?"
+                " ORDER BY created_at, rowid",
+                (run_id, tool, str(ApprovalStatus.DENIED)),
+            ).fetchall()
+        for row in rows:
+            record = _record(row)
+            if record.args == args:
+                return record
+        return None
+
     def _list_pending_sync(self, run_id: str | None) -> list[ApprovalRecord]:
         with self._db.read() as connection:
             if run_id is None:
@@ -336,6 +363,18 @@ class ApprovalService:
         if risk in frozenset(auto_approve):
             return await self._auto_approve(run_id, agent, prepared, risk)
 
+        # A denial sticks for the run. Phase 6 watched a worker give up after
+        # a "no", the supervisor spawn a second copy of it, and the copy ask
+        # for the same overwrite — a person could be asked the same question
+        # for as long as the step limit and the agent cap allowed. The same
+        # call, from any agent in this run, is now denied by the earlier
+        # answer without asking again.
+        precedent = await self._store.find_denied(
+            run_id, prepared.tool_name, prepared.raw_arguments
+        )
+        if precedent is not None:
+            return await self._deny_by_precedent(run_id, agent, prepared, risk, precedent)
+
         record = await self._store.create(
             run_id, prepared.tool_name, prepared.raw_arguments, risk
         )
@@ -453,6 +492,65 @@ class ApprovalService:
             reason=(
                 f"{risk} risk calls are pre-approved in this workspace, so this "
                 f"ran without asking."
+            ),
+            approval_id=settled.id,
+            automatic=True,
+        )
+
+    async def _deny_by_precedent(
+        self,
+        run_id: str,
+        agent: str,
+        prepared: Prepared,
+        risk: RiskLevel,
+        precedent: ApprovalRecord,
+    ) -> ApprovalDecision:
+        """Deny a call the user already denied in this run, and say so.
+
+        Written and emitted like an automatic approval, for the same reason:
+        the history has to show that the question came up again and how it
+        was settled, and the dialog must never show a question nobody is
+        being asked. ``precedent`` names the decision this one rests on.
+        """
+        record = await self._store.create(
+            run_id, prepared.tool_name, prepared.raw_arguments, risk
+        )
+        await self._events.append(
+            run_id,
+            EventType.APPROVAL_REQUESTED,
+            {
+                "approval_id": record.id,
+                "tool": prepared.tool_name,
+                "args": prepared.raw_arguments,
+                "risk": str(risk),
+                "prompt": approval_prompt(agent, prepared),
+                "summary": prepared.summary,
+                "automatic": True,
+                "precedent": precedent.id,
+            },
+            agent_id=agent,
+        )
+        settled = await self._store.settle(record.id, ApprovalStatus.DENIED)
+        await self._events.append(
+            run_id,
+            EventType.APPROVAL_RESOLVED,
+            {
+                "approval_id": settled.id,
+                "tool": prepared.tool_name,
+                "status": str(settled.status),
+                "automatic": True,
+                "precedent": precedent.id,
+            },
+            agent_id=agent,
+        )
+        return ApprovalDecision(
+            allowed=False,
+            status=ApprovalStatus.DENIED,
+            reason=(
+                f"The user already denied permission to {prepared.summary} "
+                f"earlier in this run, so it was not asked again. Do not try "
+                f"this call again — continue without it, or finish and say what "
+                f"you could not do."
             ),
             approval_id=settled.id,
             automatic=True,

@@ -218,6 +218,11 @@ export function sentenceFor(event: Event): string {
       // `summary` is the sidecar's rendering of the *resolved* call — the
       // same words the approval panel shows — never rebuilt from `args`.
       const summary = read("summary") ?? phrase.infinitive;
+      // `precedent` names an earlier denial in this run that settles this
+      // one: the question came up again and was not asked again.
+      if (read("precedent") !== null) {
+        return `${who} wants to ${summary} — already denied earlier in this run.`;
+      }
       return flag(payload, "automatic")
         ? `${who} wants to ${summary} — allowed by policy.`
         : `${who} wants to ${summary} — waiting for you.`;
@@ -229,7 +234,9 @@ export function sentenceFor(event: Event): string {
         case "approved":
           return automatic ? `Policy allowed ${who}'s ${tool} call.` : `You allowed ${who}'s ${tool} call.`;
         case "denied":
-          return `You denied ${who}'s ${tool} call.`;
+          return automatic
+            ? `Your earlier answer denied ${who}'s ${tool} call again.`
+            : `You denied ${who}'s ${tool} call.`;
         case "expired":
           return `${who}'s ${tool} call went unanswered and expired.`;
         default:

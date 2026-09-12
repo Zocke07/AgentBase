@@ -117,6 +117,14 @@ describe("the history", () => {
 
     expect(screen.getByTestId("approval-history").textContent).toContain("by policy");
   });
+
+  it("marks a repeat the person's earlier answer settled, not a policy", () => {
+    panel([denied, { ...denied, id: "ap-1b", seq: 9, automatic: true }, pending]);
+
+    const history = screen.getByTestId("approval-history").textContent;
+    expect(history).toContain("by your earlier answer");
+    expect(history).not.toContain("by policy");
+  });
 });
 
 describe("answering", () => {

@@ -86,6 +86,24 @@ describe("a sentence for every event", () => {
       "writer",
     );
     expect(sentenceFor(byPolicy)).toBe("writer wants to read the file a.txt — allowed by policy.");
+
+    /* A denial sticks for the run: the same call again is settled by the
+       earlier answer, and neither event may read as though a person was
+       asked or a policy allowed it. */
+    const repeat = log.add(
+      "approval.requested",
+      { tool: "write_file", args: { path: "notes.txt" }, summary: "overwrite the file notes.txt (2 characters)", automatic: true, precedent: "ap-1" },
+      "writer-2",
+    );
+    expect(sentenceFor(repeat)).toBe(
+      "writer-2 wants to overwrite the file notes.txt (2 characters) — already denied earlier in this run.",
+    );
+    const repeatSettled = log.add(
+      "approval.resolved",
+      { approval_id: "ap-2", tool: "write_file", status: "denied", automatic: true, precedent: "ap-1" },
+      "writer-2",
+    );
+    expect(sentenceFor(repeatSettled)).toBe("Your earlier answer denied writer-2's write_file call again.");
   });
 
   it("truncates what a model wrote so a row stays a row", () => {

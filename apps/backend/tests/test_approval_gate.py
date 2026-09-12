@@ -337,6 +337,112 @@ async def test_a_denied_call_does_not_happen(
     assert not (workspace / "notes.txt").exists()
 
 
+async def test_a_call_the_user_already_denied_is_not_asked_again_in_that_run(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+    db: Database,
+    workspace: Path,
+) -> None:
+    """Phase 6 watched a denial stop a call and not a run: the worker gave up,
+    the supervisor spawned a second copy of the same definition, and it asked
+    for the same overwrite again. "Deny" meant "not this call", and the only
+    things bounding a supervisor that re-asks were the step limit and the
+    agent cap — a single no could become a war of attrition.
+
+    Now a denial sticks for the run. The same tool with the same arguments,
+    from any agent in the run, is denied by the earlier answer without the
+    person being asked: a row is still written and both events still emitted,
+    marked automatic and naming the decision they rest on, so the history
+    says what happened and the dialog never shows a question nobody is asked.
+    """
+    runtime, service = tool_runtime(store, db, workspace)
+
+    task = asyncio.create_task(
+        writer_run(
+            store,
+            settings,
+            agents,
+            ledger,
+            secrets,
+            runtime,
+            [
+                says("Writing.", call("write_file", "w1", path="notes.txt", content="hi")),
+                says("Once more.", call("write_file", "w2", path="notes.txt", content="hi")),
+                says("Fine.", call("finish", "w3", result="Not written.")),
+            ],
+        )
+    )
+
+    first = await _wait_for_approval(service)
+    await service.resolve(first, approved=False)
+    # The second identical call must not wait on the gate; if it did, this
+    # would hang until the test timeout, which is the old behaviour.
+    rebuilt = await asyncio.wait_for(task, timeout=10)
+
+    writer = rebuilt.agent("filewriter")
+    assert writer.approvals_resolved == [("write_file", "denied"), ("write_file", "denied")]
+    assert writer.denied_tools == ["write_file", "write_file"]
+    assert [name for name, _ in writer.tool_calls] == ["finish"]
+    assert not (workspace / "notes.txt").exists()
+
+    (run,) = await store.list_runs()
+    events = await store.read(run.id)
+    requested = [e.payload for e in events if e.type is EventType.APPROVAL_REQUESTED]
+    resolved = [e.payload for e in events if e.type is EventType.APPROVAL_RESOLVED]
+    denied = [e.payload for e in events if e.type is EventType.TOOL_DENIED]
+    assert [r.get("automatic", False) for r in requested] == [False, True]
+    assert [r.get("automatic", False) for r in resolved] == [False, True]
+    # The repeat names the decision it rests on.
+    assert requested[1]["precedent"] == first
+    assert resolved[1]["precedent"] == first
+    assert "already" in denied[1]["reason"].lower()
+    # The table agrees: two rows, both denied, and nothing left pending.
+    assert await service.store.list_pending(run.id) == []
+
+
+async def test_a_different_call_after_a_denial_is_still_asked(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+    db: Database,
+    workspace: Path,
+) -> None:
+    """Sticky means this exact call. Different content is a different
+    question, and the person gets to answer it."""
+    runtime, service = tool_runtime(store, db, workspace)
+
+    task = asyncio.create_task(
+        writer_run(
+            store,
+            settings,
+            agents,
+            ledger,
+            secrets,
+            runtime,
+            [
+                says("Writing.", call("write_file", "w1", path="notes.txt", content="hi")),
+                says("Shorter.", call("write_file", "w2", path="notes.txt", content="hello")),
+                says("Done.", call("finish", "w3", result="Written.")),
+            ],
+        )
+    )
+
+    first = await _wait_for_approval(service)
+    await service.resolve(first, approved=False)
+    second = await _wait_for_approval(service, after=first)
+    await service.resolve(second, approved=True)
+    rebuilt = await asyncio.wait_for(task, timeout=10)
+
+    writer = rebuilt.agent("filewriter")
+    assert writer.approvals_resolved == [("write_file", "denied"), ("write_file", "approved")]
+    assert (workspace / "notes.txt").read_text(encoding="utf-8") == "hello"
+
+
 async def test_the_prompt_a_user_sees_is_a_sentence_not_json(
     store: EventStore,
     settings: SettingsStore,
@@ -680,17 +786,23 @@ async def test_an_approval_cannot_be_resolved_twice(
 # --- helpers ------------------------------------------------------------------
 
 
-async def _wait_for_approval(service: ApprovalService, limit_seconds: float = 5.0) -> str:
+async def _wait_for_approval(
+    service: ApprovalService, limit_seconds: float = 5.0, *, after: str | None = None
+) -> str:
     """Block until the run under test is actually suspended on the gate.
 
     Waits on `waiting_on()` rather than on the table: a row exists a moment
     before the future does, and resolving in that window would set no waiter
     and hang the test for reasons that have nothing to do with what it asserts.
+    ``after`` skips an approval just resolved, whose waiter is gone a moment
+    after its future is set.
     """
 
     async def poll() -> str:
         while True:
-            waiting = service.waiting_on()
+            waiting = [
+                approval_id for approval_id in service.waiting_on() if approval_id != after
+            ]
             if waiting:
                 return waiting[0]
             await asyncio.sleep(0.005)

@@ -123,7 +123,13 @@ export function ApprovalPanel({ approvals, onResolve, readOnly }: ApprovalPanelP
                   <span className="approval-history__status">{approval.status}</span>
                   <span className="approval-history__agent">{approval.agent}</span>
                   <span className="approval-history__tool">{approval.tool}</span>
-                  {approval.automatic && <span className="approval-history__auto">by policy</span>}
+                  {approval.automatic && (
+                    <span className="approval-history__auto">
+                      {/* A policy only ever says yes; an automatic no is the
+                          person's own earlier answer, repeated for the run. */}
+                      {approval.status === "denied" ? "by your earlier answer" : "by policy"}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
