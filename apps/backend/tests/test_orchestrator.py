@@ -648,6 +648,95 @@ async def test_a_worker_can_hand_off_and_the_event_is_recorded(
     assert ("researcher", "writer", "write it up") in rebuilt.handoffs
 
 
+async def test_a_worker_handoff_tells_the_supervisor_how_to_continue_it(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+) -> None:
+    """A worker cannot spawn — that would let any agent widen the run from
+    inside its own turn — so a handoff goes back to the supervisor as text.
+    Phase 4 through Phase 6 recorded that nothing asserted the supervisor
+    then did anything sensible with it. What it is handed now is explicit:
+    who asked for whom, and that `spawn_agent` with that name continues it.
+    """
+    script = [
+        says("Delegating.", call("spawn_agent", "c1", agent="researcher", task="find it")),
+        says("Not my job.", call("handoff", "c2", to="writer", task="write it up")),
+        says("Passing it on.", call("spawn_agent", "c3", agent="writer", task="write it up")),
+        says("Written.", call("finish", "c4", result="the report")),
+        says("Done.", call("finish", "c5", result="the report is written")),
+    ]
+
+    run_id, rebuilt = await drive(store, settings, agents, ledger, secrets, script)
+
+    assert rebuilt.status == "completed"
+    assert ("researcher", "writer", "write it up") in rebuilt.handoffs
+    assert ("supervisor", "writer", "write it up") in rebuilt.handoffs
+    assert rebuilt.agent("writer").finished_reason == "finished"
+
+    # The supervisor's spawn result says what the worker asked for, and the
+    # transcript it was handed next names the call that continues it.
+    events = await store.read(run_id)
+    spawn_results = [
+        e.payload
+        for e in events
+        if e.type is EventType.TOOL_RESULT
+        and e.agent_id == "supervisor"
+        and e.payload["tool"] == "spawn_agent"
+    ]
+    assert spawn_results[0]["handoff"] == {"to": "writer", "known": True}
+    requests = [
+        e.payload
+        for e in events
+        if e.type is EventType.LLM_REQUEST and e.agent_id == "supervisor"
+    ]
+    handed = requests[1]["messages"][-1]["content"]
+    assert "handed this off to 'writer'" in handed
+    assert "spawn_agent" in handed
+
+
+async def test_a_handoff_to_an_agent_not_on_the_roster_says_so(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+) -> None:
+    """Phase 6 watched a denied worker hand off to a nonexistent
+    `another_agent` and the supervisor do nothing with it. The supervisor
+    is told the name is not on the roster and what is, so its next call can
+    be a sensible one rather than a spawn that fails."""
+    script = [
+        says("Delegating.", call("spawn_agent", "c1", agent="researcher", task="find it")),
+        says("Someone else.", call("handoff", "c2", to="another_agent", task="do it")),
+        says("No such agent.", call("finish", "c3", result="could not continue")),
+    ]
+
+    run_id, rebuilt = await drive(store, settings, agents, ledger, secrets, script)
+
+    assert rebuilt.status == "completed"
+    events = await store.read(run_id)
+    spawn_result = next(
+        e.payload
+        for e in events
+        if e.type is EventType.TOOL_RESULT
+        and e.agent_id == "supervisor"
+        and e.payload["tool"] == "spawn_agent"
+    )
+    assert spawn_result["handoff"] == {"to": "another_agent", "known": False}
+    requests = [
+        e.payload
+        for e in events
+        if e.type is EventType.LLM_REQUEST and e.agent_id == "supervisor"
+    ]
+    handed = requests[1]["messages"][-1]["content"]
+    assert "'another_agent'" in handed
+    assert "not on this roster" in handed
+    assert "researcher" in handed and "writer" in handed
+
+
 # --- what the model is actually offered --------------------------------------
 
 

@@ -29,7 +29,7 @@ See that module for why.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from agentspace.events.types import EventType
 from agentspace.orchestrator.agent import Agent, AgentSpec, StepOutcome, ToolReply
@@ -176,18 +176,45 @@ class Supervisor(Agent):
             supervisor_name=self.name,
             runtime=self._runtime_for_workers,
         )
-        await worker.execute(task)
+        outcome = await worker.execute(task)
 
         # Read the worker's result out of the log rather than off the return
         # value: if the `agent.message` was never written, the run stops here
         # instead of continuing on state the log does not contain.
         result = await self._mailbox.collect(sender=name, recipient=self.name)
 
-        await self._emit(
-            EventType.TOOL_RESULT,
-            {"tool": call.name, "call_id": call.id, "agent": name, "result": result},
-        )
-        return ToolReply(f"Agent {name} reported:\n{result}")
+        # A worker cannot spawn, so a handoff comes back here as a request.
+        # The shape — not the content — is read off the outcome, so this can
+        # say whether the name is one the roster knows. Phase 6 watched a
+        # worker hand off to a nonexistent agent and the supervisor do nothing
+        # with it; what it is handed now is what to call, or why it cannot.
+        payload: dict[str, Any] = {
+            "tool": call.name,
+            "call_id": call.id,
+            "agent": name,
+            "result": result,
+        }
+        guidance = ""
+        if outcome.handoff is not None:
+            recipient, asked = outcome.handoff
+            known = self._registry.get(recipient) is not None
+            payload["handoff"] = {"to": recipient, "known": known}
+            if known:
+                guidance = (
+                    f"\n\nAgent {name} handed this off to {recipient!r} rather than "
+                    f"finishing it. To continue, call spawn_agent with "
+                    f"agent={recipient!r} and task={asked!r}, or decide otherwise."
+                )
+            else:
+                guidance = (
+                    f"\n\nAgent {name} handed this off to {recipient!r}, which is not on "
+                    f"this roster. Available agents: "
+                    f"{', '.join(self._registry.names) or 'none'}. Pick one of them, "
+                    f"do without, or finish and say what could not be done."
+                )
+
+        await self._emit(EventType.TOOL_RESULT, payload)
+        return ToolReply(f"Agent {name} reported:\n{result}{guidance}")
 
     async def _spawn_error(self, call: ToolCall, message: str) -> ToolReply:
         await self._emit(

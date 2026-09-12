@@ -171,6 +171,10 @@ class StepOutcome:
     result: str
     reason: str
     steps: int
+    #: Set when ``reason`` is ``"handoff"``: who the agent handed off to and
+    #: what it asked them to do. The supervisor reads the *content* out of
+    #: the log; this is the shape, so it can say whether the name exists.
+    handoff: tuple[str, str] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -590,7 +594,9 @@ class Agent:
         result = f"Handed off to {recipient}: {task}"
         await self._mailbox.deliver(self._spec.name, self._supervisor, result)
         await self._emit(EventType.AGENT_COMPLETED, {"reason": "handoff", "steps": step})
-        return StepOutcome(result=result, reason="handoff", steps=step)
+        return StepOutcome(
+            result=result, reason="handoff", steps=step, handoff=(recipient, task)
+        )
 
     async def _out_of_steps(self, last_text: str) -> StepOutcome:
         """§4 has no `agent.failed`, so a step limit *completes* with a reason."""
