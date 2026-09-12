@@ -10,8 +10,8 @@ out of sequence even though they committed in sequence. The stream consumer
 therefore tracks its own cursor and treats any jump as a signal to re-read
 from the database, rather than trusting bus order.
 
-*Backpressure.* Queues are bounded. A subscriber that stops reading — a
-webview on a suspended tab, a `curl` piped into `less` — would otherwise grow
+*Backpressure.* Queues are bounded. A subscriber that stops reading (a
+webview on a suspended tab, a `curl` piped into `less`) would otherwise grow
 the queue until the process dies. On overflow the subscription is flagged
 stale and its queue dropped; the consumer notices and re-syncs from the
 database. Losing a buffered copy costs nothing because the row is durable.
@@ -114,7 +114,7 @@ class EventBus:
 
         Synchronous by design. `put_nowait` needs no await, and introducing one
         here would create a suspension point between an append committing and
-        its event being offered — during which another append could publish and
+        its event being offered, during which another append could publish and
         widen the reordering window the consumer has to repair.
         """
         for subscription in tuple(self._subscriptions.get(event.run_id, ())):

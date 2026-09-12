@@ -8,7 +8,7 @@ import { EMPTY_RUN, pendingApprovals, reduce, reduceAll } from "./reducer";
 
 
 /**
- * The run reducer — the UI's half of BUILD_SPEC §2.
+ * The run reducer: the UI's half of BUILD_SPEC §2.
  *
  * "Every agent action is an append-only event. The UI is a pure projection of
  * the event log." This function is that projection, and everything the
@@ -230,7 +230,7 @@ describe("approvals", () => {
     const state = reduceAll(twoAgentRun());
 
     expect(state.approvals[0]?.prompt).toBe(
-      'Agent "researcher" wants to create notes.txt (31 characters) — Allow / Deny',
+      'Agent "researcher" wants to create notes.txt (31 characters): Allow / Deny',
     );
   });
 
@@ -259,7 +259,7 @@ describe("approvals", () => {
   it("does not treat a policy's question as one a person must answer", () => {
     /* The gate emits `approval.requested {automatic: true}` and then, as a
        separate event, `approval.resolved`. Between the two the call is not
-       waiting on anybody — the policy already said yes — so nothing here may
+       waiting on anybody (the policy already said yes), so nothing here may
        report it as pending, or the dialog appears for one render live and for
        as long as the scrubber sits there on replay. The record still exists,
        so "what did this run do without asking me" stays answerable. */
@@ -440,7 +440,7 @@ describe("tokens and budget", () => {
 
   it("totals what the run cost from llm.response", () => {
     /* The ledger's figure travels in the event, so a replay can say what a
-       run cost without a side query — and an unwrapped provider, which sends
+       run cost without a side query, and an unwrapped provider, which sends
        null, adds nothing rather than breaking the fold. */
     const log = new LogBuilder();
     const state = reduceAll([
@@ -474,7 +474,7 @@ describe("run identity", () => {
 
   it("keeps when the run started and when its latest event was, from their own ts", () => {
     /* The summary shows a duration from these. Both come from the log, so a
-       replay shows the same duration the live view did — never a clock. */
+       replay shows the same duration the live view did, never a clock. */
     const events = twoAgentRun();
     const state = reduceAll(events);
 
@@ -573,8 +573,8 @@ describe("channel-originated runs", () => {
     const before = reduceAll(events);
     const after = reduceAll([...events, { ...extra, seq: events.length + 1 }]);
 
-    // Bookkeeping that every event moves — the count, the head, the latest
-    // stamp — is masked; everything about the *run* must be untouched.
+    // Bookkeeping that every event moves (the count, the head, the latest
+    // stamp) is masked; everything about the *run* must be untouched.
     expect({ ...after, eventCount: 0, lastSeq: 0, latestTs: null }).toEqual({
       ...before,
       eventCount: 0,

@@ -14,8 +14,8 @@ import { useRunStream } from "./useRunStream";
  * The pipe from the SSE client into the store.
  *
  * It is a pipe with one buffer in it: frames are collected and handed to the
- * store once per animation frame, so a burst of `llm.token`s — which arrive
- * one per SSE frame, each its own task — is one render rather than one each.
+ * store once per animation frame, so a burst of `llm.token`s (which arrive
+ * one per SSE frame, each its own task) is one render rather than one each.
  * Everything else about it (history first, then stream; nothing after
  * unmount) is what these tests pin.
  */
@@ -138,7 +138,7 @@ describe("useRunStream", () => {
 
   it("leaves the previous run in the store until the next one's history has arrived", async () => {
     /* `open` used to wipe the store the moment the run id changed, so every
-       switch rendered an empty run — 0 / 0, no agents, no rows — for the length
+       switch rendered an empty run (0 / 0, no agents, no rows) for the length
        of a fetch before the real one appeared. The store changes once, when
        there is something to change it to. */
     const first = twoAgentRun();

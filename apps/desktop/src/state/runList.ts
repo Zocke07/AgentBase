@@ -4,7 +4,7 @@ import { create } from "zustand";
 import * as api from "../lib/api";
 
 /**
- * The run list — the `runs` table, newest first, as many as have been asked
+ * The run list: the `runs` table, newest first, as many as have been asked
  * for.
  *
  * Read by the Home screen (the "Now" strip and the recent cards) and by the
@@ -14,7 +14,7 @@ import * as api from "../lib/api";
  * they all see the same rows.
  *
  * The rows are a snapshot. The log is the authority on the run that is open
- * — a row says "pending" for the whole of a live run — and the views that
+ * (a row says "pending" for the whole of a live run), and the views that
  * show the open run's status read it from the store's fold, not from here.
  *
  * Keyed on a space: switching spaces empties the list and re-reads it, so

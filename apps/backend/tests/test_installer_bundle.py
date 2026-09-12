@@ -8,12 +8,12 @@ rebuild. The build log will happily say it succeeded either way.
 So this does not trust the log. It opens the installer, pulls the sidecar back
 out, and compares its SHA-256 against the binary that was just built. A
 mismatch means the installer would ship a different server than the one that
-was tested — the failure mode that makes a release quietly wrong rather than
+was tested: the failure mode that makes a release quietly wrong rather than
 obviously broken.
 
 Skipped unless the installer, the sidecar and 7-Zip all exist, so it does not
-force a full bundle on every `just test`. Pass `--require-build-checks` — as
-`just verify-build` does — to make a missing one of those a failure instead: on
+force a full bundle on every `just test`. Pass `--require-build-checks` (as
+`just verify-build` does) to make a missing one of those a failure instead: on
 the release path, "the check did not run" and "the check passed" must not look
 alike.
 """
@@ -142,7 +142,7 @@ def test_installer_carries_the_freshly_built_sidecar(tmp_path: Path) -> None:
 
     found = sorted(extracted.rglob(wanted))
     assert found, (
-        f"{wanted} is not inside {INSTALLER.name} — Tauri did not bundle the "
+        f"{wanted} is not inside {INSTALLER.name}: Tauri did not bundle the "
         f"sidecar, which usually means the file in binaries/ does not carry the "
         f"target triple and so was never resolved"
     )
@@ -151,7 +151,7 @@ def test_installer_carries_the_freshly_built_sidecar(tmp_path: Path) -> None:
     for candidate in found:
         assert _sha256(candidate) == expected, (
             f"{candidate.name} inside the installer does not match the freshly "
-            f"built sidecar — a stale cached binary was bundled. Delete "
+            f"built sidecar: a stale cached binary was bundled. Delete "
             f"{BUNDLE_DIR.parent} and rebuild."
         )
         assert candidate.stat().st_size == SIDECAR.stat().st_size
@@ -174,7 +174,7 @@ def test_installer_embeds_the_webview2_bootstrapper() -> None:
     assert completed.returncode == 0
 
     assert "MicrosoftEdgeWebview2Setup.exe" in completed.stdout, (
-        "the WebView2 bootstrapper is not embedded — check that "
+        "the WebView2 bootstrapper is not embedded: check that "
         "bundle.windows.webviewInstallMode.type is 'embedBootstrapper'"
     )
 
@@ -189,7 +189,7 @@ def test_staged_sidecar_matches_the_build(
 
     assert _sha256(staged) == _sha256(SIDECAR), (
         "the sidecar staged under target/release/ is stale relative to "
-        "binaries/ — Tauri will bundle the stale one"
+        "binaries/: Tauri will bundle the stale one"
     )
 
 

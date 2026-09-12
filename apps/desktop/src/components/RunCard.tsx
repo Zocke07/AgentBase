@@ -4,12 +4,12 @@ import { clockDate, formatDuration } from "../lib/format";
 import { STATUS_LABEL } from "../state/describe";
 
 /**
- * One run, as something to pick — BUILD_SPEC §5 Phase 11, "cards for runs,
+ * One run, as something to pick: BUILD_SPEC §5 Phase 11, "cards for runs,
  * rows for events".
  *
  * A card is a snapshot of the `runs` table: status, goal, when it started, how
- * long it took. For the run that is *open*, the table lags the log — a row
- * says "pending" for the whole of a live run — so the caller may hand in the
+ * long it took. For the run that is *open*, the table lags the log (a row
+ * says "pending" for the whole of a live run), so the caller may hand in the
  * status the fold knows, and that wins. Nothing else about a run is decided
  * here; the card is a door to the run panel, which is the fold.
  *
@@ -37,8 +37,8 @@ export function RunCard({
   onOpen,
 }: RunCardProps) {
   const status = liveStatus ?? run.status;
-  // Two variants can show the same run at once — the Home screen's card and
-  // the picker's row — so the test ids say which.
+  // Two variants can show the same run at once (the Home screen's card and
+  // the picker's row), so the test ids say which.
   const kind = compact ? "run-row" : "run-card";
   const finishedAt = run.finished_at ?? null;
   const duration =

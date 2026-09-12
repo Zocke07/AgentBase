@@ -215,7 +215,7 @@ describe("switching sections", () => {
   it("keeps the selected run open, and its stream attached, across a visit to the agents section", async () => {
     /* The runs tab used to unmount, which closed the `EventSource`, forgot
        `runId`, and put the placeholder back. Coming back meant re-picking the
-       run and downloading its whole log again — and an approval that arrived
+       run and downloading its whole log again, and an approval that arrived
        while the agents tab was showing was never seen. */
     const user = userEvent.setup();
     render(<App />);

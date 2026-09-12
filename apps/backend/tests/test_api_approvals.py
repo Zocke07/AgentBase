@@ -3,7 +3,7 @@
 §3's layout names `api/approvals.py` for one endpoint, and it is the one that
 matters: an agent inside a run is suspended on an `asyncio.Future`, and this is
 the request that sets it. The two halves live in different requests, which is
-why the service is application state rather than something a run owns — a test
+why the service is application state rather than something a run owns: a test
 here therefore also checks the *wiring*, not only the handler.
 """
 
@@ -56,7 +56,7 @@ def test_the_application_builds_a_tool_runtime(client: TestClient) -> None:
     """The gate is reachable from a request, not merely importable.
 
     Every gate test drives `ApprovalService` directly. This is the one that
-    fails if `create_app` stops putting it on `app.state` — which would leave
+    fails if `create_app` stops putting it on `app.state`, which would leave
     every one of those tests green while no shipped run could execute a tool.
     """
     state = client.app.state  # type: ignore[attr-defined]
@@ -118,7 +118,7 @@ def test_pending_approvals_are_listed(client: TestClient) -> None:
     """The Phase 7 dialog has to render what is outstanding when it opens.
 
     A UI relying only on the `approval.requested` event shows nothing to a user
-    who opened the window a second too late — and the whole point of the gate
+    who opened the window a second too late, and the whole point of the gate
     is that somebody is there to answer it.
     """
     created = a_pending_approval(client)
@@ -183,7 +183,7 @@ def test_resolving_twice_is_a_409(client: TestClient) -> None:
     """Two windows showing the same dialog is ordinary.
 
     The second click has to fail in a way the UI can explain as "somebody
-    already answered this" rather than as "that approval is gone" — and it must
+    already answered this" rather than as "that approval is gone", and it must
     not flip a denial into an approval.
     """
     created = a_pending_approval(client)
@@ -202,7 +202,7 @@ def test_a_misspelled_decision_field_is_rejected(client: TestClient) -> None:
     Pydantic's default is to drop an unknown field, so a client sending
     `{"approve": true}` would have `approved` fall back to its default. There
     is no safe default for "did the user say yes", which is why the field is
-    required and the typo is a 422 rather than a silent denial — or worse, a
+    required and the typo is a 422 rather than a silent denial, or worse, a
     silent approval.
     """
     created = a_pending_approval(client)

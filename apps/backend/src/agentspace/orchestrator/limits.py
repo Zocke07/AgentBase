@@ -8,7 +8,7 @@ when hit."
 that is read from settings at the point of use is a limit that can be read
 differently in two places, and the run has no record of which values it was
 actually held to. :class:`RunLimits` is resolved once at run start and written
-into the `run.started` payload, so the event log says what the rules were —
+into the `run.started` payload, so the event log says what the rules were -
 which matters when the answer to "why did this stop" has to come from the log
 alone (§5 Phase 4, acceptance criterion).
 
@@ -59,7 +59,7 @@ class RunLimits:
     """The ceilings one run is held to, fixed at the moment it starts.
 
     Frozen because a run must not be held to different rules at step 1 and step
-    12 — a setting edited mid-run applies to the *next* run, the same way §5
+    12: a setting edited mid-run applies to the *next* run, the same way §5
     Phase 5 requires of agent definitions.
     """
 

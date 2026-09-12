@@ -6,7 +6,7 @@ represented exactly, and the error compounds across every call in a month until
 the monthly cap is wrong by an amount nobody can explain.
 
 **The unit is micros per *million* tokens**, not micros per token. Real prices
-include $2.50 and $0.05 per million, which are 2.5 and 0.05 micros per token —
+include $2.50 and $0.05 per million, which are 2.5 and 0.05 micros per token -
 not integers. Storing the per-million figure keeps every published price exact,
 and the division happens once, at the point of charging, with an explicit
 rounding rule.
@@ -18,7 +18,7 @@ loud failure before the API call instead of a quiet one after it.
 
 Prices below are list prices per million tokens, recorded with the date they
 were checked. They are data, not truth: a stale row over-or-under-charges the
-user's own cap, which is annoying but local — it never affects what a provider
+user's own cap, which is annoying but local: it never affects what a provider
 actually bills.
 """
 
@@ -60,7 +60,7 @@ class UnknownModelError(LookupError):
     def __init__(self, model: str) -> None:
         super().__init__(
             f"no price is registered for model {model!r}. Add it to PRICES in "
-            f"agentspace/providers/pricing.py — an unpriced model is refused "
+            f"agentspace/providers/pricing.py: an unpriced model is refused "
             f"rather than charged at zero, because a zero-cost default makes "
             f"the monthly budget cap stop binding without any error."
         )
@@ -148,7 +148,7 @@ _OPENAI: Final[dict[str, ModelPrice]] = {
 #: Inference on the user's own hardware. Registered explicitly at zero so that
 #: "free" and "we do not know the price" stay different answers; the wildcard
 #: is documentation, `_lookup` matches any `ollama/` model. Ollama serves
-#: whatever the user has pulled, so there is no list of models to offer — the
+#: whatever the user has pulled, so there is no list of models to offer: the
 #: model name is free text, and ``MODELS_BY_PROVIDER`` says so with an empty
 #: list.
 _LOCAL: Final[dict[str, ModelPrice]] = {
@@ -215,14 +215,14 @@ def cost_micros(model: str, usage: TokenUsage) -> int:
 def format_micros(micros: int) -> str:
     """Render micros as a dollar string, for a human-legible refusal message.
 
-    Four decimal places, rounded to nearest, with integer arithmetic only —
+    Four decimal places, rounded to nearest, with integer arithmetic only:
     `micros / 1_000_000` would reintroduce exactly the float this module exists
     to keep out of money.
 
     Rounding here is to *nearest*, unlike :func:`cost_micros`, which rounds up.
     They are answering different questions: charging must never under-count,
     while a displayed figure should be the closest true reading. Rounding a
-    display up would render a single micro as ``$0.0001`` — a hundredfold
+    display up would render a single micro as ``$0.0001``: a hundredfold
     overstatement of a real, and very common, amount.
     """
     sign = "-" if micros < 0 else ""

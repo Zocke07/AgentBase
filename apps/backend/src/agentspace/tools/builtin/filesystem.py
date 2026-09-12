@@ -1,4 +1,4 @@
-"""`read_file`, `list_dir`, `write_file` — the three tools that touch the disk.
+"""`read_file`, `list_dir`, `write_file`: the three tools that touch the disk.
 
 All three take a path, and none of them interprets it: every one goes through
 :meth:`agentspace.tools.sandbox.Sandbox.resolve_path` in `prepare`, which is
@@ -8,7 +8,7 @@ one that is wrong.
 
 **Results are truncated, and the truncation is visible.** A tool result goes
 into the event log *and* into the model's transcript, which `llm.request`
-then repeats on every subsequent turn — so an unbounded read grows the log
+then repeats on every subsequent turn, so an unbounded read grows the log
 quadratically (a hazard CLAUDE.md already records against long runs). Silently
 returning a prefix would be worse than the size: a model that believes it read
 a whole file will reason about the part it did not see. So the cap is stated in
@@ -45,7 +45,7 @@ MAX_WRITE_CHARS: Final[int] = 200_000
 def _risk(name: str) -> RiskLevel:
     """The catalogue's risk for ``name``, never a second declaration of it."""
     declaration = lookup(name)
-    if declaration is None:  # pragma: no cover — pinned by a test
+    if declaration is None:  # pragma: no cover: pinned by a test
         msg = f"{name!r} has an implementation but no catalogue entry"
         raise RuntimeError(msg)
     return declaration.risk
@@ -53,7 +53,7 @@ def _risk(name: str) -> RiskLevel:
 
 def _description(name: str) -> str:
     declaration = lookup(name)
-    if declaration is None:  # pragma: no cover — pinned by a test
+    if declaration is None:  # pragma: no cover: pinned by a test
         msg = f"{name!r} has an implementation but no catalogue entry"
         raise RuntimeError(msg)
     return declaration.description
@@ -243,7 +243,7 @@ class WriteFileTool:
     The tool §5 Phase 6's acceptance criterion is written about: "an agent
     instructed to write outside the workspace root is blocked at the sandbox
     layer, and this is visible in the event log as `tool.denied`". Nothing in
-    this class implements that — :meth:`prepare` calls `resolve_path` and the
+    this class implements that: :meth:`prepare` calls `resolve_path` and the
     sandbox raises. That is the point of it living there.
     """
 
@@ -299,8 +299,8 @@ class WriteFileTool:
         # Read at prepare time, which is before the approval and therefore
         # possibly minutes before the write. If something else creates the file
         # while the user is deciding, the prompt said "create" and an overwrite
-        # happens. Re-checking at execute time would not help — the decision has
-        # already been made by then — and the honest fix is a compare-and-swap
+        # happens. Re-checking at execute time would not help (the decision has
+        # already been made by then), and the honest fix is a compare-and-swap
         # the `Tool` protocol has no vocabulary for. Recorded rather than
         # papered over: it is a wrong *description*, never a wrong boundary, and
         # the write is still confined to the workspace either way.

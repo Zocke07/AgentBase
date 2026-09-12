@@ -4,7 +4,7 @@ import { create } from "zustand";
 import * as api from "../lib/api";
 
 /**
- * The roster — every agent definition on the current space's roster,
+ * The roster: every agent definition on the current space's roster,
  * enabled or not.
  *
  * Shown on the Home screen with an enable toggle and on the Agents page with
@@ -15,7 +15,7 @@ import * as api from "../lib/api";
  * `load` is "latest wins": a response for a request that has since been
  * superseded is dropped, so a reload issued after an edit cannot be
  * overwritten by a slower fetch that began before it. `ensure` is what a
- * view calls on mount — load once if nobody has, otherwise nothing — so two
+ * view calls on mount (load once if nobody has, otherwise nothing), so two
  * views mounting together make one request rather than two.
  */
 export interface RosterState {

@@ -17,7 +17,7 @@ import type { RunView } from "../state/reducer";
 import "@xyflow/react/dist/style.css";
 
 /**
- * The live agent graph — §5 Phase 7's "React Flow canvas: supervisor and
+ * The live agent graph: §5 Phase 7's "React Flow canvas: supervisor and
  * workers as nodes, handoffs as edges, live status colour".
  *
  * Every node and edge is derived from `view`, which is the fold of the event
@@ -52,7 +52,7 @@ function AgentCard({ data }: { data: AgentNodeData }) {
       data-testid={`agent-node-${agent.name}`}
     >
       {/* Without these, React Flow silently refuses to draw any edge touching
-          this node — it logs a warning and renders nothing, so the graph looks
+          this node: it logs a warning and renders nothing, so the graph looks
           finished while every handoff is missing. Found by running a real run
           and reading the browser console; no unit test noticed, because they
           all asserted node content. */}
@@ -63,7 +63,7 @@ function AgentCard({ data }: { data: AgentNodeData }) {
         <div className="agent-node__role">handed off to, but never spawned</div>
       ) : (
         <>
-          <div className="agent-node__role">{agent.role ?? "—"}</div>
+          <div className="agent-node__role">{agent.role ?? "-"}</div>
           <div className="agent-node__activity">{activityLabel(agent)}</div>
           {agent.lastError !== null ? (
             <div className="agent-node__error" title={agent.lastError}>
@@ -94,7 +94,7 @@ const nodeTypes = { agent: AgentCard };
  *
  * Recomputed on pane resize as well as on the node set, and the resize half is
  * not defensive. The run summary above the canvas grows when the terminal event
- * adds its claim block, which shortens the pane — so a run watched live
+ * adds its claim block, which shortens the pane, so a run watched live
  * computed its camera against a *taller* pane than the same run replayed, and
  * the two framed the graph differently for a reason that had nothing to do with
  * either the nodes or the log.

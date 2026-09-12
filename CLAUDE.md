@@ -1342,7 +1342,7 @@ minute and is why the file was restored from `HEAD` rather than edited.
 
 With neither screen capture nor assistive access, the packaged window could
 not be driven, so the page was: Chrome with its debugging port open, on the
-Vite dev page, talking to the *packaged app's* sidecar on 8787 - the same
+Vite dev page, talking to the *packaged app's* sidecar on 8787: the same
 arrangement Phase 7 used with Edge, and the one CLAUDE.md's open items ask
 for. The model was changed from `claude-opus-5` to `claude-sonnet-5` on the
 Settings screen, and the sidecar confirmed it.
@@ -1351,12 +1351,12 @@ Settings screen, and the sidecar confirmed it.
 It completed in **32.5 s**: three agents, all on `claude-sonnet-5`; **141
 events**; ten model calls with real usage (14,360 tokens in, 2,481 out; 53
 `llm.token` frames); **five approvals, every one answered by clicking Allow
-on the page** - one medium (`create the file event-log.txt (604 characters)`)
-and four low - none of them automatic; ten `tool.called`, `write_file` among
+on the page**: one medium (`create the file event-log.txt (604 characters)`)
+and four low, none of them automatic; ten `tool.called`, `write_file` among
 them; `event-log.txt` on disk in the default space's folder at **604 bytes**,
 the figure the prompt named; **$0.0535** recorded, ten spend rows. Two things
-about it worth keeping. The supervisor's account was *true* for once - the
-file exists and says what the summary says it says - which after four
+about it worth keeping. The supervisor's account was *true* for once (the
+file exists and says what the summary says it says), which after four
 confabulations from a 4B local model is a statement about the model, not the
 product. And the reviewer read the same file three times and listed the
 folder once, asking each time: an approval does not stick the way a denial
@@ -1372,16 +1372,16 @@ theme applied, on both sides.
 
 The first comparison, on that run, **failed**: 8.5% of pixels in light and
 8.4% in dark, all below the summary. Two differences, both viewer state.
-The live camera sat at `scale(0.5)` with Zoom Out *disabled* - React Flow's
-`minZoom` clamp - where replay computed a fit of 0.531 for the same three
+The live camera sat at `scale(0.5)` with Zoom Out *disabled* (React Flow's
+`minZoom` clamp), where replay computed a fit of 0.531 for the same three
 nodes in the same 912×179 pane; and the live log showed rows 1-5 from the
 top with the "↓ newest" button, where replay showed rows 71-139 at the tail.
 Both are exactly what a person scrolling in the window produces: a wheel
 over the graph hands the camera to the user (Phase 7's design), and a scroll
 in the log stops it following. The maintainer had just been at the keyboard
 answering keychain prompts and "is not sure" whether the new Chrome window
-was touched. Two further runs sampled at 200 ms - a debug run and a second
-real one - never clamped: the camera tracked the pane through every
+was touched. Two further runs sampled at 200 ms (a debug run and a second
+real one) never clamped: the camera tracked the pane through every
 approval squeeze (286 → 224 → 286) and the completion summary (→ 195),
 scale 0.848 → 0.666 → 0.848 → 0.579. Recorded as unattributed rather than
 explained.
@@ -1401,8 +1401,8 @@ two honest exceptions now inside the projection boundary: the camera once
 the viewer has moved it, and the windowed log's scroll position, which is
 new since windowing and is component state like the filters.
 
-**The browser's own `EventSource` reconnect - the oldest open item, since
-Phase 2 - is closed.** It took two attempts. CDP's offline emulation looked
+**The browser's own `EventSource` reconnect (the oldest open item, since
+Phase 2) is closed.** It took two attempts. CDP's offline emulation looked
 like the tool and is not: it blocks *new* requests and leaves an established
 stream alive, so events 7-12 arrived as one batch the moment the page came
 "back online" and no second stream request was ever made. What that did
@@ -1412,8 +1412,8 @@ real severance was a small logging TCP proxy on 8787 in front of a dev
 sidecar on 8790, told by signal to destroy every connection at once at event
 6 of a debug run. The stream died with `ERR_INCOMPLETE_CHUNKED_ENCODING`, and
 **one second later Chrome opened a new one by itself carrying
-`Last-Event-ID: 6`** - a header CDP's request event does not show, which is
-why only the proxy's wire log has it - and the run went on to 20/20 with no
+`Last-Event-ID: 6`** (a header CDP's request event does not show, which is
+why only the proxy's wire log has it), and the run went on to 20/20 with no
 gap and no duplicate.
 
 **Two browser windows on one run, over HTTP.** Two visible Chrome windows,
@@ -1429,9 +1429,9 @@ behind another sat at `1 / 1 (live)` for an entire run and caught up the
 moment it was shown. The end state is right; the interim is not a
 rendering. Two *windows* was the test; two *tabs* is not.
 
-**The Delete run button, clicked in a browser.** It asks inline - "Delete
+**The Delete run button, clicked in a browser.** It asks inline: "Delete
 this run and its log? Its spend stays in the month's total." with Delete and
-Keep - then `DELETE /runs/{id}` went over the wire from the page's origin,
+Keep, then `DELETE /runs/{id}` went over the wire from the page's origin,
 the panel closed, the picker refreshed (`GET /runs` and `GET /budget` right
 behind it), the sidecar answered 404 for the run afterwards, and the month's
 figure did not move.
@@ -1452,14 +1452,14 @@ warned first (`port 8787 is already in use`), its sidecar started, received
 the key, and died on `[Errno 48] address already in use`, exit 3. The
 webview then made **exactly 40 requests to `/health`, all from
 `Origin: tauri://localhost`, one every 250 ms for 10.4 s, and nothing else**
-- no settings, spaces or runs - which is `connectWithRetry` refusing an
+(no settings, spaces or runs), which is `connectWithRetry` refusing an
 `instance: null` answer forty times and giving up, where a page that had
 attached would have made the workspace burst instead. The window read, as
 the maintainer copied it:
 
 > Sidecar unreachable at http://127.0.0.1:8787
 > Something else is listening on http://127.0.0.1:8787: a sidecar not
-> started by this app - a dev sidecar in a terminal, most likely. Close it
+> started by this app: a dev sidecar in a terminal, most likely. Close it
 > and relaunch; this app's own sidecar could not take the port.
 > [Retry]
 
@@ -1476,7 +1476,7 @@ space needs the bot. The close button has still not been pressed. The first
 run's frozen camera is recorded, not explained.
 
 **And a note on the tree.** A second session was sweeping this checkout
-while this one ran - every em dash to a hyphen, the schemas regenerated -
+while this one ran (every em dash to a hyphen, the schemas regenerated)
 at the maintainer's request. Each commit here stages only its own files, in
 the swept form, and the new text uses no em dashes so as not to fight it.
 
@@ -1820,9 +1820,9 @@ space's folder is always one this application created, and Discord follows
 the packaged app ran on an Apple Silicon Mac for the first time; the keychain
 loop closed with a real key and the access prompt found the plugin swallowing
 a denial; a real `claude-sonnet-5` run was started, approved and replayed
-from the page; and the browser-only items - the automatic `EventSource`
+from the page; and the browser-only items (the automatic `EventSource`
 reconnect, two windows on one run, the pixel comparison in both themes, the
-delete button, and the packaged app refusing a stranger on the port - are
+delete button, and the packaged app refusing a stranger on the port) are
 closed. See "What the first Mac session showed". Windows remains the release
 target; nothing here is a macOS release.
 

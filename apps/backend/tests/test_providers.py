@@ -2,7 +2,7 @@
 
 **Nothing here touches the network.** Every request is served by an
 `httpx2.MockTransport`, which also lets each test assert the exact request body
-that *would* have gone out — the vendor shape is the thing most likely to be
+that *would* have gone out: the vendor shape is the thing most likely to be
 wrong, and it is invisible if you only assert on the parsed response.
 
 The recurring theme is normalization: the same logical response, expressed
@@ -187,7 +187,7 @@ async def test_anthropic_merges_the_system_argument_and_system_messages() -> Non
 
 
 async def test_anthropic_always_sends_max_tokens() -> None:
-    """Omitting it is a 400 — unlike OpenAI, where it defaults."""
+    """Omitting it is a 400, unlike OpenAI, where it defaults."""
     captured = Captured()
     provider = AnthropicProvider(
         "k", "claude-opus-5", client=mock_client(ANTHROPIC_OK, captured=captured)
@@ -396,7 +396,7 @@ async def test_ollama_normalizes_a_text_response() -> None:
 async def test_ollama_exposes_thinking_beside_the_answer() -> None:
     """Phase 5 watched `qwen3:4b` return empty content and no tool call five
     times running, with the whole response in Ollama's separate
-    `message.thinking` field — and the adapter dropped it, so the log said
+    `message.thinking` field, and the adapter dropped it, so the log said
     the model produced nothing. It said a great deal; it was just not the
     answer. Reasoning is not output, so it stays out of `text`; it travels
     beside it so the log can tell silence from thought."""
@@ -525,7 +525,7 @@ async def test_every_provider_satisfies_the_protocol() -> None:
 async def test_http_status_maps_to_the_shared_error_taxonomy(
     status: int, expected: type[Exception]
 ) -> None:
-    """Callers above this layer branch on these, never on a vendor code — that
+    """Callers above this layer branch on these, never on a vendor code, that
     would be a code change when switching provider."""
     provider = AnthropicProvider(
         "k",
@@ -616,7 +616,7 @@ async def test_qualified_model_is_what_the_built_provider_reports() -> None:
     """The two must agree, structurally, for every provider.
 
     `qualified_model` exists so a caller can ask a question about the model a
-    run will be *billed* for without building a provider — `GET /settings` has
+    run will be *billed* for without building a provider: `GET /settings` has
     no credentials to build one with. That makes it a second copy of a naming
     rule, and a second copy is a copy that drifts: pricing an Ollama model under
     its raw name rather than `ollama/<name>` is the bug this function was added
@@ -641,7 +641,7 @@ async def test_qualified_model_is_what_the_built_provider_reports() -> None:
 async def test_switching_provider_is_only_a_settings_change() -> None:
     """BUILD_SPEC §5 Phase 3, acceptance criterion, first clause.
 
-    The same call site, the same types, no branch on provider anywhere — only
+    The same call site, the same types, no branch on provider anywhere, only
     the stored settings differ.
     """
     secrets = SecretStore({"anthropic_api_key": "a", "openai_api_key": "o"})
@@ -690,7 +690,7 @@ async def test_the_supported_provider_table_matches_the_spec() -> None:
 # The recurring assertion is *equivalence*: the `Completion` that ends a stream
 # must equal the one `complete()` returns for the same logical response. If the
 # two diverge, choosing to stream becomes a behavioural change and the
-# orchestrator has to know which path it took — which is the Phase 3 acceptance
+# orchestrator has to know which path it took, which is the Phase 3 acceptance
 # criterion failing by a side door.
 
 
@@ -776,7 +776,7 @@ async def test_anthropic_stream_yields_deltas_then_a_completion() -> None:
 async def test_anthropic_stream_takes_input_tokens_from_start_and_output_from_the_end() -> None:
     """The counts live in two different frames.
 
-    `message_start` reports `output_tokens: 1` — a placeholder, not the answer.
+    `message_start` reports `output_tokens: 1`: a placeholder, not the answer.
     Reading usage from that frame alone would bill 15 output tokens as 1 and
     quietly under-count every streamed call against the cap.
     """
@@ -990,7 +990,7 @@ async def test_openai_stream_yields_deltas_then_a_completion() -> None:
 
 async def test_openai_stream_requests_usage_explicitly() -> None:
     """Without `stream_options.include_usage` a streamed response reports no
-    token counts at all — every call would be recorded as free and the monthly
+    token counts at all: every call would be recorded as free and the monthly
     cap would silently stop binding."""
     captured = Captured()
     provider = OpenAIProvider(
@@ -1105,7 +1105,7 @@ async def test_ollama_streams_newline_delimited_json_not_sse() -> None:
     """Ollama has no `data:` prefix and no blank-line framing.
 
     An SSE reader pointed at this body finds no lines it recognises and yields
-    an empty response — with no error anywhere, which is the failure mode this
+    an empty response, with no error anywhere, which is the failure mode this
     test exists to prevent.
     """
     provider = OllamaProvider(model="llama3", client=mock_stream_client(OLLAMA_STREAM))
@@ -1154,7 +1154,7 @@ async def test_ollama_stream_matches_the_blocking_call() -> None:
 
 async def test_ollama_stream_concatenates_thinking_across_frames() -> None:
     """Streamed, the reasoning arrives a few words per line like the answer
-    does, and is folded the same way — never yielded as a `TextDelta`,
+    does, and is folded the same way, never yielded as a `TextDelta`,
     because a delta is the answer being typed and this is not the answer."""
     body = "\n".join(
         [
@@ -1212,7 +1212,7 @@ async def test_ollama_stream_keeps_a_tool_call_a_later_empty_message_would_erase
     ids=["anthropic", "openai", "ollama"],
 )
 def test_every_provider_satisfies_the_protocol_including_stream(provider: Provider) -> None:
-    """`runtime_checkable` only checks that the members exist — which is
+    """`runtime_checkable` only checks that the members exist, which is
     exactly the check that matters when a method is added to the protocol and
     one implementation is forgotten."""
     assert isinstance(provider, Provider)

@@ -13,7 +13,7 @@ import {
 
 /**
  * The typed calls to the sidecar. `fetch` is stubbed; what is under test is
- * how a response — and the three shapes a FastAPI error body takes — becomes
+ * how a response (and the three shapes a FastAPI error body takes) becomes
  * a value or an `ApiError` that still knows which field was blamed.
  */
 

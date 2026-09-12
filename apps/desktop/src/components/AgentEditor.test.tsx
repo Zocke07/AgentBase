@@ -21,7 +21,7 @@ import { AgentEditor } from "./AgentEditor";
  * §5 Phase 7 names two requirements for this component specifically, and both
  * are tested here rather than left to inspection:
  *
- *  - "Surface the API's validation errors inline on the offending field — never
+ *  - "Surface the API's validation errors inline on the offending field, never
  *    a toast that loses which field was wrong."
  *  - "Tool checkboxes show each tool's risk level next to it, so the consequence
  *    of ticking `run_shell` is visible at the moment of ticking it."
@@ -48,7 +48,7 @@ const CATALOGUE: ProviderCatalogueResponse = {
 
 /**
  * Render the editor. `onSave` stands in for whichever of the two callbacks the
- * mode under test will call — create for a new definition, patch for an edit.
+ * mode under test will call: create for a new definition, patch for an edit.
  */
 /** Accepts what either callback would be given, so one double serves both. */
 type Save = (body: CreateAgentRequest | UpdateAgentRequest) => Promise<void>;
@@ -193,7 +193,7 @@ describe("the tool allowlist", () => {
 describe("the model field follows the provider", () => {
   it("offers only the chosen provider's models", async () => {
     /* A flat list let a definition pin `claude-opus-5` under provider
-       `openai`, which the backend would refuse at run time — after the run
+       `openai`, which the backend would refuse at run time: after the run
        had been started. */
     const user = userEvent.setup();
     editor();
@@ -228,7 +228,7 @@ describe("the model field follows the provider", () => {
 
   it("keeps showing a saved model that is not in the current provider's list", () => {
     /* Rather than silently displaying "inherit" for a value the form still
-       holds — the mismatch is the thing the user needs to see. */
+       holds: the mismatch is the thing the user needs to see. */
     const agent: AgentDef = {
       id: "def-1",
       space_id: "space-main",
@@ -254,7 +254,7 @@ describe("the approval policy", () => {
   it("offers the three risk levels, badged, and sends the ticked ones", async () => {
     /* §4 gives every definition an `auto_approve` column and the reducer
        reads it; no editor field ever reached it. It narrows the workspace
-       policy — it can never widen it — and an empty list means inherit. */
+       policy (it can never widen it), and an empty list means inherit. */
     const user = userEvent.setup();
     const { onSave } = editor();
 
@@ -343,7 +343,7 @@ describe("what gets sent", () => {
   it("sends only the fields the user changed when editing", async () => {
     /* The roster's enable toggle and the editor can both be open on the same
        row. The editor used to send its whole form on save, including the
-       `enabled` it was opened with — so toggling in the roster and then saving
+       `enabled` it was opened with, so toggling in the roster and then saving
        an unrelated edit silently undid the toggle. A PATCH carries what the
        user touched; `UpdateAgentRequest` leaves the rest alone. */
     const user = userEvent.setup();

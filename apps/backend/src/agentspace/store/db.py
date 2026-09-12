@@ -1,7 +1,7 @@
 """SQLite connection management and the migration runner.
 
 **Concurrency model.** One connection, guarded by a :class:`threading.Lock`.
-The alternative — a connection per thread via ``threading.local`` — scales
+The alternative (a connection per thread via ``threading.local``) scales
 better and is wrong for this application in two ways: connections owned by
 pool threads are never deterministically closed, which on Windows keeps the
 database file locked and makes both test teardown and app shutdown flaky; and
@@ -61,14 +61,14 @@ class Migration:
 
     #: Bundled filename this SQL came from, or ``None`` for a migration built
     #: in a test. Recorded so a test can assert the packaging glob in the
-    #: justfile actually carries every file — a missing one is invisible until
+    #: justfile actually carries every file: a missing one is invisible until
     #: the frozen binary runs.
     source: str | None = None
 
     #: Run with ``PRAGMA foreign_keys`` off, and verify the result with
     #: ``PRAGMA foreign_key_check`` before committing.
     #:
-    #: A table rebuild — create, copy, drop, rename — is the only way SQLite
+    #: A table rebuild (create, copy, drop, rename) is the only way SQLite
     #: adds a ``NOT NULL REFERENCES`` column, and ``DROP TABLE`` on a table
     #: other tables point at is refused while the check is on. The pragma
     #: cannot change inside a transaction, so this is a property of the
@@ -150,7 +150,7 @@ class Database:
         # WAL: a reader (an SSE backlog fetch) does not block the writer (a run
         # appending events), which is the exact overlap this application has.
         connection.execute("PRAGMA journal_mode = WAL")
-        # Off by default, and silently so — §4 declares a foreign key on
+        # Off by default, and silently so: §4 declares a foreign key on
         # events.run_id and it is worthless unless this is on.
         connection.execute("PRAGMA foreign_keys = ON")
         connection.execute("PRAGMA synchronous = NORMAL")
@@ -225,7 +225,7 @@ class Database:
         it. ``executescript`` issues an implicit COMMIT for any transaction
         already open before it runs, so a surrounding ``BEGIN IMMEDIATE``
         would be committed away and each statement of the migration would then
-        autocommit individually — leaving a failed migration half applied with
+        autocommit individually: leaving a failed migration half applied with
         no way to roll it back.
 
         ``user_version`` is set in the same script, so the version advances if
@@ -234,8 +234,8 @@ class Database:
         f-string; the value is an int from a module constant, never user input.
 
         A migration that rebuilds a referenced table runs with the foreign-key
-        check off — the pragma is a no-op inside a transaction, so it is set
-        before the script and restored after — and the rebuilt schema is
+        check off (the pragma is a no-op inside a transaction, so it is set
+        before the script and restored after), and the rebuilt schema is
         checked by hand with ``PRAGMA foreign_key_check`` before the version
         is bumped. A violation rolls the whole migration back: a rebuild that
         lost a row's parent must not be committed and then discovered by the

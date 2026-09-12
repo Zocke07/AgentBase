@@ -1,4 +1,4 @@
-# BUILD_SPEC.md — Autonomous Agent Co-Working Space
+# BUILD_SPEC.md: Autonomous Agent Co-Working Space
 
 You are building this project from scratch in an empty repository. Read this entire
 document before writing any code. Re-read it at the start of every session.
@@ -16,12 +16,12 @@ It ships as a single installer. The end user is not a developer.
 ### Primary success criterion
 
 A user double-clicks an app icon, types a task, and watches agents spawn, call tools, hand
-off to each other, and finish — with every step visible as it happens. No terminal, no
+off to each other, and finish, with every step visible as it happens. No terminal, no
 Docker, no config files.
 
 ---
 
-## 1. Hard constraints — do not violate these
+## 1. Hard constraints: do not violate these
 
 These are decisions already made after long deliberation. Do not "improve" them, do not
 substitute equivalents, do not add the thing they replaced. If you believe one is wrong,
@@ -29,8 +29,8 @@ substitute equivalents, do not add the thing they replaced. If you believe one i
 
 | # | Constraint | Why |
 |---|---|---|
-| 1 | **No agent framework.** No LangChain, LangGraph, CrewAI, AutoGen, OpenAI Agents SDK, OpenClaw. Write the orchestration loop by hand. | The visualization is the product. It only works if we own the event stream. Frameworks emit their own event shapes and we'd adapt anyway. It's also the stronger portfolio signal — wiring up LangGraph is a weekend tutorial; an event-sourced orchestration loop with SSE streaming and a human-in-the-loop gate demonstrates the engineering. |
-| 2 | **No Docker, no Postgres, no Redis, no LiteLLM proxy in the shipped product** (the Tauri app and the headless instance). | Single user, single machine. All of these exist to solve multi-user fleet problems we do not have — and a mismatched-scale stack (Kafka for a single-user desktop app) reads as a portfolio red flag, not a strength. A separate, optional demo path exists in Phase 10 for reviewers; it does not change what actually ships. |
+| 1 | **No agent framework.** No LangChain, LangGraph, CrewAI, AutoGen, OpenAI Agents SDK, OpenClaw. Write the orchestration loop by hand. | The visualization is the product. It only works if we own the event stream. Frameworks emit their own event shapes and we'd adapt anyway. It's also the stronger portfolio signal: wiring up LangGraph is a weekend tutorial; an event-sourced orchestration loop with SSE streaming and a human-in-the-loop gate demonstrates the engineering. |
+| 2 | **No Docker, no Postgres, no Redis, no LiteLLM proxy in the shipped product** (the Tauri app and the headless instance). | Single user, single machine. All of these exist to solve multi-user fleet problems we do not have, and a mismatched-scale stack (Kafka for a single-user desktop app) reads as a portfolio red flag, not a strength. A separate, optional demo path exists in Phase 10 for reviewers; it does not change what actually ships. |
 | 3 | **Everything binds `127.0.0.1` only.** Hardcode it. Do not make the bind address configurable. | Nothing reachable off-machine means nothing to accidentally expose. |
 | 4 | **API keys go in the OS keychain.** Never `.env`, never SQLite, never a config file, never logged. | The key sits on a personal laptop. |
 | 5 | **Every filesystem/shell/network tool call passes an approval gate** before execution. No exceptions, no privileged paths for any channel. | This is the exact failure mode that produced dozens of CVEs in comparable projects. |
@@ -39,10 +39,10 @@ substitute equivalents, do not add the thing they replaced. If you believe one i
 | 8 | **Python 3.12 backend, TypeScript frontend.** No other languages except the Rust that Tauri requires. | |
 
 > **On constraint #2**: this project is also a portfolio piece, so Phase 10 adds a second,
-> optional way to run it — `docker compose up`, for a reviewer with no Rust/Python/Node
+> optional way to run it: `docker compose up`, for a reviewer with no Rust/Python/Node
 > toolchain who wants to see it working in one command. That path is scaffolding around the
 > same backend code, not a second implementation, and it is not the "headless / server mode"
-> excluded in §7 — it has no auth, no remote-reach story, and isn't meant to run unattended.
+> excluded in §7; it has no auth, no remote-reach story, and isn't meant to run unattended.
 > What actually ships to your friend and what runs on your own machine stay exactly as
 > constraint #2 describes.
 
@@ -234,7 +234,7 @@ CREATE TABLE approvals (
 `agent_defs`' uniqueness to `(space_id, name)`. The SQL is in that phase, beside the
 migration that introduces it.*
 
-### Event types — this list is the contract
+### Event types: this list is the contract
 
 ```
 run.started        run.completed      run.failed        run.paused      run.cancelled
@@ -258,19 +258,19 @@ Work through these **in order**. Do not start a phase before the previous phase'
 acceptance criteria pass. Do not build ahead. *(One exception, decided 2026-09-11: Phase 11
 is built before Phase 10, so the portfolio artefacts show the finished product.)*
 
-### Phase 0 — Scaffold and cross-platform hygiene
+### Phase 0: Scaffold and cross-platform hygiene
 
 - `just` recipes for every dev task. No `.sh` or `.bat` files anywhere.
 - `.gitattributes` with `* text=auto eol=lf`.
 - `uv` for Python pinning, `.nvmrc` for Node.
 - ESLint rule enforcing case-sensitive import paths (macOS/Windows filesystems are
-  case-insensitive, Linux CI is not — this bug is invisible until CI).
+  case-insensitive, Linux CI is not; this bug is invisible until CI).
 - All paths via `pathlib` / `path.join`. Zero string concatenation of paths.
 - `ruff` + `mypy --strict` on backend, `tsc --noEmit` on frontend, both wired into `just check`.
 
 **Accept when:** `just check` passes on a clean clone.
 
-### Phase 1 — Packaging spike (do this early, not last)
+### Phase 1: Packaging spike (do this early, not last)
 
 Before writing any real feature code, prove the hardest packaging problem works:
 
@@ -283,38 +283,38 @@ Known traps to handle here, not later:
 - `externalBin` requires the `-x86_64-pc-windows-msvc` suffix on the binary filename (target
   triple, not just `-windows` or `.exe`).
 - Tauri caches the resolved sidecar under `target/release/`. A rebuilt binary can silently
-  fail to make it into the bundle — verify actual bundle contents, don't trust the build log.
+  fail to make it into the bundle: verify actual bundle contents, don't trust the build log.
 - With `--onefile`, Tauri only knows the PyInstaller *bootloader* PID, not the real child
   process. `process.kill()` will orphan the server. Implement graceful shutdown over
   stdin/HTTP and verify no stray `python`/sidecar process survives app quit (check Task
   Manager, not just that the window closed).
 - The NSIS installer has a known issue where a stale cached sidecar binary is reused on
-  reinstall/upgrade even after a clean rebuild — confirm the sidecar's file size/hash inside
+  reinstall/upgrade even after a clean rebuild: confirm the sidecar's file size/hash inside
   the produced installer matches the freshly built one before trusting a release.
 - Tauri's webview on Windows requires the WebView2 runtime. Most Windows 11 machines have it
   preinstalled; Windows 10 machines may not. Bundle the WebView2 bootstrapper in the NSIS
   config so first install doesn't silently fail on an old machine.
 - Build for `x86_64-pc-windows-msvc` only in v1. Windows-on-ARM exists but is niche enough
-  to skip — treat it the same as local-model support: the abstraction shouldn't assume x64,
+  to skip; treat it the same as local-model support: the abstraction shouldn't assume x64,
   but don't spend time building or testing it now.
 
 **Accept when:** a built installer on a machine with no Python installed runs, serves, and
 leaves zero orphan processes in Task Manager after the app is closed.
 
-### Phase 2 — Event spine
+### Phase 2: Event spine
 
 The core. Get this right and everything else is straightforward.
 
 - SQLite schema + migrations, DB file in the OS app-data dir (via Tauri's path API).
-- `EventStore.append()` — assigns `seq` atomically per run.
-- `EventBus` — in-process `asyncio` fan-out to subscribers.
+- `EventStore.append()`: assigns `seq` atomically per run.
+- `EventBus`: in-process `asyncio` fan-out to subscribers.
 - `GET /runs/{id}/events` as SSE, honouring `Last-Event-ID` to replay from a sequence number.
 - A `fake_run` debug endpoint that emits a scripted sequence of ~20 events over 10 seconds.
 
 **Accept when:** the debug run streams to a `curl` client, and killing/reconnecting mid-stream
 resumes with zero gaps and zero duplicates.
 
-### Phase 3 — Providers, budget, keychain
+### Phase 3: Providers, budget, keychain
 
 - `Provider` protocol: `complete(messages, tools) -> Response` with normalized token usage.
 - Implement Anthropic and OpenAI. Add an Ollama implementation behind the same protocol
@@ -323,16 +323,16 @@ resumes with zero gaps and zero duplicates.
 - `budget/ledger.py`: monthly cap. Check *before* each call, record *after*. Emit
   `budget.warning` at 80%, `budget.exceeded` and refuse at 100%.
 - Keys read from OS keychain via `tauri-plugin-keyring`, passed to the sidecar at spawn
-  time over stdin — never as a command-line argument (argv is world-readable via `ps`).
+  time over stdin, never as a command-line argument (argv is world-readable via `ps`).
 
 **Accept when:** switching provider is a settings change with no code change, and a run
 that would exceed the monthly cap is refused with a clear reason before any API call fires.
 
-### Phase 4 — Orchestrator
+### Phase 4: Orchestrator
 
 - `Run` owns lifecycle and the event sequence.
 - `Supervisor`: given a goal, decomposes into subtasks and spawns worker agents.
-- `Agent`: the worker loop — think, call tool, observe, repeat, until done or budget/step limit.
+- `Agent`: the worker loop (think, call tool, observe, repeat) until done or budget/step limit.
 - Agents communicate via `agent.message` events, never direct function calls. Handoffs are
   `agent.handoff` events.
 - Hard limits: max steps per agent, max agents per run, max wall-clock per run. All configurable,
@@ -341,7 +341,7 @@ that would exceed the monthly cap is refused with a clear reason before any API 
 **Accept when:** a two-worker run completes end to end, and the full event log alone is
 sufficient to reconstruct exactly what happened without reading any other state.
 
-### Phase 5 — Agent registry (user-defined agents)
+### Phase 5: Agent registry (user-defined agents)
 
 Agents stop being hardcoded Python classes and become editable data.
 
@@ -349,7 +349,7 @@ Agents stop being hardcoded Python classes and become editable data.
 - `registry.py` loads definitions from the DB at run start. It no longer imports agent
   classes; it constructs workers from rows.
 - Seed 3–4 built-in definitions on first launch (e.g. `researcher`, `writer`, `reviewer`)
-  so a fresh install is usable immediately. Built-ins are editable but not deletable —
+  so a fresh install is usable immediately. Built-ins are editable but not deletable -
   `is_builtin = 1` guards the delete path only.
 - `allowed_tools` is an **allowlist, never a denylist.** An agent can only call tools named
   in its own row. An empty array means the agent can reason and hand off but touches nothing.
@@ -359,19 +359,19 @@ Agents stop being hardcoded Python classes and become editable data.
   `allowed_tools` must resolve to a registered tool, `max_steps` within the global cap.
   Reject at the API layer with a readable message, not a 500.
 
-**Security note — read this before implementing.** User-authored prompts do **not** widen
+**Security note: read this before implementing.** User-authored prompts do **not** widen
 the security model, and must not be allowed to. The approval gate (next phase) lives at the
 *tool execution* layer. A sloppy, over-permissive, or actively adversarial system prompt
 still cannot reach the filesystem or shell without passing the same gate as everything else.
 `auto_approve` on an agent definition may only *narrow* what the global policy already
-permits — it can never grant a risk level the workspace policy has not enabled. If you find
+permits; it can never grant a risk level the workspace policy has not enabled. If you find
 yourself writing code where an agent definition escalates its own privileges, stop.
 
-**Accept when:** an agent created entirely through the API — never touching Python — can be
+**Accept when:** an agent created entirely through the API (never touching Python) can be
 spawned into a run, and an agent whose `allowed_tools` omits `write_file` is blocked from
 calling it even when its system prompt explicitly instructs it to.
 
-### Phase 6 — Tools and the approval gate
+### Phase 6: Tools and the approval gate
 
 - `Tool` protocol with a declared `risk` level.
 - Built-ins: `read_file`, `write_file`, `list_dir`, `http_get`, `run_shell`.
@@ -380,24 +380,24 @@ calling it even when its system prompt explicitly instructs it to.
 - **Approval gate**: any `medium`/`high` risk call emits `approval.requested` and blocks
   until resolved. `low` risk (read within workspace) may be auto-approved by policy.
 - Approval prompts must be **human-legible**, not raw JSON:
-  `Agent "researcher" wants to delete report.docx — Allow / Deny`.
+  `Agent "researcher" wants to delete report.docx: Allow / Deny`.
 - A policy setting for unattended operation: pre-authorize a named risk subset so overnight
   runs can progress. Default is manual-approve-everything.
 
 **Accept when:** an agent instructed to write outside the workspace root is blocked at the
 sandbox layer, and this is visible in the event log as `tool.denied`.
 
-**Addendum — container-sandboxed `run_shell` (your instance only, not part of the shared
+**Addendum: container-sandboxed `run_shell` (your instance only, not part of the shared
 build).** The app-level sandbox above is a real but limited boundary: a successfully
 prompt-injected or misbehaving shell command still runs as your actual user account. On your
-own always-on instance, wrap `run_shell` specifically in a short-lived container — network
+own always-on instance, wrap `run_shell` specifically in a short-lived container: network
 disabled, read-only mount except the workspace root, CPU/memory capped, killed on timeout.
 This is the one place Docker earns its way into this project on genuine merit rather than as
 a resume line: it's real OS-level isolation for the one tool that can do the most damage, not
-containerization for its own sake. Keep it scoped to this single tool call — do not
+containerization for its own sake. Keep it scoped to this single tool call; do not
 containerize the rest of the app to justify it.
 
-### Phase 7 — Dashboard
+### Phase 7: Dashboard
 
 - React Flow canvas: supervisor and workers as nodes, handoffs as edges, live status colour.
 - Event log panel, filterable by agent and event type.
@@ -408,7 +408,7 @@ containerize the rest of the app to justify it.
   Enable/disable toggle. Create and delete.
 - **Agent editor** (`AgentEditor.tsx`): name, role, system prompt (textarea), provider/model
   dropdowns, tool allowlist as checkboxes, max steps. Surface the API's validation errors
-  inline on the offending field — never a toast that loses which field was wrong.
+  inline on the offending field, never a toast that loses which field was wrong.
   Tool checkboxes show each tool's risk level next to it, so the consequence of ticking
   `run_shell` is visible at the moment of ticking it.
 - Generate TS types from the FastAPI OpenAPI schema; never hand-write the API types.
@@ -416,17 +416,17 @@ containerize the rest of the app to justify it.
 **Accept when:** replaying a completed run produces pixel-identical UI state to what was
 shown live, and a new agent can be created, edited, and run without leaving the app.
 
-### Phase 8 — Channel adapters
+### Phase 8: Channel adapters
 
 - `ChannelAdapter` protocol. Both adapters normalize to
   `{channel, external_user_id, text, thread_ref, ts}` and emit `channel.inbound`.
 - **Discord**: `discord.py`, own process. Slash commands and @mentions only. Do **not**
-  request the `MessageContent` privileged intent — the non-privileged baseline is sufficient
+  request the `MessageContent` privileged intent: the non-privileged baseline is sufficient
   and keeps the review requirement and the attack surface off the table. Defer the
   interaction immediately (3s ack limit) and edit the deferred reply as events stream.
   Throttle outbound through the adapter; Discord's global cap is 50 req/s with tighter
   per-channel limits.
-- ~~**Telegram**: `python-telegram-bot`, long polling (not webhooks — no inbound port). Leave
+- ~~**Telegram**: `python-telegram-bot`, long polling (not webhooks; no inbound port). Leave
   privacy mode on. Respect 30 msg/s per chat.~~ **Removed 2026-09-11**, a §6 deviation
   agreed with the maintainer: the adapter was built and never held a session (no bot token
   ever existed), and its library was one of the two largest in the frozen sidecar. The
@@ -440,49 +440,49 @@ shown live, and a new agent can be created, edited, and run without leaving the 
 **Accept when:** the same run is observable simultaneously from the dashboard and the
 originating chat channel, and a channel-originated tool call still hits the approval gate.
 
-### Phase 9 — CI and release
+### Phase 9: CI and release
 
 - **Test job runs before the build job and gates it.** `pytest` on the backend (event store,
   budget ledger, sandbox, agent registry validation at minimum), `vitest` on the frontend
-  reducers (`RunGraph`, `EventLog`). A red test blocks the build job entirely — CI that only
+  reducers (`RunGraph`, `EventLog`). A red test blocks the build job entirely: CI that only
   builds and never tests is not CI, it's a compiler check with extra steps.
 - GitHub Actions matrix: `windows-latest` and `macos-latest`. Build the PyInstaller sidecar
   on each (it does not cross-compile), then the Tauri bundle.
-- Publish the Windows artifact. Build but do not publish macOS — it exists to catch
+- Publish the Windows artifact. Build but do not publish macOS: it exists to catch
   cross-platform breakage continuously, so the eventual Mac release is a flag flip rather
   than a port.
 - **Keep the repo public.** Private-repo Actions minutes drain at a 2x multiplier on Windows
-  runners and 10x on macOS — the macOS build-only-in-CI job is the expensive one to watch.
-- Ship unsigned for now. Unlike macOS, Windows does not hard-block an unsigned app — the
+  runners and 10x on macOS: the macOS build-only-in-CI job is the expensive one to watch.
+- Ship unsigned for now. Unlike macOS, Windows does not hard-block an unsigned app: the
   installer triggers a SmartScreen "Windows protected your PC" prompt, and the user clicks
   "More info" → "Run anyway" once. No terminal command, no equivalent of `xattr` needed.
   Document this one click in the `README` so it doesn't read as broken. An EV code-signing
-  cert removes the warning entirely if it's ever worth the cost — optional, not required to
-  ship.
+  cert, optional and not required to ship, removes the warning entirely if it's ever worth the
+  cost.
 - No entitlements file needed on this platform. When macOS moves from build-only to
   released, that's the point to write its entitlements
-  (`allow-unsigned-executable-memory`, `disable-library-validation`) — not before.
+  (`allow-unsigned-executable-memory`, `disable-library-validation`), not before.
 
 **Accept when:** a green CI run produces a downloadable installer that runs on a second
 Windows machine with no Python installed.
 
-### Phase 10 — Portfolio artifacts
+### Phase 10: Portfolio artifacts
 
 This phase exists because the project is being evaluated by people who will spend under a
 minute deciding whether to look closer. Optimize for that.
 
 - **`docker compose up` demo path.** A `docker-compose.yml` at repo root running the FastAPI
-  backend (SQLite, same code as the shipped product — no Postgres migration required, that's
+  backend (SQLite, same code as the shipped product; no Postgres migration required, that's
   a real scope increase for a benefit that's mostly cosmetic here) plus the Vite dev server,
   reachable at `localhost:5173` with zero local Python/Node/Rust install. This is the one-line
   proof that the project runs, for someone who is not going to install a Windows toolchain to
   check.
 - **README** with, in this order: a 15-second GIF or screenshot of the live agent graph, the
   one-command demo instructions above, the architecture diagram from §2, and a short
-  "why no LangChain / why no Kubernetes" note — reviewers who know the ecosystem will ask
+  "why no LangChain / why no Kubernetes" note: reviewers who know the ecosystem will ask
   that question in their head anyway; answer it before they do.
 - **Test coverage visible, not just present.** A coverage badge or a one-line summary in the
-  README (`pytest --cov`) — the existence of tests matters less to a reviewer than being able
+  README (`pytest --cov`): the existence of tests matters less to a reviewer than being able
   to see the number in five seconds.
 - Link the OpenAPI docs (`/docs`, free from FastAPI) from the README. It costs nothing and is
   the kind of detail that signals the API was designed, not improvised.
@@ -490,15 +490,15 @@ minute deciding whether to look closer. Optimize for that.
 **Accept when:** someone with none of this project's toolchain installed can go from `git
 clone` to a running agent graph in under five minutes using only the README.
 
-### Phase 11 — Spaces, and the redesign around them
+### Phase 11: Spaces, and the redesign around them
 
 *Added 2026-09-11 at the maintainer's request. Built **before** Phase 10, because the
-portfolio artefacts — the GIF, the README screenshots, the demo — should show the product
+portfolio artefacts (the GIF, the README screenshots, the demo) should show the product
 this phase produces, not the one it replaces. Design first: this section is reviewed by the
-maintainer before any of it is coded (§6, "ask before deviating" — and this changes §4).*
+maintainer before any of it is coded (§6, "ask before deviating," and this changes §4).*
 
 *Built 2026-09-12. The maintainer asked for the redesign first, so the order of work below
-ran (4)–(7) against the single workspace and then (1)–(3), (6) and (8) — the redesign was
+ran (4)–(7) against the single workspace and then (1)–(3), (6) and (8): the redesign was
 laid out so the switcher and the space settings page dropped in. Where the build settled a
 question the design left open, or found the design wrong, the note is inline below,
 dated.*
@@ -509,7 +509,7 @@ a space, with that space's agents, that space's rules, in that space's folder.
 
 **What a space is.** A named container that owns three things: a **roster** (agent
 definitions belong to exactly one space), a **folder** (the sandbox root for every tool call
-in its runs), and **rules** (model, approval policy, run limits — each either inherited from
+in its runs), and **rules** (model, approval policy, run limits, each either inherited from
 the app-wide default or set here). Runs belong to the space they were started in. Everything
 that is the *user's* rather than a space's stays app-wide: API keys and bot tokens (the
 keychain is process-wide by construction, §1 constraint 4), the monthly budget cap (one
@@ -518,7 +518,7 @@ wallet), the Discord connection and its allowlist.
 **What a space is not.** Not a tenant, not an account, not a project directory the user
 points at their home folder. §7's non-goals stand. The blast radius of an approval misclick
 is the space's folder, and in v1 that folder is always one this application created.
-*(2026-09-12: settled as written — no user-picked folder. The space settings page shows the
+*(2026-09-12: settled as written, with no user-picked folder. The space settings page shows the
 path and opens it; it cannot change it.)*
 
 #### Data model (§4 additions)
@@ -549,11 +549,11 @@ The folder is **not a column**: it is `<data dir>/spaces/<id>/`, derived, so a r
 name a path outside the place the application owns. Renaming a space does not move files.
 
 - **Migration 006** creates `spaces`, inserts the default space (fixed id, name `Main`,
-  every rule NULL — so it behaves exactly as the single workspace does today), and moves the
+  every rule NULL, so it behaves exactly as the single workspace does today), and moves the
   existing workspace folder to become its folder. Then `agent_defs` and `runs` gain
   `space_id`, backfilled to the default space. **Trap, known in advance:** SQLite will not
   `ADD COLUMN ... REFERENCES` with a non-NULL default while foreign keys are on, and cannot
-  add `NOT NULL` without one — so both columns arrive by table rebuild (create, copy, drop,
+  add `NOT NULL` without one, so both columns arrive by table rebuild (create, copy, drop,
   rename), and the runner needs a way to run one migration with the FK check deferred. Write
   the upgrade test first, against a populated v5 database, and assert every run, event,
   definition, approval and spend row is still there afterwards, with a space.
@@ -567,31 +567,31 @@ name a path outside the place the application owns. Renaming a space does not mo
 
 `effective = definition ∩ space ∩ app-wide` for `auto_approve`, extending §5 Phase 5's rule:
 a definition "can never grant a risk level the workspace policy has not enabled", and now
-neither can a space. The Phase 6 reading holds at each layer — an empty/NULL list means
+neither can a space. The Phase 6 reading holds at each layer: an empty/NULL list means
 *inherit*, not *none*. *(2026-09-12: for a **space**, NULL means inherit and the empty list
 means "ask for everything". The column is nullable precisely so the two can differ, and a
-space stricter than the app-wide policy — a sensitive one that asks about every read —
+space stricter than the app-wide policy (a sensitive one that asks about every read)
 is a legitimate thing a nullable column can express and a NOT NULL `'[]'` cannot. A
 definition's column is NOT NULL `'[]'`, so the Phase 6 reading stands there.)* Model and limits are overrides, not narrowings: a space wanting longer
 runs than the default is a legitimate thing, and the wall clock is a cost control that the
 app-wide budget cap still bounds. `run.started` records the effective rules and the space
 (`space: {id, name}`) so a replay can say which rules a run ran under. **No new event
-types** — the §4 list is unchanged, so no three-way update is needed.
+types**: the §4 list is unchanged, so no three-way update is needed.
 
 #### API
 
 - `GET /spaces`, `POST /spaces`, `GET /spaces/{id}`, `PATCH /spaces/{id}`, `DELETE /spaces/{id}`
   (409 while it has runs; 409 for the default). `POST /spaces` takes
-  `seed: "empty" | "builtins" | {"copy_from": "<space id>"}` — a new space starts empty,
+  `seed: "empty" | "builtins" | {"copy_from": "<space id>"}`: a new space starts empty,
   with fresh copies of the three seeded roles, or with copies of another space's roster.
   Copies are new rows with new ids and `is_builtin = 0`.
 - `GET /agents?space_id=`, `POST /agents` takes `space_id` *(2026-09-12: optional, the
-  default space when omitted — the same reading as `POST /runs`, and for the same reason;
+  default space when omitted: the same reading as `POST /runs`, and for the same reason;
   the window always names the space it is showing)*, `PATCH /agents/{id}` may set
   `space_id` (a **move**; an in-flight run's roster is a snapshot, per Phase 5, so a move
   mid-run leaves that run alone), `POST /agents/{id}/copy {space_id}`.
   `POST /spaces/{id}/seed` adds the built-in roles an existing roster lacks.
-- `GET /runs?space_id=`; `POST /runs {goal, space_id?}` — omitted means the default space,
+- `GET /runs?space_id=`; `POST /runs {goal, space_id?}`: omitted means the default space,
   which is what keeps `POST /debug/fake_run` and today's Discord path working unchanged.
 - `GET /budget?space_id=` adds this space's spend for the period beside the app-wide cap.
   Derived by joining `spend` to `runs`; no new column.
@@ -601,7 +601,7 @@ types** — the §4 list is unchanged, so no three-way update is needed.
   deleted falls back to the default at launch rather than turning every command into an
   error nobody in the channel can fix.)*
 - Every filesystem tool resolves against the run's space folder. `Sandbox` is constructed
-  per run from the space, not once per process — and a `write_file` from a run in space A
+  per run from the space, not once per process, and a `write_file` from a run in space A
   to a path under space B's folder is `tool.denied` with `blocked_by: "sandbox"`, exactly as
   a path outside the old single root is today.
 
@@ -609,40 +609,40 @@ types** — the §4 list is unchanged, so no three-way update is needed.
 
 This is the visual redesign the maintainer asked for, shaped around spaces so it is done
 once. It replaces the developer dashboard's chrome; it does **not** replace the run
-projection's structure — the graph, the log and the summary stay one pure fold of the log,
+projection's structure: the graph, the log and the summary stay one pure fold of the log,
 inside the same `run-projection` boundary, and `replayIdentity.test.tsx` keeps passing at
 every step.
 
 - **A sidebar, not tabs.** A persistent left rail: the **space switcher** at the top (current
-  space's name, a list to switch, "New space…"), then the current space's sections — *Home*,
-  *Runs*, *Agents*, *Space settings* — and, pinned to the bottom, the app-wide *Settings*
+  space's name, a list to switch, "New space…"), then the current space's sections
+  (*Home*, *Runs*, *Agents*, *Space settings*), and, pinned to the bottom, the app-wide *Settings*
   (keys, budget, Discord). The header keeps what is global: the budget meter with the
   month's spend, the provider · model in use for *this space*, and the "N approvals waiting"
   badge, which is global and opens the run it names in whatever space it is in.
 - **A Home screen per space.** What a person sees when nothing is open: a large goal box
-  ("What should this space work on?") with a Start button; a **Now** strip — runs in progress
+  ("What should this space work on?") with a Start button; a **Now** strip: runs in progress
   and approvals waiting, each a card that opens the run; **Recent runs** as cards (status,
-  goal, started, duration, cost) rather than a dense list; and the **roster** — the space's
+  goal, started, duration, cost) rather than a dense list; and the **roster**: the space's
   agents with role and an enable toggle, with "Add an agent" and, for an empty space, "Start
   from the built-in roles". First-launch guidance lives here too: no key configured → one
   card saying so with a button to Settings and a button for the demo run; no agents → the
   seed button; no runs → the goal box is the whole screen.
-- **Plain language first, raw types second.** Every event row gets a sentence — *supervisor
+- **Plain language first, raw types second.** Every event row gets a sentence: *supervisor
   asked the model*, *writer wants to write hello.txt (waiting for you)*, *writer wrote
-  hello.txt (24 bytes)* — with the raw `llm.request` / `tool.called` kept as a muted mono
+  hello.txt (24 bytes)*, with the raw `llm.request` / `tool.called` kept as a muted mono
   chip beside it, because the raw type is what a bug report needs and the sentence is what a
   person reads. Same for the agent card labels and the run status. The sentences are a pure
   function of the event, so they live in the reducer's module and are covered by the
   identity test.
-- **A "Now" line above the graph.** One sentence about the run at this cursor — *writer is
-  waiting for your approval*, *3 agents finished; the supervisor is writing the summary* —
+- **A "Now" line above the graph.** One sentence about the run at this cursor: *writer is
+  waiting for your approval*, *3 agents finished; the supervisor is writing the summary*,
   derived from the fold, so it is identical live and on replay.
 - **Type and colour.** A system UI stack for prose (Segoe UI on Windows, SF on macOS);
   monospace only for ids, payloads and code. Base size 14 → 15px, 1.5 line height; the
   uppercase micro-labels go. **Light theme and dark theme**, following the OS
   (`prefers-color-scheme`) with an override in Settings; both defined as tokens on `:root`
   so no colour has a single definition. A softer palette: one accent, the three risk colours
-  (unchanged in meaning — they match the gate), status colours for the five run states,
+  (unchanged in meaning; they match the gate), status colours for the five run states,
   and neutral surfaces with one level of elevation for cards. Nothing on screen is coloured
   for decoration.
 - **Cards for runs, rows for events.** A run is something to pick; an event is something to
@@ -653,10 +653,10 @@ every step.
   Deny still focused.
 - **Space settings are one page; app settings are another.** *Space settings*: name,
   description, the folder (shown as a path, with **Open folder** via the Tauri opener plugin
-  — a new, single-purpose dependency, replacing nothing), model, approval policy, limits,
+  - a new, single-purpose dependency, replacing nothing), model, approval policy, limits,
   each with "Inherit" as the first choice, and a danger zone (archive; delete when
   allowed). *Settings*: what the current tab holds minus what moved to spaces, plus theme
-  and `channel_space_id`. *(2026-09-12: nothing "moved" — model, limits and the approval
+  and `channel_space_id`. *(2026-09-12: nothing "moved": model, limits and the approval
   policy stay on the app page as the defaults every space inherits, since Inherit has to
   inherit from somewhere the user can see. The opener plugin is used from Rust only, behind
   one command that refuses any path outside the data directory; none of its JavaScript
@@ -669,14 +669,14 @@ every step.
 store, test first; (2) `space_id` through the launcher, the sandbox-per-run and the roster
 snapshot, verified with two spaces against a real model; (3) the API and regenerated types;
 (4) the sidebar, switcher and Home screen against the existing panels; (5) the run view
-restyle — sentences, the Now line, theme tokens; (6) space and app settings pages; (7) the
+restyle: sentences, the Now line, theme tokens; (6) space and app settings pages; (7) the
 log windowing; (8) Discord's `channel_space_id`. Each step is its own commit or small group,
 and CLAUDE.md records what the live runs showed.
 
 **Accept when:**
 
 1. Two spaces with different rosters; a run started in space A, against a real local model,
-   with a goal that names one of space B's agents by name, never spawns it — the supervisor's
+   with a goal that names one of space B's agents by name, never spawns it: the supervisor's
    roster in `agent.spawned` lists only A's agents, and the log shows the refusal.
 2. A `write_file` in a run in space A lands under A's folder; a `write_file` from the same
    run to a path under B's folder is `tool.denied` with `blocked_by: "sandbox"`.
@@ -717,12 +717,12 @@ Do not build these. Do not scaffold placeholders for these.
 - Any network-exposed surface beyond `127.0.0.1`
 - Vector memory / RAG
 - Agent marketplaces or plugin systems
-- macOS release artifacts (builds in CI, not published yet — see constraint #7)
+- macOS release artifacts (builds in CI, not published yet; see constraint #7)
 - Code signing or notarization
 - Auto-update
 - Mobile
 - Headless / server mode (a future option, not now)
-- Local model support as a *requirement* — the abstraction exists, the implementation is
+- Local model support as a *requirement*: the abstraction exists, the implementation is
   optional and untested in v1
 
 ---

@@ -1,12 +1,12 @@
 import type { BudgetResponse } from "@agentspace/schemas";
 
 /**
- * Month-to-date spend against the cap — §5 Phase 7's budget meter.
+ * Month-to-date spend against the cap: §5 Phase 7's budget meter.
  *
  * This is the one panel that is *not* a projection of a run's event log, and
  * deliberately so: the cap is a workspace fact spanning every run in the month,
  * so it comes from `GET /budget`. It sits outside the run view for that reason,
- * and the replay-identity test excludes it — a replayed run must render like the
+ * and the replay-identity test excludes it: a replayed run must render like the
  * live one did, and the month's spend has legitimately moved on since.
  *
  * The display strings come from the backend (`format_micros`), so the rounding
@@ -24,7 +24,7 @@ export function BudgetMeter({ budget }: BudgetMeterProps) {
     return (
       <div className="budget budget--unknown" data-testid="budget-meter">
         <span className="budget__label">Budget</span>
-        <span className="budget__figure">—</span>
+        <span className="budget__figure">-</span>
       </div>
     );
   }
@@ -51,7 +51,7 @@ export function BudgetMeter({ budget }: BudgetMeterProps) {
         {budget.spent_display} / {budget.cap_display}
       </span>
       {level === "over" && (
-        <span className="budget__note">Cap reached — further runs are refused.</span>
+        <span className="budget__note">Cap reached: further runs are refused.</span>
       )}
     </div>
   );

@@ -23,6 +23,6 @@ describe("clockDate", () => {
   });
 
   it("renders nonsense as a placeholder rather than throwing", () => {
-    expect(clockDate("not a date")).toBe("—");
+    expect(clockDate("not a date")).toBe("-");
   });
 });

@@ -171,7 +171,7 @@ describe("batched delivery", () => {
   it("reaches the same state as one event at a time, in one update", () => {
     /* The SSE client hands the store a frame's worth of events at once so a
        burst of `llm.token`s is one render, not fifty. The batch must fold to
-       exactly what the singles fold to — it is the same path, called less. */
+       exactly what the singles fold to: it is the same path, called less. */
     const events = twoAgentRun();
     store().open("run-1");
     for (const event of events) store().appendEvent(event);
@@ -246,8 +246,8 @@ describe("duplicate and repeated delivery", () => {
     /* The server re-reads from SQLite on any anomaly precisely so the client
        never sees a gap, and the store's contract says "no gaps". A contract
        that is asserted in a comment and checked nowhere is the kind Phase 2's
-       named-event bug hid behind. The event is kept — dropping it would lose
-       more — and the gap is counted where the connection label can say so. */
+       named-event bug hid behind. The event is kept (dropping it would lose
+       more), and the gap is counted where the connection label can say so. */
     const [first, , third, fourth] = twoAgentRun();
     if (first === undefined || third === undefined || fourth === undefined) throw new Error("fixture");
     store().open("run-1");

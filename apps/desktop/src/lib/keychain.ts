@@ -2,7 +2,7 @@
  * Writing secrets to the OS keychain, from the settings screen.
  *
  * §1 constraint 4: API keys live in the OS keychain and reach the sidecar over
- * stdin at spawn — never a file, never SQLite, never a request body. So the
+ * stdin at spawn: never a file, never SQLite, never a request body. So the
  * settings screen cannot hand a key to the sidecar; it hands it to the OS,
  * through the Tauri keyring plugin, under the exact service and account names
  * the Rust shell reads at the next launch. The service name comes from the

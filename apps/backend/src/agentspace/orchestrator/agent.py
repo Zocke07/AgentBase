@@ -2,7 +2,7 @@
 
 §5 Phase 4 built the loop. §5 Phase 5 changed what an agent *is*: no longer a
 name and a prompt the supervisor invented, but a row of `agent_defs` the user
-wrote. :class:`AgentSpec` is the resolved form of that row — the snapshot a run
+wrote. :class:`AgentSpec` is the resolved form of that row: the snapshot a run
 is held to, frozen at spawn.
 
 Everything the loop does becomes an event before it has any other effect,
@@ -14,18 +14,18 @@ system prompt explicitly instructs it to". Two things are needed for that and
 only one of them is obvious:
 
 1. The agent is not *offered* what it may not use. That is decided by whoever
-   builds its `tools` list — see :mod:`agentspace.orchestrator.registry`.
+   builds its `tools` list; see :mod:`agentspace.orchestrator.registry`.
 2. The agent is not *permitted* what it may not use, checked against
    ``spec.allowed_tools`` at the moment of the call.
 
 Only the second is a boundary. A model can name any tool string it likes
-regardless of what it was shown — the `_unknown_tool` path below exists because
-they do — so an orchestrator relying on step 1 alone would execute the call the
+regardless of what it was shown (the `_unknown_tool` path below exists because
+they do), so an orchestrator relying on step 1 alone would execute the call the
 moment a model asked for something it was never offered. The two read different
 sources on purpose, so neither can quietly become the other's proof.
 
-**Two kinds of call, and only one of them is gated.** Control calls — `finish`,
-`handoff`, `spawn_agent` — end a turn, hand work over, or ask for a worker. They
+**Two kinds of call, and only one of them is gated.** Control calls (`finish`,
+`handoff`, `spawn_agent`) end a turn, hand work over, or ask for a worker. They
 touch nothing, so they execute directly (see
 :mod:`agentspace.orchestrator.control`). A *catalogue* tool reaches the
 filesystem, the shell or the network, so §1 constraint 5 applies and it travels
@@ -35,7 +35,7 @@ execution.
 That second path is where Phase 6 landed, and its ordering is the security
 design rather than a tidy arrangement. Permission from a definition
 (`allowed_tools`) is not permission from the user, and neither is a substitute
-for the call being *in bounds* — so a path outside the workspace is refused
+for the call being *in bounds*, so a path outside the workspace is refused
 before an approval prompt is composed, because a question a user can answer
 wrongly is not a boundary. §5 Phase 6's acceptance criterion is that refusal,
 observable as `tool.denied`.
@@ -107,8 +107,8 @@ class AgentSpec:
     """What an agent is, resolved and frozen at the moment it spawns.
 
     Phase 4 built this from whatever the supervisor typed. Phase 5 builds it
-    from a row of `agent_defs` — see
-    :meth:`agentspace.orchestrator.registry.AgentRegistry.spec_for` — which is
+    from a row of `agent_defs` (see
+    :meth:`agentspace.orchestrator.registry.AgentRegistry.spec_for`), which is
     why the definition's identity travels with it: a replay has to be able to
     say not just that an agent ran but *what it was*, and the answer changed
     from "a string a model produced" to "a row a user wrote".
@@ -131,7 +131,7 @@ class AgentSpec:
     #: :mod:`agentspace.tools.catalogue`.
     allowed_tools: tuple[str, ...] = ()
     #: Risk levels this definition asks to have pre-approved. Intersected with
-    #: the workspace policy at the moment of the call — it can only narrow it,
+    #: the workspace policy at the moment of the call: it can only narrow it,
     #: never widen it (§5 Phase 5's security note).
     auto_approve: tuple[RiskLevel, ...] = ()
     #: Already clamped to the run's global ceiling by the registry.
@@ -145,8 +145,8 @@ class AgentSpec:
 
         The log is the only thing a replay gets to read, so what an agent was
         built from has to be in it. The system prompt is included because in
-        Phase 5 it is *user-authored data* — the single most load-bearing fact
-        about why two runs of the same goal behaved differently — and until now
+        Phase 5 it is *user-authored data* (the single most load-bearing fact
+        about why two runs of the same goal behaved differently), and until now
         it appeared in no event at all: `llm.request` carries the message list,
         but the system prompt travels beside it as a separate provider argument.
 
@@ -209,7 +209,7 @@ class Agent:
         self._spec = spec
         self._tools = tools
         self._supervisor = supervisor_name
-        #: ``None`` means this agent can execute no catalogue tool — the
+        #: ``None`` means this agent can execute no catalogue tool: the
         #: supervisor's case, and a test's. A permitted call then becomes a
         #: `tool.error` saying so rather than silently doing nothing.
         self._runtime = runtime
@@ -327,7 +327,7 @@ class Agent:
     def _permit(self, name: str) -> _Permission:
         """Decide what this agent may do with a call to ``name``.
 
-        Reads ``spec.allowed_tools`` and ``spec.control_names`` — never
+        Reads ``spec.allowed_tools`` and ``spec.control_names``, never
         ``self._tools``. That separation is the point: `self._tools` is what the
         model was shown, and a model is free to ignore it.
         """
@@ -363,7 +363,7 @@ class Agent:
                 return await self._unknown_tool(call)
             case _Permission.CATALOGUE:
                 # The sandbox and the approval gate, in that order. A control
-                # call skips both because it touches nothing — that is what
+                # call skips both because it touches nothing: that is what
                 # makes it a control call rather than a tool (§1 constraint 5).
                 return await self._catalogue_call(call)
             case _Permission.CONTROL:
@@ -378,7 +378,7 @@ class Agent:
         §5 Phase 6 requires a sandbox denial to be "visible in the event log as
         `tool.denied`"; an allowlist denial is the same kind of fact and uses
         the same event. The agent is told plainly rather than being left to
-        infer it — there is nothing to conceal from a model whose own
+        infer it: there is nothing to conceal from a model whose own
         capabilities these are, and a vague refusal just burns the next step.
         """
         permitted = ", ".join(sorted(self._spec.allowed_tools)) or "none"
@@ -399,22 +399,22 @@ class Agent:
         return ToolReply(reason)
 
     async def _catalogue_call(self, call: ToolCall) -> ToolReply:
-        """Sandbox, then gate, then execute — a permitted tool's whole journey.
+        """Sandbox, then gate, then execute: a permitted tool's whole journey.
 
         The order is §5 Phase 6's, and each step's failure has a different
         event because they are different facts about the run:
 
-        * no runtime, or no implementation — `tool.error`. The agent is
+        * no runtime, or no implementation: `tool.error`. The agent is
           misconfigured, not misbehaving.
-        * malformed arguments — `tool.error`. A bad call it could retry.
-        * **outside the sandbox — `tool.denied`**, before anybody is asked.
+        * malformed arguments: `tool.error`. A bad call it could retry.
+        * **outside the sandbox: `tool.denied`**, before anybody is asked.
           This is §5 Phase 6's acceptance criterion in one branch.
-        * refused at the gate — `tool.denied`. A person said no.
-        * approved — `tool.approved`, then `tool.called`, then the result.
+        * refused at the gate: `tool.denied`. A person said no.
+        * approved: `tool.approved`, then `tool.called`, then the result.
 
         `tool.called` appears only on the last path. It means the call
         executed, and writing it for a call that was blocked would put a false
-        statement in the log — the distinction Phase 5 established when a
+        statement in the log: the distinction Phase 5 established when a
         permitted-but-unimplemented tool deliberately emitted no `tool.called`.
         """
         runtime = self._runtime
@@ -511,7 +511,7 @@ class Agent:
 
         §5 Phase 6's acceptance criterion: "an agent instructed to write outside
         the workspace root is blocked at the sandbox layer, and this is visible
-        in the event log as `tool.denied`". Both halves are here — the refusal
+        in the event log as `tool.denied`". Both halves are here: the refusal
         happens before :meth:`ApprovalService.request` is reached, and it is
         recorded as `tool.denied` beside the `tool.requested` that names what
         was attempted.
@@ -552,7 +552,7 @@ class Agent:
 
     async def _unknown_tool(self, call: ToolCall) -> ToolReply:
         """A model can name a tool that does not exist. That is a bad call, not
-        a crashed run — it is told what it may actually use and tries again."""
+        a crashed run: it is told what it may actually use and tries again."""
         error = (
             f"{call.name!r} is not a tool you can call. Available tools: "
             f"{', '.join(tool.name for tool in self._tools)}."
@@ -579,7 +579,7 @@ class Agent:
 
         The handoff is recorded and the agent completes; the supervisor reads
         the request in the worker's result and decides what to do with it. The
-        worker does not get to spawn or command another agent directly — that
+        worker does not get to spawn or command another agent directly: that
         would let any agent widen the run's shape from inside its own turn.
         """
         recipient = _text_argument(call.arguments, "to")
@@ -616,7 +616,7 @@ class Agent:
 def _text_argument(arguments: dict[str, Any], key: str) -> str:
     """Read a string argument, tolerating a model that sent the wrong shape.
 
-    A malformed argument is a bad tool call, not a crashed run — the same
+    A malformed argument is a bad tool call, not a crashed run: the same
     stance the provider adapters take when `arguments` will not parse.
     """
     value = arguments.get(key)

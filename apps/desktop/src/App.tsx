@@ -24,15 +24,15 @@ import { currentSpace, useSpaces } from "./state/spaces";
 
 /**
  * The shell: a rail of sections on the left, the section on the right, and a
- * header carrying what is true of the whole workspace rather than of one run
- * — the month's spend, the provider and model in use, and any approval
+ * header carrying what is true of the whole workspace rather than of one run:
+ * the month's spend, the provider and model in use, and any approval
  * waiting anywhere.
  *
  * Its job is to establish that the sidecar is reachable, then hand over.
- * Nothing about a run is decided here — that is `RunsView` and, below it, the
+ * Nothing about a run is decided here: that is `RunsView` and, below it, the
  * reducer. What the shell does own is which space the window is looking at
- * (BUILD_SPEC §5 Phase 11) and the lists that follow from it — the space's
- * runs and its roster, in shared stores — and the moments they are re-read:
+ * (BUILD_SPEC §5 Phase 11) and the lists that follow from it (the space's
+ * runs and its roster, in shared stores), and the moments they are re-read:
  * a light poll while any listed run is unfinished, the window becoming
  * visible again, and a run being started or finished. Switching spaces
  * re-keys both stores and closes the open run; the header's approval badge
@@ -60,7 +60,7 @@ export function App() {
   const [runId, setRunId] = useState<string | null>(null);
   // Set when a request failed to reach the sidecar after startup; cleared when
   // the reconnect loop gets an answer again. The window stays where it was
-  // underneath — a run being watched is still worth watching.
+  // underneath: a run being watched is still worth watching.
   const [lost, setLost] = useState<Exclude<SidecarStatus, { kind: "ready" }> | null>(null);
   const inFlight = useRef<AbortController | null>(null);
 
@@ -68,7 +68,7 @@ export function App() {
   // remembered in this browser; the settings page offers the choice.
   useTheme();
 
-  // Which space the window is looking at — also a fact about this window.
+  // Which space the window is looking at, also a fact about this window.
   const spaces = useSpaces((state) => state.spaces);
   const spaceId = useSpaces((state) => state.currentId);
   const loadSpaces = useSpaces((state) => state.load);
@@ -122,7 +122,7 @@ export function App() {
     // of the month, and whether *its* effective settings can build a provider.
     void api.getBudget(spaceId ?? undefined).then(setBudget).catch(() => undefined);
     void api.getSettings().then(setSettings).catch(() => undefined);
-    // The sidecar's own answer to "would a run be refused right now" — the
+    // The sidecar's own answer to "would a run be refused right now": the
     // same check a run fails on, without a model call.
     void api.verifySettings(spaceId ?? undefined).then(setVerified).catch(() => undefined);
     // Every question waiting anywhere. The run panel shows the selected
@@ -152,8 +152,8 @@ export function App() {
   }, [spaceId, setRunListSpace, setRosterSpace]);
 
   // Runs that happen elsewhere. The stream covers the open run; a run started
-  // from Discord, or left going in the background, only reaches the list —
-  // and only moves the meter — if something re-reads the table. A light poll
+  // from Discord, or left going in the background, only reaches the list -
+  // and only moves the meter, if something re-reads the table. A light poll
   // while any listed run is unfinished, and nothing at all once they all are:
   // an idle window makes no requests.
   const runs = useRunList((state) => state.runs);
@@ -200,8 +200,8 @@ export function App() {
     setSection("runs");
   }, []);
 
-  // A run named from outside the space on screen — the header's approval
-  // badge — is opened in its own space: the picker lists one space's runs,
+  // A run named from outside the space on screen (the header's approval
+  // badge) is opened in its own space: the picker lists one space's runs,
   // and a panel showing a run the picker does not list would be a run with
   // no way back to it.
   const openRunWherever = useCallback(
@@ -241,7 +241,7 @@ export function App() {
   const effectiveModel = space?.model ?? settings?.settings.model ?? null;
 
   // Why a run started now would be refused, or null. Shown on the Home screen
-  // and disabling Start — the header already said "runs will be refused"
+  // and disabling Start, the header already said "runs will be refused"
   // while the button stayed live, and every click added a dead `failed` row.
   const blocker =
     verified !== null && !verified.ok
@@ -297,7 +297,7 @@ export function App() {
         {lost !== null && (
           <div className="app__lost" role="alert" data-testid="sidecar-lost">
             <span className="dot dot--bad" />
-            {lost.kind === "connecting" && `Lost the sidecar — reconnecting (attempt ${String(lost.attempt)})`}
+            {lost.kind === "connecting" && `Lost the sidecar: reconnecting (attempt ${String(lost.attempt)})`}
             {lost.kind === "failed" && `Lost the sidecar at ${lost.baseUrl}: ${lost.message}`}
             {lost.kind === "failed" && (
               <button
@@ -360,7 +360,7 @@ export function App() {
         <div className="app__body">
           {/* Every section stays mounted. Unmounting the runs section closed
               its stream and forgot which run was open, so a visit to another
-              meant re-picking the run and re-downloading its whole log — and
+              meant re-picking the run and re-downloading its whole log, and
               any approval that arrived meanwhile went unseen until it
               expired. Each has its own boundary, because all four are
               mounted at once and one failing to render used to take the rest

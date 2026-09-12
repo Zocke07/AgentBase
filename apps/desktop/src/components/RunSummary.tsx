@@ -8,7 +8,7 @@ import type { RunView } from "../state/reducer";
  * The one thing this component exists to get right: **a terminal event's
  * `summary` is a model's claim, not a record of what happened.** CLAUDE.md
  * records three separate live runs whose `run.completed` announced work the log
- * shows never occurred — a file "saved to notes.txt" by a run containing three
+ * shows never occurred: a file "saved to notes.txt" by a run containing three
  * control calls and no file tool at all.
  *
  * So the summary is labelled as the supervisor's account and rendered beside a
@@ -40,7 +40,7 @@ export function RunSummary({ view }: RunSummaryProps) {
         <h2 className="run-summary__goal">{view.goal ?? "No goal recorded yet"}</h2>
         {view.origin !== null && (
           // §5 Phase 8: a run started from Discord appears here with no
-          // special-casing anywhere below this line — it is the same fold of
+          // special-casing anywhere below this line: it is the same fold of
           // the same log. What a viewer does need is to know they are watching
           // something they did not start, and who did.
           <p className="run-summary__origin" data-testid="run-origin">
@@ -81,14 +81,14 @@ export function RunSummary({ view }: RunSummaryProps) {
         )}
         <div>
           <dt>Cost</dt>
-          {/* Summed from the ledger's figure on each `llm.response` — the same
+          {/* Summed from the ledger's figure on each `llm.response`: the same
               integer the budget meter is built from, never a float here. */}
           <dd data-testid="fact-cost">{formatMicros(view.costMicros)}</dd>
         </div>
         <div>
           <dt>Errors</dt>
           {/* `llm.error` and `tool.error`. Folded from the start, rendered
-              nowhere until now — an agent that hit five provider errors in
+              nowhere until now: an agent that hit five provider errors in
               a row looked exactly like an agent that was thinking. */}
           <dd data-testid="fact-errors">{view.errors.length}</dd>
         </div>

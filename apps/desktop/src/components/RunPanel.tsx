@@ -18,8 +18,8 @@ import { RunSummary } from "./RunSummary";
  * `view` and `events.slice(0, cursor)`. It fetches nothing, reads no clock and
  * keeps no state about the run, so given the same log and the same cursor it
  * renders byte-identical DOM. That is BUILD_SPEC §5 Phase 7's acceptance
- * criterion — "replaying a completed run produces pixel-identical UI state to
- * what was shown live" — and `replayIdentity.test.tsx` checks it directly.
+ * criterion ("replaying a completed run produces pixel-identical UI state to
+ * what was shown live") and `replayIdentity.test.tsx` checks it directly.
  *
  * **The transport** (the scrubber) is deliberately *outside* that boundary,
  * because it honestly differs. Watching live at event 12, the log has 12 events
@@ -31,7 +31,7 @@ import { RunSummary } from "./RunSummary";
  * **The approval panel straddles the line, on purpose.** Its question and
  * history are a projection of the log and are compared live against replay
  * like everything in `run-projection`. Whether it can be *answered* is a fact
- * about where the viewer stands — live at the head, yes; scrubbed back, no —
+ * about where the viewer stands (live at the head, yes; scrubbed back, no),
  * so its action row is transport, and `readOnly` is decided by the caller from
  * the store's `following`, never from the folded view.
  */
@@ -48,7 +48,7 @@ export interface RunPanelProps {
   onResolveApproval: ApprovalPanelProps["onResolve"];
   /**
    * The run on screen is the previous one while the next one's history is
-   * fetched. The projection stays — dimmed, its controls disabled — rather than
+   * fetched. The projection stays (dimmed, its controls disabled) rather than
    * collapsing to an empty run and back, which read as a flash on every
    * switch. Transport, like the scrubber: replay never sets it.
    */
@@ -67,7 +67,7 @@ export function RunPanel({
   loading = false,
 }: RunPanelProps) {
   const scrubbed = cursor < events.length;
-  // Room for the widest reading the counter will show — "28 / 28" — so the
+  // Room for the widest reading the counter will show ("28 / 28") so the
   // track beside it does not move as the number changes under the thumb.
   const counterWidth = `${String(String(events.length).length * 2 + 3)}ch`;
 
@@ -137,7 +137,7 @@ export function RunPanel({
         <RunSummary view={view} />
 
         {/* One sentence about the run at this cursor. Derived from the fold,
-            so it is the same sentence live and on replay — and it is the
+            so it is the same sentence live and on replay, and it is the
             first thing a person reads, above a graph that takes longer. */}
         <p className="now-line" data-testid="now-line">
           {nowLine(view)}
@@ -149,7 +149,7 @@ export function RunPanel({
           {selected !== null && (
             <aside className="agent-detail" data-testid="agent-detail">
               <h3>{selected.name}</h3>
-              <p className="agent-detail__role">{selected.role ?? "—"}</p>
+              <p className="agent-detail__role">{selected.role ?? "-"}</p>
               <dl>
                 <div>
                   <dt>Definition</dt>

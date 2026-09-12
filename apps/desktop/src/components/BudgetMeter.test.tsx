@@ -5,7 +5,7 @@ import { BudgetMeter } from "./BudgetMeter";
 
 /**
  * The month's spend against the cap. The one panel that is not a projection
- * of a run's log — the cap spans every run in the month — and the thresholds
+ * of a run's log (the cap spans every run in the month) and the thresholds
  * are the ledger's: warn at 80%, refuse at 100%.
  */
 
@@ -22,7 +22,7 @@ describe("BudgetMeter", () => {
   it("shows a placeholder until the budget has been read", () => {
     render(<BudgetMeter budget={null} />);
 
-    expect(screen.getByTestId("budget-meter").textContent).toContain("—");
+    expect(screen.getByTestId("budget-meter").textContent).toContain("-");
   });
 
   it.each([

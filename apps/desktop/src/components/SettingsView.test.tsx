@@ -10,7 +10,7 @@ import * as keychain from "../lib/keychain";
 import { SettingsView } from "./SettingsView";
 
 /**
- * The settings screen — the one the user guide said did not exist, sending
+ * The settings screen: the one the user guide said did not exist, sending
  * people to Swagger UI for every setting and to Credential Manager for keys.
  *
  * `lib/api` and `lib/keychain` are mocked: what this component owns is which

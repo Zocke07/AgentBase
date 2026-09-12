@@ -8,11 +8,11 @@ import { unfinished, useRunList } from "../state/runList";
 import { RunCard } from "./RunCard";
 
 /**
- * The Home screen — BUILD_SPEC §5 Phase 11, what a person sees when nothing
+ * The Home screen: BUILD_SPEC §5 Phase 11, what a person sees when nothing
  * is open.
  *
  * Top to bottom: what stands in the way of a run, if anything; the goal box;
- * **Now** — runs in progress and approvals waiting, each a card that opens
+ * **Now**: runs in progress and approvals waiting, each a card that opens
  * the run; **Recent runs** as cards; and the roster, with the toggle that
  * decides whether the supervisor may put an agent to work. A fresh install
  * with no runs gets the goal box as the whole screen, with one sentence about
@@ -23,7 +23,7 @@ import { RunCard } from "./RunCard";
  * cards are rows of the `runs` table, and the one run whose row the table has
  * not caught up with is told its status by the caller.
  *
- * The pre-flight — "why a run started now would be refused" — is the
+ * The pre-flight ("why a run started now would be refused") is the
  * sidecar's own answer, passed down from the shell. It disables Start rather
  * than letting the click add a dead `failed` row to the list, and offers the
  * two ways out: the settings, or the scripted demo run that needs no key.
@@ -125,7 +125,7 @@ export function HomeView({
     }
   };
 
-  // An empty roster gets the three built-in roles on request — what a space
+  // An empty roster gets the three built-in roles on request: what a space
   // created with "no agents" is offered once its owner changes their mind.
   const seed = async () => {
     if (space === null) return;
@@ -218,7 +218,7 @@ export function HomeView({
               <p className="new-run__hint">
                 {enabled.length === 0
                   ? rosterLoaded
-                    ? "No agents are enabled — the supervisor will have nobody to delegate to."
+                    ? "No agents are enabled: the supervisor will have nobody to delegate to."
                     : ""
                   : `${String(enabled.length)} agent${enabled.length === 1 ? "" : "s"} ready: ${enabled
                       .map((agent) => agent.name)

@@ -1,7 +1,7 @@
 """API keys in memory, delivered over stdin at spawn.
 
-§1 constraint 4: keys live in the OS keychain and reach the sidecar over stdin
-— never `.env`, never SQLite, never a config file, never a log line, never
+§1 constraint 4: keys live in the OS keychain and reach the sidecar over stdin:
+never `.env`, never SQLite, never a config file, never a log line, never
 `argv`. The last one is the reason for the whole mechanism: on Windows,
 `Get-CimInstance Win32_Process` shows every process's full command line to any
 user on the machine, and the POSIX equivalent is `ps`. A key passed as an
@@ -19,8 +19,8 @@ and the sentinel is not valid JSON.
 
 **Why this is read on the watchdog thread rather than at startup.** A blocking
 read for the secrets line in `run()` would hang any launch that does not write
-one — `python -m agentspace` by hand, or a shell that crashed between spawn and
-write — turning a missing key into a sidecar that never binds its port and
+one (`python -m agentspace` by hand, or a shell that crashed between spawn and
+write), turning a missing key into a sidecar that never binds its port and
 never explains why. The line is consumed by the same thread that then watches
 for shutdown, so the server starts regardless and a key that never arrives
 surfaces as a legible :class:`ProviderAuthError` on first use instead.
@@ -51,8 +51,8 @@ SECRET_KEYS: Final[frozenset[str]] = frozenset(
         "anthropic_api_key",
         "openai_api_key",
         # §5 Phase 8's bot token. A bot token is a credential in exactly the
-        # sense an API key is — it authenticates this application to a third
-        # party and is replayable by anyone who reads it — so it takes the same
+        # sense an API key is (it authenticates this application to a third
+        # party and is replayable by anyone who reads it), so it takes the same
         # route: OS keychain to stdin, never `.env`, never SQLite, never `argv`.
         # Putting it in the `settings` table instead would have been the easier
         # change and would have written a live credential into a file that sits
@@ -66,7 +66,7 @@ def parse_secrets_line(line: str) -> dict[str, str]:
     """Parse one handshake line into a mapping of known secrets.
 
     Returns an empty mapping for anything that is not a JSON object of strings
-    — including the ``shutdown`` sentinel, so that a shell which sends no
+    - including the ``shutdown`` sentinel, so that a shell which sends no
     secrets at all still shuts down correctly.
 
     Never raises, and never logs the line: a parse failure is reported by
@@ -104,7 +104,7 @@ class SecretStore:
     def load(self, secrets: Mapping[str, str]) -> None:
         """Merge in secrets from a handshake line.
 
-        Logs the *names* received, never the values — knowing that a key
+        Logs the *names* received, never the values: knowing that a key
         arrived is necessary to debug a missing-credential report, and its
         content never is.
         """
@@ -123,7 +123,7 @@ class SecretStore:
 
     @property
     def names(self) -> tuple[str, ...]:
-        """Which secrets are present. Safe to log and to expose over HTTP —
+        """Which secrets are present. Safe to log and to expose over HTTP -
         the settings endpoint uses it so the UI can show "key configured"
         without ever reading the key back out."""
         with self._lock:

@@ -7,13 +7,13 @@ hand-write the API types."
 build step that starts the sidecar to read `/openapi.json` makes the frontend's
 typecheck depend on a working Python environment, which breaks `just check` on a
 clean clone and turns a type error into a startup error. Committing both keeps
-`packages/schemas` an ordinary source dependency — and makes drift visible in a
+`packages/schemas` an ordinary source dependency, and makes drift visible in a
 diff: changing a response model shows up as a change to these files in the same
 commit. `test_openapi_snapshot.py` is what stops them going stale.
 
 **Why the emitter is here and not `openapi-typescript`.** That is the canonical
 tool and it caps its TypeScript peer at `^5.x`, while this tree is on 6.0.3, so
-it cannot be installed without `--legacy-peer-deps` on every `npm install` —
+it cannot be installed without `--legacy-peer-deps` on every `npm install` -
 which would weaken peer checking for the whole dependency tree to satisfy one
 dev tool. This is the same conflict Phase 0 hit with `eslint-plugin-import`
 against ESLint 10; there the answer was a maintained fork, and here there is
@@ -50,7 +50,7 @@ __all__ = [
 ]
 
 #: Schema keywords the emitter reads. Anything else raises, rather than being
-#: silently dropped — see the module docstring.
+#: silently dropped; see the module docstring.
 _KNOWN_KEYWORDS: Final[frozenset[str]] = frozenset(
     {
         # Structural: these decide the emitted type.
@@ -116,7 +116,7 @@ class UnsupportedSchemaError(Exception):
     def __init__(self, path: str, detail: str) -> None:
         super().__init__(
             f"{path}: {detail}. The emitter in agentspace/openapi.py needs "
-            f"extending — see its docstring for why it refuses to guess."
+            f"extending; see its docstring for why it refuses to guess."
         )
 
 
@@ -127,7 +127,7 @@ def schema() -> dict[str, Any]:
     """The live OpenAPI document for the sidecar.
 
     Built from an app with explicit, throwaway paths. `create_app()` opens no
-    database — that happens in the lifespan — but it *does* resolve the data
+    database (that happens in the lifespan), but it *does* resolve the data
     directory, and resolving it in a code generator is how a generated artefact
     ends up depending on which machine ran the generator.
     """
@@ -232,7 +232,7 @@ def _type_of(node: dict[str, Any], path: str, indent: str = "") -> str:
         raise UnsupportedSchemaError(path, f"unknown JSON Schema type {declared!r}")
 
     if not node or set(node) <= {"title", "description"}:
-        # A genuinely unconstrained value — Pydantic's bare `Any`. `unknown` is
+        # A genuinely unconstrained value: Pydantic's bare `Any`. `unknown` is
         # the honest rendering: the schema really does say nothing.
         return "unknown"
 
@@ -242,7 +242,7 @@ def _type_of(node: dict[str, Any], path: str, indent: str = "") -> str:
 
 
 #: Beyond this, a union is rendered one member per line. `EventType` has 26
-#: members and would otherwise be a single 900-character line — technically
+#: members and would otherwise be a single 900-character line: technically
 #: correct and unreadable in a diff, which is where these types get reviewed.
 _UNION_WRAP_AT: Final[int] = 88
 
@@ -258,7 +258,7 @@ def _union(members: list[str], indent: str) -> str:
     return newline + newline.join(f"{inner}| {member}" for member in members)
 
 
-def _unsupported(member: str, path: str) -> str:  # pragma: no cover - defensive
+def _unsupported(member: str, path: str) -> str:  # pragma: no cover: defensive
     raise UnsupportedSchemaError(path, f"unknown JSON Schema type {member!r}")
 
 
@@ -302,7 +302,7 @@ def _doc_comment(node: dict[str, Any], indent: str) -> list[str]:
     """Render a schema `description` as a JSDoc comment.
 
     Kept because these descriptions are where the payload contracts and the
-    warnings live — "do not render `run.completed.summary` as fact" is worth
+    warnings live: "do not render `run.completed.summary` as fact" is worth
     having on hover in the editor, not only in CLAUDE.md.
     """
     description = node.get("description")
@@ -335,7 +335,7 @@ def emit_typescript(document: dict[str, Any] | None = None) -> str:
 
     Only `components.schemas` is emitted. Route and operation types are what
     `openapi-typescript` spends most of its output on and they are painful to
-    consume — `paths["/runs"]["get"]["responses"][200]["content"]...` — while
+    consume (`paths["/runs"]["get"]["responses"][200]["content"]...`), while
     the thing the dashboard actually needs is the model types. The paths
     themselves are asserted to exist by
     `test_the_schema_covers_every_route_the_dashboard_calls`.
@@ -349,7 +349,7 @@ def emit_typescript(document: dict[str, Any] | None = None) -> str:
 
     # A wrapped union leaves `export type X = ` with a trailing space before the
     # newline. Stripping here rather than at each construction site means one
-    # rule — no trailing whitespace, anywhere — instead of a rule every future
+    # rule (no trailing whitespace, anywhere) instead of a rule every future
     # branch has to remember.
     return "\n".join(line.rstrip() for line in body.splitlines()) + "\n"
 
@@ -362,7 +362,7 @@ def _write_text(destination: Path, text: str) -> None:
 
     `Path.write_text` on Windows translates every `\\n` to `\\r\\n`, which
     contradicts `.gitattributes`' `* text=auto eol=lf` and is invisible to
-    `ruff check`, `mypy` and `pytest` — a mistake this project has already made
+    `ruff check`, `mypy` and `pytest`, a mistake this project has already made
     once (CLAUDE.md, Phase 4).
     """
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -380,6 +380,6 @@ def write_typescript(destination: Path) -> None:
     _write_text(destination, emit_typescript())
 
 
-if __name__ == "__main__":  # pragma: no cover - exercised by `just schemas`
+if __name__ == "__main__":  # pragma: no cover: exercised by `just schemas`
     write(Path(sys.argv[1]))
     write_typescript(Path(sys.argv[2]))

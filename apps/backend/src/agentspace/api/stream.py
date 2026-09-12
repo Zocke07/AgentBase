@@ -1,18 +1,18 @@
-"""`GET /runs/{id}/events` — the SSE projection of the event log.
+"""`GET /runs/{id}/events`: the SSE projection of the event log.
 
 **The guarantee.** A client that reconnects with `Last-Event-ID` receives every
 event after that id, exactly once, in sequence order. That has to hold across a
 reconnect, a slow consumer, and two events committing concurrently.
 
-**How it is achieved.** Not by making the bus reliable — by never trusting it.
+**How it is achieved.** Not by making the bus reliable: by never trusting it.
 The stream keeps its own cursor and treats the database as the only authority:
 
 1. Subscribe to the bus *before* reading the backlog. Subscribing second would
    drop anything appended between the read and the subscribe, which is the
    classic form of this bug and is invisible until the log is under load.
 2. Replay the backlog from the cursor.
-3. Stream live, and on *any* anomaly — a sequence gap, a repeat, a dropped
-   buffer — re-read the range from SQLite instead of reasoning about it.
+3. Stream live, and on *any* anomaly (a sequence gap, a repeat, a dropped
+   buffer) re-read the range from SQLite instead of reasoning about it.
 
 Collapsing every anomaly into one authoritative re-read is what keeps this
 correct. Out-of-order publication is possible (appends commit inside worker
@@ -71,8 +71,8 @@ def format_sse(event: Event) -> str:
 
     **There is deliberately no ``event:`` field.** Writing ``event: llm.token``
     would be the more idiomatic-looking SSE, and it is a trap here. A named SSE
-    event does not fire ``EventSource.onmessage`` at all — the client must call
-    ``addEventListener`` for that exact name — so any type the client has not
+    event does not fire ``EventSource.onmessage`` at all (the client must call
+    ``addEventListener`` for that exact name), so any type the client has not
     registered is dropped silently, with no error anywhere. With 26 event types
     (§4) and more arriving each phase, that turns "someone forgot to update the
     client" into invisible data loss in a UI whose whole contract is being a
@@ -81,7 +81,7 @@ def format_sse(event: Event) -> str:
     Unnamed frames all arrive on one ``onmessage``, and the type is already in
     the JSON body, so nothing is lost: an unrecognised type reaches the reducer
     and can be logged loudly instead of vanishing. This was not reasoned out in
-    the abstract — a webview probe written against `onmessage` received zero of
+    the abstract: a webview probe written against `onmessage` received zero of
     twenty events while `fetch` against the same endpoint received all of them.
     """
     data = json.dumps(
@@ -153,7 +153,7 @@ class _RunStream:
         event is already committed and one more catch-up drains them.
 
         A run that no longer exists is over. `DELETE /runs/{id}` refuses an
-        unfinished run, so a stream should never be open on one that goes —
+        unfinished run, so a stream should never be open on one that goes -
         but if it ever is, ending is right and waiting forever is not.
         """
         run = await self._store.get_run(self._run_id)
@@ -212,7 +212,7 @@ def run_events(
     The same cursor and anomaly handling `GET /runs/{id}/events` uses, one layer
     below the framing. Phase 8's channel adapters consume this: a chat message
     is another projection of the log (§2), and it needs exactly the guarantee
-    the dashboard needs — every event, once, in sequence — while needing none of
+    the dashboard needs (every event, once, in sequence) while needing none of
     the SSE wire format.
 
     Growing a second stream implementation for the channels would have meant two

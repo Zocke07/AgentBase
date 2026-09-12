@@ -9,7 +9,7 @@ import { SpaceSettingsView } from "./SpaceSettingsView";
 
 /**
  * One space's settings: what is sent, and in particular that "Inherit" is
- * sent as null rather than dropped — the one thing that separates this form
+ * sent as null rather than dropped: the one thing that separates this form
  * from the app-wide one.
  */
 
@@ -162,7 +162,7 @@ describe("the danger zone", () => {
 
   it("shows the sidecar's reason when a delete is refused", async () => {
     const user = userEvent.setup();
-    mocked.deleteSpace.mockRejectedValue(new Error("'Lab' has 3 runs and cannot be deleted — runs are history. Archive it instead."));
+    mocked.deleteSpace.mockRejectedValue(new Error("'Lab' has 3 runs and cannot be deleted: runs are history. Archive it instead."));
     render(<SpaceSettingsView space={lab} settings={settings} onChanged={vi.fn()} />);
 
     await user.click(screen.getByRole("button", { name: "Delete this space…" }));

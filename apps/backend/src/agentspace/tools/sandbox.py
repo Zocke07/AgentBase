@@ -3,12 +3,12 @@
 §5 Phase 6: "a configured workspace root. Path traversal outside it is rejected
 **before the approval prompt is even shown**." That ordering is the whole
 design. An approval dialog reading *Agent "researcher" wants to write to
-`../../../Windows/System32/drivers/etc/hosts` — Allow / Deny* puts the user one
+`../../../Windows/System32/drivers/etc/hosts`: Allow / Deny* puts the user one
 misclick from the thing the sandbox exists to prevent, and asks them to make a
 judgement they have no way to make well. A path outside the root is not a risky
 call awaiting a decision; it is not a call at all.
 
-So this module answers one question — *is this reachable?* — and answers it with
+So this module answers one question (*is this reachable?*) and answers it with
 no reference to risk levels, policy, or who is asking. Those are the approval
 gate's business, and it only ever sees calls that already passed here.
 
@@ -23,10 +23,10 @@ that a POSIX-shaped implementation treats as ordinary relative segments.
 containment idea has a direct analogue: the machine's own services are inside
 the boundary and must stay unreachable. Without :meth:`Sandbox.check_url`, an
 agent can fetch `http://127.0.0.1:8787/settings` and read this application's own
-API from inside a run — §1 constraint 3 keeps other *machines* out and does
+API from inside a run: §1 constraint 3 keeps other *machines* out and does
 nothing about that. :meth:`Sandbox.resolve_url` also hands back the address it
 checked, so `http_get` connects to that one rather than resolving the name a
-second time — see the method for why that matters.
+second time; see the method for why that matters.
 """
 
 from __future__ import annotations
@@ -84,7 +84,7 @@ class CheckedUrl:
     """
 
     url: str
-    #: The hostname as written — what the `Host` header and the TLS handshake
+    #: The hostname as written: what the `Host` header and the TLS handshake
     #: carry, so the server sees the name the agent asked for.
     host: str
     #: The address the check saw, and the one to connect to.
@@ -98,7 +98,7 @@ class Sandbox:
     Frozen, and the root is resolved once in :meth:`__post_init__`. Both matter:
     a root that can be reassigned is a boundary a later refactor can move, and
     an *unresolved* root silently rejects everything on macOS, where `/var` is a
-    symlink to `/private/var` — every candidate resolves to a path that is not
+    symlink to `/private/var`: every candidate resolves to a path that is not
     relative to the root as written.
     """
 
@@ -115,7 +115,7 @@ class Sandbox:
         """Resolve ``candidate`` against the root, or refuse it.
 
         The returned path is absolute and guaranteed to be inside the root. It
-        may not exist — `write_file` names its target before creating it, so
+        may not exist: `write_file` names its target before creating it, so
         requiring existence here would make the sandbox unusable by the one
         tool whose containment matters most.
 
@@ -133,7 +133,7 @@ class Sandbox:
         # A colon in a *relative* path is refused on every platform, and the
         # reason is Windows-specific: `notes.txt:hidden` writes an NTFS
         # alternate data stream. It stays inside the root, so containment does
-        # not catch it, and almost no tool displays it — a tool reporting that
+        # not catch it, and almost no tool displays it: a tool reporting that
         # it wrote `notes.txt` would be lying to the user. It has to be checked
         # before joining, because `Path` drops the stream suffix on some
         # operations and it would vanish before the comparison.
@@ -207,12 +207,12 @@ class Sandbox:
 
         A literal address in a private, loopback, link-local or otherwise
         reserved range is refused, and so is a hostname any of whose addresses
-        is one. The address handed back is the first the resolver gave — the
-        operating system's preference — and every one of them passed.
+        is one. The address handed back is the first the resolver gave (the
+        operating system's preference), and every one of them passed.
 
         **Why the address travels with the answer.** A name can resolve to a
         public address when checked and a private one when the request is
-        made — DNS rebinding — and a check that answered yes and then let the
+        made (DNS rebinding), and a check that answered yes and then let the
         client resolve the name again had only raised the cost of reaching the
         LAN, not closed the way in. `http_get` therefore connects to
         ``address`` and carries ``host`` in the `Host` header and the TLS
@@ -252,7 +252,7 @@ class Sandbox:
                 msg = (
                     f"{candidate!r} cannot be fetched: {hostname} is a "
                     f"loopback, private or otherwise local address "
-                    f"({address}). Tools may only reach the public internet — "
+                    f"({address}). Tools may only reach the public internet: "
                     f"this machine's own services, and the local network, are "
                     f"not reachable from inside a run."
                 )

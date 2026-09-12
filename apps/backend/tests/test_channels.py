@@ -6,12 +6,12 @@ The criteria are:
    originating chat channel";
 2. "a channel-originated tool call still hits the approval gate".
 
-Both are asserted here against the production objects — the real event store,
+Both are asserted here against the production objects: the real event store,
 the real SSE cursor, the real `ToolRuntime`, the real `ApprovalService`. The
 only double is the chat platform itself: :class:`FakeReply` stands in for
 Discord's `edit_original_response`, which is exactly
 the seam :class:`~agentspace.channels.base.ChannelReply` exists to create. A
-test that faked more than that — a fake gate, a fake launcher — would prove the
+test that faked more than that (a fake gate, a fake launcher) would prove the
 criteria on a path the product does not take, which is the failure mode CLAUDE.md
 records repeatedly.
 """
@@ -67,7 +67,7 @@ class FakeReply:
 
     Records every edit rather than only the last one, because "the message was
     updated while the run was still going" is a claim about the sequence, not
-    about the final state — and it is half of the first acceptance criterion.
+    about the final state, and it is half of the first acceptance criterion.
     """
 
     def __init__(self) -> None:
@@ -149,7 +149,7 @@ async def test_a_channel_run_is_watchable_from_the_dashboard_while_it_happens(
 
     A run started from a chat channel is attached to over the *same* SSE
     endpoint the dashboard uses, while the chat reply is still being written,
-    and both see the same events. Not "the dashboard can find it afterwards" —
+    and both see the same events. Not "the dashboard can find it afterwards" -
     the criterion says simultaneously, so the stream is opened mid-run and the
     chat's edits are counted after that point.
     """
@@ -223,7 +223,7 @@ async def test_channel_inbound_is_the_first_event_of_the_run(
     """The message arrived before the run started, and the log has to say so.
 
     Appending it after :meth:`RunLauncher.launch` returns would race the
-    orchestrator, which is already emitting `run.started` — sometimes producing
+    orchestrator, which is already emitting `run.started`, sometimes producing
     a log in which the run began before anybody asked for it.
     """
     await allow(settings)
@@ -319,7 +319,7 @@ async def test_nothing_is_appended_after_the_run_s_terminal_event(
 
     The first version of `_record_outbound` wrote its row in a `finally`, after
     the run had completed. Every unit test passed, because they all read
-    `store.read()` — the table — and the table happily accepted it. A real
+    `store.read()` (the table) and the table happily accepted it. A real
     `qwen3:4b` run put 38 events in the table and handed a simultaneous SSE
     watcher 37.
     """
@@ -395,7 +395,7 @@ async def test_a_channel_originated_tool_call_still_hits_the_approval_gate(
     "No exceptions, no privileged paths for any channel." The run below is
     started by a Discord command and its `write_file` stops dead at the gate,
     with the file absent from disk until somebody answers. Nothing is
-    auto-approved, and the gate is the production one — a fake would have proved
+    auto-approved, and the gate is the production one: a fake would have proved
     this on a path the product does not take.
     """
     # `app_paths` (which `db` depends on) already made this; the sandbox is
@@ -463,7 +463,7 @@ async def test_the_question_is_surfaced_in_chat_while_the_run_waits(
 ) -> None:
     """A run stopped at the gate stops emitting anything.
 
-    In the dashboard that is obvious — a modal is on screen. In chat the message
+    In the dashboard that is obvious: a modal is on screen. In chat the message
     simply stops changing, which is indistinguishable from a crashed bot. So the
     reply is force-rendered on `approval.requested` rather than waiting for the
     throttle, and the prompt is in it.
@@ -513,8 +513,8 @@ async def test_answering_from_chat_uses_the_same_service_the_http_route_uses(
 ) -> None:
     """ "No privileged paths for any channel", asserted rather than claimed.
 
-    The adapters call :meth:`ApprovalService.resolve` — the identical method
-    `POST /approvals/{id}` calls — so a second answer conflicts exactly as two
+    The adapters call :meth:`ApprovalService.resolve` (the identical method
+    `POST /approvals/{id}` calls), so a second answer conflicts exactly as two
     browser windows do. If a channel had its own resolution path, this second
     call would succeed.
     """
@@ -576,7 +576,7 @@ async def test_a_refusal_is_reported_out_of_band_and_not_as_an_event(
     """§4 gives `events.run_id` a NOT NULL foreign key, so an event needs a run.
 
     Creating one to hold a refusal would fill the user's run list with runs that
-    never ran — in unbounded numbers, at the discretion of anyone who can see
+    never ran, in unbounded numbers, at the discretion of anyone who can see
     the bot. The refusal is reported through the callback `GET /channels` reads.
     """
     await allow(settings)
@@ -630,7 +630,7 @@ async def test_a_channel_enabled_without_a_token_says_why(
     """The three ways a bot can be silent look identical from a chat client.
 
     No token, a library that failed to freeze, and a gateway refusing to
-    connect all present as a bot that says nothing — and the user can fix all
+    connect all present as a bot that says nothing, and the user can fix all
     three once told which it is.
     """
     await settings.update({"discord_enabled": True})
@@ -777,7 +777,7 @@ async def test_enabling_a_channel_over_http_starts_it_without_a_restart(
 
     `ChannelService.start()` runs once, in the lifespan. Without a reconcile on
     `PATCH /settings`, enabling a channel returns `200 OK`, writes the row, and
-    connects nothing until the application is restarted — and this product has
+    connects nothing until the application is restarted, and this product has
     no restart button. That is the eighth appearance of this project's
     recurring shape, and it was found the same way as the other seven: by
     setting it and watching nothing happen.
@@ -849,8 +849,8 @@ async def test_a_reconcile_keeps_the_record_of_who_was_refused(
     ledger: BudgetLedger,
     secrets: SecretStore,
 ) -> None:
-    """A refusal writes no event — §4 gives every event a NOT NULL `run_id` and
-    a refused message started no run — so this bounded list is the only trace
+    """A refusal writes no event (§4 gives every event a NOT NULL `run_id` and
+    a refused message started no run), so this bounded list is the only trace
     of it that exists. Losing it because somebody toggled an unrelated setting
     would throw the evidence away."""
     started: list[str] = []

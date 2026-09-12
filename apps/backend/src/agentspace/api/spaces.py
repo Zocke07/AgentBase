@@ -1,7 +1,7 @@
 """Space endpoints (BUILD_SPEC §5 Phase 11).
 
-CRUD over `spaces`, plus what a new space starts with. The rules — what a
-space may be called, what it may override, when it may be deleted — live in
+CRUD over `spaces`, plus what a new space starts with. The rules (what a
+space may be called, what it may override, when it may be deleted) live in
 :mod:`agentspace.store.spaces`; this module maps each refusal to a status
 code and a `{message, field}` body the settings pages put on the input the
 server named, the way the agents and settings APIs already do.
@@ -51,8 +51,8 @@ class CreateSpaceRequest(BaseModel):
 class UpdateSpaceRequest(BaseModel):
     """A partial update.
 
-    ``None`` is meaningful for every rule — it is how a space goes back to
-    inheriting the app-wide default — so this uses `model_fields_set` rather
+    ``None`` is meaningful for every rule (it is how a space goes back to
+    inheriting the app-wide default), so this uses `model_fields_set` rather
     than `exclude_none` to tell "not sent" from "sent as null".
     """
 

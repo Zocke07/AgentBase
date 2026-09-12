@@ -1,8 +1,8 @@
 /**
  * Reading event payloads.
  *
- * Payloads are `dict[str, Any]` on the wire — §4 gives each event type a shape
- * by convention, not by schema — so every read here is defensive and returns
+ * Payloads are `dict[str, Any]` on the wire (§4 gives each event type a shape
+ * by convention, not by schema), so every read here is defensive and returns
  * `null` rather than throwing. A dashboard that crashed on one malformed event
  * would lose a whole run that was otherwise fine, and the log panel exists
  * precisely to be readable when something has gone wrong.

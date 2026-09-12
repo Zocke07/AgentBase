@@ -19,7 +19,7 @@ import { RunsView, type RunsViewProps } from "./RunsView";
  * tested there; the shell's background poll is tested with the shell.
  *
  * `lib/api` and the SSE client are mocked so the test can hand the stream
- * events one at a time — the thing that distinguishes "this run finished while
+ * events one at a time: the thing that distinguishes "this run finished while
  * I watched" from "I opened a run that had finished", which the first version
  * could not tell apart and refetched three endpoints on every picker click and
  * every pass of the scrubber over the terminal event.
@@ -244,9 +244,9 @@ describe("the picker", () => {
   });
 
   it("marks a run that is waiting on an approval, wherever it is", async () => {
-    /* `listApprovals` was written for exactly this — "a user who opens the
+    /* `listApprovals` was written for exactly this ("a user who opens the
        window a second after the question was asked would otherwise see
-       nothing" — and nothing called it. */
+       nothing"), and nothing called it. */
     mocked.listRuns.mockResolvedValue([row("running", "run-discord"), row("completed")]);
     render(<Harness onRunChanged={vi.fn()} pendingApprovals={[APPROVAL]} />);
 
@@ -336,7 +336,7 @@ describe("cancelling a run", () => {
 describe("deleting a run", () => {
   it("offers to delete a finished run, asks first, and closes it once the sidecar has", async () => {
     /* Deleting history is the one irreversible thing this section does, so
-       the button asks — the same shape as deleting a space. On a yes, the
+       the button asks: the same shape as deleting a space. On a yes, the
        run leaves the picker and the panel, and the meter is told the
        space's spend may have moved. */
     const user = userEvent.setup();

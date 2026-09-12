@@ -114,7 +114,7 @@ def test_generated_trees_are_pruned_not_scanned() -> None:
 
     Package caches are full of vendored `.sh` files and would make
     `test_no_shell_or_batch_scripts` fail for reasons that have nothing to do
-    with this repository — and walking gigabytes of cache would make the suite
+    with this repository, and walking gigabytes of cache would make the suite
     slow enough that people stop running it.
     """
     assert ".dev" in PRUNED_DIRECTORIES

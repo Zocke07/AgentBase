@@ -9,10 +9,10 @@ sentence, end to end, through a real run. Everything else here covers the
 machinery it depends on and the three ways a call can be stopped, which the log
 has to be able to tell apart:
 
-* the **allowlist** refused it — the agent's definition never permitted it
+* the **allowlist** refused it: the agent's definition never permitted it
   (Phase 5's boundary, covered in `test_agent_allowlist.py`);
-* the **sandbox** refused it — out of bounds, and nobody was asked;
-* the **user** refused it — in bounds, asked, and declined.
+* the **sandbox** refused it: out of bounds, and nobody was asked;
+* the **user** refused it: in bounds, asked, and declined.
 
 All three are `tool.denied`. A log that could not separate them would show a
 prompt-injected agent probing the boundary and a user declining a routine write
@@ -63,7 +63,7 @@ def workspace(tmp_path: Path) -> Path:
 
     `exist_ok` because the autouse data-directory fixture in `conftest.py`
     already resolves `AGENTSPACE_DATA_DIR` under `tmp_path` and creates a
-    `workspace` beside it — the same directory the shipped application uses,
+    `workspace` beside it, the same directory the shipped application uses,
     which is the right one to be testing against.
     """
     root = tmp_path / "workspace"
@@ -172,7 +172,7 @@ async def test_an_agent_told_to_write_outside_the_workspace_is_blocked(
     # 1. Blocked, and visible in the event log as `tool.denied`.
     assert writer.denied_tools == ["write_file"]
 
-    # 2. Blocked *at the sandbox layer* — before anyone was asked. Everything
+    # 2. Blocked *at the sandbox layer*, before anyone was asked. Everything
     #    was pre-approved, so an approval would have been granted instantly had
     #    the call ever reached the gate.
     assert writer.denied_by == ["sandbox"]
@@ -350,7 +350,7 @@ async def test_a_call_the_user_already_denied_is_not_asked_again_in_that_run(
     the supervisor spawned a second copy of the same definition, and it asked
     for the same overwrite again. "Deny" meant "not this call", and the only
     things bounding a supervisor that re-asks were the step limit and the
-    agent cap — a single no could become a war of attrition.
+    agent cap: a single no could become a war of attrition.
 
     Now a denial sticks for the run. The same tool with the same arguments,
     from any agent in the run, is denied by the earlier answer without the
@@ -456,7 +456,7 @@ async def test_the_prompt_a_user_sees_is_a_sentence_not_json(
 
     The spec's own example is `Agent "researcher" wants to delete report.docx`,
     so the assertion is on the shape of that sentence: who, what, and the file
-    named the way the user knows it — not an absolute path that leaks the
+    named the way the user knows it, not an absolute path that leaks the
     account name, and not the argument dictionary.
     """
     runtime, service = tool_runtime(store, db, workspace)
@@ -526,7 +526,7 @@ async def test_a_pre_approved_risk_level_runs_without_asking(
 ) -> None:
     """§5 Phase 6's unattended-operation policy, doing its job.
 
-    Nothing answers the gate here — there is no `StandingAnswer` and no HTTP
+    Nothing answers the gate here: there is no `StandingAnswer` and no HTTP
     call. The run completes because the workspace pre-authorized the level, and
     it would block until `pytest-timeout` killed it if the policy were inert.
     """
@@ -583,7 +583,7 @@ async def test_a_definition_cannot_pre_approve_beyond_the_workspace(
     """§5 Phase 5's security note, now that something consumes it.
 
     A definition asking for `high` against a workspace allowing only `low` gets
-    `low` — never `high`, and never both. This is the rule that stops a
+    `low`, never `high`, and never both. This is the rule that stops a
     user-authored row from escalating its own privileges, and it is the reason
     the empty-means-inherit decision above is safe: every branch returns a
     subset of the workspace policy.
@@ -606,7 +606,7 @@ async def test_an_unset_definition_inherits_the_workspace_policy(
     """The judgement call in `ToolRuntime.auto_approve_for`, pinned.
 
     §4 defaults `auto_approve` to `'[]'` and every seeded built-in carries it,
-    so a strict intersection would make the workspace policy inert — a setting
+    so a strict intersection would make the workspace policy inert: a setting
     that reports success and changes nothing, which this project has shipped
     once already. A row nobody has edited has not declined anything.
     """
@@ -630,7 +630,7 @@ async def test_the_policy_is_snapshotted_at_run_start(
 
     Same rule as the roster and the run limits: a run must not be held to
     different rules at step 1 and step 12. The direction that matters is
-    widening — a gate that silently stopped asking partway through a run would
+    widening: a gate that silently stopped asking partway through a run would
     be the safety property evaporating while work was in progress.
     """
     runtime, service = tool_runtime(store, db, workspace)
@@ -679,7 +679,7 @@ async def test_an_unanswered_approval_expires_with_the_run_deadline(
     """Nobody answers, and the run does not wait forever.
 
     The gate borrows the run's wall-clock budget rather than keeping a deadline
-    of its own — see `Run.remaining_seconds`. With a 1-second run limit the
+    of its own; see `Run.remaining_seconds`. With a 1-second run limit the
     approval expires, the call is denied, and the run fails on the clock.
     """
     await settings.update({"max_run_seconds": 1})

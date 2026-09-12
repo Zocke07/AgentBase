@@ -1,4 +1,4 @@
-"""agentspace — the local-first FastAPI sidecar for the agent co-working space.
+"""agentspace: the local-first FastAPI sidecar for the agent co-working space.
 
 Everything this package exposes runs on the user's own machine. The only traffic
 that leaves it is model inference (BUILD_SPEC §2).

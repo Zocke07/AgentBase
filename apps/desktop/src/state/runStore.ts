@@ -10,8 +10,8 @@ import { EMPTY_RUN, reduce, reduceAll, type RunView } from "./reducer";
  * This shape is what makes BUILD_SPEC §5 Phase 7's acceptance criterion
  * structural rather than a promise. The criterion is that "replaying a completed
  * run produces pixel-identical UI state to what was shown live", and the usual
- * way to fail it is to have two code paths — a live one that accumulates state
- * as events arrive, and a replay one that rebuilds it from history — which agree
+ * way to fail it is to have two code paths (a live one that accumulates state
+ * as events arrive, and a replay one that rebuilds it from history), which agree
  * until one of them gains a feature.
  *
  * Here there is one path. `view` is always `reduceAll(events.slice(0, cursor))`.
@@ -25,8 +25,8 @@ import { EMPTY_RUN, reduce, reduceAll, type RunView } from "./reducer";
  *
  * `headView` is the same fold at the head, kept even while the user is scrubbed
  * back. It costs one `reduce` per event and answers the questions that are
- * about the run rather than about where the viewer is standing — what the
- * picker's badge should say, whether the run finished while being watched —
+ * about the run rather than about where the viewer is standing (what the
+ * picker's badge should say, whether the run finished while being watched),
  * and it makes returning to the head a lookup instead of a refold. While
  * `following`, `view` *is* `headView`, the same object.
  */
@@ -47,9 +47,9 @@ export interface RunStoreState {
   readonly cursor: number;
   /** Whether the cursor tracks the head. False once the user scrubs back. */
   readonly following: boolean;
-  /** The fold up to `cursor` — what is on screen. */
+  /** The fold up to `cursor`: what is on screen. */
   readonly view: RunView;
-  /** The fold up to the head — what the run is, wherever the viewer stands. */
+  /** The fold up to the head: what the run is, wherever the viewer stands. */
   readonly headView: RunView;
   readonly connection: ConnectionStatus;
   /**
@@ -159,7 +159,7 @@ export const useRunStore = create<RunStoreState>()((set, get) => ({
 
     // Folding forward from where we are, rather than from the start, is what
     // keeps a live run linear. Folding backwards has to start over, because the
-    // reducer has no inverse — and nor should it: an undo path would be a second
+    // reducer has no inverse, and nor should it: an undo path would be a second
     // definition of what each event means. The head itself is already folded.
     const view =
       target === state.events.length

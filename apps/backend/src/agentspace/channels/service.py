@@ -1,15 +1,14 @@
 """Everything a channel does that is not platform-specific.
 
 Two things live here. :func:`converse` is one chat conversation from the moment
-a command arrives to the moment the run ends — identity, refusal, starting the
+a command arrives to the moment the run ends: identity, refusal, starting the
 run, folding the log, throttling the edits, surfacing the approval gate.
 :class:`ChannelService` owns the adapters: it starts the enabled ones, restarts
 them when they fall over, and stops them on shutdown.
 
 **Why this is not in the adapters.** Chat platforms differ in exactly one
-thing that matters: how you edit a message you already sent. Everything else —
-who is allowed to ask, what a refusal says, which object starts the run, what
-the reply says at any moment, when it is worth spending an edit — is identical,
+thing that matters: how you edit a message you already sent. Everything else (who is allowed to ask, what a refusal says, which object starts the run, what
+the reply says at any moment, when it is worth spending an edit) is identical,
 and a bug fixed in one copy of it would live on in the other. So the adapters
 implement :class:`~agentspace.channels.base.ChannelReply` and call this.
 
@@ -20,8 +19,8 @@ in CLAUDE.md. The benefit of a separate process is crash isolation, which
 Phase 1's orphan-process trap re-run twice (with ``--onefile``, the PID a parent
 holds is the bootloader's, not the server's), a second frozen binary, a second
 extraction on every launch, and a duplicated shutdown handshake. `discord.py`
-does not need its own event loop — `Client.start()` runs as a task on an
-existing one — so the reason usually given for the separate process does not
+does not need its own event loop (`Client.start()` runs as a task on an
+existing one), so the reason usually given for the separate process does not
 apply here.
 
 **The gate is reached by the identical path a dashboard run uses.** §1 constraint
@@ -30,8 +29,8 @@ structural is that nothing in this module touches a tool, a sandbox or an
 approval decision on behalf of an agent. A channel-originated run is the same
 `Run` object, in the same process, holding the same `ToolRuntime`. When the
 policy lets a chat answer an approval, the answer goes through
-:meth:`~agentspace.tools.approval.ApprovalService.resolve` — the same method
-`POST /approvals/{id}` calls, with the same 409 on a settled row.
+:meth:`~agentspace.tools.approval.ApprovalService.resolve` (the same method
+`POST /approvals/{id}` calls), with the same 409 on a settled row.
 """
 
 from __future__ import annotations
@@ -128,7 +127,7 @@ class ChannelStatus:
     failures: int = 0
     last_error: str | None = None
     #: Recent senders this workspace refused, newest first. Bounded, and
-    #: deliberately *not* in the event log — see :func:`converse`.
+    #: deliberately *not* in the event log; see :func:`converse`.
     refused: list[str] = field(default_factory=list)
 
 
@@ -148,7 +147,7 @@ async def converse(
 
     **A refusal is not written to the event log**, which is a decision rather
     than an omission. §4 gives `events.run_id` a NOT NULL foreign key, so a
-    `channel.inbound` for a refused message would need a run row to hang off —
+    `channel.inbound` for a refused message would need a run row to hang off -
     a run that never ran, in the user's run list, creatable in unbounded numbers
     by any stranger who can see the bot. The refusal is reported through
     ``on_refusal`` instead, which `GET /channels` renders from a bounded list.
@@ -230,8 +229,8 @@ async def _report(
                 await reply.update(render(fold(seen), limit=limit))
                 if not delivered:
                     # Written on the *first* delivery, not the last. See
-                    # `_record_outbound` for why the obvious placement — a
-                    # tally in the `finally` below — is a bug.
+                    # `_record_outbound` for why the obvious placement (a
+                    # tally in the `finally` below) is a bug.
                     delivered = True
                     await _record_outbound(deps, run_id, inbound, "report")
 
@@ -319,18 +318,18 @@ async def _record_outbound(
 
     **Both are written while the run is still alive, and that is the whole
     point of this function's shape.** The obvious implementation is a tally
-    written once at the end — "this run was reported to Discord, in 9 edits" —
+    written once at the end: "this run was reported to Discord, in 9 edits",
     and it is wrong for a reason that no unit test reading the database would
     ever show: §4's terminal events are defined as the events "after which no
     further event can appear for that run", and the SSE stream closes on them.
     An append after `run.completed` is therefore delivered to nobody watching
-    live, while a replay reading the table finds it — so the two disagree, and
+    live, while a replay reading the table finds it, so the two disagree, and
     §5 Phase 7's pixel-identical criterion quietly stops holding for every run
     that came from a channel.
 
     Found by running it: a real `qwen3:4b` run put 38 events in the table and
     handed a simultaneous SSE watcher 37. The test that was supposed to cover
-    this asserted on `store.read()`, which is the database, not the stream —
+    this asserted on `store.read()`, which is the database, not the stream -
     the same shape as every other bug this project has found, which is a check
     that is correct everywhere except where the product actually consumes it.
 
@@ -362,7 +361,7 @@ async def _record_outbound(
 #: and does nothing for an assignment, so a TYPE_CHECKING-only import
 #: typechecks perfectly and raises `NameError` the moment anything imports this
 #: module. mypy was green; ten test modules failed to collect. Same shape as
-#: every other bug this project has found — correct everywhere except where it
+#: every other bug this project has found: correct everywhere except where it
 #: actually runs.
 AdapterFactory = Callable[["ChannelDeps", str, Callable[[str], None]], "ChannelAdapter"]
 
@@ -393,7 +392,7 @@ class ChannelService:
         Called at startup and again whenever `PATCH /settings` touches a
         channel field. Without the second call, `discord_enabled` would be a
         setting that reports success and changes nothing until the application
-        is restarted — and this product has no restart button, so for a user it
+        is restarted, and this product has no restart button, so for a user it
         would simply not work.
 
         That is the shape this project has now hit seven times: Phase 1's CORS
@@ -402,7 +401,7 @@ class ChannelService:
         6's unsettable `auto_approve`, Phase 7's `qualified_model`. Every one
         was a setting or a value that looked configured and was not, and every
         one was found by running the thing rather than by reading it. This one
-        was found the same way — by enabling Discord over HTTP and watching
+        was found the same way: by enabling Discord over HTTP and watching
         nothing connect.
         """
         settings = await self._deps.settings.get()
@@ -415,7 +414,7 @@ class ChannelService:
             # Preserved across a reconcile rather than rebuilt: `refused` is a
             # record of who this workspace turned away, and losing it because
             # somebody toggled an unrelated setting would throw away the only
-            # trace of it (a refusal writes no event — see `converse`).
+            # trace of it (a refusal writes no event; see `converse`).
             status = self._status.setdefault(
                 channel, ChannelStatus(channel=channel, enabled=False, configured=False)
             )
@@ -556,8 +555,8 @@ def _default_factories() -> dict[ChannelName, AdapterFactory]:
     """Build the real adapters, importing their libraries only if asked.
 
     A late import rather than a module-level one so that a build in which
-    `discord.py` failed to freeze degrades to the channel being unavailable —
-    with the reason in `GET /channels` — instead of a sidecar that will not
+    `discord.py` failed to freeze degrades to the channel being unavailable
+    (with the reason in `GET /channels`) instead of a sidecar that will not
     start. That is the shape of the Phase 3 `*.sql` bug inverted: an import
     that is fine everywhere except in the bundle.
     """

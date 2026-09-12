@@ -1,14 +1,14 @@
 """Agent definitions as data: the registry, its validation, and its API.
 
 The §5 Phase 5 acceptance criterion's first clause is "an agent created
-entirely through the API — never touching Python — can be spawned into a run".
+entirely through the API (never touching Python) can be spawned into a run".
 :func:`test_an_agent_created_over_http_can_be_spawned_into_a_run` is that
 sentence, and it is written to be un-fakeable: the definition is created with
 `client.post`, and the only thing the test asserts against is the event log the
 run produced. No Python object describing the agent is ever constructed by the
 test.
 
-The second clause — the allowlist — lives in `test_agent_allowlist.py`.
+The second clause (the allowlist) lives in `test_agent_allowlist.py`.
 """
 
 from __future__ import annotations
@@ -188,7 +188,7 @@ def test_a_caller_cannot_mint_a_builtin(client: TestClient) -> None:
     """`is_builtin` is not an input.
 
     If it were, a caller could create a definition that the delete path then
-    refuses to remove — an undeletable row a user never asked to be permanent.
+    refuses to remove: an undeletable row a user never asked to be permanent.
     """
     response = client.post("/agents", json=a_definition(is_builtin=True))
 
@@ -242,7 +242,7 @@ def test_an_agent_can_be_created_when_the_cap_is_below_the_default(
     was to guess that a hidden default had collided with the cap.
 
     Found by lowering the cap on a running sidecar and creating an ordinary
-    agent — the whole suite was green, because every test until now either sent
+    agent: the whole suite was green, because every test until now either sent
     an explicit `max_steps` or left the cap at its default.
     """
     assert client.patch("/settings", json={"max_steps_per_agent": 4}).status_code == 200
@@ -356,7 +356,7 @@ def test_every_catalogue_tool_is_now_available(client: TestClient) -> None:
     """Phase 6 flipped what Phase 5 asserted was false.
 
     `available` is computed from the registry rather than hardcoded, so this
-    also catches a catalogue entry that never got an implementation — a tool
+    also catches a catalogue entry that never got an implementation: a tool
     the editor would offer, a definition could allow, and a run would then
     refuse.
     """
@@ -372,7 +372,7 @@ def test_every_catalogue_tool_has_an_implementation() -> None:
     Each half is internally consistent, so drift between them is invisible
     without this: an entry with no implementation is a tool a user can tick and
     an agent cannot call, and an implementation with no entry is a tool no
-    allowlist can ever name — unreachable code that looks like a feature.
+    allowlist can ever name: unreachable code that looks like a feature.
     """
     registry = build_registry()
 
@@ -380,7 +380,7 @@ def test_every_catalogue_tool_has_an_implementation() -> None:
 
     for declaration in CATALOGUE:
         implementation = registry[declaration.name]
-        # Risk is read from the catalogue, never restated — so the level the
+        # Risk is read from the catalogue, never restated, so the level the
         # editor shows next to a checkbox is the level the gate enforces.
         assert implementation.risk is declaration.risk
 
@@ -417,7 +417,7 @@ def test_auto_approve_never_exceeds_the_workspace_policy(
 ) -> None:
     """§5 Phase 5's security note, as arithmetic.
 
-    Nothing consumes this in Phase 5 — there is no gate and no tool to put
+    Nothing consumes this in Phase 5: there is no gate and no tool to put
     behind one. It is settled here so Phase 6 wires a workspace policy into a
     rule that already exists rather than inventing one while building the gate.
     """
@@ -548,7 +548,7 @@ async def test_a_definition_edited_mid_run_does_not_affect_the_in_flight_run(
     """§5 Phase 5: "A definition edited mid-run does not affect the in-flight
     run. Runs snapshot the definitions they started with."
 
-    The edit lands during the supervisor's first model call — after the roster
+    The edit lands during the supervisor's first model call: after the roster
     was loaded, before the worker is spawned. If the registry read the database
     at spawn time instead of at run start, the worker below would carry the new
     role and this test would fail.
@@ -567,7 +567,7 @@ async def test_a_definition_edited_mid_run_does_not_affect_the_in_flight_run(
     )
 
     assert rebuilt.agent("summariser").role == "The original role"
-    # The edit did happen — this is not passing because the write silently failed.
+    # The edit did happen: this is not passing because the write silently failed.
     assert (await agents.require(created.id)).role == "The edited role"
 
 
@@ -625,7 +625,7 @@ async def test_spawning_one_definition_twice_produces_two_agents(
     ledger: BudgetLedger,
 ) -> None:
     """Two agents sharing an `agent_id` would merge into one node on replay, so
-    the second spawn of a definition is deduplicated — but both still point at
+    the second spawn of a definition is deduplicated, but both still point at
     the same row."""
     await agents.create(a_definition())
 
@@ -660,7 +660,7 @@ async def test_the_supervisor_is_told_which_agents_it_has(
     ledger: BudgetLedger,
 ) -> None:
     """The roster reaches the model through the system prompt, and it has to
-    carry each agent's tools — a supervisor handing a file-writing subtask to
+    carry each agent's tools: a supervisor handing a file-writing subtask to
     an agent with an empty allowlist has picked wrong, and can only know that
     if it was told."""
     await agents.create(a_definition(allowed_tools=["read_file"]))
@@ -721,7 +721,7 @@ async def test_an_empty_roster_is_described_rather_than_left_blank(
 #
 # §4 lets a definition pin `provider` and `model`, with NULL meaning "inherit
 # the workspace default". Honouring that is what stops those columns being
-# decoration — this project has already shipped one setting that returned
+# decoration: this project has already shipped one setting that returned
 # 200 OK and changed nothing.
 
 

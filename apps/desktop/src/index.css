@@ -7,9 +7,9 @@
  * of the five states a run can be in. Each is a projection of the event log
  * like everything else on screen. One accent, for the thing to do next.
  *
- * Every colour is a token, and every token is defined twice — the light
+ * Every colour is a token, and every token is defined twice - the light
  * palette on `:root`, the dark one under the OS preference and again under
- * the explicit override — so no colour has a single definition and nothing
+ * the explicit override - so no colour has a single definition and nothing
  * below this block knows which theme it is in.
  *
  * Nothing here animates a value that comes from the log. §5 Phase 7 asks that a
@@ -1029,7 +1029,7 @@ pre {
 }
 
 /* Scrolls as a whole when the window is shorter than the panel's minimum
-   rows — at Tauri's 600px floor with a claim block open, the log used to be
+   rows - at Tauri's 600px floor with a claim block open, the log used to be
    clipped with no way to reach it. */
 .runs-view__main {
   display: flex;
@@ -1559,7 +1559,7 @@ pre {
 
 /* Each row is a button so it can open to its payload from the keyboard too;
    the button reset below keeps it looking like a row. Its height is fixed
-   — ROW_PX in EventLog.tsx — so where a row sits is arithmetic. */
+   - ROW_PX in EventLog.tsx - so where a row sits is arithmetic. */
 .log__row {
   display: grid;
   grid-template-columns: 2.75rem 4.5rem minmax(0, 1fr) auto;

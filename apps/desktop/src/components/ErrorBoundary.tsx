@@ -5,7 +5,7 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
  * catch a render error.
  *
  * Without it, one payload the reducer or React Flow did not expect blanked the
- * whole window with nothing to click — for a dashboard whose stated job is to
+ * whole window with nothing to click: for a dashboard whose stated job is to
  * be readable when something has gone wrong. The boundary shows what threw and
  * offers to try again; `key`ing the subtree on `attempt` is what makes "try
  * again" a real remount rather than a re-render of the same broken state.
@@ -20,7 +20,7 @@ export interface ErrorBoundaryProps {
   label: string;
   /**
    * When this changes, a boundary showing its fallback tries again. The
-   * children are *not* remounted for it — `key`ing the boundary itself on the
+   * children are *not* remounted for it: `key`ing the boundary itself on the
    * run id did that, and every run switch rebuilt the graph canvas from
    * nothing. Only a fallback needs a fresh start; a healthy subtree keeps its
    * DOM and re-renders with the new run.
@@ -64,7 +64,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           <p className="boundary__title">Something in {this.props.label} could not be drawn.</p>
           <pre className="boundary__message">{this.state.error.message}</pre>
           <p className="boundary__hint">
-            The event log on the sidecar is untouched — this is the window failing to render it.
+            The event log on the sidecar is untouched: this is the window failing to render it.
           </p>
           <button type="button" className="button" onClick={this.reset}>
             Try again

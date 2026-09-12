@@ -1,19 +1,19 @@
 [project]
 name = "agentspace"
 version = "0.1.0"
-description = "Local-first autonomous agent co-working space — FastAPI sidecar."
+description = "Local-first autonomous agent co-working space: FastAPI sidecar."
 requires-python = "==3.12.*"
 dependencies = [
     "fastapi>=0.115.0",
     # The HTTP client the providers call model APIs with. A runtime dependency
     # from Phase 3 on: it was previously dev-only, arriving under Starlette's
     # TestClient. The distribution is `httpx2` and the module it provides is
-    # `httpx2` — not `httpx` — which is the httpx 2.x line.
+    # `httpx2`, not `httpx`, which is the httpx 2.x line.
     "httpx2>=2.12.0",
     "uvicorn>=0.32.0",
-    # BUILD_SPEC §5 Phase 8 names both libraries. Unlike the provider SDKs —
-    # which §5 Phase 3 left open, and which this project deliberately declined
-    # in favour of raw HTTP — a chat gateway is not a JSON-over-HTTP endpoint:
+    # BUILD_SPEC §5 Phase 8 names both libraries. Unlike the provider SDKs
+    # (which §5 Phase 3 left open, and which this project deliberately declined
+    # in favour of raw HTTP), a chat gateway is not a JSON-over-HTTP endpoint:
     # Discord is a stateful websocket with a heartbeat and a resume protocol,
     # and reimplementing that is a project, not an adapter.
     "discord-py>=2.4.0",
@@ -33,7 +33,7 @@ dev = [
     "pytest-timeout>=2.3.1",
     "ruff>=0.14.0",
     # Read by `test_ci_workflow.py` only. The CI workflow is the one file that
-    # encodes Phase 9's acceptance criterion — the test job gating the build job —
+    # encodes Phase 9's acceptance criterion (the test job gating the build job)
     # and a silently deleted `needs:` would leave a release built on untested
     # code with nothing to notice. Dev-only, so it never reaches the frozen
     # sidecar.
@@ -66,13 +66,13 @@ select = [
     "B",         # flake8-bugbear
     "A",         # flake8-builtins
     "C4",        # flake8-comprehensions
-    "DTZ",       # flake8-datetimez  — no naive datetimes in an event log
-    "PTH",       # flake8-use-pathlib — BUILD_SPEC §5 Phase 0: zero string path concat
+    "DTZ",       # flake8-datetimez: no naive datetimes in an event log
+    "PTH",       # flake8-use-pathlib (BUILD_SPEC §5 Phase 0: zero string path concat)
     "SIM",       # flake8-simplify
     "RUF",       # ruff-specific
     "S",         # flake8-bandit
     "ASYNC",     # flake8-async
-    "T20",       # flake8-print — the event log is the output channel, not stdout
+    "T20",       # flake8-print: the event log is the output channel, not stdout
     "TID",       # flake8-tidy-imports
     "ARG",       # unused arguments
     "RET",       # flake8-return
@@ -85,7 +85,7 @@ ignore = [
 # The built-in tools implement the `Tool` protocol, whose `execute` takes the
 # sandbox because `run_shell` needs it as a working directory. The filesystem
 # and network tools resolved everything they need in `prepare`, so they hold a
-# parameter they do not read — and renaming it to `_sandbox` would stop them
+# parameter they do not read, and renaming it to `_sandbox` would stop them
 # conforming to the protocol. Same exemption, same scope and same reasoning as
 # the test doubles below: ARG002 only, so ARG001 keeps its signal.
 "src/agentspace/tools/builtin/**" = ["ARG002"]
@@ -98,7 +98,7 @@ ignore = [
 "tests/**" = [
     "S101",  # assert is the point of a test
     # Test doubles implement a Protocol, so they must keep the parameter names
-    # they do not use — renaming them to `_x` would stop them conforming. This
+    # they do not use, renaming them to `_x` would stop them conforming. This
     # is scoped to ARG002 (method arguments) on purpose: ARG001 stays on, and
     # promptly caught a genuinely unused parameter in `test_providers.py`.
     "ARG002",
@@ -116,7 +116,7 @@ indent-style = "space"
 line-ending = "lf"
 
 # ---------------------------------------------------------------------------
-# mypy — strict, no escape hatches
+# mypy: strict, no escape hatches
 # ---------------------------------------------------------------------------
 [tool.mypy]
 python_version = "3.12"
@@ -139,7 +139,7 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-q --strict-markers --strict-config"
 # No single test should take this long. Without a cap, an SSE stream that
-# fails to terminate hangs the suite — and in Phase 9, the CI job — instead
+# fails to terminate hangs the suite (and in Phase 9, the CI job) instead
 # of failing. anyio is declared explicitly because the async tests run on
 # its pytest plugin; it arrives under Starlette either way, but depending on
 # a transitive dependency for the test harness is how a suite breaks on an

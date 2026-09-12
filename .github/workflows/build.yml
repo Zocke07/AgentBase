@@ -1,9 +1,9 @@
-# BUILD_SPEC §5 Phase 9 — CI and release.
+# BUILD_SPEC §5 Phase 9: CI and release.
 #
 # The shape that matters is the gate: `build` declares `needs: test`, so nothing
 # is bundled until every leg of the test matrix is green. §5 Phase 9 puts it
-# plainly — "CI that only builds and never tests is not CI, it's a compiler check
-# with extra steps" — and a red test therefore blocks the build job entirely
+# plainly: "CI that only builds and never tests is not CI, it's a compiler check
+# with extra steps", and a red test therefore blocks the build job entirely
 # rather than producing an installer nobody should download.
 #
 # Both jobs run on windows-latest and macos-latest. Windows is what ships (§1
@@ -100,7 +100,7 @@ jobs:
       - name: Verify the built artefacts
         run: just verify-build
 
-      # `cargo clippy --all-targets -- -D warnings` on the Tauri shell — the one
+      # `cargo clippy --all-targets -- -D warnings` on the Tauri shell: the one
       # lint in this repository that nothing else runs.
       #
       # It comes *after* the build, which looks backwards for a lint and is not
@@ -108,7 +108,7 @@ jobs:
       # for every cargo invocation, clippy included, so with no frozen sidecar in
       # `binaries/` it fails with "resource path ... doesn't exist" before clippy
       # lints a single line. Run #3 failed on exactly that, on both platforms,
-      # while passing locally — because a dev tree already has a sidecar sitting
+      # while passing locally, because a dev tree already has a sidecar sitting
       # there from the last build.
       - name: Lint the Rust shell
         run: just check-tauri
@@ -130,13 +130,13 @@ jobs:
     # Windows machine with no Python installed". There is no second Windows
     # machine and there will not be one (CLAUDE.md, "The machine reality"), so
     # this is the nearest thing that can be stated: a fresh windows-latest runner
-    # is a different machine — no .venv, no node_modules, no toolchain state —
+    # is a different machine (no .venv, no node_modules, no toolchain state)
     # and the installed sidecar is launched with Python scrubbed from PATH. It
     # runs against the artefact the build job uploaded, not a rebuild: the bytes
     # a user would download are the bytes that have to work.
     #
     # The runner does ship Python system-wide, which is why the scrub is
-    # asserted before anything is launched — a scrub that quietly failed would
+    # asserted before anything is launched: a scrub that quietly failed would
     # make the whole job a green no-op.
     needs: build
     runs-on: windows-latest
@@ -178,8 +178,8 @@ jobs:
           path: dist
 
       # Shipped unsigned, per §5 Phase 9. Windows does not hard-block an
-      # unsigned app the way macOS does — SmartScreen shows one prompt and the
-      # user clicks through once — so the release notes say so rather than
+      # unsigned app the way macOS does (SmartScreen shows one prompt and the
+      # user clicks through once), so the release notes say so rather than
       # leaving it to read as a broken download.
       - name: Create the release
         env:
@@ -188,4 +188,4 @@ jobs:
           gh release create "$GITHUB_REF_NAME" dist/*-setup.exe \
             --repo "$GITHUB_REPOSITORY" \
             --title "AgentSpace $GITHUB_REF_NAME" \
-            --notes 'Windows installer, unsigned. It installs per-user and needs no administrator rights. On first run SmartScreen shows "Windows protected your PC" — click **More info**, then **Run anyway**. This happens once.'
+            --notes 'Windows installer, unsigned. It installs per-user and needs no administrator rights. On first run SmartScreen shows "Windows protected your PC": click **More info**, then **Run anyway**. This happens once.'

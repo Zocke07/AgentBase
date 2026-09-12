@@ -65,8 +65,8 @@ def qualified_model(provider: str, model: str) -> str:
 
     Found the hard way. `GET /settings` used to call `is_priced(settings.model)`
     on the raw value, so every Ollama configuration reported
-    `model_is_priced: false` — a field whose own docstring promises "every run
-    will be refused" — while runs worked perfectly and cost nothing. Meanwhile
+    `model_is_priced: false` (a field whose own docstring promises "every run
+    will be refused") while runs worked perfectly and cost nothing. Meanwhile
     `POST /settings/verify` was correct, because it builds the provider first
     and asks about `provider.model`. Two endpoints, one configuration, opposite
     answers.
@@ -103,7 +103,7 @@ def build_provider(
         stored = secrets.get(required_secret)
         if not stored:
             msg = (
-                f"No API key for {name}. Add it in settings — it is read from the OS "
+                f"No API key for {name}. Add it in settings: it is read from the OS "
                 f"keychain and passed to the sidecar at startup, so the app must be "
                 f"restarted after adding one."
             )

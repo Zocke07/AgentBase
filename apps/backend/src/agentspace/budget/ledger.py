@@ -5,7 +5,7 @@
 
 **Why the guard is a wrapper and not a convention.** The check could have been
 a function the orchestrator is expected to call first. That kind of rule holds
-right up until someone adds a second call site — and the failure is silent and
+right up until someone adds a second call site, and the failure is silent and
 expensive, because the evidence is a provider invoice rather than a stack
 trace. :class:`BudgetedProvider` implements the same protocol as the thing it
 wraps, so the only way to reach the model is through the check. Phase 4 cannot
@@ -13,7 +13,7 @@ forget to call it, because there is nothing else to call.
 
 **The estimate is pessimistic on purpose.** A pre-flight check has to guess the
 cost of a response that has not happened yet. It assumes the model returns
-`max_tokens` — the most it is permitted to — so the guard refuses early rather
+`max_tokens` (the most it is permitted to), so the guard refuses early rather
 than late. What gets *recorded* afterwards is the provider's own reported
 usage, never the estimate.
 """
@@ -88,7 +88,7 @@ def estimate_usage(
     """A deliberately pessimistic upper bound on what a request will cost.
 
     Not a tokenizer. Each provider tokenizes differently and none of them will
-    tell us the count without being asked over the network — which is the very
+    tell us the count without being asked over the network, which is the very
     call we are trying to avoid making. A character heuristic is enough for a
     guard whose only job is to decide "is there room for this at all".
     """
@@ -123,7 +123,7 @@ class BudgetLedger:
         """Total recorded spend for a period, in micros.
 
         ``space_id`` narrows it to the runs of one space, by joining `spend`
-        to `runs` — `spend` itself carries no space, because a run knows its
+        to `runs`: `spend` itself carries no space, because a run knows its
         space and a second column would be a second place for the answer to
         live (§5 Phase 11).
         """
@@ -201,7 +201,7 @@ class BudgetLedger:
 
         :raises UnknownModelError: if the model has no price. Recording zero
             for an unknown model would corrupt the cap silently, so this fails
-            loudly instead — and writes nothing.
+            loudly instead, and writes nothing.
         """
         cost = cost_micros(model, usage)  # raises before any row is written
         period = current_period()
@@ -226,7 +226,7 @@ class BudgetLedger:
 
         Both totals are read inside the write transaction. `BEGIN IMMEDIATE`
         serialises writers, so of two runs recording at the same moment,
-        exactly one sees the total cross the warning threshold — the other
+        exactly one sees the total cross the warning threshold: the other
         reads a "before" that already includes the first. Reading "before"
         outside the lock, as this once did, let both see the same total and
         both warn.
@@ -307,7 +307,7 @@ class BudgetedProvider:
     """A :class:`~agentspace.providers.base.Provider` that cannot outspend the cap.
 
     Implements the same protocol as the provider it wraps, so nothing above it
-    knows the difference — which is what makes the check impossible to skip.
+    knows the difference, which is what makes the check impossible to skip.
     """
 
     def __init__(self, inner: Provider, ledger: BudgetLedger, run_id: str | None) -> None:
@@ -331,7 +331,7 @@ class BudgetedProvider:
         system: str | None = None,
         max_tokens: int = 4096,
     ) -> Completion:
-        """Check, call, record — in that order, always."""
+        """Check, call, record: in that order, always."""
         projected = estimate_usage(messages, max_tokens=max_tokens, system=system)
 
         if self._run_id is not None:
@@ -360,7 +360,7 @@ class BudgetedProvider:
         system: str | None = None,
         max_tokens: int = 4096,
     ) -> AsyncIterator[StreamEvent]:
-        """Check, stream, record — in that order, always.
+        """Check, stream, record: in that order, always.
 
         Wrapping this method is not optional. The orchestrator streams by
         default, so a `BudgetedProvider` that guarded only `complete` would
@@ -369,7 +369,7 @@ class BudgetedProvider:
 
         **Spend is recorded before the terminal completion is yielded, not
         after.** A consumer that stops iterating the moment it has the
-        completion — an entirely reasonable thing to write — would otherwise
+        completion (an entirely reasonable thing to write) would otherwise
         close the generator before the recording line ever ran, and the call
         would go unbilled.
         """

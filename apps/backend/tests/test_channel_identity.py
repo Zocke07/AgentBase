@@ -46,7 +46,7 @@ def test_an_empty_allowlist_admits_nobody() -> None:
     There the empty list means "inherit the workspace policy", because a
     strict reading made the workspace setting inert. Here there is no wider
     policy to fall back to, and the only two readings are "nobody" and
-    "everybody" — so the fallback directions are opposite and both are the
+    "everybody": so the fallback directions are opposite and both are the
     safe one for their own case. A later reader tempted to make these
     consistent should make them consistent in *reasoning*, not in shape.
     """
@@ -57,7 +57,7 @@ def test_surrounding_whitespace_in_configuration_still_matches() -> None:
     """Narrowing-safe normalisation only.
 
     An id pasted out of Discord's "Copy User ID" with a trailing space would
-    otherwise fail to match, and the symptom — "the bot ignores me" — gives the
+    otherwise fail to match, and the symptom ("the bot ignores me") gives the
     owner nothing to go on.
     """
     directory = IdentityDirectory(
@@ -120,7 +120,7 @@ def test_the_refusal_shown_to_a_stranger_reveals_nothing_about_the_workspace() -
     """The message goes to somebody who is, by definition, not trusted.
 
     It must not name the workspace, the owner, the allowlisted identities, or
-    the goal they tried to run — all of which are things a stranger probing a
+    the goal they tried to run: all of which are things a stranger probing a
     bot would like to learn. The *log* records all of it; the reply does not.
     """
     message = refusal_text("discord")

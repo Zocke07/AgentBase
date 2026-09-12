@@ -2,7 +2,7 @@
 
 §5 Phase 8: "Both adapters normalize to `{channel, external_user_id, text,
 thread_ref, ts}` and emit `channel.inbound`." :class:`InboundMessage` is that
-tuple, and it is the *only* shape the rest of the application ever sees — a
+tuple, and it is the *only* shape the rest of the application ever sees: a
 `discord.Interaction` stops here.
 
 **Two protocols, not one, because a platform differs in one place only.**
@@ -10,8 +10,8 @@ tuple, and it is the *only* shape the rest of the application ever sees — a
 whether it is healthy. :class:`ChannelReply` is a single conversation's reply
 handle, and it exists because "edit the message you already sent" is the one
 operation chat platforms genuinely implement differently. Everything between
-those two — identity, refusal, starting the run, folding the log, throttling,
-emitting `channel.outbound` — is shared, so a second channel would inherit
+those two (identity, refusal, starting the run, folding the log, throttling,
+emitting `channel.outbound`) is shared, so a second channel would inherit
 all of it and implement only the edit. There was a second one, Telegram, and
 it was removed on 2026-09-11 having never held a session (CLAUDE.md records
 the decision); the seam stays, because it is what made removing it a matter
@@ -49,7 +49,7 @@ ChannelName = Literal["discord"]
 CHANNEL_NAMES: Final[tuple[ChannelName, ...]] = ("discord",)
 
 #: What caused this message to reach us. §1 constraint 6 permits exactly two
-#: triggers — "explicit commands/mentions only" — and recording which one fired
+#: triggers ("explicit commands/mentions only"), and recording which one fired
 #: is what makes that constraint auditable from the log rather than merely
 #: claimed in a docstring. There is no member for an ambient channel message,
 #: because there is no code path that produces one.
@@ -60,7 +60,7 @@ TriggerKind = Literal["command", "mention"]
 class InboundMessage:
     """One normalized message from a chat channel.
 
-    :param thread_ref: where a reply belongs — a Discord channel id. Stored
+    :param thread_ref: where a reply belongs: a Discord channel id. Stored
         as `runs.origin_ref` (§4), which is what makes a run resumable as a
         conversation rather than only as a row.
     """
@@ -108,7 +108,7 @@ class ChannelReply(Protocol):
       platforms' rate limits without the throttle having to be clever, and it
       is also the better reading experience: a run's status stays in one place
       instead of scrolling away.
-    - :meth:`ask` offers an approval affordance — buttons, on Discord. It is
+    - :meth:`ask` offers an approval affordance: buttons, on Discord. It is
       allowed to do nothing, and does when the workspace policy keeps approvals
       in the dashboard.
     - :meth:`close` releases whatever the platform needs releasing.
@@ -133,7 +133,7 @@ class ChannelAdapter(Protocol):
 
     Started and stopped by :class:`~agentspace.channels.service.ChannelService`,
     which supervises it. An adapter is expected to raise rather than to loop
-    forever on a fatal error — the supervisor is what decides whether to retry,
+    forever on a fatal error: the supervisor is what decides whether to retry,
     so an adapter that swallowed its own failures would make the channel appear
     healthy while receiving nothing.
     """

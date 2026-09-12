@@ -1,12 +1,12 @@
 """The supervisor: decompose a goal, put agents to work, report.
 
 §5 Phase 4: "given a goal, decomposes into subtasks and spawns worker agents."
-§5 Phase 5 changed where those workers come from — the supervisor no longer
+§5 Phase 5 changed where those workers come from: the supervisor no longer
 invents one by naming it, it chooses from the roster in `agent_defs`.
 
 The supervisor is an :class:`~agentspace.orchestrator.agent.Agent` with one
 extra control call, `spawn_agent`. It runs the same loop, emits the same
-events, and is subject to the same step limit — a supervisor that could not run
+events, and is subject to the same step limit: a supervisor that could not run
 out of steps would be the one agent able to loop forever.
 
 **The supervisor is not itself a definition.** §5 Phase 5 says the registry
@@ -108,7 +108,7 @@ class Supervisor(Agent):
             # Deliberately no runtime: the supervisor has no `allowed_tools`,
             # so `_permit` can never return CATALOGUE for it and a runtime
             # would be unreachable machinery. The one agent present in every
-            # run is the one that touches nothing — see the module docstring.
+            # run is the one that touches nothing: see the module docstring.
             runtime=None,
         )
         self._registry = registry
@@ -128,7 +128,7 @@ class Supervisor(Agent):
         Every failure below is reported to the supervisor as a `tool.error` and
         leaves the run alive. A supervisor naming an agent that does not exist,
         asking for one worker too many, or picking a definition whose provider
-        is not configured has made one bad call — destroying work the other
+        is not configured has made one bad call: destroying work the other
         agents have already done would trade real output for strictness. The
         step limit is what stops a supervisor that only ever makes bad calls.
         """
@@ -184,7 +184,7 @@ class Supervisor(Agent):
         result = await self._mailbox.collect(sender=name, recipient=self.name)
 
         # A worker cannot spawn, so a handoff comes back here as a request.
-        # The shape — not the content — is read off the outcome, so this can
+        # The shape (not the content) is read off the outcome, so this can
         # say whether the name is one the roster knows. Phase 6 watched a
         # worker hand off to a nonexistent agent and the supervisor do nothing
         # with it; what it is handed now is what to call, or why it cannot.

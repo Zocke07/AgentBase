@@ -1,7 +1,7 @@
 """Discord, over `discord.py`.
 
 §5 Phase 8 in full: "Slash commands and @mentions only. Do **not** request the
-`MessageContent` privileged intent — the non-privileged baseline is sufficient
+`MessageContent` privileged intent: the non-privileged baseline is sufficient
 and keeps the review requirement and the attack surface off the table. Defer the
 interaction immediately (3s ack limit) and edit the deferred reply as events
 stream. Throttle outbound through the adapter."
@@ -11,8 +11,8 @@ Each of those is load-bearing, so each is implemented literally.
 **No `MessageContent` intent.** :data:`INTENTS` is `discord.Intents.none()` plus
 `guilds`, and nothing else. That is not merely declining a checkbox: without
 that intent Discord sends this bot the text of a message *only* when the bot is
-mentioned in it, which makes §1 constraint 6 — "never ingest ambient channel
-messages into agent context" — a property of what the gateway will send rather
+mentioned in it, which makes §1 constraint 6: "never ingest ambient channel
+messages into agent context", a property of what the gateway will send rather
 than a rule this code has to keep. The strongest version of a rule about not
 reading something is not being given it.
 
@@ -127,7 +127,7 @@ class DiscordAdapter:
         **Global commands are cached by Discord for up to an hour.** `sync()`
         with no guild is what the documentation and most examples show, and for
         this product it means a bot that connects, reports itself healthy, and
-        does nothing at all for the rest of the afternoon — which is exactly
+        does nothing at all for the rest of the afternoon, which is exactly
         what happened the first time this was run against a real server: the
         gateway connected, `GET /channels` said `running: true`, and typing the
         command produced no interaction, no event and no log line, because the
@@ -135,7 +135,7 @@ class DiscordAdapter:
 
         Guild-scoped commands appear immediately. This is a local-first
         personal application whose bot lives in one or two servers, so syncing
-        per guild is not a development shortcut here — it is the correct
+        per guild is not a development shortcut here: it is the correct
         registration for the deployment. The global path is what a public bot
         with thousands of installs needs, and this is not that.
 
@@ -185,7 +185,7 @@ class DiscordAdapter:
         """The @mention trigger.
 
         Without `MessageContent`, `message.content` is empty unless this bot was
-        mentioned — so the guard below is belt and braces over a gateway that is
+        mentioned, so the guard below is belt and braces over a gateway that is
         already not sending us anything else. Bots are ignored so two instances
         of this application cannot talk each other into a loop.
         """
@@ -195,7 +195,7 @@ class DiscordAdapter:
 
         goal = _MENTION.sub("", message.content).strip()
         if not goal:
-            await message.reply("Tell me what to do — for example: @agent summarise q3.md")
+            await message.reply("Tell me what to do, for example: @agent summarise q3.md")
             return
 
         inbound = InboundMessage(
@@ -215,7 +215,7 @@ class DiscordAdapter:
 
         Not awaited inline: a run takes minutes and `discord.py` dispatches
         events on the same task that called us, so blocking here would stop the
-        client answering anything else — including the very approval button this
+        client answering anything else, including the very approval button this
         run is about to be waiting on.
         """
         self._deps.launcher.spawn(self._guarded(inbound, reply))
@@ -226,7 +226,7 @@ class DiscordAdapter:
         except asyncio.CancelledError:
             raise
         except Exception:
-            # One conversation failing must not take the gateway down with it —
+            # One conversation failing must not take the gateway down with it -
             # the client is shared by every other conversation and by the
             # approval buttons a run in flight is waiting on.
             logger.exception("discord conversation failed")
@@ -300,8 +300,8 @@ class _ApprovalView(discord.ui.View):
     """Allow / Deny buttons for one pending approval.
 
     **This is not a privileged path** (§1 constraint 5). The buttons call
-    :meth:`~agentspace.tools.approval.ApprovalService.resolve` — the identical
-    method `POST /approvals/{id}` calls, including its 409 on an already-settled
+    :meth:`~agentspace.tools.approval.ApprovalService.resolve` (the identical
+    method `POST /approvals/{id}` calls), including its 409 on an already-settled
     row, which is what a second click or a race with the dashboard produces.
     There is no channel-specific approval code inside the gate, because the gate
     never learns a channel exists.
@@ -344,8 +344,8 @@ class _ApprovalView(discord.ui.View):
             await self._deps.approvals.resolve(self._approval_id, approved=approved)
         except ApprovalNotPendingError:
             # Somebody answered from the dashboard first, or the run's own
-            # wall-clock budget expired it. Both are ordinary — this is the
-            # same 409 two browser windows produce — and the honest thing is to
+            # wall-clock budget expired it. Both are ordinary (this is the
+            # same 409 two browser windows produce), and the honest thing is to
             # say so rather than to pretend the click did something.
             await interaction.response.edit_message(
                 content="Already answered elsewhere.", view=None

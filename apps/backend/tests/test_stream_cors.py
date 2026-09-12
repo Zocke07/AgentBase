@@ -8,7 +8,7 @@ webview does.** The `curl` run that satisfies §5 Phase 2's acceptance criterion
 has exactly that blind spot, so the headers are asserted here instead.
 
 `EventSource` adds a second trap that plain `fetch` does not have. The initial
-connection is a simple GET and is not preflighted — but on reconnect the
+connection is a simple GET and is not preflighted, but on reconnect the
 browser adds `Last-Event-ID`, which is not a CORS-safelisted request header, so
 the resume request *is* preflighted. A configuration that allows the origin but
 not that header yields a stream which works once and then dies silently at the
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 #: only bites after `tauri build`.
 TAURI_WINDOWS_ORIGIN = "http://tauri.localhost"
 
-#: The origin the packaged app runs from on macOS and Linux — a custom
+#: The origin the packaged app runs from on macOS and Linux: a custom
 #: scheme, not an `http` one. Pinned by name: the parametrised test below runs
 #: for every allowlisted origin, so removing this one would only shrink that
 #: parametrisation and stay green, and nothing on this machine can open the
@@ -60,7 +60,7 @@ def test_the_macos_packaged_app_origin_is_allowlisted() -> None:
 def test_the_macos_origin_survives_the_reconnect_preflight(client: TestClient) -> None:
     """Phase 1's CORS bug on Windows was found by installing the app and
     looking. Nobody can look on macOS from here, so the one thing a test can
-    do is hold the two origins to the same contract — including the
+    do is hold the two origins to the same contract: including the
     preflighted reconnect, which is where a stream that worked once dies."""
     run = client.post("/runs", json={"goal": "g"}).json()
 
@@ -94,7 +94,7 @@ def test_preflight_permits_last_event_id_so_reconnects_work(client: TestClient) 
     """The resume request is preflighted; the first connection is not.
 
     Getting this wrong produces a stream that works until the first reconnect
-    and then fails silently — which is indistinguishable, from the UI, from a
+    and then fails silently, which is indistinguishable, from the UI, from a
     run that simply stopped emitting.
     """
     run = client.post("/runs", json={"goal": "g"}).json()
@@ -118,7 +118,7 @@ def test_an_unlisted_origin_is_refused(client: TestClient) -> None:
     """The allowlist must stay an allowlist (CLAUDE.md, §1).
 
     A wildcard would let any page the user happens to have open read from their
-    agent workspace — including the event log, which carries tool arguments and
+    agent workspace: including the event log, which carries tool arguments and
     model output.
     """
     run = client.post("/debug/fake_run?step_ms=0").json()

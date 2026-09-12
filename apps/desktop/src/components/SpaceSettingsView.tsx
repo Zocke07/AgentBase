@@ -13,23 +13,23 @@ import { revealFolder, revealAvailable } from "../lib/folder";
 import { useFetched } from "../state/useFetched";
 
 /**
- * One space's settings — BUILD_SPEC §5 Phase 11, "space settings are one
+ * One space's settings: BUILD_SPEC §5 Phase 11, "space settings are one
  * page; app settings are another".
  *
  * Name and description; the folder its runs read and write, shown as a
- * path with a button that opens it; then the rules — model, approval
- * policy, run limits — each with **Inherit** as the first choice, because
+ * path with a button that opens it; then the rules (model, approval
+ * policy, run limits) each with **Inherit** as the first choice, because
  * a rule a space has not set is the app-wide default and the page has to say
  * so rather than show the default as if the space had chosen it. And a
  * danger zone: archive, and delete when the sidecar allows it.
  *
  * **Save is a PATCH of what changed**, and a rule set back to Inherit is
- * sent as `null` — that is how the sidecar tells "inherit again" from "not
+ * sent as `null`: that is how the sidecar tells "inherit again" from "not
  * sent", so this cannot drop nulls the way the app settings form does. A
  * refusal lands on the field the server named.
  *
- * The approval policy here can only *narrow* the app-wide one — the sidecar
- * intersects the two — and the page says so beside the checkboxes rather
+ * The approval policy here can only *narrow* the app-wide one (the sidecar
+ * intersects the two), and the page says so beside the checkboxes rather
  * than letting a tick the app-wide policy does not include look like it did
  * something.
  */
@@ -102,7 +102,7 @@ export function SpaceSettingsView({ space, settings, onChanged }: SpaceSettingsV
   const loadCatalogue = useCallback(() => api.listProviders(), []);
   const catalogue = useFetched(loadCatalogue, EMPTY_CATALOGUE);
   // Held above the form: a save reloads the space list, the row's
-  // `updated_at` changes, and the form remounts from it — which would lose a
+  // `updated_at` changes, and the form remounts from it, which would lose a
   // "saved" note kept inside it before it was read.
   const [saved, setSaved] = useState(false);
 
@@ -290,7 +290,7 @@ function SpaceForm({
         <h2>Model</h2>
         <p className="settings__hint">
           Inherit uses the app-wide default
-          {inherited !== undefined && ` — ${inherited.provider ?? "?"} · ${inherited.model ?? "?"}`}.
+          {inherited !== undefined && `: ${inherited.provider ?? "?"} · ${inherited.model ?? "?"}`}.
         </p>
         <div className="editor__row">
           <label className="editor__field">
@@ -395,7 +395,7 @@ function SpaceForm({
               }}
               data-testid="space-approvals-own"
             />
-            <span className="editor__tool-description">This space&apos;s own policy — nothing ticked asks for everything</span>
+            <span className="editor__tool-description">This space&apos;s own policy: nothing ticked asks for everything</span>
           </label>
           {form.auto_approve !== null && (
             <div className="editor__risks">
@@ -423,7 +423,7 @@ function SpaceForm({
                       {level === "low" && "reads inside the folder"}
                       {level === "medium" && "writes inside the folder, fetches a public URL"}
                       {level === "high" && "runs a shell command"}
-                      {inherited !== undefined && chosen && !allowedAbove && " — not enabled app-wide, so still asks"}
+                      {inherited !== undefined && chosen && !allowedAbove && ": not enabled app-wide, so still asks"}
                     </span>
                   </label>
                 );
@@ -456,8 +456,8 @@ function SpaceForm({
           <h2>Archive or delete</h2>
           <p className="settings__hint">
             Archiving keeps every run this space has had and takes it out of the switcher. Deleting
-            is only allowed for a space with no runs — delete them one by one from Runs first, or
-            archive instead — and removes its agents.
+            is only allowed for a space with no runs (delete them one by one from Runs first, or
+            archive instead) and removes its agents.
           </p>
           <div className="card__actions">
             <button

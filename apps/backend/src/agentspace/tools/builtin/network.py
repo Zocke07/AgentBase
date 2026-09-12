@@ -1,17 +1,17 @@
-"""`http_get` — the one tool that leaves the machine.
+"""`http_get`: the one tool that leaves the machine.
 
 Medium risk rather than low despite being a read, and the catalogue already
 says why: it is the tool that can carry the contents of the workspace off the
 machine, so a prompt-injected agent calling it is an exfiltration path rather
 than a page view. The URL goes through
 :meth:`agentspace.tools.sandbox.Sandbox.check_url` in `prepare`, which refuses
-`file:`, `data:`, and every address that is not on the public internet —
+`file:`, `data:`, and every address that is not on the public internet -
 including this application's own API on loopback.
 
 **The connection is made to the address that was checked.** `prepare` keeps
 the address `resolve_url` saw, and `execute` puts it in the URL it connects
 to, with the name the agent wrote carried in the `Host` header and, over
-TLS, as the SNI — so the certificate is still verified against the name. The
+TLS, as the SNI, so the certificate is still verified against the name. The
 resolver is asked once, at the check; a name that would answer differently
 the second time is never asked a second time. That is the DNS-rebinding gap
 `check_url` used to concede, closed where the docstring said it had to be:
@@ -54,7 +54,7 @@ class HttpGetTool:
     @property
     def description(self) -> str:
         declaration = lookup(self.name)
-        if declaration is None:  # pragma: no cover — pinned by a test
+        if declaration is None:  # pragma: no cover: pinned by a test
             msg = f"{self.name!r} has an implementation but no catalogue entry"
             raise RuntimeError(msg)
         return declaration.description
@@ -62,7 +62,7 @@ class HttpGetTool:
     @property
     def risk(self) -> RiskLevel:
         declaration = lookup(self.name)
-        if declaration is None:  # pragma: no cover — pinned by a test
+        if declaration is None:  # pragma: no cover: pinned by a test
             msg = f"{self.name!r} has an implementation but no catalogue entry"
             raise RuntimeError(msg)
         return declaration.risk
@@ -76,7 +76,7 @@ class HttpGetTool:
                     "type": "string",
                     "description": (
                         "Full http:// or https:// URL to fetch. Must be a "
-                        "public address — local and private addresses are "
+                        "public address: local and private addresses are "
                         "refused."
                     ),
                 }
@@ -113,7 +113,7 @@ class HttpGetTool:
 
         # Connect to the checked address; present the name. A literal address
         # rewrites to itself. `httpx2` brackets an IPv6 literal for us, and it
-        # would otherwise set `Host` from the URL — the address — so the header
+        # would otherwise set `Host` from the URL (the address), so the header
         # is given explicitly, port included when one was written.
         parsed = httpx2.URL(url)
         pinned = parsed.copy_with(host=address)
@@ -136,7 +136,7 @@ class HttpGetTool:
             raise ToolExecutionError(msg)
 
         # Redirects are reported rather than followed. A redirect is how a
-        # checked public URL becomes an unchecked private one — the sandbox
+        # checked public URL becomes an unchecked private one: the sandbox
         # validated the address the agent named, and following a `Location`
         # header would fetch an address nothing validated. Handing the target
         # back lets the agent ask for it explicitly, which puts it through

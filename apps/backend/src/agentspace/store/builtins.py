@@ -3,7 +3,7 @@
 Migration 003 seeds these into the first roster and migration 004 widens
 their allowlists; both are SQL that runs exactly once. A space created later
 asks for "fresh copies of the three seeded roles" (§5 Phase 11), which needs
-the roles in Python — and a test asserts these match what the migrations
+the roles in Python, and a test asserts these match what the migrations
 seeded, so the two copies cannot drift.
 
 Only the *content* of a role lives here. Ids are minted per copy: the fixed
@@ -33,7 +33,7 @@ BUILTIN_ROLES: Final[tuple[BuiltinRole, ...]] = (
             "You are a researcher. Establish the facts you have been asked for and "
             "report them plainly, with figures where figures exist. State what you "
             "do not know rather than filling the gap. Do not write prose for "
-            "publication — another agent does that with what you find."
+            "publication: another agent does that with what you find."
         ),
         "allowed_tools": ("read_file", "list_dir"),
     },
@@ -43,7 +43,7 @@ BUILTIN_ROLES: Final[tuple[BuiltinRole, ...]] = (
         "system_prompt": (
             "You are a writer. Turn what you have been given into clear, concrete "
             "prose for a reader who was not present for the research. Keep the "
-            "figures exactly as they were given to you — do not round them, and do "
+            "figures exactly as they were given to you: do not round them, and do "
             "not add any you were not given. Be brief."
         ),
         "allowed_tools": ("read_file", "write_file"),

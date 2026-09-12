@@ -16,8 +16,8 @@ resolves to nobody, and a message from nobody starts no run.
 
 That is not a hypothetical hardening. The three things a stranger's command
 would otherwise reach are the owner's monthly API budget, the owner's desktop
-(every `medium`/`high` tool call raises a dialog on it), and — through
-`run_shell` — the owner's user account.
+(every `medium`/`high` tool call raises a dialog on it), and, through
+`run_shell`, the owner's user account.
 
 **Deny by default, which is the opposite of the Phase 6 decision about an empty
 `auto_approve`, and deliberately so.** There an empty list means "inherit the
@@ -66,7 +66,7 @@ class IdentityDirectory:
 
     Built fresh from the workspace settings on each inbound message rather than
     cached. The list is a handful of entries and the lookup happens once per
-    chat command, so the cost is nothing — and the alternative is a directory
+    chat command, so the cost is nothing, and the alternative is a directory
     that keeps admitting somebody the owner has just removed.
     """
 

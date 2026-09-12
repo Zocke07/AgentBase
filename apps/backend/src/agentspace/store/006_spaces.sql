@@ -1,4 +1,4 @@
--- Migration 006 — spaces (BUILD_SPEC §5 Phase 11).
+-- Migration 006 - spaces (BUILD_SPEC §5 Phase 11).
 --
 -- A space owns a roster, a folder and a set of rules; runs belong to the
 -- space they were started in. `spaces` is the table §5 Phase 11 specifies,
@@ -7,14 +7,14 @@
 -- owns.
 --
 -- **The default space has a fixed id**, like the seeded built-ins in 003, so
--- "the default space" is one identity on every machine — and so this file and
+-- "the default space" is one identity on every machine - and so this file and
 -- `store/spaces.py` can agree on it by literal rather than by lookup. Every
 -- rule on it is NULL, which means "inherit the app-wide default": a database
 -- upgraded by this migration behaves exactly as the single workspace did.
 --
 -- **Both `space_id` columns arrive by table rebuild**, not `ALTER TABLE ADD
 -- COLUMN`. SQLite will not add a `REFERENCES` column with a non-NULL default
--- while foreign keys are on, and cannot add `NOT NULL` without one — so each
+-- while foreign keys are on, and cannot add `NOT NULL` without one - so each
 -- table is created again with the column, copied, dropped and renamed. That
 -- needs foreign keys *off* for the duration (`DROP TABLE runs` would otherwise
 -- refuse, because `events` still points at it), which is why `db.py` runs

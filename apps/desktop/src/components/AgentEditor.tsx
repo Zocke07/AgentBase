@@ -12,11 +12,11 @@ import { ApiError } from "../lib/api";
 
 
 /**
- * Create or edit one agent definition — §5 Phase 7's `AgentEditor.tsx`.
+ * Create or edit one agent definition: §5 Phase 7's `AgentEditor.tsx`.
  *
  * Two requirements from the spec shape this whole component.
  *
- * **"Surface the API's validation errors inline on the offending field — never a
+ * **"Surface the API's validation errors inline on the offending field, never a
  * toast that loses which field was wrong."** Phase 5 built the backend half of
  * this: every rejection is a 4xx carrying `{message, field}`, and Phase 6 kept
  * it that way. So a failure here is rendered against the input named by the
@@ -26,7 +26,7 @@ import { ApiError } from "../lib/api";
  * **"Tool checkboxes show each tool's risk level next to it, so the consequence
  * of ticking `run_shell` is visible at the moment of ticking it."** The risk
  * comes from `GET /tools`, which reads the same catalogue the approval gate
- * enforces against — a hardcoded list here would drift from the thing that
+ * enforces against: a hardcoded list here would drift from the thing that
  * actually decides.
  *
  * Note what an allowlist does *not* do: ticking `run_shell` grants permission
@@ -34,7 +34,7 @@ import { ApiError } from "../lib/api";
  * approval gate (§1 constraint 5), which is why the hint below says so.
  *
  * **The model field follows the provider.** The catalogue arrives grouped per
- * provider, and the model dropdown shows the chosen provider's models — or the
+ * provider, and the model dropdown shows the chosen provider's models, or the
  * workspace provider's, when the provider is inherited. A flat list once let a
  * definition pin an Anthropic model under provider `openai`, refused only when
  * a run tried to use it. A provider with no fixed list (Ollama serves whatever
@@ -44,8 +44,8 @@ import { ApiError } from "../lib/api";
  * enable toggle and this editor can be open on the same row at once. Sending
  * the whole form on save meant sending the `enabled` the form was opened with,
  * so toggling in the roster and then saving an unrelated edit undid the
- * toggle without a word. `UpdateAgentRequest` is a PATCH — omitted fields are
- * untouched — and the diff is against the snapshot this form started from,
+ * toggle without a word. `UpdateAgentRequest` is a PATCH (omitted fields are
+ * untouched), and the diff is against the snapshot this form started from,
  * which is the only thing that knows what the user did and did not touch.
  */
 
@@ -102,7 +102,7 @@ function toRequest(form: FormState): CreateAgentRequest {
   };
 }
 
-/** The fields of `after` that differ from `before` — a PATCH body. */
+/** The fields of `after` that differ from `before`: a PATCH body. */
 function changedFields(before: CreateAgentRequest, after: CreateAgentRequest): UpdateAgentRequest {
   const patch: UpdateAgentRequest = {};
   for (const key of Object.keys(after) as (keyof CreateAgentRequest)[]) {
@@ -201,7 +201,7 @@ export function AgentEditor({
 
     // The server would refuse these too; a round trip for a form that is
     // visibly incomplete is a round trip for nothing. It stays the authority
-    // on everything else — uniqueness, the step cap, the tool catalogue.
+    // on everything else: uniqueness, the step cap, the tool catalogue.
     const incomplete: Record<string, string> = {};
     if (form.name.trim() === "") incomplete.name = "Give the agent a name.";
     if (form.system_prompt.trim() === "") incomplete.system_prompt = "Give the agent a system prompt.";
@@ -213,7 +213,7 @@ export function AgentEditor({
     setSaving(true);
     const body = toRequest(form);
 
-    // Editing: only what changed. Nothing changed is nothing to send — the
+    // Editing: only what changed. Nothing changed is nothing to send: the
     // server would answer 400 "no fields were supplied", which is true and
     // not what a person who clicked Save with an untouched form wants to read.
     if (agent !== null) {
@@ -376,7 +376,7 @@ export function AgentEditor({
           )}
           {freeText && (
             <span className="editor__hint editor__hint--field">
-              {effectiveProvider} serves whatever you have pulled — type the model name.
+              {effectiveProvider} serves whatever you have pulled: type the model name.
             </span>
           )}
           {strayModel !== null && (
@@ -417,7 +417,7 @@ export function AgentEditor({
         <legend>Tools this agent may call</legend>
         <p className="editor__hint">
           An allowlist: an agent can call nothing that is not ticked here. Ticking
-          a tool is permission from the definition, not from you — every call still
+          a tool is permission from the definition, not from you: every call still
           stops at the approval gate unless your policy pre-approves its risk level.
         </p>
 
@@ -449,7 +449,7 @@ export function AgentEditor({
       <fieldset className="editor__tools">
         <legend>Calls this agent may make without asking</legend>
         <p className="editor__hint">
-          Narrows the workspace policy for this agent only — it can never widen it.
+          Narrows the workspace policy for this agent only: it can never widen it.
           Nothing ticked means the workspace policy applies as it is.
         </p>
         <div className="editor__risks">

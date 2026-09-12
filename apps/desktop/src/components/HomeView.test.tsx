@@ -123,7 +123,7 @@ describe("starting a run", () => {
   });
 
   it("says why a run would be refused and does not offer to start one", async () => {
-    /* The header said "unpriced — runs will be refused" and the meter said
+    /* The header said "unpriced: runs will be refused" and the meter said
        "further runs are refused" while the Start button stayed live. Every
        click added a dead `failed` row, with the reason only in its log. */
     const user = userEvent.setup();

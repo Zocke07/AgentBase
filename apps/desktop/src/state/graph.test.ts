@@ -12,7 +12,7 @@ import { reduceAll } from "./reducer";
  * The camera tests are here because of a measured failure. React Flow's own
  * `fitView` frames what it has measured, so a run watched from the start framed
  * itself at `scale(1.43)` while the same run replayed framed itself at
- * `scale(1.25)` — 10% of the canvas's pixels different, with an identical graph
+ * `scale(1.25)`: 10% of the canvas's pixels different, with an identical graph
  * underneath. That is BUILD_SPEC §5 Phase 7's "pixel-identical" criterion
  * failing on the one part of the canvas that was not a projection of the log.
  *
@@ -74,7 +74,7 @@ describe("layout", () => {
   it("draws a handoff to a name the run never spawned as a ghost node", () => {
     /* Watched in Phase 6: after a denial the worker handed off to a
        nonexistent `another_agent`. React Flow drops an edge whose target
-       does not exist — with a console warning and nothing drawn — so the
+       does not exist (with a console warning and nothing drawn), so the
        one handoff that most needs seeing was the one that vanished. */
     const log = new LogBuilder();
     const state = reduceAll([

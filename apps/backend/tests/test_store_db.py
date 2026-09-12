@@ -4,7 +4,7 @@ The migration runner is deliberately exercised as a *sequence*, not a one-shot
 schema load. Migration 001 creates `runs` and `events`; 002 adds `spend` and
 `settings` for Phase 3; 003 adds `agent_defs` for Phase 5 and seeds it.
 `approvals` still arrives in the phase that uses it (BUILD_SPEC §5 says do not
-build ahead), so the synthetic-migration tests below stay — they prove stepping
+build ahead), so the synthetic-migration tests below stay: they prove stepping
 works past whatever the current head happens to be.
 
 Migration 002 was the first one that runs against a database that already holds
@@ -109,7 +109,7 @@ def test_migration_creates_the_agent_registry(db: Database) -> None:
 def test_every_table_the_data_model_specifies_now_exists(db: Database) -> None:
     """BUILD_SPEC §4's five tables, all present as of migration 004.
 
-    This test previously asserted the opposite for `approvals` — that it did
+    This test previously asserted the opposite for `approvals`: that it did
     *not* exist, because §5 says not to build ahead and the table belonged to
     Phase 6's approval gate. Phase 6 is what changed it, and it is kept as a
     completeness check rather than deleted: §4 is a contract, and a migration
@@ -266,7 +266,7 @@ def test_upgrade_drops_the_telegram_allowlist_entries_and_keeps_the_rest(
     """A v4 database with a Telegram identity in its allowlist must still open.
 
     `channel_identities` is validated against the channels this build speaks,
-    so an entry for the removed channel would fail on every read — taking
+    so an entry for the removed channel would fail on every read, taking
     `GET /settings`, and with it every run, down with it. The migration removes
     exactly those entries, keeps every other one, and drops the dead
     `telegram_enabled` row.
@@ -344,11 +344,11 @@ def test_upgrade_preserves_an_existing_populated_database(app_paths: AppPaths) -
 
     Every migration test before Phase 3 ran against a fresh file, and the
     shipped app upgrades over a user's existing event log. A migration that
-    drops or rewrites data here is unrecoverable — there is no down-migration
+    drops or rewrites data here is unrecoverable: there is no down-migration
     by design.
 
     The v1 schema is built explicitly rather than by monkeypatching MIGRATIONS
-    down to one entry, so this walks the whole real chain — 1 -> 2 -> 3 — and
+    down to one entry, so this walks the whole real chain (1 -> 2 -> 3) and
     keeps doing so as migrations are added.
     """
     first = Database(app_paths.db_path)
@@ -429,7 +429,7 @@ def test_every_migration_file_is_bundled_by_the_packaging_glob() -> None:
 
     `--add-data` in the justfile used to name `schema.sql` explicitly, so
     adding migration 002 would have produced a binary that starts and then dies
-    on a missing resource — invisible to `just ci`, to every dev run, and to
+    on a missing resource: invisible to `just ci`, to every dev run, and to
     every test, because all of those read the file straight off the source
     tree. The glob fixes it; this asserts the glob stays.
     """

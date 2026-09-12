@@ -2,12 +2,12 @@ import type { AgentDef } from "@agentspace/schemas";
 import { useState } from "react";
 
 /**
- * The roster — §5 Phase 7's `AgentList.tsx`: "every defined agent, its role,
+ * The roster: §5 Phase 7's `AgentList.tsx`: "every defined agent, its role,
  * model, and tool count. Enable/disable toggle. Create and delete."
  *
  * The list shows every definition, enabled or not, because this is the editor's
- * view of them. A *run* sees only the enabled ones — the registry filters at
- * load time — so the toggle here is what decides whether the supervisor can
+ * view of them. A *run* sees only the enabled ones (the registry filters at
+ * load time), so the toggle here is what decides whether the supervisor can
  * draw on an agent at all, and hiding disabled rows would make that invisible.
  *
  * Delete is offered on every row and refused by the server for built-ins with a

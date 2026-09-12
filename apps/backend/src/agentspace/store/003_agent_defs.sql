@@ -1,4 +1,4 @@
--- Migration 003 — agent definitions (BUILD_SPEC §4, §5 Phase 5).
+-- Migration 003 - agent definitions (BUILD_SPEC §4, §5 Phase 5).
 --
 -- `agent_defs` is §4 verbatim. This is the migration that turns agents from
 -- hardcoded Python classes into editable data: from here on `registry.py`
@@ -7,7 +7,7 @@
 -- **The built-ins are seeded here rather than on first launch in code.**
 -- §5 Phase 5 asks for 3-4 definitions seeded "on first launch" so a fresh
 -- install is usable immediately, and the obvious implementation is a startup
--- check — "are there any built-in rows? if not, insert them". That check is
+-- check - "are there any built-in rows? if not, insert them". That check is
 -- wrong the first time a user edits a built-in and then upgrades: any
 -- re-seeding logic has to distinguish "never seeded" from "seeded and since
 -- edited", and getting it wrong silently reverts the user's edit. A migration
@@ -20,7 +20,7 @@
 --
 -- Every seeded definition has an empty `allowed_tools`. That is not a
 -- placeholder: §5 Phase 5 says "an empty array means the agent can reason and
--- hand off but touches nothing", which is exactly the truth in this phase —
+-- hand off but touches nothing", which is exactly the truth in this phase -
 -- no tool is implemented until Phase 6's approval gate exists, so an agent
 -- seeded with `write_file` would spend a step discovering it cannot use it.
 -- Phase 6 widens these rows when there is something for them to point at.
@@ -54,7 +54,7 @@ VALUES
     'You are a researcher. Establish the facts you have been asked for and '
       || 'report them plainly, with figures where figures exist. State what you '
       || 'do not know rather than filling the gap. Do not write prose for '
-      || 'publication — another agent does that with what you find.',
+      || 'publication: another agent does that with what you find.',
     '[]', 20, 1, strftime('%Y-%m-%dT%H:%M:%S+00:00','now'), strftime('%Y-%m-%dT%H:%M:%S+00:00','now')
   ),
   (
@@ -63,7 +63,7 @@ VALUES
     'Turns findings into clear prose for the reader',
     'You are a writer. Turn what you have been given into clear, concrete '
       || 'prose for a reader who was not present for the research. Keep the '
-      || 'figures exactly as they were given to you — do not round them, and do '
+      || 'figures exactly as they were given to you: do not round them, and do '
       || 'not add any you were not given. Be brief.',
     '[]', 20, 1, strftime('%Y-%m-%dT%H:%M:%S+00:00','now'), strftime('%Y-%m-%dT%H:%M:%S+00:00','now')
   ),

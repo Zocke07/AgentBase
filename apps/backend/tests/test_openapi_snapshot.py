@@ -2,7 +2,7 @@
 
 §5 Phase 7: "Generate TS types from the FastAPI OpenAPI schema; never
 hand-write the API types." Generation only helps if the generated artefact is
-current — a stale `packages/schemas/openapi.json` produces a frontend that
+current: a stale `packages/schemas/openapi.json` produces a frontend that
 typechecks perfectly against an API that no longer exists, which is worse than
 hand-written types because it *looks* verified.
 

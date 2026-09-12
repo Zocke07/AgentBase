@@ -27,7 +27,7 @@ import { RunPanel } from "./RunPanel";
  *    opening a past run drives it.
  *
  * A component that read a clock, fetched anything, or kept run state of its own
- * would break this, and that is the point — the criterion is a constraint on
+ * would break this, and that is the point: the criterion is a constraint on
  * the components, not a property of the reducer alone.
  */
 
@@ -55,7 +55,7 @@ function finished(snapshot: ReturnType<typeof store>): boolean {
 
 /**
  * Render the run panel from a store snapshot, deciding the approval panel's
- * read-only state exactly as `RunsView` does — from the *transport* (`following`)
+ * read-only state exactly as `RunsView` does: from the *transport* (`following`)
  * and the terminal status, never from the folded approval alone.
  */
 function panel(snapshot: ReturnType<typeof store>) {
@@ -74,14 +74,14 @@ function panel(snapshot: ReturnType<typeof store>) {
 }
 
 /**
- * The markup of the run *projection* — the part that is a pure function of the
+ * The markup of the run *projection*: the part that is a pure function of the
  * log. The scrubber is excluded on purpose and the exclusion is the honest one:
  * live at event 12 the log holds 12 events, replayed at 12 it holds 28 and you
  * are standing at 12 of them. See `RunPanel`.
  *
  * The approval panel's *question* is included for the same reason the summary
- * is: it is a fold of the log. Its action row is not — live at the head there
- * are buttons, replayed to the same position there are none — so it sits
+ * is: it is a fold of the log. Its action row is not (live at the head there
+ * are buttons, replayed to the same position there are none), so it sits
  * beside the scrubber on the transport side of the line.
  */
 function markup(snapshot: ReturnType<typeof store>): string {
@@ -101,7 +101,7 @@ function wholePanel(snapshot: ReturnType<typeof store>): string {
  * Render, then read one region's markup out of *that render's* container.
  *
  * Scoped to the container rather than the document because these tests render
- * twice inside one test — once per path — and a document-wide query would find
+ * twice inside one test (once per path), and a document-wide query would find
  * both copies and refuse to choose.
  */
 function region(snapshot: ReturnType<typeof store>, testId: string): string {
@@ -130,7 +130,7 @@ describe("replay renders identically to live", () => {
 
   it("produces the same DOM at every intermediate position", () => {
     /* The scrubber's whole promise. Position N replayed must equal what the
-       screen held when event N arrived — for every N, not just the last. */
+       screen held when event N arrived: for every N, not just the last. */
     const events = twoAgentRun();
 
     for (let position = 0; position <= events.length; position += 1) {

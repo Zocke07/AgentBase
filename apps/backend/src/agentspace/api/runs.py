@@ -40,11 +40,11 @@ logger = logging.getLogger("agentspace.api")
 
 router = APIRouter()
 
-#: The scripted debug sequence — 20 events, which at the default 500 ms step
+#: The scripted debug sequence: 20 events, which at the default 500 ms step
 #: is the "~20 events over 10 seconds" §5 Phase 2 asks for. Shaped like a real
 #: run (spawn, think, call a tool, get it approved, hand off, finish) so the
 #: Phase 7 graph has something meaningful to render before an orchestrator
-#: exists to produce it — and, since it is what the dashboard shows before any
+#: exists to produce it, and, since it is what the dashboard shows before any
 #: key is configured, shaped *exactly* like one: each payload carries the keys
 #: the real emitters write and the reducer reads. It once said ``decision``
 #: where the reducer reads ``status`` and ``bytes`` where it reads ``result``,
@@ -93,7 +93,7 @@ _FAKE_RUN_SCRIPT: Final[tuple[tuple[EventType, str | None, dict[str, Any]], ...]
             "tool": "read_file",
             "args": {"path": "q3.md"},
             "risk": "low",
-            "prompt": 'Agent "researcher" wants to read q3.md — Allow / Deny',
+            "prompt": 'Agent "researcher" wants to read q3.md: Allow / Deny',
             "summary": "read the file q3.md",
         },
     ),
@@ -184,7 +184,7 @@ async def create_run(request: Request, body: CreateRunRequest) -> Run:
     """Create a run and start the orchestrator on it.
 
     Returns as soon as the row exists rather than waiting for the run to
-    finish. A run takes minutes and the client watches it over SSE — holding
+    finish. A run takes minutes and the client watches it over SSE: holding
     the request open would make the event stream a second way to learn the same
     thing, and would put a proxy's idle timeout in charge of when a run ends.
 
@@ -230,11 +230,11 @@ async def list_runs(
     limit: Annotated[int, Query(ge=1, le=MAX_RUN_LIST_LIMIT)] = DEFAULT_RUN_LIST_LIMIT,
     space_id: str | None = None,
 ) -> list[Run]:
-    """Recent runs, newest first — what the Phase 7 replay picker reads.
+    """Recent runs, newest first: what the Phase 7 replay picker reads.
 
     §5 Phase 7 requires "Replay: scrub any past run from the event log", and a
-    user cannot scrub a run they cannot find. The alternative — a UI keeping
-    its own list of the runs it happens to have seen — would make the client an
+    user cannot scrub a run they cannot find. The alternative (a UI keeping
+    its own list of the runs it happens to have seen) would make the client an
     authority on something the database already knows, which is the drift §2
     exists to prevent.
     """
@@ -251,10 +251,10 @@ async def cancel_run(request: Request, run_id: str) -> Run:
     """Ask a run to stop.
 
     202, not 200: the run stops at its next check, before its next model
-    call, and writes `run.cancelled` itself — the stream is where that is
+    call, and writes `run.cancelled` itself: the stream is where that is
     seen, and the row returned here may still say `running`. A finished run
-    is a 409 naming its status; one this process is not driving — the
-    scripted debug run, or a row from before a restart — is a 409 too.
+    is a 409 naming its status; one this process is not driving (the
+    scripted debug run, or a row from before a restart) is a 409 too.
     """
     run = await _require_run(request, run_id)
     if run.status in _TERMINAL:
@@ -275,7 +275,7 @@ async def delete_run(request: Request, run_id: str) -> Response:
 
     204 with nothing to say: the run is gone from `GET /runs` and every route
     under it is a 404. A run that has not ended is a 409 telling the caller to
-    cancel it first — deleting the log from under an orchestrator that is
+    cancel it first: deleting the log from under an orchestrator that is
     still appending to it is the one thing this must never do, and the row's
     status is checked inside the store's transaction so a terminal event
     landing at the same moment cannot slip past it. A run this process is
@@ -378,7 +378,7 @@ async def fake_run(
     the pace §5 Phase 2 specifies.
     """
     store = _store(request)
-    run = await store.create_run(goal="Debug run — scripted event sequence", origin="ui")
+    run = await store.create_run(goal="Debug run: scripted event sequence", origin="ui")
 
     _spawn(request, _play_script(store, run.id, step_ms))
     return run

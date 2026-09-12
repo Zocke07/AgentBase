@@ -8,12 +8,12 @@ would be building ahead and a second implementation to keep in sync forever.
 `test_orchestrator.py`; Phase 5 needs the same reconstruction to assert that a
 denied tool call, and the definition an agent was built from, are recoverable
 from the log alone. Two copies of a reducer is two answers to "what does the
-log say", which is the drift §2 exists to prevent — in the tests as much as in
+log say", which is the drift §2 exists to prevent: in the tests as much as in
 the product.
 
 :func:`reconstruct` reads **nothing but the event rows**: no `runs` row, no
 orchestrator object, no provider, no `agent_defs` table. If something a test
-wants to assert is not derivable here, the log does not contain it — which is
+wants to assert is not derivable here, the log does not contain it, which is
 exactly the failure the §5 Phase 4 acceptance criterion is about, and the one
 §5 Phase 5 extends by making an agent's definition part of what a replay has to
 be able to see.
@@ -60,7 +60,7 @@ __all__ = [
 class StandingAnswer:
     """Answers every approval the same way, the instant it is asked.
 
-    A test cannot click a dialog, and an unanswered gate blocks forever — so
+    A test cannot click a dialog, and an unanswered gate blocks forever, so
     something has to stand in for the user. This subscribes to the service's
     own waiter registry rather than reimplementing the gate: the run still
     writes its `approvals` row, still emits `approval.requested` and
@@ -70,7 +70,7 @@ class StandingAnswer:
     That distinction is the reason this is not a fake `ApprovalService`. A fake
     would make every gate test pass without the production gate ever running,
     which is precisely the class of test this project has already been bitten
-    by — see CLAUDE.md on mutations that pass because the thing under test was
+    by: see CLAUDE.md on mutations that pass because the thing under test was
     never actually reached.
     """
 
@@ -121,7 +121,7 @@ def tool_runtime(
 
     Nothing here is a double except, optionally, the tool table itself. The
     sandbox is the production one rooted at ``root``, and the approval service
-    is the production one writing to ``db`` — so a test that reaches the
+    is the production one writing to ``db``, so a test that reaches the
     filesystem is testing the thing that ships.
     """
     service = ApprovalService(ApprovalStore(db), store)
@@ -136,8 +136,8 @@ class ScriptedProvider:
     """A provider that returns a fixed sequence of completions.
 
     Deterministic and free, so the acceptance criteria can be asserted on every
-    run of the suite. It implements the whole protocol — including `stream`,
-    which is the path the orchestrator actually takes — because a double that
+    run of the suite. It implements the whole protocol (including `stream`,
+    which is the path the orchestrator actually takes) because a double that
     implements half of one is a double that proves half of what it appears to.
     """
 
@@ -267,20 +267,20 @@ class ReconstructedAgent:
     # The whole point of the gate is that a user can answer afterwards the
     # question "what did this run do, and what did I agree to". That is only
     # answerable from the log if the request, the resolution and the execution
-    # are each in it separately — so the reducer keeps them separate too.
+    # are each in it separately, so the reducer keeps them separate too.
     auto_approve: tuple[str, ...] = ()
     #: `(tool, risk)` for every approval this agent was asked to wait on.
     approvals_requested: list[tuple[str, str]] = field(default_factory=list)
     #: The human-legible sentence each approval put to the user. In the log
     #: rather than composed by the client, so a replay shows the words the user
-    #: actually saw — §2 makes the UI a projection, and a client building its
+    #: actually saw: §2 makes the UI a projection, and a client building its
     #: own wording could display one thing while the log recorded another.
     approval_prompts: list[str] = field(default_factory=list)
     #: `(tool, status)` for every approval that came back.
     approvals_resolved: list[tuple[str, str]] = field(default_factory=list)
     #: Tools that reached `tool.approved`, and whether policy did it silently.
     approved_tools: list[tuple[str, bool]] = field(default_factory=list)
-    #: `(tool, reason)` for each denial — an allowlist refusal, a sandbox
+    #: `(tool, reason)` for each denial: an allowlist refusal, a sandbox
     #: violation, or a user saying no.
     denials: list[tuple[str, str]] = field(default_factory=list)
     #: What blocked each denied call, when the payload says. `"sandbox"`

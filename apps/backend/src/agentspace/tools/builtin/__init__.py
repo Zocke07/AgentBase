@@ -3,14 +3,14 @@
 Every one of them implements :class:`agentspace.tools.base.Tool`, declares its
 risk by reading :mod:`agentspace.tools.catalogue` rather than restating it, and
 resolves every path and URL through the
-:class:`~agentspace.tools.sandbox.Sandbox` in `prepare` — before the approval
+:class:`~agentspace.tools.sandbox.Sandbox` in `prepare`: before the approval
 gate is consulted and before anything is touched.
 
 **Risk is read from the catalogue, never declared here.** The catalogue is what
 the allowlist validates against and what the Phase 7 agent editor renders next
 to each checkbox. A tool that restated its own risk could disagree with the
-label the user ticked, which would make the editor's whole point — "the
-consequence of ticking `run_shell` is visible at the moment of ticking it" —
+label the user ticked, which would make the editor's whole point ("the
+consequence of ticking `run_shell` is visible at the moment of ticking it")
 quietly false.
 """
 
@@ -53,7 +53,7 @@ BUILTIN_TOOLS: Final[tuple[type[Tool], ...]] = (
 def build_registry() -> dict[str, Tool]:
     """Instantiate every built-in, keyed by name.
 
-    Tools are stateless — the sandbox arrives per call — so one instance each
+    Tools are stateless (the sandbox arrives per call), so one instance each
     is enough and a run does not need its own copies.
     """
     tools: dict[str, Tool] = {}

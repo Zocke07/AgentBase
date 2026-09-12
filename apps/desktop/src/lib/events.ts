@@ -32,7 +32,7 @@ import type { Event, EventType } from "@agentspace/schemas";
  * `EventSource.CLOSED`, as a number rather than a read of the global.
  *
  * The value is fixed by the HTML specification, and reading it off the global
- * constructor would mean this module only works where that global exists —
+ * constructor would mean this module only works where that global exists -
  * which rules out injecting a different implementation, and made the error path
  * below untestable until it was written this way.
  */
@@ -45,7 +45,7 @@ const TERMINAL: ReadonlySet<EventType> = new Set<EventType>([
   "run.cancelled",
 ]);
 
-/** Whether an event ends its run — after it, there is nothing to stream. */
+/** Whether an event ends its run: after it, there is nothing to stream. */
 export function isTerminal(type: EventType): boolean {
   return TERMINAL.has(type);
 }
@@ -80,7 +80,7 @@ const defaultFactory: EventSourceFactory = (url) => new EventSource(url);
 
 export interface RunStreamOptions {
   factory?: EventSourceFactory;
-  /** Ask for events after this `seq` only — the head of an already-loaded history. */
+  /** Ask for events after this `seq` only: the head of an already-loaded history. */
   afterSeq?: number;
 }
 
@@ -102,7 +102,7 @@ export function parseFrame(data: string): Event | null {
 /**
  * Subscribe to a run's events.
  *
- * Returns a handle whose `close()` is idempotent — React effects call it on
+ * Returns a handle whose `close()` is idempotent: React effects call it on
  * unmount, and it also runs when the run finishes.
  */
 export function streamRun(
@@ -153,7 +153,7 @@ export function streamRun(
     // `EventSource` reports a dropped connection and a permanent failure through
     // the same handler; `readyState` is the only thing that separates them.
     // CONNECTING means it is already retrying with the last id, which is the
-    // resume path Phase 2 built the server side of — there is nothing to do but
+    // resume path Phase 2 built the server side of: there is nothing to do but
     // say so.
     if (source.readyState === READY_STATE_CLOSED) {
       closed = true;

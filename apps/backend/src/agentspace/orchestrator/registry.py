@@ -5,10 +5,10 @@ longer imports agent classes; it constructs workers from rows."
 
 Two things live here, both answering "how does a row become an agent":
 
-* :class:`AgentRegistry` — the roster a run was started with, frozen, plus the
+* :class:`AgentRegistry`: the roster a run was started with, frozen, plus the
   construction of an :class:`~agentspace.orchestrator.agent.AgentSpec` from one
   of its rows.
-* :class:`ProviderPool` — which provider an agent talks to, since §4 lets a
+* :class:`ProviderPool`: which provider an agent talks to, since §4 lets a
   definition pin its own `provider` and `model` and inherit the workspace
   default when it does not.
 
@@ -16,7 +16,7 @@ Two things live here, both answering "how does a row become an agent":
 optimisation.** §5 Phase 5: "A definition edited mid-run does not affect the
 in-flight run. Runs snapshot the definitions they started with; changing an
 agent is not a way to mutate a running agent." So the rows are read once, in
-:meth:`AgentRegistry.load`, and every spawn thereafter reads that tuple — never
+:meth:`AgentRegistry.load`, and every spawn thereafter reads that tuple: never
 the database. The same reasoning as
 :class:`~agentspace.orchestrator.limits.RunLimits`: a run must not be held to
 different rules at step 1 and step 12, and a replay has to be able to say what
@@ -67,12 +67,12 @@ __all__ = ["AgentRegistry", "ProviderPool", "compose_worker_prompt"]
 #:
 #: Nothing here grants anything. It names `finish` and `handoff`, which every
 #: agent holds regardless of its allowlist (§5 Phase 5: an empty allowlist
-#: still "can reason and hand off"), and says nothing about the tool catalogue —
+#: still "can reason and hand off"), and says nothing about the tool catalogue -
 #: what an agent may touch is decided by its row and enforced in
 #: :meth:`~agentspace.orchestrator.agent.Agent._permit`, never by prompt text.
 WORKER_PROTOCOL: Final[str] = (
     "You have been given one subtask as part of a larger job.\n\n"
-    "When the subtask is done, call `finish` with your result — that is the "
+    "When the subtask is done, call `finish` with your result: that is the "
     "only way to end your turn, and your result is the only thing passed back. "
     "If the subtask is genuinely outside your role, call `handoff` instead. "
     "Be concise and concrete."
@@ -163,7 +163,7 @@ class AgentRegistry:
         """Build the frozen spec for one spawn of ``definition``.
 
         ``run_name`` is what `Run.register_agent` handed back, which may carry
-        a deduplication suffix — spawning `researcher` twice produces
+        a deduplication suffix: spawning `researcher` twice produces
         `researcher` and `researcher-2`, two agents in the graph, one
         definition behind both.
         """
@@ -189,7 +189,7 @@ class AgentRegistry:
     ) -> list[ToolSpec]:
         """What this agent's model is shown.
 
-        Exposure, not enforcement — see
+        Exposure, not enforcement: see
         :meth:`agentspace.orchestrator.agent.Agent._permit` for the boundary. An
         allowlist entry with no implementation behind it is skipped rather than
         raised on: the row was validated when it was written, and a run is not
@@ -215,7 +215,7 @@ class ProviderPool:
 
     §4 lets a definition pin `provider` and `model`, with ``NULL`` meaning
     "inherit the workspace default". Honouring that is what stops the columns
-    being decoration — this project has already shipped one setting that
+    being decoration: this project has already shipped one setting that
     returned `200 OK` and changed nothing (see CLAUDE.md, Phase 4), and a
     per-agent model that silently did nothing would be the same bug wearing a
     different hat.
@@ -255,7 +255,7 @@ class ProviderPool:
         :raises UnknownProviderError: for a provider name with no implementation.
         :raises ProviderAuthError: when the resolved provider needs a key that
             did not arrive over the stdin handshake. Both reach the supervisor
-            as a `tool.error` on the spawn rather than failing the run — a
+            as a `tool.error` on the spawn rather than failing the run: a
             definition pointing at an unconfigured provider is one bad row, not
             a reason to discard the work the other agents have done.
         """

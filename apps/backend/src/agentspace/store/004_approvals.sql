@@ -1,4 +1,4 @@
--- Migration 004 — the approval gate's durable half (BUILD_SPEC §4, §5 Phase 6).
+-- Migration 004 - the approval gate's durable half (BUILD_SPEC §4, §5 Phase 6).
 --
 -- `approvals` is §4 verbatim. It is the last of the five tables §4 specifies,
 -- and it arrives in the phase that uses it, per the rule migration 001 set:
@@ -9,7 +9,7 @@
 -- blocks an agent on an `asyncio.Future`, and a future is not a fact anyone
 -- can read afterwards. §2 says the event log is the authority and the UI is a
 -- projection of it, so the *decision* travels as `approval.requested` and
--- `approval.resolved` events. This table is not a second copy of that history —
+-- `approval.resolved` events. This table is not a second copy of that history -
 -- it is the index the Phase 7 dialog and `POST /approvals/{id}` need to answer
 -- "which approvals are outstanding right now", which is a question about
 -- current state rather than about what happened, and which scanning the whole
@@ -18,7 +18,7 @@
 -- **`status` includes `expired`, and that is load-bearing.** A pending
 -- approval's waiter is an in-process future. A sidecar restart destroys every
 -- one of them, so a row left `pending` across a restart can never be resolved
--- by anybody — the HTTP handler would find the row, resolve it, and set no
+-- by anybody - the HTTP handler would find the row, resolve it, and set no
 -- future. `ApprovalStore.expire_orphaned_pending` therefore runs at startup
 -- and closes them out, which is why the status exists rather than being an
 -- unused fourth value copied out of the spec.
@@ -58,7 +58,7 @@ CREATE INDEX idx_approvals_run_status ON approvals(run_id, status);
 --
 -- No `auto_approve` is granted to any of them. §5 Phase 6's default is
 -- manual-approve-everything, and a built-in that pre-authorized its own calls
--- would be the definition escalating its own privileges — the exact shape §5
+-- would be the definition escalating its own privileges - the exact shape §5
 -- Phase 5's security note says to stop on.
 UPDATE agent_defs
    SET allowed_tools = '["read_file","list_dir"]',

@@ -4,12 +4,12 @@
  * Everything here is a pure function of its argument. That is not a style
  * preference: BUILD_SPEC §5 Phase 7 asks that replaying a run produce
  * "pixel-identical UI state to what was shown live", and a single relative
- * timestamp — "3 seconds ago" — would make the same event render differently on
+ * timestamp ("3 seconds ago") would make the same event render differently on
  * every fold. Times are therefore absolute and derived from the event's own
  * `ts`, which travels in the log and never changes.
  */
 
-/** `12:00:05` — the event's own clock time, in the viewer's timezone. */
+/** `12:00:05`: the event's own clock time, in the viewer's timezone. */
 export function clockTime(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "--:--:--";
@@ -19,10 +19,10 @@ export function clockTime(iso: string): string {
     .join(":");
 }
 
-/** `2026-09-11 19:03` — the day and the minute, for a list of past runs. */
+/** `2026-09-11 19:03`: the day and the minute, for a list of past runs. */
 export function clockDate(iso: string): string {
   const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return "—";
+  if (Number.isNaN(at.getTime())) return "-";
 
   const pad = (part: number) => String(part).padStart(2, "0");
   return (
@@ -31,7 +31,7 @@ export function clockDate(iso: string): string {
   );
 }
 
-/** `27s`, `1m 32s`, `1h 23m` — a span between two of the log's own timestamps. */
+/** `27s`, `1m 32s`, `1h 23m`: a span between two of the log's own timestamps. */
 export function formatDuration(milliseconds: number): string {
   const total = Math.max(0, Math.round(milliseconds / 1000));
   const hours = Math.floor(total / 3600);
@@ -54,7 +54,7 @@ export function formatMicros(micros: number): string {
   return `$${(Math.round(micros) / 1_000_000).toFixed(4)}`;
 }
 
-/** `1,234` — thousands separated, for token counts. */
+/** `1,234`: thousands separated, for token counts. */
 export function formatCount(value: number): string {
   return value.toLocaleString("en-US");
 }
@@ -67,7 +67,7 @@ export function ellipsise(value: string, limit: number): string {
 
 /**
  * `JSON.stringify`, typed as it behaves: it returns `undefined` for a value it
- * cannot serialise — a function, a symbol, `undefined` itself. The lib types
+ * cannot serialise: a function, a symbol, `undefined` itself. The lib types
  * say `string`. Nothing off the wire is one of those values, and a log panel
  * that threw on the first one would take the whole run view down with it.
  */

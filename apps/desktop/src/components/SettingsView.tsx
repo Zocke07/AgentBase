@@ -21,7 +21,7 @@ import { useFetched } from "../state/useFetched";
  * The settings screen.
  *
  * Until this existed the user guide sent people to Swagger UI at `/docs` for
- * every setting and to Windows Credential Manager for keys — for a product
+ * every setting and to Windows Credential Manager for keys, for a product
  * whose stated success criterion is "no terminal, no config files". Every
  * workspace setting is here, and so is the one thing the sidecar cannot do:
  * putting a key where the shell will find it.
@@ -30,12 +30,12 @@ import { useFetched } from "../state/useFetched";
  * webview writes an entry under the service name the shell reads at spawn and
  * the account name the sidecar publishes; the running sidecar never sees the
  * value, and every row says "restart to apply" for exactly that reason. Which
- * keys are *set* comes from `configured_secrets` — names only, never a value,
+ * keys are *set* comes from `configured_secrets`: names only, never a value,
  * and only ever what reached the sidecar at its last start.
  *
  * **Save is a PATCH of what changed**, diffed against what the screen loaded,
  * so a setting touched from elsewhere meanwhile is not overwritten with a
- * stale copy. A refusal lands on the field the server named — `PATCH
+ * stale copy. A refusal lands on the field the server named: `PATCH
  * /settings` answers `{message, field}` like the agents API does.
  *
  * **Money is dollars here and integer micros on the wire** (§5 Phase 3). The
@@ -137,7 +137,7 @@ export function SettingsView({ onSaved, spaces = [] }: SettingsViewProps) {
   const catalogue = useFetched(loadCatalogue, EMPTY_CATALOGUE);
   const channels = useFetched(loadChannels, NO_CHANNELS);
   // The reply to a save is the whole settings document, so it becomes what the
-  // form starts from next — no second fetch, and no remount that would lose
+  // form starts from next: no second fetch, and no remount that would lose
   // the "saved" note before it was read.
   const [replied, setReplied] = useState<SettingsResponse | null>(null);
   const [saved, setSaved] = useState(false);
@@ -347,7 +347,7 @@ function SettingsForm({
             Check
           </button>
           <span className="settings__hint">
-            Asks the sidecar whether the <em>saved</em> settings can build a provider — no model is called.
+            Asks the sidecar whether the <em>saved</em> settings can build a provider: no model is called.
           </span>
           {verified !== null && (
             <p
@@ -530,7 +530,7 @@ function SettingsForm({
           <legend>Who may answer an approval</legend>
           {(
             [
-              ["dashboard_only", "Only this window — the question is shown in chat, answered here."],
+              ["dashboard_only", "Only this window: the question is shown in chat, answered here."],
               ["originator", "Also the chat user who started the run."],
             ] as const
           ).map(([value, label]) => (
@@ -593,7 +593,7 @@ function SettingsForm({
 /**
  * Light or dark. Not part of the form and not saved with it: the theme is a
  * fact about this window, kept in this browser, and applies the moment it is
- * chosen — see `lib/theme.ts`.
+ * chosen; see `lib/theme.ts`.
  */
 function AppearanceSection() {
   const theme = useThemeStore((state) => state.theme);
@@ -668,13 +668,13 @@ function NumberField({
 
 /**
  * One row per secret the sidecar accepts. "Set" means the sidecar received it
- * at its last start; a key written from here is "set — restart to apply"
+ * at its last start; a key written from here is "set: restart to apply"
  * until then, and the running sidecar never learns the value.
  */
 function KeyRows({ loaded }: { loaded: SettingsResponse }) {
   const available = keychainAvailable();
   // The generated type says the field is there, and a sidecar from before it
-  // was answers without it — the browser can outlive the sidecar it was built
+  // was answers without it, the browser can outlive the sidecar it was built
   // with, and did, in a live check. The rows then fall back to what is set.
   const names: readonly string[] = maybeAbsent(loaded.known_secrets) ?? loaded.configured_secrets;
   const [editing, setEditing] = useState<string | null>(null);
@@ -733,9 +733,9 @@ function KeyRows({ loaded }: { loaded: SettingsResponse }) {
         {names.map((name) => {
           const configured = loaded.configured_secrets.includes(name);
           const state = written.has(name)
-            ? "set — restart AgentSpace to apply"
+            ? "set: restart AgentSpace to apply"
             : cleared.has(name)
-              ? "cleared — restart AgentSpace to apply"
+              ? "cleared: restart AgentSpace to apply"
               : configured
                 ? "set"
                 : "not set";
@@ -811,7 +811,7 @@ function KeyRows({ loaded }: { loaded: SettingsResponse }) {
   );
 }
 
-/** The chat allowlist. An empty list admits nobody — see the Phase 8 notes. */
+/** The chat allowlist. An empty list admits nobody; see the Phase 8 notes. */
 function IdentityList({
   identities,
   error,

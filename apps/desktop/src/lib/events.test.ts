@@ -12,7 +12,7 @@ import { parseFrame, streamRun, type EventSourceFactory } from "./events";
  *
  * The test that earns its place is the terminal-close one. The server ends the
  * response when a run ends, and `EventSource` treats every ended response as a
- * dropped connection — so a client that did not close itself would re-request a
+ * dropped connection, so a client that did not close itself would re-request a
  * finished run every second for as long as the window stayed open. Nothing
  * about that is visible from the server side, and nothing fails; it just
  * quietly polls forever.
@@ -99,7 +99,7 @@ describe("streamRun", () => {
 
   it("delivers every event that arrives on onmessage", () => {
     /* Unnamed frames, one handler. A client using addEventListener for named
-       types would receive nothing here — Phase 2's bug, from the other side. */
+       types would receive nothing here: Phase 2's bug, from the other side. */
     const stream = harness();
     const onEvent = vi.fn();
     const log = new LogBuilder();
@@ -205,7 +205,7 @@ describe("streamRun", () => {
 
   it("reports a malformed frame instead of throwing, and not as a connection error", () => {
     /* One bad frame used to go through `onError`, which the store renders as
-       the connection's state — so the status line read "received a frame that
+       the connection's state, so the status line read "received a frame that
        was not an event" for the rest of the run while events kept arriving,
        because only a reconnect ever set it back to live. A bad frame is a fact
        about one frame; the stream is fine. */

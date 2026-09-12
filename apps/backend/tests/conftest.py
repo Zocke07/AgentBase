@@ -32,7 +32,7 @@ def _isolate_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
     Autouse, and deliberately not optional. `create_app()` with no explicit
     paths falls back to `resolve_app_paths()`, which consults this variable and
-    then the real OS app-data directory — so a test that builds an app without
+    then the real OS app-data directory, so a test that builds an app without
     passing paths opens a database on the developer's actual machine. That is
     not hypothetical: it is how a stray `agentspace.sqlite3` came to sit inside
     the installed application's directory during Phase 2.
@@ -123,8 +123,8 @@ def secrets() -> SecretStore:
 def pytest_addoption(parser: pytest.Parser) -> None:
     """Add `--require-build-checks`.
 
-    The tests that inspect a *built* artefact — the frozen sidecar and the NSIS
-    installer — skip when there is nothing built, so `just test` stays fast and
+    The tests that inspect a *built* artefact (the frozen sidecar and the NSIS
+    installer) skip when there is nothing built, so `just test` stays fast and
     does not depend on build order. That is right for a dev run and wrong for a
     release: a CI job that builds an installer and then skips the staleness
     check has verified nothing, and says so in the same green tick as a job that
@@ -159,7 +159,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 @pytest.fixture
 def build_prerequisite(request: pytest.FixtureRequest) -> Callable[[str | None], None]:
-    """Skip on a missing build prerequisite — or fail, if the caller demanded it.
+    """Skip on a missing build prerequisite, or fail, if the caller demanded it.
 
     Takes the reason a prerequisite is missing, or ``None`` when nothing is.
     Kept as a fixture rather than a plain helper so it can read the command-line

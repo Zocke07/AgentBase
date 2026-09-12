@@ -1,7 +1,7 @@
 """The chat reply, as a pure fold of the event log.
 
 §2: "the UI is a pure projection of the event log". A chat message is a second
-projection of the same log, and this module is that projection — no I/O, no
+projection of the same log, and this module is that projection: no I/O, no
 platform, no clock, nothing but events in and a string out. The adapter
 re-renders from scratch on every edit rather than appending, for the reason
 Phase 7 gave about live versus replay: an accumulating renderer and a rebuilding
@@ -9,8 +9,8 @@ one agree until one of them gains a feature. Here there is only the rebuilding
 one, so a reconnect, a resume or a restart shows what the log says rather than
 what this process happened to witness.
 
-**Plain text, no markdown.** Agent output is arbitrary text — file contents,
-shell output, model prose — and Discord's markdown turns a stray `*`, `_` or
+**Plain text, no markdown.** Agent output is arbitrary text (file contents,
+shell output, model prose), and Discord's markdown turns a stray `*`, `_` or
 backtick in it into formatting, or swallows it. The decision was originally
 forced by Telegram's MarkdownV2, where an unescaped character is a 400 that
 discards the whole message; Telegram is gone and the reasoning survives it.
@@ -19,7 +19,7 @@ One renderer, no escaping, nothing to get wrong.
 **The terminal summary is a claim, and it is rendered beside a count of what
 executed.** This is Phase 7's decision carried across unchanged, and it matters
 more here than there. Four live runs in this project have ended `completed`
-with a summary describing work the log shows never happened — `finish` called by
+with a summary describing work the log shows never happened: `finish` called by
 an agent that never called `write_file` at all. A dashboard user can look at the
 event log and see the disagreement. A chat user cannot see anything except this
 message, so the message has to carry the check itself.
@@ -51,7 +51,7 @@ __all__ = [
 DISCORD_MESSAGE_LIMIT: Final[int] = 2000
 
 #: How many activity lines to keep before clamping starts trimming them. A
-#: chat message is a status board, not a log dump — the log is in the dashboard.
+#: chat message is a status board, not a log dump; the log is in the dashboard.
 MAX_ACTIVITY_LINES: Final[int] = 12
 
 ChatStatus = Literal["pending", "running", "completed", "failed", "cancelled"]
@@ -252,7 +252,7 @@ def _apply(state: _Accumulator, event: Event) -> None:
             blocked = _text(payload, "blocked_by")
             where = f" [{blocked}]" if blocked else ""
             state.denials.append(
-                f"{_text(payload, 'tool', '?')}{where} — "
+                f"{_text(payload, 'tool', '?')}{where}: "
                 f"{_ellipsise(_text(payload, 'reason'), 90)}"
             )
 
@@ -290,8 +290,8 @@ def _apply(state: _Accumulator, event: Event) -> None:
             # to handle a type it has never heard of at runtime. This fold is
             # compiled from the same enum it is folding, so the question can be
             # settled before the process starts. `Event.type` is a validated
-            # `EventType` — a row with an unknown type string fails in
-            # `EventStore._row_to_event` — so nothing reaches this at runtime.
+            # `EventType` (a row with an unknown type string fails in
+            # `EventStore._row_to_event`), so nothing reaches this at runtime.
             assert_never(event.type)
 
 
@@ -338,7 +338,7 @@ def _sections(view: ChatView) -> list[list[str]]:
         for line in view.agents:
             detail = line.reason if line.state == "done" else line.state
             steps = f", {line.steps} steps" if line.steps else ""
-            role = f" — {_ellipsise(line.role, 48)}" if line.role else ""
+            role = f": {_ellipsise(line.role, 48)}" if line.role else ""
             agents.append(f"  {line.name}{role} ({detail}{steps})")
         blocks.append(agents)
 
@@ -367,7 +367,7 @@ def _sections(view: ChatView) -> list[list[str]]:
 
 def _claim_block(view: ChatView) -> list[str]:
     claim = view.claim
-    if claim is None:  # pragma: no cover - guarded by the caller
+    if claim is None:  # pragma: no cover: guarded by the caller
         return []
 
     if claim.kind == "failure":
@@ -389,7 +389,7 @@ def render(view: ChatView, *, limit: int) -> str:
     **What gets dropped first is the activity tail**, because it is the only
     part of the message a reader can recover elsewhere: the whole log is in the
     dashboard. The goal and the terminal claim exist nowhere else in the
-    conversation, so they are the last things to go — and the hard truncation
+    conversation, so they are the last things to go, and the hard truncation
     at the end exists only so that this function cannot return something the
     platform will reject outright, which for Discord is a 400 rather than a
     truncation.

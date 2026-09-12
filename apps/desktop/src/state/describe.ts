@@ -6,11 +6,11 @@ import { display, flag, int, record, text, type Payload } from "../lib/payload";
 import { pendingApprovals, type AgentNode, type RunStatus, type RunView } from "./reducer";
 
 /**
- * The plain-language layer — BUILD_SPEC §5 Phase 11, "plain language first,
+ * The plain-language layer: BUILD_SPEC §5 Phase 11, "plain language first,
  * raw types second".
  *
  * Every event gets a sentence a person can read without knowing the event
- * vocabulary — *researcher wants to write notes.txt (waiting for you)* — and
+ * vocabulary: *researcher wants to write notes.txt (waiting for you)*, and
  * the raw `tool.requested` stays beside it as a chip, because the raw type is
  * what a bug report needs and the sentence is what a person reads. The agent
  * cards and the run's status get the same treatment, and the "Now" line above
@@ -21,7 +21,7 @@ import { pendingApprovals, type AgentNode, type RunStatus, type RunView } from "
  * `replayIdentity.test.tsx` compares them live against replay at every
  * position, and a sentence that read a clock or remembered a previous event
  * would fail it. It also means the sentences live here, beside the reducer,
- * rather than in the components that show them — the reducer decides what an
+ * rather than in the components that show them: the reducer decides what an
  * event *means*, and the wording of that meaning belongs with it.
  *
  * **What the sentences must not do is improve on the log.** A terminal
@@ -29,17 +29,17 @@ import { pendingApprovals, type AgentNode, type RunStatus, type RunView } from "
  * described work that never happened), so its sentence says "the supervisor
  * says", never "the run did". An approval's `prompt` is the sidecar's wording
  * of the *resolved* call and is quoted, never paraphrased from the raw
- * arguments — §2 makes the log the authority, and a client that built its own
+ * arguments: §2 makes the log the authority, and a client that built its own
  * wording could describe a different call from the one that ran.
  */
 
 /** A tool call in three tenses, for the three events a call passes through. */
 interface CallPhrase {
-  /** "write notes.txt" — after "wants to". */
+  /** "write notes.txt", after "wants to". */
   readonly infinitive: string;
-  /** "writing notes.txt" — after "is". */
+  /** "writing notes.txt", after "is". */
   readonly progressive: string;
-  /** "wrote notes.txt" — what happened. */
+  /** "wrote notes.txt", what happened. */
   readonly past: string;
 }
 
@@ -47,7 +47,7 @@ interface CallPhrase {
  * How a call reads, from the tool's name and its arguments.
  *
  * Only the five built-ins and the three control calls get a verb of their own;
- * anything else — a tool this build has never heard of — is rendered as the
+ * anything else (a tool this build has never heard of) is rendered as the
  * raw call, which is honest about what is known. The sandbox resolves paths
  * before it compares them, and this does not: the path shown is what the
  * model *asked for*, which for a `tool.denied` with `blocked_by: "sandbox"` is
@@ -100,8 +100,8 @@ function completionPhrase(reason: string | null): string {
  * One sentence for one event.
  *
  * The subject is the agent the event belongs to, or "the run" when it has
- * none. Text a model or a person wrote — a message, a streamed token, a
- * summary — is quoted and truncated, so a row stays a row; the payload is one
+ * none. Text a model or a person wrote (a message, a streamed token, a
+ * summary) is quoted and truncated, so a row stays a row; the payload is one
  * click away for the whole of it.
  */
 export function sentenceFor(event: Event): string {
@@ -123,7 +123,7 @@ export function sentenceFor(event: Event): string {
       // A claim, and worded as one. What the run *did* is the tool events.
       return summary === null
         ? "The run completed."
-        : `The run completed — the supervisor says: ${quote(summary, 160)}`;
+        : `The run completed. The supervisor says: ${quote(summary, 160)}`;
     }
     case "run.failed": {
       const reason = read("reason");
@@ -139,7 +139,7 @@ export function sentenceFor(event: Event): string {
     // --- agents -------------------------------------------------------------
     case "agent.spawned": {
       const role = read("role");
-      return role === null ? `${who} joined the run.` : `${who} joined the run — ${ellipsise(role, 80)}`;
+      return role === null ? `${who} joined the run.` : `${who} joined the run: ${ellipsise(role, 80)}`;
     }
     case "agent.thinking":
       return `${who} is deciding what to do next (step ${shown("step")}).`;
@@ -162,7 +162,7 @@ export function sentenceFor(event: Event): string {
       const tool = read("stop_reason") === "tool_use" ? ", with a tool call" : "";
       const tokens = `${shown("input_tokens")} tokens in, ${shown("output_tokens")} out${tool}`;
       // A response with no text and no tool call is a model that said
-      // nothing — and the log can now say whether it reasoned first. Phase
+      // nothing, and the log can now say whether it reasoned first. Phase
       // 5 watched a local model do that five times running with the whole
       // response in a separate thinking field; before `thinking` travelled
       // in this event, the two were the same row.
@@ -183,10 +183,10 @@ export function sentenceFor(event: Event): string {
     case "tool.approved":
       // Carries the sidecar's `summary` of the resolved call, like the
       // approval events do; the arguments are not repeated on this one.
-      return `${who} may ${read("summary") ?? phrase.infinitive} — ${flag(payload, "automatic") ? "allowed by policy" : "you allowed it"}.`;
+      return `${who} may ${read("summary") ?? phrase.infinitive}: ${flag(payload, "automatic") ? "allowed by policy" : "you allowed it"}.`;
     case "tool.denied": {
       // Three refusals share this event and are very different things to
-      // see in a run — CLAUDE.md is explicit that a log which collapsed them
+      // see in a run: CLAUDE.md is explicit that a log which collapsed them
       // would render a traversal attempt and a declined dialog identically.
       const reason = ellipsise(read("reason") ?? "", 140);
       if (read("blocked_by") === "sandbox") {
@@ -215,17 +215,17 @@ export function sentenceFor(event: Event): string {
 
     // --- approvals ----------------------------------------------------------
     case "approval.requested": {
-      // `summary` is the sidecar's rendering of the *resolved* call — the
-      // same words the approval panel shows — never rebuilt from `args`.
+      // `summary` is the sidecar's rendering of the *resolved* call (the
+      // same words the approval panel shows), never rebuilt from `args`.
       const summary = read("summary") ?? phrase.infinitive;
       // `precedent` names an earlier denial in this run that settles this
       // one: the question came up again and was not asked again.
       if (read("precedent") !== null) {
-        return `${who} wants to ${summary} — already denied earlier in this run.`;
+        return `${who} wants to ${summary}: already denied earlier in this run.`;
       }
       return flag(payload, "automatic")
-        ? `${who} wants to ${summary} — allowed by policy.`
-        : `${who} wants to ${summary} — waiting for you.`;
+        ? `${who} wants to ${summary}: allowed by policy.`
+        : `${who} wants to ${summary}: waiting for you.`;
     }
     case "approval.resolved": {
       const tool = read("tool") ?? "?";
@@ -252,7 +252,7 @@ export function sentenceFor(event: Event): string {
         : `The month's budget is ${String(percent)}% used.`;
     }
     case "budget.exceeded":
-      return "The monthly cap is reached — nothing past this point called a model.";
+      return "The monthly cap is reached: nothing past this point called a model.";
 
     // --- channels -----------------------------------------------------------
     case "channel.inbound": {
@@ -272,7 +272,7 @@ export function sentenceFor(event: Event): string {
 }
 
 /**
- * The calls that touch nothing — `orchestrator/control.py`'s vocabulary. An
+ * The calls that touch nothing: `orchestrator/control.py`'s vocabulary. An
  * agent "executing" one of these is delegating or finishing, not running a
  * tool, and the supervisor spends most of a run in exactly that state: its
  * `spawn_agent` call stays open for as long as the worker works.
@@ -333,14 +333,14 @@ function plural(count: number, noun: string): string {
 }
 
 /**
- * One sentence about the whole run at this cursor — the "Now" line.
+ * One sentence about the whole run at this cursor: the "Now" line.
  *
  * Derived from the fold and nothing else, so it is identical live and on
  * replay. The order of the cases is the order a person cares about: a question
  * waiting on them beats everything; then what is executing, because a shell
  * command can take half a minute; then who is talking to the model; then who
  * is between steps. A run with nothing happening says so rather than saying
- * nothing — CLAUDE.md records a local model that returned empty content five
+ * nothing: CLAUDE.md records a local model that returned empty content five
  * times running, and "the model said nothing" has to be distinguishable from
  * "the page is broken".
  */

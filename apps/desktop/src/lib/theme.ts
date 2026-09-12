@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { create } from "zustand";
 
 /**
- * Light or dark — BUILD_SPEC §5 Phase 11, "following the OS with an override
+ * Light or dark: BUILD_SPEC §5 Phase 11, "following the OS with an override
  * in Settings".
  *
  * The stylesheet defines both palettes as tokens: the light one on `:root`,
@@ -16,7 +16,7 @@ import { create } from "zustand";
  * in this browser's storage rather than in the sidecar's settings table,
  * where it would follow the data directory to another machine and mean
  * nothing there. The read and the write are wrapped, because storage can be
- * unavailable — a private window, a webview with site data blocked — and a
+ * unavailable (a private window, a webview with site data blocked), and a
  * theme preference is not worth a blank page.
  */
 

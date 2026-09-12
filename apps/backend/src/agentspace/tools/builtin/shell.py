@@ -1,4 +1,4 @@
-"""`run_shell` — the highest-risk tool, and the one with the most honest limits.
+"""`run_shell`: the highest-risk tool, and the one with the most honest limits.
 
 §5 Phase 6 asks for two properties: "`run_shell` has no network and a hard
 timeout." One of those is fully enforceable in-process and the other is not, so
@@ -6,7 +6,7 @@ this module states plainly which is which rather than implying both.
 
 **The hard timeout is real.** The command is killed at
 :data:`~agentspace.tools.sandbox.SHELL_TIMEOUT_SECONDS`, and killed *as a
-process tree* — `taskkill /T` on Windows, a process-group signal on POSIX.
+process tree*: `taskkill /T` on Windows, a process-group signal on POSIX.
 Killing only the direct child is the same mistake Phase 1 made with the
 PyInstaller bootloader: the process the parent holds a handle to is not the
 process doing the work, so `proc.kill()` returns cleanly and leaves the real
@@ -15,8 +15,8 @@ timeout.
 
 **"No network" is not enforced here, and cannot be.** There is no in-process,
 cross-platform way to deny a child process a socket. What this module actually
-does is remove the *environment* that makes network use convenient — proxy
-variables and every inherited secret-bearing variable — which raises the cost
+does is remove the *environment* that makes network use convenient (proxy
+variables and every inherited secret-bearing variable), which raises the cost
 and does not close the hole. A command that calls `curl` still reaches the
 internet.
 
@@ -98,7 +98,7 @@ class RunShellTool:
     @property
     def description(self) -> str:
         declaration = lookup(self.name)
-        if declaration is None:  # pragma: no cover — pinned by a test
+        if declaration is None:  # pragma: no cover: pinned by a test
             msg = f"{self.name!r} has an implementation but no catalogue entry"
             raise RuntimeError(msg)
         return declaration.description
@@ -106,7 +106,7 @@ class RunShellTool:
     @property
     def risk(self) -> RiskLevel:
         declaration = lookup(self.name)
-        if declaration is None:  # pragma: no cover — pinned by a test
+        if declaration is None:  # pragma: no cover: pinned by a test
             msg = f"{self.name!r} has an implementation but no catalogue entry"
             raise RuntimeError(msg)
         return declaration.risk
@@ -142,7 +142,7 @@ class RunShellTool:
 
         # The whole command, verbatim, in the summary. §5 Phase 6 wants a
         # human-legible prompt, and for this tool the command *is* the
-        # legible fact — abbreviating it would hide the part the user is being
+        # legible fact: abbreviating it would hide the part the user is being
         # asked to judge.
         return Prepared(
             tool_name=self.name,
@@ -179,7 +179,7 @@ class RunShellTool:
             await self._kill_tree(process)
             msg = (
                 f"The command was killed after {SHELL_TIMEOUT_SECONDS:.0f} seconds. "
-                f"Commands that wait for input never finish here — stdin is closed."
+                f"Commands that wait for input never finish here: stdin is closed."
             )
             raise ToolExecutionError(msg) from None
 
@@ -190,7 +190,7 @@ class RunShellTool:
     async def _kill_tree(process: asyncio.subprocess.Process) -> None:
         """Kill the command and everything it started.
 
-        `process.kill()` alone stops the shell and leaves its children running —
+        `process.kill()` alone stops the shell and leaves its children running -
         which is how a "timed out" command keeps holding a file and burning CPU
         after the run that started it has ended.
         """
@@ -230,8 +230,8 @@ class RunShellTool:
         """Report the exit code alongside the output.
 
         A non-zero exit is *reported*, not raised: a failing command is
-        frequently the informative result — a test run that fails, a grep that
-        matches nothing — and turning it into `tool.error` would tell the agent
+        frequently the informative result (a test run that fails, a grep that
+        matches nothing), and turning it into `tool.error` would tell the agent
         the tool broke when the tool worked perfectly.
         """
         body = output if output else "(no output)"

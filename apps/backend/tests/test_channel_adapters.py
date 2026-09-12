@@ -1,6 +1,6 @@
 """What the adapters ask their platforms for, asserted without a network.
 
-Two of §5 Phase 8's requirements are not behaviours that show up in a run — they
+Two of §5 Phase 8's requirements are not behaviours that show up in a run: they
 are things the adapter must never *request*, and the only way they fail is
 silently, by working perfectly while listening to far more than they should.
 
@@ -74,7 +74,7 @@ def test_commands_are_registered_per_guild_rather_than_globally() -> None:
     wrong for this product in a way that is invisible from the inside: the
     first live run against a real server connected, reported `running: true`
     through `GET /channels`, logged nothing further, and produced no
-    interaction when the command was typed — because the command did not exist
+    interaction when the command was typed: because the command did not exist
     in the client yet. There is no error anywhere in that sequence.
 
     Guild-scoped commands take effect immediately, and this is a local-first
@@ -147,7 +147,7 @@ def _message(text: str, *, mentions: list[object], author_is_bot: bool = False) 
 
 
 async def test_a_mention_with_a_goal_starts_a_conversation_with_the_goal_alone() -> None:
-    """The second of the two triggers, which the live runs never used — both
+    """The second of the two triggers, which the live runs never used: both
     typed the slash command. The goal handed on is the message with the
     mention stripped, and the message's own author, channel and time."""
     from datetime import datetime

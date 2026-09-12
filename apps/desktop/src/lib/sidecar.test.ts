@@ -160,7 +160,7 @@ describe("fetchHealth", () => {
 
   it("gives up on a request that hangs, rather than waiting on the browser", async () => {
     /* A sidecar that accepts the connection and never answers used to hold an
-       attempt for the browser's own timeout — minutes — and "connecting
+       attempt for the browser's own timeout (minutes) and "connecting
        (attempt 1)" with it. */
     fetchStub.mockImplementation(
       (_url, init) =>

@@ -1,7 +1,7 @@
 """The human-in-the-loop gate: the one thing standing between an agent and the disk.
 
-§1 constraint 5 — "Every filesystem/shell/network tool call passes an approval
-gate before execution. No exceptions, no privileged paths for any channel" — is
+§1 constraint 5: "Every filesystem/shell/network tool call passes an approval
+gate before execution. No exceptions, no privileged paths for any channel", is
 the constraint this module exists to make structural. §5 Phase 6 sets the
 policy: "any `medium`/`high` risk call emits `approval.requested` and blocks
 until resolved. `low` risk (read within workspace) may be auto-approved by
@@ -10,14 +10,14 @@ policy", with a default of manual-approve-everything.
 **What "blocks" means.** :meth:`ApprovalService.request` writes a row, emits
 `approval.requested`, and then genuinely suspends the calling agent on an
 `asyncio.Future` until somebody resolves it over HTTP. Nothing polls, nothing
-times out on a private clock, and — importantly — the agent does not get a
+times out on a private clock, and, importantly, the agent does not get a
 "pending" reply it might reason its way around. There is one code path from
 "the agent asked" to "the tool ran", and a decision sits in the middle of it.
 
 **Three states, and a fourth that is about the process rather than the user.**
 Approved and denied come from a person. Auto-approved comes from policy and is
 recorded as `approval.resolved` all the same, because a projection of the event
-log must be able to say why a call proceeded without a dialog — a silent
+log must be able to say why a call proceeded without a dialog: a silent
 auto-approval would make the log claim the user agreed to something they never
 saw. Expired is the fourth: a pending approval's waiter is an in-process
 future, so a sidecar restart makes every outstanding row permanently
@@ -27,7 +27,7 @@ stop waiting.
 **The policy can only narrow.** :func:`~agentspace.tools.catalogue.effective_auto_approve`
 intersects a definition's `auto_approve` with the workspace's, which is §5
 Phase 5's security note in one line: "may only *narrow* what the global policy
-already permits — it can never grant a risk level the workspace policy has not
+already permits; it can never grant a risk level the workspace policy has not
 enabled". Written in Phase 5, consumed here for the first time.
 """
 
@@ -114,10 +114,10 @@ def approval_prompt(agent: str, prepared: Prepared) -> str:
     """The sentence a human is asked to judge.
 
     §5 Phase 6: "Approval prompts must be **human-legible**, not raw JSON:
-    `Agent "researcher" wants to delete report.docx — Allow / Deny`." The
+    `Agent "researcher" wants to delete report.docx: Allow / Deny`." The
     Allow/Deny half is the UI's; the sentence is this function's, and it is
-    built from :attr:`agentspace.tools.base.Prepared.summary` — the *resolved*
-    call rather than the arguments the model sent. Rendering the raw arguments
+    built from :attr:`agentspace.tools.base.Prepared.summary` (the *resolved*
+    call) rather than the arguments the model sent. Rendering the raw arguments
     would describe a different call from the one that would run, which is
     precisely the gap a traversal attempt lives in.
     """
@@ -127,7 +127,7 @@ def approval_prompt(agent: str, prepared: Prepared) -> str:
 class ApprovalStore:
     """The `approvals` table.
 
-    Current state, not history — the history is `approval.requested` and
+    Current state, not history: the history is `approval.requested` and
     `approval.resolved` in the event log, which §2 makes the authority. This
     exists because "what is outstanding right now" is a question about state,
     and answering it by folding the whole event log would be the wrong shape for
@@ -229,7 +229,7 @@ class ApprovalStore:
         """Move a pending approval to a terminal status.
 
         Conditional on the row still being pending, in one statement, so two
-        concurrent resolutions cannot both succeed — the second finds nothing
+        concurrent resolutions cannot both succeed, the second finds nothing
         to update and raises. Two dialogs open on the same approval is an
         ordinary thing, not a race worth ignoring.
 
@@ -308,7 +308,7 @@ class ApprovalService:
 
     One instance per application, held on `app.state`, because the two halves
     live in different requests: an agent inside a run creates and awaits the
-    future, and `POST /approvals/{id}` — a completely separate HTTP request —
+    future, and `POST /approvals/{id}` (a completely separate HTTP request)
     is what sets it. A per-run service would have nowhere to put the waiter that
     the API handler could reach.
     """
@@ -353,7 +353,7 @@ class ApprovalService:
     ) -> ApprovalDecision:
         """Obtain a decision for one prepared call, blocking if a human is needed.
 
-        :param auto_approve: the *already-intersected* policy — see
+        :param auto_approve: the *already-intersected* policy; see
             :func:`agentspace.tools.catalogue.effective_auto_approve`. This
             method does not intersect anything itself, so that the narrowing
             rule has exactly one implementation.
@@ -365,7 +365,7 @@ class ApprovalService:
 
         # A denial sticks for the run. Phase 6 watched a worker give up after
         # a "no", the supervisor spawn a second copy of it, and the copy ask
-        # for the same overwrite — a person could be asked the same question
+        # for the same overwrite: a person could be asked the same question
         # for as long as the step limit and the agent cap allowed. The same
         # call, from any agent in this run, is now denied by the earlier
         # answer without asking again.
@@ -440,7 +440,7 @@ class ApprovalService:
             status=status,
             reason=(
                 f"The user denied permission to {prepared.summary}. Do not try "
-                f"this call again — continue without it, or finish and say what "
+                f"this call again: continue without it, or finish and say what "
                 f"you could not do."
             ),
             approval_id=record.id,
@@ -452,7 +452,7 @@ class ApprovalService:
         """Allow a call the policy pre-authorized, and say so in the log.
 
         A row is still written and both events are still emitted. The temptation
-        is to skip all of it — nobody was asked, so what is there to record —
+        is to skip all of it (nobody was asked, so what is there to record),
         and that is exactly backwards: the question a user asks afterwards is
         "what did this run do without asking me", and it is only answerable if
         the automatic decisions are in the log beside the manual ones.
@@ -549,7 +549,7 @@ class ApprovalService:
             reason=(
                 f"The user already denied permission to {prepared.summary} "
                 f"earlier in this run, so it was not asked again. Do not try "
-                f"this call again — continue without it, or finish and say what "
+                f"this call again: continue without it, or finish and say what "
                 f"you could not do."
             ),
             approval_id=settled.id,
@@ -560,7 +560,7 @@ class ApprovalService:
         """Settle every pending question of a cancelled run as expired.
 
         The gate borrows the run's wall clock, so an agent blocked on it would
-        otherwise notice a cancel only when the approval expired — ten minutes
+        otherwise notice a cancel only when the approval expired, ten minutes
         by default. The rows are settled as `expired` (§4's `approvals.status`
         has no `cancelled`, and a fifth value would be a migration for no
         reader) and the waiters are woken with that answer; the denial that
@@ -593,7 +593,7 @@ class ApprovalService:
             # One wait, not a poll loop. `deadline` is the run's remaining
             # budget measured once by the caller, so slicing it into intervals
             # would wake the loop hundreds of times to arrive at the same
-            # instant. Nothing is being watched for in between — the future is
+            # instant. Nothing is being watched for in between: the future is
             # set by `resolve`, from an HTTP handler, not by a clock.
             #
             # `shield` so that the timeout cancels *this* wait and not the
@@ -623,7 +623,7 @@ class ApprovalService:
         """Settle an approval and wake whatever is waiting on it.
 
         The row is updated first. If the write fails because somebody already
-        resolved it, no future is woken and the caller gets the conflict — which
+        resolved it, no future is woken and the caller gets the conflict, which
         is the right order: the durable state decides, and the in-memory waiter
         follows it.
 

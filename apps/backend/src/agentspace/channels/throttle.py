@@ -8,7 +8,7 @@ on Discord is roughly five edits per five seconds for one webhook token.
 
 A run streams hundreds of events. Editing the message on each one would exhaust
 that bucket in the first second of a run, and the platform's response is a 429
-whose retry-after grows — so the message would stop updating at exactly the
+whose retry-after grows, so the message would stop updating at exactly the
 moment the run got interesting, which is the failure this module exists to
 prevent.
 
@@ -63,7 +63,7 @@ class Throttle:
         """Whether to send now, marking the send if so.
 
         :param force: send regardless of the interval. For the two cases where
-            waiting is worse than a rate-limit risk — a terminal event, and an
+            waiting is worse than a rate-limit risk: a terminal event, and an
             approval the run is suspended on. A user who cannot tell "throttled"
             from "crashed" will assume crashed.
         """

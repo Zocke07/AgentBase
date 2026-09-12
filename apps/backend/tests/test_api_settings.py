@@ -2,7 +2,7 @@
 
 The Phase 3 acceptance criterion says switching provider is "a settings change
 with no code change". The strongest form of that claim is a test that never
-imports a provider class at all — it changes a stored value over HTTP and
+imports a provider class at all: it changes a stored value over HTTP and
 observes the selection change. That is
 `test_switching_provider_is_an_http_call_and_nothing_else`.
 """
@@ -83,9 +83,9 @@ def test_a_local_model_is_reported_as_priced(client: TestClient) -> None:
     `GET /settings` used to price `settings.model` verbatim, while the provider
     that actually runs namespaces an Ollama model to `ollama/<name>` before the
     ledger ever sees it. So every local model reported `model_is_priced: false`
-    — whose docstring promises "every run will be refused" — while runs in fact
+    (whose docstring promises "every run will be refused") while runs in fact
     worked perfectly and cost nothing. The Phase 7 header rendered that as
-    "unpriced — runs will be refused" over a configuration that was fine.
+    "unpriced: runs will be refused" over a configuration that was fine.
     """
     client.patch("/settings", json={"provider": "ollama", "model": "qwen3:4b"})
 
@@ -184,7 +184,7 @@ def test_ollama_verifies_with_no_key_at_all(app_paths: AppPaths) -> None:
 
 
 def test_an_unknown_provider_is_a_400_naming_the_field(client: TestClient) -> None:
-    """§5 Phase 5 phrases the rule for agent defs; the same applies here —
+    """§5 Phase 5 phrases the rule for agent defs; the same applies here -
     the settings form renders this message inline on the offending field,
     which it can only do if the body says which field. The docstring on the
     endpoint claimed as much while it answered a bare string."""
@@ -234,7 +234,7 @@ def test_a_partial_update_leaves_other_fields_alone(client: TestClient) -> None:
 
 
 def test_settings_lists_every_secret_the_sidecar_would_accept(client: TestClient) -> None:
-    """The settings screen renders one row per secret — set or not — and must
+    """The settings screen renders one row per secret, set or not, and must
     not keep its own copy of the names: Rust has one, Python has one, and a
     test already holds those two together. The UI reads this instead."""
     from agentspace.secrets import SECRET_KEYS
@@ -262,7 +262,7 @@ def test_the_model_list_comes_from_the_price_table_grouped_by_provider(
     drift from pricing.py.
 
     Grouped, because a flat list let the editor offer every Anthropic model
-    under provider ``openai`` and offered no Ollama model at all — the wildcard
+    under provider ``openai`` and offered no Ollama model at all: the wildcard
     row is not a selectable model, and Ollama's models are whatever the user has
     pulled, which no table can enumerate.
     """
@@ -281,7 +281,7 @@ def test_the_model_list_comes_from_the_price_table_grouped_by_provider(
 
 
 def test_every_supported_provider_has_a_model_group(client: TestClient) -> None:
-    """Two lists that must agree, compared rather than trusted — the shape of
+    """Two lists that must agree, compared rather than trusted: the shape of
     Phase 6's `auto_approve` lesson."""
     body = client.get("/settings/providers").json()
 
@@ -334,7 +334,7 @@ def test_budget_reports_the_current_period(client: TestClient) -> None:
 # `max_steps_per_agent` returned `200 OK` with the limit unchanged, because
 # `UpdateSettingsRequest` did not declare the field and Pydantic drops unknown
 # ones by default. §5 Phase 4 says the limits are "all configurable", and they
-# were — but only by writing to SQLite directly, which is not a capability the
+# were, but only by writing to SQLite directly, which is not a capability the
 # product has.
 
 
@@ -392,7 +392,7 @@ def test_every_workspace_setting_can_be_patched() -> None:
     The two models duplicate that list because they differ in bounds and
     optionality, and a duplicated list drifts. It already has, twice: Phase 4's
     run limits were reported by `GET /settings` and dropped by `PATCH`, and
-    Phase 6's `auto_approve` was reported and then *rejected* with a 422 — the
+    Phase 6's `auto_approve` was reported and then *rejected* with a 422: the
     workspace's whole approval policy unsettable through the API while every
     test stayed green, because every test set it through the store instead.
 
@@ -423,7 +423,7 @@ def test_the_approval_policy_can_be_turned_back_off(client: TestClient) -> None:
     """An empty list is a meaningful value, not an omission.
 
     `exclude_none` rather than `exclude_unset` is what makes `[]` reach the
-    store — a user withdrawing pre-authorization must not be read as "no change
+    store: a user withdrawing pre-authorization must not be read as "no change
     requested", which would leave the gate silently permissive.
     """
     client.patch("/settings", json={"auto_approve": ["high"]})
@@ -446,7 +446,7 @@ def test_a_structured_setting_round_trips_without_a_serialisation_warning(
     """`channel_identities` is the first setting whose value is a list of models.
 
     The first version of `_update_sync` merged with `model_copy(update=...)`,
-    which does not validate — so a list of dicts from the API sat in a field
+    which does not validate, so a list of dicts from the API sat in a field
     annotated `list[ChannelIdentity]` until a `model_dump()` round-trip
     coerced it, and Pydantic warned on every settings write. Nothing was lost,
     and a `PydanticSerializationUnexpectedValue` in a sidecar log is
@@ -490,7 +490,7 @@ def test_a_structured_setting_round_trips_without_a_serialisation_warning(
 
 def test_a_duplicate_channel_identity_is_refused_by_the_api(tmp_path: Path) -> None:
     """The allowlist validator has to fire through the endpoint, not only in
-    the model — that is the Phase 6 lesson about a rule nobody can reach."""
+    the model: that is the Phase 6 lesson about a rule nobody can reach."""
     from agentspace.store.db import Database
     from agentspace.store.settings import SettingsStore
 

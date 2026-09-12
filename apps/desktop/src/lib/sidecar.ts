@@ -3,8 +3,8 @@
  *
  * The base URL comes from the Rust shell rather than being hardcoded here, so
  * there is exactly one place that decides which port the sidecar listens on.
- * When the page is opened in a plain browser — `just dev-desktop` with no Tauri
- * around it — there is no shell to ask, so it falls back to the documented
+ * When the page is opened in a plain browser (`just dev-desktop` with no Tauri
+ * around it), there is no shell to ask, so it falls back to the documented
  * default. The host is never configurable: BUILD_SPEC §1 constraint 3 pins
  * everything to 127.0.0.1.
  *
@@ -24,7 +24,7 @@ const RETRY_DELAY_MS = 250;
 /**
  * How long one `/health` request may take. A sidecar that accepts the
  * connection and never answers would otherwise hold an attempt for the
- * browser's own timeout — minutes — and "connecting (attempt 1)" with it.
+ * browser's own timeout (minutes) and "connecting (attempt 1)" with it.
  */
 const HEALTH_TIMEOUT_MS = 2_000;
 
@@ -32,7 +32,7 @@ const HEALTH_TIMEOUT_MS = 2_000;
  * What `/health` says. `instance` is the shell's tag for the launch that
  * started the sidecar answering, or null for one run by hand. The port is
  * fixed, so whatever holds it answers `/health`; the tag is how the webview
- * tells the shell's own sidecar from a stranger — see `fetchHealth`.
+ * tells the shell's own sidecar from a stranger: see `fetchHealth`.
  */
 export type Health = HealthResponse;
 
@@ -79,7 +79,7 @@ export async function resolveSidecarBaseUrl(): Promise<string> {
  *
  * Both come from the shell, so there is one place that decides the port and
  * one that mints the tag. A plain browser tab gets the default origin and no
- * tag, and `fetchHealth` then accepts whoever answers — there is nothing to
+ * tag, and `fetchHealth` then accepts whoever answers: there is nothing to
  * compare with.
  */
 export async function resolveSidecarIdentity(): Promise<SidecarIdentity> {
@@ -100,11 +100,11 @@ export async function resolveSidecarIdentity(): Promise<SidecarIdentity> {
 }
 
 /**
- * Fetch `/health`, rejecting on anything that is not a well-formed 200 — or,
+ * Fetch `/health`, rejecting on anything that is not a well-formed 200, or,
  * when `expected` is given, on a healthy answer from the wrong process.
  *
  * The port is fixed. When something else already holds it, the sidecar this
- * shell spawned cannot bind and exits, and `/health` still answers — from the
+ * shell spawned cannot bind and exits, and `/health` still answers: from the
  * stranger. The packaged app once did exactly this against a dev sidecar left
  * in a terminal: it rendered the dev data directory's runs, its "Open folder"
  * sent the dev path, and nothing anywhere said the process on the other end
@@ -132,7 +132,7 @@ export async function fetchHealth(
   if (expected !== null && health.instance !== expected) {
     const who =
       health.instance === null
-        ? "a sidecar not started by this app — a dev sidecar in a terminal, most likely"
+        ? "a sidecar not started by this app: a dev sidecar in a terminal, most likely"
         : "another AgentSpace, still running or still shutting down";
     throw new Error(
       `Something else is listening on ${baseUrl}: ${who}. Close it and relaunch; this app's own sidecar could not take the port.`,

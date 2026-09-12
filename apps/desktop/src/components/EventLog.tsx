@@ -6,7 +6,7 @@ import { sentenceFor } from "../state/describe";
 
 
 /**
- * The event log panel — §5 Phase 7's "Event log panel, filterable by agent and
+ * The event log panel: §5 Phase 7's "Event log panel, filterable by agent and
  * event type".
  *
  * This renders the raw log rather than the reduced view, because its job is to
@@ -25,8 +25,8 @@ import { sentenceFor } from "../state/describe";
  * they buried everything else. The toggle says how many there are.
  *
  * **Every row is a sentence, with the raw type beside it.** The sentence is
- * `sentenceFor(event)` from the reducer's module — a pure function of the
- * event, so it is identical live and on replay — and the raw `tool.denied`
+ * `sentenceFor(event)` from the reducer's module (a pure function of the
+ * event, so it is identical live and on replay), and the raw `tool.denied`
  * stays as a chip because it is what a bug report, and the type filter, need.
  *
  * **A row opens to its whole payload.** A one-liner cannot show a tool result
@@ -34,8 +34,8 @@ import { sentenceFor } from "../state/describe";
  * a person checking the reduced view against the log needs to read.
  *
  * **Only the rows in view are in the DOM.** A long run is thousands of
- * events, and rendering every one — then re-rendering every one on each
- * arriving token — is what made the frontend pass leave windowing as the
+ * events, and rendering every one (then re-rendering every one on each
+ * arriving token) is what made the frontend pass leave windowing as the
  * one thing it did not measure. Rows are a fixed height, so where a row sits
  * is arithmetic; an opened payload is the one variable, measured once it
  * renders and added to everything below it. The windowing is a fact about
@@ -154,7 +154,7 @@ export function EventLog({ events, cursor, agents, selectedAgent, onSelectAgent 
     const element = scroller.current;
     if (element === null) return;
     // Measured against the spacer's own height rather than `scrollHeight`, so
-    // the answer is the same one the row arithmetic below is working from —
+    // the answer is the same one the row arithmetic below is working from -
     // and against the element's live height rather than the remembered one,
     // which can lag it by a render on the first scroll and read "not at the
     // end" of a list that is.
@@ -325,8 +325,8 @@ export function EventLog({ events, cursor, agents, selectedAgent, onSelectAgent 
 
 /**
  * The index of the row that contains vertical position `y`, by binary search
- * over the row starts. `offsets` has one more entry than there are rows — the
- * total — so a `y` past the end lands on the last row.
+ * over the row starts. `offsets` has one more entry than there are rows (the
+ * total), so a `y` past the end lands on the last row.
  */
 function rowAt(offsets: readonly number[], y: number): number {
   let low = 0;

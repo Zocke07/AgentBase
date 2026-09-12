@@ -1,7 +1,7 @@
 """The one place that knows how to start a run.
 
 Phase 4 put this inline in `POST /runs`, which was right while there was one
-caller. Phase 8 added a second — a Discord command — and
+caller. Phase 8 added a second (a Discord command), and
 this project has been bitten seven times by the same shape: a list of things
 duplicated at two call sites, correct at both on the day it was written, and
 silently divergent afterwards. Phase 1's CORS origins, Phase 2's named SSE
@@ -55,7 +55,7 @@ class RunLauncher:
 
     Returns as soon as the row exists. A run takes minutes and every caller
     watches it over the event log, so waiting for completion would make the
-    return value a second way to learn what the log already says — and would put
+    return value a second way to learn what the log already says, and would put
     a proxy's idle timeout, or Discord's three-second interaction deadline, in
     charge of when a run may end.
     """
@@ -67,12 +67,12 @@ class RunLauncher:
     secrets: SecretStore
     runtime: ToolRuntime | None = None
     #: Where a run's space, and so its rules, roster and folder, come from.
-    #: ``None`` — the orchestration tests — runs everything in the default
+    #: ``None`` (the orchestration tests) runs everything in the default
     #: space with the app-wide rules and whatever sandbox `runtime` carries.
     spaces: SpaceStore | None = None
     #: Overrides the configured provider for every agent. Tests pass a scripted
     #: one; nothing in the shipped app sets it, and `execute_run` still wraps it
-    #: in the budget guard — so a test cannot accidentally prove the cap holds
+    #: in the budget guard, so a test cannot accidentally prove the cap holds
     #: on a path that bypasses it.
     provider: Provider | None = None
     #: Strong references to in-flight work. `asyncio` holds only a weak
@@ -95,7 +95,7 @@ class RunLauncher:
     ) -> RunRow:
         """Create the run, run ``prologue`` against it, then start it.
 
-        :param space_id: where the run happens — its roster, rules and
+        :param space_id: where the run happens: its roster, rules and
             folder. ``None`` is the default space, which is what keeps the
             debug script and a chat command with no space configured working.
         :param prologue: appended to the log before the orchestrator emits
@@ -162,7 +162,7 @@ class RunLauncher:
         """Ask a live run to stop. False if no such run is live here.
 
         Cooperative: the run notices at its next deadline check, before its
-        next model call, and writes `run.cancelled` itself — nothing here
+        next model call, and writes `run.cancelled` itself: nothing here
         appends a terminal event, for the reason `_drive` gives. An agent
         blocked on the approval gate is released so it does not wait for the
         wall clock.
@@ -179,7 +179,7 @@ class RunLauncher:
         """Hand one run to the orchestrator.
 
         Every failure path inside `execute_run` writes its own terminal event,
-        so nothing here does — and nothing here should, because a second opinion
+        so nothing here does, and nothing here should, because a second opinion
         about how a run ended is exactly the drift §2 rules out.
         """
         await execute_run(

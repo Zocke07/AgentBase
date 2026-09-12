@@ -42,7 +42,7 @@ describe("the selected agent", () => {
 describe("the scrubber", () => {
   it("keeps the same row shape at the head and off it", () => {
     /* The notice and the "Jump to end" button used to appear only when
-       scrubbed, in the same flex row as the range input — so dragging the thumb
+       scrubbed, in the same flex row as the range input, so dragging the thumb
        off the end made the track shrink under the pointer and the thumb jump,
        and dragging it back made the text vanish. The slot is always there; what
        it says changes. */

@@ -16,8 +16,8 @@ import { RunPanel } from "./RunPanel";
  * The Runs section: pick a run, watch or replay it.
  *
  * Everything about the *run* comes from `RunPanel`, which is a pure projection
- * of the event log. What lives here is the chrome around it — the picker, the
- * connection indicator, the cancel and delete buttons — plus the one genuinely
+ * of the event log. What lives here is the chrome around it (the picker, the
+ * connection indicator, the cancel and delete buttons) plus the one genuinely
  * two-way piece of the dashboard: answering an approval. Starting a run moved
  * to the Home screen with the redesign; the picker offers the way there.
  */
@@ -54,7 +54,7 @@ function connectionLabel(
     case "live":
       return `live${suffix}`;
     case "closed":
-      return `run finished — stream closed${suffix}`;
+      return `run finished: stream closed${suffix}`;
     case "error":
       return `${connection.message}${suffix}`;
   }
@@ -70,8 +70,8 @@ export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, o
   const [cancelling, setCancelling] = useState(false);
   /** The run the sidecar accepted a cancel for; it stops at its next check. */
   const [stopping, setStopping] = useState<string | null>(null);
-  // State that is about one run — the selected agent, a failed cancel's
-  // message — is tagged with the run it belongs to and reads as empty for any
+  // State that is about one run (the selected agent, a failed cancel's
+  // message) is tagged with the run it belongs to and reads as empty for any
   // other, so switching runs needs no reset and no effect.
   const [selection, setSelection] = useState<PerRun<string | null>>({ runId: null, value: null });
   const [cancelFailure, setCancelFailure] = useState<PerRun<string | null>>({ runId: null, value: null });
@@ -104,8 +104,8 @@ export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, o
 
   // The store holds the previous run until the next one's history arrives, so
   // that a switch never passes through an empty panel. While the two disagree,
-  // everything on screen that is *about* the run — the head status, the
-  // approval buttons, the cancel button, the scrubber — is about the old one
+  // everything on screen that is *about* the run (the head status, the
+  // approval buttons, the cancel button, the scrubber) is about the old one
   // and is withheld; the projection stays, dimmed, as the loading state.
   const loading = runId !== null && loadedRunId !== runId;
 
@@ -127,13 +127,13 @@ export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, o
 
   // Whether an approval can be answered is about where the viewer stands, not
   // about the fold. Scrubbed back on a finished run, the fold says "running"
-  // and the approval says "pending" — both true of that moment, neither a
+  // and the approval says "pending": both true of that moment, neither a
   // reason to offer buttons. `following` is the store's word for "at the head".
   const approvalReadOnly = loading ? "loading" : finished ? "finished" : following ? null : "replay";
 
   // The picker's row for the selected run is a snapshot of the `runs` table;
   // the log knows more the moment an event arrives. When the two disagree the
-  // row is stale, and so — if the run just ended — is the month's spend. Keyed
+  // row is stale, and so, if the run just ended, is the month's spend. Keyed
   // on the *head's* status, not the scrubbed view's: opening a finished run or
   // dragging the slider across its terminal event changes nothing about the
   // run, and used to refetch three endpoints anyway.
@@ -154,7 +154,7 @@ export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, o
   }, [headStatus, onRunChanged]);
 
   // Whether the selected run is one that can still be stopped: the log says
-  // it has not ended. Not the connection — a run whose stream is between
+  // it has not ended. Not the connection: a run whose stream is between
   // reconnects is still a run.
   const cancellable = runId !== null && headStatus !== null && unfinished({ status: headStatus });
 
@@ -166,7 +166,7 @@ export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, o
       await api.cancelRun(runId);
       // Deliberately no change to the run's state: it writes `run.cancelled`
       // itself and that arrives over the stream (§2). Until then it is still
-      // running, and the badge should say so — but the button has to say the
+      // running, and the badge should say so, but the button has to say the
       // cancel was accepted, because a cooperative stop lands before the
       // *next* model call and the one in flight can take half a minute.
       setStopping(runId);
@@ -179,7 +179,7 @@ export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, o
 
   // Whether the selected run is one that can be deleted: it has ended. The
   // log's word when it has one; the row's for a run with no events yet. Only
-  // the complement of `cancellable` in the common case — a run that has not
+  // the complement of `cancellable` in the common case: a run that has not
   // loaded is neither.
   const settledStatus = headStatus ?? (loading ? null : (selectedRow?.status ?? null));
   const deletable = runId !== null && settledStatus !== null && !unfinished({ status: settledStatus });
@@ -192,7 +192,7 @@ export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, o
       await api.deleteRun(runId);
       // The run is gone: close it, and tell the picker and the meter. The
       // store still holds its fold until the next run is opened, which the
-      // placeholder hides — clearing it here would be a second way for the
+      // placeholder hides, clearing it here would be a second way for the
       // panel to empty, and the switch is built to never pass through one.
       onSelectRun(null);
       onRunChanged();
@@ -315,7 +315,7 @@ export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, o
                 ))}
             </div>
             {/* Reset on the run so a panel that threw on one run does not
-                stay in its fallback when another is opened — without
+                stay in its fallback when another is opened, without
                 remounting a healthy panel, which rebuilt the graph canvas on
                 every switch. */}
             <ErrorBoundary resetKey={runId} label="the run view">

@@ -1,4 +1,4 @@
-"""Tests for the event store — written before the implementation (BUILD_SPEC §6).
+"""Tests for the event store: written before the implementation (BUILD_SPEC §6).
 
 The event log is the single source of truth for the whole application (§2), so
 the properties worth testing are the ones that would silently corrupt it:
@@ -161,7 +161,7 @@ async def test_payload_is_stored_as_json_text(db: Database, store: EventStore) -
     """The column is TEXT holding JSON (§4).
 
     Storing a Python repr instead would still round-trip through Python and
-    fail only once something else — the TS client, a replay tool — reads it.
+    fail only once something else (the TS client, a replay tool) reads it.
     """
     run_id = await _new_run(store)
     await store.append(run_id, EventType.AGENT_MESSAGE, {"k": "v"})
@@ -256,8 +256,8 @@ async def test_orphaned_runs_are_failed_at_startup_with_a_terminal_event(
     """A run left `running` by a crash or by closing the app stays `running`
     forever otherwise: it sits at the top of the picker, and opening it holds
     a stream that never ends, because nothing will ever append its terminal
-    event. The sweep appends `run.failed` — so the log stays the authority on
-    what happened — and moves the row to match.
+    event. The sweep appends `run.failed` (so the log stays the authority on
+    what happened) and moves the row to match.
     """
     running = await store.create_run(goal="was running", origin="ui")
     await store.set_run_status(running.id, "running")
@@ -301,7 +301,7 @@ def _tables_with_a_run_id(db: Database) -> list[str]:
 
     The delete has to know what hangs off a run, and the schema is the only
     authority on that. Listing the tables here by hand would be a second copy
-    of that knowledge — the one that drifts when a later migration adds a
+    of that knowledge: the one that drifts when a later migration adds a
     table with a ``run_id`` and nobody updates the test.
     """
     with db.read() as connection:
@@ -355,7 +355,7 @@ async def _finished_run_with_everything(store: EventStore, db: Database) -> str:
 
 async def test_the_schema_has_the_tables_the_delete_test_expects(db: Database) -> None:
     """If a migration adds a table with a ``run_id``, this names it, and the
-    fixture above has to learn to put a row in it — otherwise the delete test
+    fixture above has to learn to put a row in it: otherwise the delete test
     would pass while never exercising the new table."""
     assert _tables_with_a_run_id(db) == ["approvals", "events", "spend"]
 
@@ -379,7 +379,7 @@ async def test_deleting_a_run_keeps_its_spend_in_the_ledger(
 ) -> None:
     """The monthly cap is one wallet (§5 Phase 3, Phase 11). Money a run spent
     was spent whether or not the run is kept, so the row survives with its
-    ``run_id`` cleared rather than being removed — otherwise deleting runs
+    ``run_id`` cleared rather than being removed: otherwise deleting runs
     would be a way to spend past the cap."""
     from agentspace.budget.ledger import BudgetLedger
     from agentspace.store.settings import SettingsStore

@@ -23,8 +23,8 @@ export const SUPERVISOR = "supervisor";
  *
  * These are handed to React Flow on every node, which matters more than it
  * looks: a node without explicit dimensions is only measured once its DOM
- * element has been laid out, and anything that depends on measurement — the
- * camera, above all — then depends on *when* the node appeared rather than on
+ * element has been laid out, and anything that depends on measurement (the
+ * camera, above all) then depends on *when* the node appeared rather than on
  * the log. A run watched from the start framed itself at `scale(1.387)` while
  * the same run replayed framed itself at `scale(1.213)`, which is BUILD_SPEC
  * §5 Phase 7's "pixel-identical" criterion failing on the one part of the
@@ -48,7 +48,7 @@ export interface AgentNodeData extends Record<string, unknown> {
   /**
    * A name the run handed off to but never spawned. Watched in Phase 6: a
    * denied worker handed off to a nonexistent `another_agent`, and React
-   * Flow dropped the edge — a console warning and nothing drawn — so the
+   * Flow dropped the edge (a console warning and nothing drawn), so the
    * handoff that most needed seeing was the one that vanished.
    */
   ghost: boolean;
@@ -134,7 +134,7 @@ function ghostAgent(name: string): AgentNode {
  * One edge per ordered pair, labelled with how many handoffs it carries.
  *
  * A separate edge per handoff would draw several identical lines on top of each
- * other in the common case — a supervisor delegating twice to the same worker —
+ * other in the common case (a supervisor delegating twice to the same worker)
  * and lose the count that makes it interesting.
  */
 export function edgesFor(view: RunView): Edge[] {
@@ -185,7 +185,7 @@ const PADDING = 0.12;
  * `scale(1.43)` while the same run replayed framed itself at `scale(1.25)`,
  * with the graph otherwise identical. That is BUILD_SPEC §5 Phase 7's
  * "pixel-identical" criterion failing on the one part of the canvas that was
- * not a projection of the log — and it stayed broken through two attempts to
+ * not a projection of the log, and it stayed broken through two attempts to
  * fix it by waiting for measurement, because the timing is React Flow's to
  * decide and not ours.
  *

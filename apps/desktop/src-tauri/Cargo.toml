@@ -19,8 +19,8 @@ tauri = { version = "2", features = [] }
 # the sidecar over stdin. The plugin provides the JS commands the settings
 # screen writes and clears keys with; the spawn-time *read* goes to the
 # `keyring` crate directly, below, because the plugin's `get_password` ends in
-# `.ok()` and turns every failure - a locked keychain, a user clicking Deny on
-# the macOS access prompt - into "no such key". The first Mac session found
+# `.ok()` and turns every failure (a locked keychain, a user clicking Deny on
+# the macOS access prompt) into "no such key". The first Mac session found
 # that by clicking Deny and reading `sending 0 key(s)`. Same crate, same
 # features as the plugin pins, so Cargo resolves one instance.
 tauri-plugin-keyring = "0.1"

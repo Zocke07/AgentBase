@@ -1,6 +1,6 @@
 """Tests for the in-process fan-out.
 
-The bus is a hint that new rows exist, not a delivery guarantee — so the
+The bus is a hint that new rows exist, not a delivery guarantee, so the
 behaviour worth pinning down is what happens when it *fails* to deliver:
 overflow, disconnect, and out-of-order publication.
 """

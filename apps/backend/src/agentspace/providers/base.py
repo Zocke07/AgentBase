@@ -3,7 +3,7 @@
 BUILD_SPEC §5 Phase 3 asks for ``complete(messages, tools) -> Response`` with
 *normalized* token usage, and the acceptance criterion is that switching
 provider is a settings change with no code change. That only holds if nothing
-above this module can tell which provider it is talking to — so the vendor
+above this module can tell which provider it is talking to, so the vendor
 shapes stop here. Anthropic's ``input_tokens``/``output_tokens``, OpenAI's
 ``prompt_tokens``/``completion_tokens`` and Ollama's ``prompt_eval_count``/
 ``eval_count`` all arrive as :class:`TokenUsage`.
@@ -66,7 +66,7 @@ class ToolSpec:
 
 @dataclass(frozen=True, slots=True)
 class ToolCall:
-    """A tool the model asked to call. Nothing here executes it — Phase 6 does,
+    """A tool the model asked to call. Nothing here executes it: Phase 6 does,
     and only through the approval gate."""
 
     id: str
@@ -79,7 +79,7 @@ class TokenUsage:
     """Normalized token counts.
 
     Integers, and non-negative. The budget ledger multiplies these by a price,
-    so a provider that reports nothing must report zero rather than ``None`` —
+    so a provider that reports nothing must report zero rather than ``None`` -
     an unknown cost that silently becomes no cost is how a cap stops working.
     """
 
@@ -110,13 +110,13 @@ class Completion:
     #: the moment it records the spend, so the figure in the event log is the
     #: figure in the ledger. ``None`` from a provider that was not wrapped.
     cost_micros: int | None = None
-    #: Reasoning the provider exposed separately from its answer — Ollama's
+    #: Reasoning the provider exposed separately from its answer: Ollama's
     #: ``message.thinking``, Anthropic's thinking blocks. ``None`` when the
     #: provider exposed none, which is different from ``""``: a model that
     #: reasoned at length and answered with nothing is the case this exists
     #: for. Phase 5 watched a local model do exactly that five times running
     #: and the log said it had produced nothing. Not part of ``text`` and
-    #: never a :class:`TextDelta` — reasoning is not the answer — but it rides
+    #: never a :class:`TextDelta` (reasoning is not the answer) but it rides
     #: in ``llm.response`` so a replay can tell silence from thought.
     thinking: str | None = None
 
@@ -127,7 +127,7 @@ class TextDelta:
 
     Deliberately *only* text. Tool-call arguments also arrive incrementally
     from every vendor, but a half-parsed argument object is not something any
-    caller can act on — the orchestrator cannot request approval for a tool
+    caller can act on: the orchestrator cannot request approval for a tool
     call it can only see two thirds of. Partial tool calls are therefore
     accumulated inside each adapter and surface once, complete, on the final
     :class:`Completion`.
@@ -141,7 +141,7 @@ class TextDelta:
 #: The contract is: zero or more :class:`TextDelta`, then **exactly one**
 #: :class:`Completion` as the final item. The terminal ``Completion`` is what
 #: carries usage, tool calls and the stop reason, so a consumer that stops
-#: iterating early gets no usage — which is precisely why the budget ledger
+#: iterating early gets no usage, which is precisely why the budget ledger
 #: records spend from the terminal item rather than from the deltas.
 StreamEvent = TextDelta | Completion
 
@@ -176,7 +176,7 @@ class Provider(Protocol):
 
     @property
     def name(self) -> str:
-        """Stable identifier — ``anthropic``, ``openai``, ``ollama``."""
+        """Stable identifier: ``anthropic``, ``openai``, ``ollama``."""
         ...
 
     @property
@@ -208,7 +208,7 @@ class Provider(Protocol):
         Yields zero or more :class:`TextDelta`, then exactly one
         :class:`Completion`. Implementations are async generators, which is why
         this is declared ``def`` returning an ``AsyncIterator`` rather than
-        ``async def`` — calling an async generator function returns the
+        ``async def``: calling an async generator function returns the
         iterator, it does not await it.
 
         The final :class:`Completion` must be equivalent to what

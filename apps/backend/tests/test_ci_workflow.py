@@ -3,13 +3,13 @@
 BUILD_SPEC §5 Phase 9's first requirement is an ordering: "Test job runs before
 the build job and gates it... A red test blocks the build job entirely." That
 ordering lives in one line of YAML, `needs: test`, and deleting it breaks nothing
-visible — the workflow still parses, both jobs still run, every tick is still
+visible: the workflow still parses, both jobs still run, every tick is still
 green, and installers start being built from code no test has looked at.
 
 The second ordering is inside the build job and fails even more quietly.
 `just verify-build` can only say anything once a bundle exists: it launches the
 frozen binary and compares the sidecar inside the produced installer against the
-freshly built one. Run *before* the build it has nothing to inspect — and its
+freshly built one. Run *before* the build it has nothing to inspect, and its
 underlying tests are written to skip when there is nothing built, so moving it
 earlier turns a real check into a green no-op. `--require-build-checks` is what
 stops that being silent, and this pins the step order that makes it unnecessary.
@@ -129,7 +129,7 @@ def test_the_built_artefacts_are_verified_after_the_build_not_before() -> None:
 
     assert built < verified, (
         "`just verify-build` runs before `just build-installer`, so it has no "
-        "bundle to inspect — and its tests skip when nothing is built, which "
+        "bundle to inspect, and its tests skip when nothing is built, which "
         "means this reports success while checking nothing"
     )
 
@@ -139,7 +139,7 @@ def test_the_rust_shell_is_linted_after_the_sidecar_exists() -> None:
 
     `tauri-build`'s build script validates `externalBin` and runs for every cargo
     invocation, clippy included. With no frozen sidecar in `binaries/` it fails
-    with "resource path ... doesn't exist" before clippy has linted a line — which
+    with "resource path ... doesn't exist" before clippy has linted a line, which
     is how CI run #3 failed on both platforms while passing on a dev machine,
     where a sidecar from the last build is already sitting there.
 
@@ -180,8 +180,8 @@ def test_every_recipe_ci_runs_works_on_a_clean_clone() -> None:
     locally because `node_modules` was already there, and in CI it froze the
     sidecar and then died on npm's "could not determine executable to run".
 
-    Phase 0 already settled the rule for `check` — it depends on `setup` because
-    its acceptance criterion is a clean clone — and the build path needs the same
+    Phase 0 already settled the rule for `check` (it depends on `setup` because
+    its acceptance criterion is a clean clone), and the build path needs the same
     guarantee. So every recipe the workflow invokes at the top level must either
     depend on `setup` or need no installed dependencies at all.
     """
@@ -201,7 +201,7 @@ def test_every_recipe_ci_runs_works_on_a_clean_clone() -> None:
     def depends_on_setup(recipe: str, seen: frozenset[str] = frozenset()) -> bool:
         """Whether `setup` is reachable from `recipe`, at any depth.
 
-        Transitively, because `ci` depends on `check` which depends on `setup` —
+        Transitively, because `ci` depends on `check` which depends on `setup` -
         checking only direct dependencies would call that a failure.
         """
         if recipe in seen:
@@ -219,13 +219,13 @@ def test_every_recipe_ci_runs_works_on_a_clean_clone() -> None:
     }
     assert invoked, "the workflow runs no `just` recipes, which cannot be right"
 
-    # `check-tauri` is cargo alone — it reads a sidecar an earlier step froze and
-    # installs nothing — so it is exempt by inspection rather than by rule.
+    # `check-tauri` is cargo alone (it reads a sidecar an earlier step froze and
+    # installs nothing) so it is exempt by inspection rather than by rule.
     for recipe in sorted(invoked - {"check-tauri"}):
         assert recipe in direct, f"{recipe!r} is not a recipe in the justfile"
         assert depends_on_setup(recipe), (
             f"`just {recipe}` never reaches `setup`, so it works only where "
-            f"node_modules and .venv already exist — which is every dev machine "
+            f"node_modules and .venv already exist, which is every dev machine "
             f"and no CI runner"
         )
 
@@ -237,8 +237,8 @@ def test_the_smoke_job_installs_the_artefact_the_build_job_uploaded() -> None:
     machine, so a fresh runner stands in for it. Three things make that honest
     rather than cosmetic, and each is pinned here. It must wait on the build, or
     there is nothing to install. It must run on Windows, because the artefact is
-    an NSIS installer. And it must install the *downloaded* artefact — the bytes a
-    user would get — rather than rebuilding locally, which is what
+    an NSIS installer. And it must install the *downloaded* artefact (the bytes a
+    user would get) rather than rebuilding locally, which is what
     `AGENTSPACE_INSTALLER_DIR` pointing at the download directory guarantees.
     """
     smoke = _workflow()["jobs"]["smoke"]

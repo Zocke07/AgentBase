@@ -3,19 +3,19 @@ import type { Event, EventType } from "@agentspace/schemas";
 import { flag, int, record, strings, text, type Payload } from "../lib/payload";
 
 /**
- * The run reducer — the UI's half of BUILD_SPEC §2.
+ * The run reducer: the UI's half of BUILD_SPEC §2.
  *
  * "Every agent action is an append-only event row, and the UI is a pure
  * projection of the event log." This is that projection. Everything the
  * dashboard renders comes from here, and nothing the dashboard renders about a
- * run comes from anywhere else — no side fetch, no local bookkeeping, no
+ * run comes from anywhere else: no side fetch, no local bookkeeping, no
  * remembered value from a previous render.
  *
  * Three properties are load-bearing, and each has tests that fail without it:
  *
  * **It is a pure fold.** `reduce(state, event)` returns a new state and touches
  * nothing. That is what makes replay and live the *same* rendering path rather
- * than two paths that happen to agree — §5 Phase 7's acceptance criterion asks
+ * than two paths that happen to agree: §5 Phase 7's acceptance criterion asks
  * for replay to be pixel-identical to live, and the only way to be sure is for
  * there to be one function and one input.
  *
@@ -27,7 +27,7 @@ import { flag, int, record, strings, text, type Payload } from "../lib/payload";
  * **It separates what an agent claimed from what it did.** `claim` holds the
  * terminal `summary` or `reason`; `toolCalls` holds the calls that actually
  * executed. CLAUDE.md records three live runs where a run completed claiming
- * work that the log shows never happened — a file "saved" by a run containing
+ * work that the log shows never happened: a file "saved" by a run containing
  * no file tool call at all. Keeping them in one field would make the dashboard
  * repeat the confabulation instead of exposing it.
  */
@@ -67,10 +67,10 @@ export interface AgentNode {
   readonly lastError: string | null;
   readonly steps: number;
   readonly finishedReason: string | null;
-  /** Streamed output of the *current* model call — reset on each `llm.request`. */
+  /** Streamed output of the *current* model call, reset on each `llm.request`. */
   readonly streamedText: string;
   readonly lastMessage: string | null;
-  /** Where this agent first appears — the graph orders nodes by it. */
+  /** Where this agent first appears, the graph orders nodes by it. */
   readonly seq: number;
 }
 
@@ -88,7 +88,7 @@ export interface ApprovalRecord {
   readonly agent: string;
   readonly tool: string;
   readonly risk: string;
-  /** The sentence the backend rendered. Never composed here — see §2. */
+  /** The sentence the backend rendered. Never composed here; see §2. */
   readonly prompt: string;
   readonly status: ApprovalStatus;
   readonly automatic: boolean;
@@ -140,8 +140,8 @@ export interface RunClaim {
  *
  * §5 Phase 8 requires a Discord-originated run to "appear live in the
  * dashboard, and vice versa. Same event log, no special-casing." The
- * no-special-casing half is already true — the SSE endpoint has no idea a
- * channel exists — but a user watching a run they did not start still needs to
+ * no-special-casing half is already true (the SSE endpoint has no idea a
+ * channel exists), but a user watching a run they did not start still needs to
  * know who did, and the log is the only place that says so.
  *
  * `identity` is the *internal* name the sender's external id resolved to, not
@@ -246,7 +246,7 @@ const newAgent = (name: string, seq: number): AgentNode => ({
  * Applied to *every* event carrying an `agent_id`, not only `agent.spawned`. A
  * stream resumed mid-run legitimately starts after the spawn event, and an
  * agent whose spawn was missed would otherwise vanish from the graph while the
- * rest of its events rendered — a graph that looks complete and is not.
+ * rest of its events rendered: a graph that looks complete and is not.
  */
 function ensureAgent(state: RunView, name: string, seq: number): RunView {
   if (state.agents[name] !== undefined) return state;
@@ -481,7 +481,7 @@ export function reduce(state: RunView, event: Event): RunView {
       };
       // A policy's yes is not a question. The gate emits the request and its
       // resolution as two events, and between them nobody is waiting on
-      // anything — so the agent is not "waiting", and `pendingApprovals` below
+      // anything, so the agent is not "waiting", and `pendingApprovals` below
       // does not count it. The record still goes in, because "what did this
       // run do without asking me" is answered from exactly these rows.
       const waiting =
@@ -526,7 +526,7 @@ export function reduce(state: RunView, event: Event): RunView {
     case "channel.outbound":
       // Deliberately changes nothing. It records that the run was *reported*
       // to a conversation, which is a fact about delivery rather than about
-      // what the agents did — and the graph is a projection of the latter. It
+      // what the agents did, and the graph is a projection of the latter. It
       // is rendered in the log panel, where a reader asking "did this reach
       // Discord?" is asking the question it answers.
       return next;
@@ -546,8 +546,8 @@ export function reduceAll(events: readonly Event[], from: RunView = EMPTY_RUN): 
 // --- small helpers ----------------------------------------------------------
 
 /**
- * Back to deciding what to do next: the state between one thing finishing —
- * a model call, a tool, an approval — and the next event saying what follows.
+ * Back to deciding what to do next: the state between one thing finishing -
+ * a model call, a tool, an approval, and the next event saying what follows.
  * A completed agent stays completed; a late event for it does not revive it.
  */
 function thinkingAgain(node: AgentNode): AgentNode {

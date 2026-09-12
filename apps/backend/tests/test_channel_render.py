@@ -4,7 +4,7 @@
 *second* projection of the same log, and the reason to write it as a fold rather
 than as "append a line whenever something happens" is the same reason Phase 7
 gave: an accumulating renderer and a rebuilding one agree right up until one of
-them gains a feature. Here the fold is the only thing there is — the adapter
+them gains a feature. Here the fold is the only thing there is: the adapter
 re-renders from scratch on every edit, so what the user sees after a reconnect,
 a resume, or a restart is what the log says, not what this process happened to
 observe.
@@ -71,7 +71,7 @@ def test_a_terminal_summary_is_rendered_as_a_claim_beside_what_executed() -> Non
     """The Phase 7 decision, carried into chat unchanged.
 
     Four live runs in this project have announced work the log shows never
-    happened — `finish("reminder.txt")` from an agent that never called
+    happened: `finish("reminder.txt")` from an agent that never called
     `write_file`. A chat reply that printed the summary alone would be
     repeating the confabulation to the one audience least able to check it,
     because a chat user cannot see the event log at all.
@@ -130,7 +130,7 @@ def test_a_denial_says_which_boundary_stopped_it() -> None:
 def test_an_outstanding_approval_is_surfaced_with_its_prompt() -> None:
     """A run blocked on the gate has stopped emitting anything.
 
-    In the dashboard that is obvious — the modal is on screen. In chat, the
+    In the dashboard that is obvious: the modal is on screen. In chat, the
     message simply stops updating, which is indistinguishable from the bot
     having crashed. Surfacing the question is what makes the gate usable from a
     channel at all.
@@ -197,7 +197,7 @@ def test_every_event_type_in_the_contract_is_handled_by_the_fold() -> None:
     `mypy --strict` already proves this: the `case _` arm calls `assert_never`,
     so a new `EventType` member with no branch does not typecheck. This test is
     the belt to that braces, and it catches the specific way the proof could be
-    defeated — someone adding a broad `case _: pass` to silence the error, which
+    defeated: someone adding a broad `case _: pass` to silence the error, which
     would typecheck perfectly and silently drop the new event.
 
     It asserts the *observable* consequence instead: folding a log of one event
@@ -213,7 +213,7 @@ def test_every_event_type_in_the_contract_is_handled_by_the_fold() -> None:
 def test_a_long_run_is_clamped_to_the_platform_limit() -> None:
     """Discord rejects a message body over 2000 characters outright.
 
-    A renderer that produced 6000 characters would not truncate, it would 400 —
+    A renderer that produced 6000 characters would not truncate, it would 400 -
     and the user would see the message stop updating at the exact moment the
     run got interesting.
     """
@@ -236,8 +236,8 @@ def test_a_long_run_is_clamped_to_the_platform_limit() -> None:
 def test_clamping_keeps_the_goal_and_the_outcome_and_drops_the_middle() -> None:
     """What survives a trim is the part a reader cannot reconstruct.
 
-    The activity tail is the least valuable thing in the message — the whole log
-    is in the dashboard — while the goal and the terminal claim exist nowhere
+    The activity tail is the least valuable thing in the message (the whole log
+    is in the dashboard), while the goal and the terminal claim exist nowhere
     else in the conversation.
     """
     events = list(started("Find the revenue figures"))
@@ -253,10 +253,10 @@ def test_clamping_keeps_the_goal_and_the_outcome_and_drops_the_middle() -> None:
 
 
 def test_the_render_contains_no_markdown_control_characters_of_its_own() -> None:
-    """Plain text, deliberately — see the module docstring in `render.py`.
+    """Plain text, deliberately: see the module docstring in `render.py`.
 
     Agent output is arbitrary text, so any markdown mode is a grenade with a
-    long fuse — originally Telegram's MarkdownV2, where an unescaped character
+    long fuse: originally Telegram's MarkdownV2, where an unescaped character
     loses the entire message; on Discord a stray `*` or backtick in a file's
     contents becomes formatting. One plain renderer cannot fail this way.
     """

@@ -4,8 +4,8 @@
 
 **The mailbox is the part worth reading closely.** §5 Phase 4 also says agents
 communicate via `agent.message` events and never direct function calls. Taken
-literally that is impossible — one Python object has to call another eventually
-— so the question is what "communicate" means. Here it means the *content*
+literally that is impossible (one Python object has to call another eventually),
+so the question is what "communicate" means. Here it means the *content*
 never travels in a Python variable from sender to receiver:
 :meth:`Mailbox.deliver` appends an `agent.message` row, and
 :meth:`Mailbox.collect` reads that row back **out of SQLite**. The supervisor
@@ -13,8 +13,8 @@ learns what a worker produced by reading the log, not by receiving a return
 value.
 
 That is slower than passing a string, and it is the whole point. It makes the
-Phase 4 acceptance criterion — "the full event log alone is sufficient to
-reconstruct exactly what happened" — structural rather than aspirational: an
+Phase 4 acceptance criterion ("the full event log alone is sufficient to
+reconstruct exactly what happened") structural rather than aspirational: an
 event that fails to be written is not a missing log line, it is a run that
 stops working. A log that can drift from reality eventually will.
 """
@@ -170,7 +170,7 @@ class Run:
 
         :raises RunDeadlineExceededError: with a reason fit to show a user.
         :raises RunCancelledError: when the user asked the run to stop. Checked
-            first — a cancel is a decision, the deadline is an accident.
+            first: a cancel is a decision, the deadline is an accident.
         """
         if self._cancel_reason is not None:
             raise RunCancelledError(self._cancel_reason)
@@ -218,7 +218,7 @@ class Run:
 class Mailbox:
     """Agent-to-agent messages, carried by the event log rather than around it.
 
-    Both halves go through SQLite on purpose — see this module's docstring.
+    Both halves go through SQLite on purpose: see this module's docstring.
     """
 
     def __init__(self, run: Run) -> None:
@@ -236,8 +236,8 @@ class Mailbox:
         """Read back the latest message ``sender`` posted to ``recipient``.
 
         Reads the durable row rather than returning something held in memory.
-        If the corresponding :meth:`deliver` never wrote its event, this raises
-        — which is the property that keeps the log honest.
+        If the corresponding :meth:`deliver` never wrote its event, this raises,
+        which is the property that keeps the log honest.
 
         :raises LookupError: when no such message is in the log.
         """
@@ -254,7 +254,7 @@ class Mailbox:
 
         msg = (
             f"no agent.message from {sender!r} to {recipient!r} in the log for "
-            f"run {self._run.id} — the event was never appended, so the result "
+            f"run {self._run.id}: the event was never appended, so the result "
             f"it carried does not exist"
         )
         raise LookupError(msg)

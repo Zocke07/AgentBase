@@ -1,8 +1,8 @@
-"""`GET /runs` — the list the replay picker reads.
+"""`GET /runs`: the list the replay picker reads.
 
 §5 Phase 7 requires "Replay: scrub any past run from the event log". A user
 cannot scrub a run they cannot find, and every other way of listing runs would
-mean the UI holding its own idea of what exists — which is the drift §2 rules
+mean the UI holding its own idea of what exists, which is the drift §2 rules
 out. So the list comes from the `runs` table, newest first, and carries only
 what a picker renders: the goal, the status, and when it happened.
 
@@ -176,7 +176,7 @@ async def test_list_runs_reads_the_runs_table_not_the_event_log(store: EventStor
 
     The event log is the authority on what *happened* in a run (§2); the `runs`
     table is the authority on which runs exist. A listing derived from events
-    would omit a run that was created and never started — precisely the run a
+    would omit a run that was created and never started: precisely the run a
     user is most likely to be looking for an explanation of.
     """
     created = await store.create_run(goal="never started")
@@ -202,7 +202,7 @@ async def test_list_runs_orders_by_creation_not_insertion(store: EventStore) -> 
 
 def test_a_restart_fails_the_runs_the_last_process_left_unfinished(app_paths: AppPaths) -> None:
     """The orchestrator is a task in the process that started it. When that
-    process goes — a crash, or the window closing — the row stayed `running`
+    process goes (a crash, or the window closing), the row stayed `running`
     forever and the dashboard said "live" about a run that would never end.
     """
     with TestClient(create_app(app_paths, secrets=SecretStore())) as first:

@@ -9,7 +9,7 @@ that decides whether the call proceeds. :class:`ToolRuntime` is that bundle.
 not independent: a sandbox without a gate is an ungated path to the filesystem
 (§1 constraint 5), and a gate without a sandbox asks the user to adjudicate
 paths the sandbox should have refused outright. Passing them as one value means
-there is no way to assemble an agent that has some of them — the combination
+there is no way to assemble an agent that has some of them: the combination
 that would look like it worked and be the vulnerability.
 
 **§3 does not name this module**, in the same way it does not name
@@ -46,7 +46,7 @@ class ToolRuntime:
     approvals: ApprovalService
     #: The workspace's pre-authorized risk levels, frozen at run start along
     #: with the rest of the run's rules. A policy read live would hold a run to
-    #: different rules at step 1 and step 12 — the same reasoning that makes
+    #: different rules at step 1 and step 12: the same reasoning that makes
     #: `RunLimits` and the agent roster snapshots.
     workspace_auto_approve: tuple[RiskLevel, ...] = ()
 
@@ -84,7 +84,7 @@ class ToolRuntime:
         value. A strict intersection therefore makes the workspace policy inert:
         a user sets `auto_approve` to `["low"]` to let an overnight run proceed,
         every definition intersects it away to nothing, and the setting reports
-        success while changing nothing — the exact shape this project has
+        success while changing nothing: the exact shape this project has
         shipped once already (CLAUDE.md, Phase 4: "a setting that could not be
         set, and said it could") and which §5 Phase 6 rules out by asking for a
         policy that lets "overnight runs progress".
@@ -93,12 +93,12 @@ class ToolRuntime:
         §5 Phase 5's note forbids a definition *escalating*: "it can never grant
         a risk level the workspace policy has not enabled". Under both readings
         the result is a subset of :attr:`workspace_auto_approve`, so no
-        definition can add anything — the only difference is whether a
+        definition can add anything: the only difference is whether a
         definition that said nothing is read as declining or as not answering.
         A row that has never been edited has not declined.
 
         A definition that *does* name levels still narrows, through
-        :func:`~agentspace.tools.catalogue.effective_auto_approve` — the pure
+        :func:`~agentspace.tools.catalogue.effective_auto_approve`: the pure
         intersection, kept as the single audited implementation of the rule that
         actually carries the security weight.
         """

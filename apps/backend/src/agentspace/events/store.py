@@ -77,7 +77,7 @@ class DeletedRun:
     run_id: str
     events: int
     approvals: int
-    #: Spend rows that now name no run. They are not removed — see
+    #: Spend rows that now name no run. They are not removed; see
     #: :meth:`EventStore.delete_run`.
     spend_detached: int
 
@@ -134,7 +134,7 @@ def _row_to_run(row: sqlite3.Row) -> Run:
 class EventStore:
     """Reads and writes the event log, and publishes what it wrote.
 
-    The bus is optional so the store can be used — and tested — without one.
+    The bus is optional so the store can be used, and tested, without one.
     Publication happens only after the transaction commits, so a subscriber can
     never observe an event that a rollback later erased.
     """
@@ -158,7 +158,7 @@ class EventStore:
         )
 
         if self._bus is not None:
-            # Synchronous, and deliberately so — see EventBus.publish.
+            # Synchronous, and deliberately so; see EventBus.publish.
             self._bus.publish(event)
 
         return event
@@ -245,8 +245,8 @@ class EventStore:
 
         This creates the row only. Attaching an orchestrator to it is Phase 4;
         until then a run's status moves because something explicitly moves it.
-        The space defaults so that every caller that predates spaces — the
-        debug script, a chat command with no space configured — lands in the
+        The space defaults so that every caller that predates spaces (the
+        debug script, a chat command with no space configured) lands in the
         default one, which migration 006 guarantees exists.
         """
         return await asyncio.to_thread(
@@ -286,7 +286,7 @@ class EventStore:
     async def list_runs(
         self, limit: int = DEFAULT_RUN_LIST_LIMIT, space_id: str | None = None
     ) -> list[Run]:
-        """Recent runs, newest first — what the Phase 7 replay picker reads.
+        """Recent runs, newest first: what the Phase 7 replay picker reads.
 
         Reads the `runs` table rather than deriving the list from events. The
         event log is the authority on what *happened* in a run (§2); it is not
@@ -339,8 +339,8 @@ class EventStore:
 
         The event log is append-only *within* a run (§2): no event is ever
         edited or removed on its own, because a log with a hole in it can no
-        longer reconstruct the run. Removing a whole run is a different act —
-        every surviving log is still complete — and it is the one delete a
+        longer reconstruct the run. Removing a whole run is a different act -
+        every surviving log is still complete, and it is the one delete a
         person legitimately wants: a failed experiment, a demo run, a goal
         typed by mistake.
 
@@ -352,7 +352,7 @@ class EventStore:
           driven by this process" on top.
         - **Everything that names the run goes with it**, in one transaction.
           §4 declares the foreign keys without ``ON DELETE``, so the cascade
-          lives here rather than in the schema — and with ``PRAGMA
+          lives here rather than in the schema, and with ``PRAGMA
           foreign_keys`` on, a table this method forgot fails the delete
           loudly instead of leaving an orphan.
         - **Spend is kept.** The monthly cap is one wallet, and money a run
@@ -400,7 +400,7 @@ class EventStore:
 
         A run's orchestrator is an ``asyncio`` task in the process that started
         it; a crash or a closed window ends the task and nothing else. The row
-        stayed ``running`` forever — at the top of the picker — and opening it
+        stayed ``running`` forever (at the top of the picker) and opening it
         held a stream that never ended, because nothing would ever append its
         terminal event. The dashboard said "live" about a run that had been
         dead since the app last closed.

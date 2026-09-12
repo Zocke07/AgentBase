@@ -92,7 +92,7 @@ export interface CopyFrom {
  *
  * Deliberately not the same model as :class:`~agentspace.store.agents.AgentDef`:
  * `id`, `created_at`, `updated_at` and `is_builtin` are ours to assign, and a
- * request model that accepted them would let a caller mint a built-in — which
+ * request model that accepted them would let a caller mint a built-in, which
  * is a definition the delete path refuses to remove.
  */
 export interface CreateAgentRequest {
@@ -126,7 +126,7 @@ export interface CreateSpaceRequest {
  *
  * ``seq`` is per-run and 1-based; it is the id the SSE stream publishes and
  * the cursor ``Last-Event-ID`` carries. ``id`` is the global rowid and exists
- * for ordering across runs — never use it as a resume cursor, since a client
+ * for ordering across runs: never use it as a resume cursor, since a client
  * resuming one run would then skip every event another run interleaved.
  */
 export interface Event {
@@ -197,7 +197,7 @@ export interface ProviderEntry {
  * ``extra="forbid"`` for the reason every request model in this project has
  * it: Pydantic's default is to drop an unknown field, which turned a
  * misspelled setting into a `200 OK` that changed nothing once already
- * (CLAUDE.md, Phase 4). Here the stakes are higher — a client that sent
+ * (CLAUDE.md, Phase 4). Here the stakes are higher: a client that sent
  * ``{"approve": true}`` would have the typo silently read as a denial.
  */
 export interface ResolveApprovalRequest {
@@ -264,8 +264,8 @@ export interface ToolResponse {
 /**
  * A partial update. Every field optional; omitted fields are untouched.
  *
- * ``None`` is meaningful for `provider` and `model` — it is how a definition
- * goes back to inheriting the workspace default — so this cannot use
+ * ``None`` is meaningful for `provider` and `model` (it is how a definition
+ * goes back to inheriting the workspace default), so this cannot use
  * `exclude_none` the way `PATCH /settings` does. `model_fields_set` is what
  * separates "sent as null" from "not sent".
  */
@@ -287,7 +287,7 @@ export interface UpdateAgentRequest {
  *
  * **Unknown fields are rejected rather than ignored.** Pydantic's default is
  * to drop them, which turns a misspelled or not-yet-supported setting into a
- * `200 OK` that changed nothing — the caller is told it worked and it did
+ * `200 OK` that changed nothing: the caller is told it worked and it did
  * not. That is exactly how the Phase 4 run limits appeared configurable
  * through this endpoint for a while without being so.
  *
@@ -296,7 +296,7 @@ export interface UpdateAgentRequest {
  * list because the two differ in bounds and optionality, and a duplicated
  * list is a list that drifts: Phase 6 added `auto_approve` to the settings
  * model and not to this one, so `GET /settings` reported a policy that
- * `PATCH /settings` refused to set — the workspace's entire approval policy
+ * `PATCH /settings` refused to set: the workspace's entire approval policy
  * was unsettable through the API. `extra="forbid"` made that loud rather than
  * silent, which is the Phase 4 fix working, and
  * `test_every_workspace_setting_can_be_patched` is what stops the next field
@@ -320,8 +320,8 @@ export interface UpdateSettingsRequest {
 /**
  * A partial update.
  *
- * ``None`` is meaningful for every rule — it is how a space goes back to
- * inheriting the app-wide default — so this uses `model_fields_set` rather
+ * ``None`` is meaningful for every rule (it is how a space goes back to
+ * inheriting the app-wide default), so this uses `model_fields_set` rather
  * than `exclude_none` to tell "not sent" from "sent as null".
  */
 export interface UpdateSpaceRequest {

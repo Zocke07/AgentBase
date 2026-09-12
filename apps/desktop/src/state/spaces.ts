@@ -6,7 +6,7 @@ import * as api from "../lib/api";
 /**
  * The spaces, and which one the window is looking at.
  *
- * A space is the container a run happens in — BUILD_SPEC §5 Phase 11 — and
+ * A space is the container a run happens in (BUILD_SPEC §5 Phase 11), and
  * the *current* space is what the Home screen, the run picker, the roster and
  * the space settings page are all about. It is a fact about this window,
  * remembered in this browser like the theme, and never a workspace setting:
@@ -49,9 +49,9 @@ function store(id: string): void {
   }
 }
 
-/** The remembered space if it still exists — archived ones included, since
+/** The remembered space if it still exists (archived ones included, since
  * an archived space's runs are still viewable and its settings page is where
- * it is unarchived — else the default. */
+ * it is unarchived), else the default. */
 function resolve(spaces: readonly SpaceResponse[], wanted: string | null): string | null {
   const found = spaces.find((space) => space.id === wanted);
   if (found !== undefined) return found.id;

@@ -2,7 +2,7 @@
 
 §1 constraint 4 names five places a key must never appear: `.env`, SQLite, a
 config file, a log line, and `argv`. Four of those are testable from here, and
-each has its own test below rather than being folded into one - a single
+each has its own test below rather than being folded into one: a single
 "secrets are safe" test would pass while three of the four channels leaked.
 
 The fifth, `argv`, is structural: nothing in this package ever reads a key from
@@ -26,7 +26,7 @@ FAKE_KEY = "totally-not-a-real-key-9f3a2b"
 
 
 def _server() -> uvicorn.Server:
-    """A real Server instance, unstarted - only `should_exit` is inspected.
+    """A real Server instance, unstarted: only `should_exit` is inspected.
 
     Matches the helper in `test_main.py`: a structural stand-in would not
     satisfy `_read_stdin`'s annotation, and loosening that annotation to make a
@@ -246,10 +246,10 @@ def test_the_rust_shell_sends_exactly_the_names_the_sidecar_accepts() -> None:
     """`SECRET_NAMES` in `lib.rs` and `SECRET_KEYS` here are one list in two
     languages, and nothing has been comparing them.
 
-    This is the shape that has bitten this project seven times - Phase 1's CORS
+    This is the shape that has bitten this project seven times (Phase 1's CORS
     origins, Phase 2's named SSE events, Phase 3's `*.sql` glob, Phase 4's
     settings fields, Phase 5's `max_steps` default, Phase 6's `auto_approve`,
-    Phase 7's `qualified_model` - and Phase 6's conclusion was explicit: making
+    Phase 7's `qualified_model`), and Phase 6's conclusion was explicit: making
     the failure loud is worth a great deal and does not stop the field being
     forgotten; only comparing the two lists does that.
 
@@ -287,7 +287,7 @@ def test_the_rust_shell_tells_a_refused_keychain_read_from_an_unset_key() -> Non
     and a user clicking Deny on macOS's access prompt all arrive as "the user
     has not set that key". The first Mac session hit exactly that. The prompt
     appears whenever a binary other than the one that stored the item reads it
-    - for an ad-hoc-signed build, every rebuild - and a Deny produced
+    (for an ad-hoc-signed build, every rebuild), and a Deny produced
     `[keychain] sending 0 key(s): []` followed by an app that said no key was
     configured, with nothing anywhere recording the refusal. Windows never
     showed it: the Credential Manager neither prompts nor refuses the user who

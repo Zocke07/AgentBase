@@ -3,8 +3,8 @@
 §4 lists `run.cancelled` and a `cancelled` status and nothing produced them: a
 runaway run could only be stopped by closing the app, and the default wall
 clock is ten minutes. Cancellation is cooperative, at the same point the
-deadline is checked — before each model call, where the run can still write a
-coherent terminal event — and it releases an agent blocked on the approval
+deadline is checked (before each model call, where the run can still write a
+coherent terminal event) and it releases an agent blocked on the approval
 gate, which would otherwise sit waiting for the wall clock.
 """
 
@@ -50,8 +50,8 @@ def workspace(tmp_path: Path) -> Path:
 async def _until(condition: Callable[[], bool]) -> None:
     """Yield to the loop until a condition it will make true holds.
 
-    The condition is another coroutine's internal state — the gate having a
-    waiter registered — and the service offers no event to await for it; one
+    The condition is another coroutine's internal state (the gate having a
+    waiter registered), and the service offers no event to await for it; one
     would be test-only surface. Yielding is cheap, and `wait_for` bounds it.
     """
     while not condition():  # noqa: ASYNC110
@@ -62,7 +62,7 @@ class CancelsMidway(ScriptedProvider):
     """A scripted provider that cancels the run from inside its Nth call.
 
     The cancel lands while a model call is in flight, which is where a real
-    one lands — from an HTTP handler, at an arbitrary moment — and the run
+    one lands (from an HTTP handler, at an arbitrary moment), and the run
     must notice at its next check rather than tear the call apart.
     """
 
@@ -138,7 +138,7 @@ async def test_cancelling_releases_an_agent_blocked_on_the_gate(
     workspace: Path,
 ) -> None:
     """The gate borrows the run's wall clock, so without this a cancel would
-    take effect only when the approval expired — ten minutes by default."""
+    take effect only when the approval expired: ten minutes by default."""
     await settings.update({"max_run_seconds": 600})
     runtime, service = tool_runtime(store, db, workspace)
     await agents.create(

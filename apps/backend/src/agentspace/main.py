@@ -8,25 +8,25 @@ arrives in Phase 4.
 The part of this module that is *not* trivial is shutdown. With ``--onefile``,
 PyInstaller's bootloader unpacks to a temp directory and execs the real Python
 process as a child. Tauri only ever learns the bootloader's PID, so killing that
-PID leaves the actual server running and holding port 8787 — the orphan-process
+PID leaves the actual server running and holding port 8787: the orphan-process
 trap called out in BUILD_SPEC §5 Phase 1.
 
 The fix is to not rely on signals at all. The shell holds the sidecar's stdin
-open for the lifetime of the app. When the app quits — cleanly or by being
-killed — that pipe closes, the reader thread sees EOF, and the server stops
+open for the lifetime of the app. When the app quits (cleanly or by being
+killed) that pipe closes, the reader thread sees EOF, and the server stops
 itself from the inside. Writing the line ``shutdown`` does the same thing
 deliberately, which is the path used on a clean quit.
 
 **Phase 3 gives stdin a second job.** The shell writes one line of JSON holding
 the API keys it read from the OS keychain, immediately after spawn, before
-anything else. Keys must not travel as command-line arguments — `argv` is
-readable by any process on the machine (§1 constraint 4) — and stdin is already
+anything else. Keys must not travel as command-line arguments: `argv` is
+readable by any process on the machine (§1 constraint 4), and stdin is already
 a private pipe between exactly these two processes.
 
 The two uses share one stream without ambiguity: the handshake is the first
 line and is JSON, the shutdown sentinel is the bare word ``shutdown``. Both are
 consumed by the same reader thread, so a launch that never sends a secrets line
-— ``python -m agentspace`` by hand — still starts and still shuts down cleanly.
+(``python -m agentspace`` by hand) still starts and still shuts down cleanly.
 """
 
 from __future__ import annotations
@@ -87,7 +87,7 @@ SHUTDOWN_COMMAND: Final[str] = "shutdown"
 PORT_ENV_VAR: Final[str] = "AGENTSPACE_PORT"
 
 #: Environment variable carrying the shell's tag for this launch, echoed by
-#: `/health`. Not a secret — a label, so the shell can tell the sidecar it
+#: `/health`. Not a secret: a label, so the shell can tell the sidecar it
 #: spawned from whatever else is listening on the fixed port.
 INSTANCE_ENV_VAR: Final[str] = "AGENTSPACE_INSTANCE"
 
@@ -98,8 +98,8 @@ class HealthResponse(BaseModel):
     ok: bool
     #: The tag the shell launched this process with, or ``None`` for a sidecar
     #: run by hand. The port is fixed, so the process answering `/health` is
-    #: whatever holds it — a previous copy of the app still shutting down, a
-    #: dev sidecar in a terminal — and this is how the shell tells its own
+    #: whatever holds it (a previous copy of the app still shutting down, a
+    #: dev sidecar in a terminal) and this is how the shell tells its own
     #: apart. The packaged app once attached to the dev sidecar and showed the
     #: dev data directory's runs with nothing anywhere saying so.
     instance: str | None
@@ -116,11 +116,11 @@ def create_app(
     isolated instance, and so importing this module never starts anything.
 
     :param paths: explicit data locations, as a test supplies. When omitted the
-        directory is resolved the way the shipped app resolves it — the Tauri
+        directory is resolved the way the shipped app resolves it: the Tauri
         shell's ``AGENTSPACE_DATA_DIR``, then the OS app-data dir.
     :param secrets: the API keys delivered over stdin. Passed in rather than
-        constructed here because the stdin reader thread — which owns the other
-        end of the handshake — must write into the same instance.
+        constructed here because the stdin reader thread (which owns the other
+        end of the handshake) must write into the same instance.
     :param instance: the shell's tag for this launch, echoed by `/health`.
     """
     resolved = paths if paths is not None else resolve_app_paths()
@@ -132,7 +132,7 @@ def create_app(
 
         Opened here rather than at import so that importing this module still
         touches nothing, and closed on the way out so the SQLite file is not
-        left locked — which on Windows blocks the installer from replacing it.
+        left locked, which on Windows blocks the installer from replacing it.
         """
         resolved.ensure_exists()
 
@@ -164,7 +164,7 @@ def create_app(
         # process-wide, the root is not.
         app.state.tool_runtime = ToolRuntime.build(Sandbox(default_folder), app.state.approvals)
 
-        # One object knows how to start a run, and every caller uses it — the
+        # One object knows how to start a run, and every caller uses it: the
         # HTTP endpoint and both chat channels. See `orchestrator/launcher.py`
         # for why three copies of `execute_run`'s argument list would have been
         # the eighth instance of this project's recurring bug.
@@ -192,7 +192,7 @@ def create_app(
         # that process; nothing will ever append their terminal event, so the
         # dashboard said "live" about runs dead since the app last closed.
         # After the approval sweep, so the log reads: question expired, run
-        # failed — the order it happened in.
+        # failed: the order it happened in.
         interrupted = await app.state.store.fail_orphaned_runs(
             "The app closed while this run was in progress, so it did not finish."
         )
@@ -321,7 +321,7 @@ def _read_stdin(
                 secrets.load(parse_secrets_line(line))
                 continue
     except (OSError, ValueError):
-        # stdin was closed underneath us — same meaning as EOF.
+        # stdin was closed underneath us, same meaning as EOF.
         logger.info("stdin closed unexpectedly; shutting down")
     else:
         logger.info("stdin reached EOF; shutting down")

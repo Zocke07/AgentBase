@@ -11,23 +11,23 @@ import { useRunStore } from "./runStore";
  *
  * The whole hook is a pipe: events go from the stream into `appendEvents` and
  * nowhere else. Nothing here interprets an event, and nothing here writes run
- * state directly — that is the reducer's job, and a second writer would be the
+ * state directly: that is the reducer's job, and a second writer would be the
  * ad-hoc message §2 forbids.
  *
  * **History is fetched first, then the stream attaches after it.** A finished
  * run renders immediately instead of after a round trip that ends in an instant
- * close, and the stream is asked for what the history did not have — it used
+ * close, and the stream is asked for what the history did not have: it used
  * to replay the whole log a second time, every frame parsed and dropped.
  *
  * **The store is not touched until the history is in.** Opening the run first
- * and filling it later showed an empty run — 0 / 0, no agents, no rows — for
+ * and filling it later showed an empty run (0 / 0, no agents, no rows) for
  * the length of the fetch on every switch, and the whole panel re-laid itself
  * out twice. The previous run stays on screen, and `RunsView` reads the
  * store's `runId` against its own to know it is looking at the old one.
  *
  * **Frames are handed over once per animation frame, not once each.** Every
  * `llm.token` is its own SSE frame and its own task, and every store update is
- * a render — the summary, the graph and a full pass over the log. A model that
+ * a render: the summary, the graph and a full pass over the log. A model that
  * streams a few hundred tokens a second was a few hundred renders a second.
  * Buffering to the next paint makes a burst one update, and changes nothing
  * about the fold: `appendEvents` is `appendEvent` called less.

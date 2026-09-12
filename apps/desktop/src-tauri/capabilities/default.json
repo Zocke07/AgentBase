@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Core permissions for the main window. The sidecar is spawned from Rust, not from JavaScript, so the webview needs no shell permission at all. The keyring permissions let the settings UI store and clear API keys in the OS keychain — and only that: reading them back is done in Rust at spawn time, never by the webview, so `keyring:default` (which includes get) is deliberately not granted. The opener plugin is granted nothing here either: the one folder the webview may open goes through the app's own `reveal_folder` command, which refuses any path outside the data directory before the plugin sees it.",
+  "description": "Core permissions for the main window. The sidecar is spawned from Rust, not from JavaScript, so the webview needs no shell permission at all. The keyring permissions let the settings UI store and clear API keys in the OS keychain, and only that: reading them back is done in Rust at spawn time, never by the webview, so `keyring:default` (which includes get) is deliberately not granted. The opener plugin is granted nothing here either: the one folder the webview may open goes through the app's own `reveal_folder` command, which refuses any path outside the data directory before the plugin sees it.",
   "windows": [
     "main"
   ],

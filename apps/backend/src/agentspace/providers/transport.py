@@ -1,8 +1,8 @@
 """Shared HTTP plumbing for the provider implementations.
 
 Every provider talks to a JSON-over-HTTP endpoint, and the parts that are the
-same for all of them — client lifetime, timeouts, and turning transport and
-status failures into the :mod:`agentspace.providers.base` error taxonomy — live
+same for all of them (client lifetime, timeouts, and turning transport and
+status failures into the :mod:`agentspace.providers.base` error taxonomy) live
 here so the three implementations differ only where the *vendors* differ.
 
 **Why raw HTTP rather than the vendor SDKs.** Normalizing token usage and tool
@@ -40,7 +40,7 @@ __all__ = [
     "stream_sse",
 ]
 
-#: Generous, because a large completion legitimately takes minutes — but not
+#: Generous, because a large completion legitimately takes minutes, but not
 #: unbounded, because a hung request with no ceiling wedges the run forever and
 #: the user has no way to see why.
 DEFAULT_TIMEOUT_SECONDS: Final[float] = 120.0
@@ -51,7 +51,7 @@ def _raise_for_status(response: httpx2.Response, provider: str) -> None:
 
     The mapping is deliberately coarse: callers above this layer branch on
     retryable versus not, and nothing above it should be reading vendor error
-    codes — that would be a code change on switching provider.
+    codes: that would be a code change on switching provider.
     """
     status = response.status_code
     if status < 400:
@@ -119,7 +119,7 @@ async def post_json(
     """POST ``payload`` and return the decoded JSON object.
 
     Transport failures become :class:`ProviderUnavailableError` rather than leaking
-    an ``httpx2`` exception — a caller that had to catch those would be coupled
+    an ``httpx2`` exception: a caller that had to catch those would be coupled
     to this module's choice of HTTP client.
     """
     try:
@@ -189,7 +189,7 @@ async def stream_sse(
     """Yield the decoded ``data:`` objects of a Server-Sent Events response.
 
     The ``event:`` line is deliberately ignored and the discriminator is read
-    from the JSON body instead — the same decision, for the same reason, that
+    from the JSON body instead: the same decision, for the same reason, that
     this project's own SSE stream makes (see CLAUDE.md, Phase 2): a reader
     keyed on the event *name* silently drops any type it was not written to
     expect, and both vendors add new chunk types without warning.
@@ -226,7 +226,7 @@ async def stream_ndjson(
 
     Unlike :func:`stream_sse` a malformed line is an error here. NDJSON has no
     framing lines to skip, so anything unparseable is the vendor sending
-    something this adapter does not understand — and silently dropping it would
+    something this adapter does not understand, and silently dropping it would
     lose response content rather than a keep-alive.
     """
     async for line in _stream_lines(client, url, payload, headers, provider):

@@ -133,7 +133,7 @@ class OpenAIProvider:
         OpenAI response reports no token counts at all unless it is asked to;
         the `usage` field is simply absent from every chunk. Without it the
         budget ledger would record every streamed call as costing nothing and
-        the monthly cap would never bind — a silent failure, because the run
+        the monthly cap would never bind: a silent failure, because the run
         itself works perfectly. That is the whole reason this line exists.
         """
         payload = self._payload(messages, tools, system, max_tokens)

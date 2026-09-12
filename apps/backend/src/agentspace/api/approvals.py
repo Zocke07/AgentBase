@@ -1,4 +1,4 @@
-"""Approval endpoints — the other half of the gate.
+"""Approval endpoints: the other half of the gate.
 
 §3's layout names this module `POST /approvals/{id}`, and that is the endpoint
 that matters: an agent inside a run is suspended on an `asyncio.Future`, and
@@ -7,7 +7,7 @@ this is what sets it. The two halves live in different requests, which is why
 than something a run owns.
 
 `GET /approvals` exists for the Phase 7 dialog, which has to render what is
-outstanding when it opens — including approvals raised before it connected. A
+outstanding when it opens: including approvals raised before it connected. A
 UI relying only on the `approval.requested` event would show nothing to a user
 who opened the window a second too late, and the whole point of the gate is
 that somebody is there to answer it.
@@ -36,7 +36,7 @@ class ResolveApprovalRequest(BaseModel):
     ``extra="forbid"`` for the reason every request model in this project has
     it: Pydantic's default is to drop an unknown field, which turned a
     misspelled setting into a `200 OK` that changed nothing once already
-    (CLAUDE.md, Phase 4). Here the stakes are higher — a client that sent
+    (CLAUDE.md, Phase 4). Here the stakes are higher: a client that sent
     ``{"approve": true}`` would have the typo silently read as a denial.
     """
 

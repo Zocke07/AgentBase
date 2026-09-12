@@ -1,7 +1,7 @@
 """Agent definition endpoints, and the tool catalogue the editor needs.
 
 §5 Phase 5's acceptance criterion begins "an agent created entirely through the
-API — never touching Python". This module is that API.
+API (never touching Python)". This module is that API.
 
 **Every rejection is a 4xx with a message written for a person**, per §5 Phase
 5: "Reject at the API layer with a readable message, not a 500." The rules
@@ -46,7 +46,7 @@ class CreateAgentRequest(BaseModel):
 
     Deliberately not the same model as :class:`~agentspace.store.agents.AgentDef`:
     `id`, `created_at`, `updated_at` and `is_builtin` are ours to assign, and a
-    request model that accepted them would let a caller mint a built-in — which
+    request model that accepted them would let a caller mint a built-in, which
     is a definition the delete path refuses to remove.
     """
 
@@ -62,7 +62,7 @@ class CreateAgentRequest(BaseModel):
     provider: str | None = None
     model: str | None = None
     allowed_tools: list[str] = Field(default_factory=list)
-    #: ``None`` means "whatever this workspace allows" — see
+    #: ``None`` means "whatever this workspace allows": see
     #: :data:`agentspace.store.agents.DEFAULT_AGENT_MAX_STEPS`. Defaulting to a
     #: literal here would reject a definition for a field the caller never sent,
     #: whenever the workspace cap is below that literal.
@@ -74,8 +74,8 @@ class CreateAgentRequest(BaseModel):
 class UpdateAgentRequest(BaseModel):
     """A partial update. Every field optional; omitted fields are untouched.
 
-    ``None`` is meaningful for `provider` and `model` — it is how a definition
-    goes back to inheriting the workspace default — so this cannot use
+    ``None`` is meaningful for `provider` and `model` (it is how a definition
+    goes back to inheriting the workspace default), so this cannot use
     `exclude_none` the way `PATCH /settings` does. `model_fields_set` is what
     separates "sent as null" from "not sent".
     """
@@ -113,7 +113,7 @@ class ToolResponse(BaseModel):
     #: False for every tool in Phase 5, and read from the registry rather than
     #: hardcoded now that Phase 6 has flipped it. Computed rather than asserted
     #: because the failure it guards against is a catalogue entry with no
-    #: implementation — a tool the editor offers, a definition can allow, and a
+    #: implementation: a tool the editor offers, a definition can allow, and a
     #: run then refuses. `test_every_catalogue_tool_has_an_implementation` pins
     #: the two together, and this reports the truth either way.
     available: bool
@@ -139,7 +139,7 @@ def _reject(exc: AgentValidationError) -> HTTPException:
 
 @router.get("/agents")
 async def list_agents(request: Request, space_id: str | None = None) -> list[AgentDef]:
-    """Every definition, enabled or not — this backs the roster editor.
+    """Every definition, enabled or not: this backs the roster editor.
 
     A run reads only the enabled ones; see
     :meth:`agentspace.orchestrator.registry.AgentRegistry.load`.
@@ -188,7 +188,7 @@ async def update_agent(
 ) -> AgentDef:
     """Apply a partial update.
 
-    A built-in is editable here — §5 Phase 5 guards only the delete path — so
+    A built-in is editable here (§5 Phase 5 guards only the delete path), so
     there is deliberately no `is_builtin` check.
     """
     changes: dict[str, Any] = {field: getattr(body, field) for field in body.model_fields_set}

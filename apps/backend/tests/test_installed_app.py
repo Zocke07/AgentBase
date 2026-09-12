@@ -3,7 +3,7 @@
 This is BUILD_SPEC §5 Phase 9's acceptance criterion, adapted because its literal
 form cannot be met: "a green CI run produces a downloadable installer that runs on
 a second Windows machine with no Python installed". There is one Windows machine
-here and there will not be a second — see CLAUDE.md's "The machine reality".
+here and there will not be a second; see CLAUDE.md's "The machine reality".
 
 The property the criterion is really protecting is narrow and testable without a
 second machine: **the frozen sidecar must not depend on the development machine's
@@ -13,8 +13,8 @@ symptom on a user's machine is an app that starts and immediately dies.
 
 So this module installs the produced installer and launches the *installed*
 sidecar with Python removed from its environment. On a GitHub `windows-latest`
-runner that is a genuinely different machine — a clean VM with no `.venv`, no
-`node_modules`, no repository and no toolchain — which is weaker than a friend's
+runner that is a genuinely different machine (a clean VM with no `.venv`, no
+`node_modules`, no repository and no toolchain), which is weaker than a friend's
 laptop in one respect and stronger in another: it runs on every release rather
 than once.
 
@@ -26,7 +26,7 @@ Two things this deliberately does not claim. It does not launch the GUI: a Tauri
 window on a headless runner is unreliable, and the Rust shell is not the half that
 could need Python. And "no Python installed" is approximated by a scrubbed
 environment rather than by an uninstalled Python, which
-`test_the_scrubbed_environment_really_has_no_python` exists to keep honest — a
+`test_the_scrubbed_environment_really_has_no_python` exists to keep honest: a
 scrub that silently failed would make everything below it vacuous.
 """
 
@@ -50,7 +50,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 #: Where the per-user NSIS installer puts the app. Tauri's `currentUser` install
 #: mode uses `%LOCALAPPDATA%\<productName>`, which Phase 2 confirmed empirically
 #: and which is why the data directory is deliberately *not* derived from
-#: `APP_NAME` — it would have resolved inside the installation.
+#: `APP_NAME`: it would have resolved inside the installation.
 INSTALL_DIR = Path(os.environ.get("LOCALAPPDATA", "C:/")) / "AgentSpace"
 
 #: Deliberately none of 8787 (dev), 8899 (`test_sidecar_binary`), so a running
@@ -69,7 +69,7 @@ def _installer() -> Path | None:
     """The installer to exercise.
 
     `AGENTSPACE_INSTALLER_DIR` is what CI sets, pointing at the artefact it
-    downloaded from the build job — the actual bytes a user would get, rather than
+    downloaded from the build job: the actual bytes a user would get, rather than
     a local rebuild of them. Falling back to the bundle directory keeps the recipe
     usable straight after `just build-installer`.
     """
@@ -95,7 +95,7 @@ def _requested(request: pytest.FixtureRequest) -> None:
     """Never run unless asked: this module installs software on the host.
 
     Module-scoped, and that scope is load-bearing. The first version was
-    function-scoped, and pytest instantiates higher-scoped fixtures first — so the
+    function-scoped, and pytest instantiates higher-scoped fixtures first, so the
     module-scoped `installed` fixture below ran *before* this skip ever executed,
     on every plain `just test`. Locally that silently reinstalled the app, because
     an installer was sitting in the bundle directory; on the CI runner it failed
@@ -116,7 +116,7 @@ def _python_free_environment() -> dict[str, str]:
     What is kept is what every Windows machine has and the process cannot start
     without. The two system directories on `PATH`, because nothing loads without
     them. And `TEMP`/`TMP`, because a `--onefile` binary extracts itself there
-    before running a line of Python — the first version of this scrub dropped them
+    before running a line of Python: the first version of this scrub dropped them
     and the installed sidecar died with `[PYI-32164:ERROR] Could not create
     temporary directory!`, which is not the dependency this test is hunting. A
     machine with no Python still has a temp directory; `run_shell`'s allowlist
@@ -179,7 +179,7 @@ def installed(request: pytest.FixtureRequest) -> Path:
 
     It checks the option itself rather than trusting `_requested` to have run
     first. The fixture that performs a side effect is the one that must refuse
-    to, whatever the instantiation order turns out to be — relying on a separate
+    to, whatever the instantiation order turns out to be; relying on a separate
     autouse fixture is exactly what installed the app behind `just test`'s back.
     Once past that check, a missing installer is a failure rather than a skip:
     the check was asked for explicitly, and a skip would be a release verified by
@@ -201,7 +201,7 @@ def installed(request: pytest.FixtureRequest) -> Path:
 
     sidecar = INSTALL_DIR / "agentspace-sidecar.exe"
     assert sidecar.is_file(), (
-        f"{sidecar} is missing after installing {installer.name} — the installer "
+        f"{sidecar} is missing after installing {installer.name}: the installer "
         f"ran but did not place the sidecar where a per-user install puts it"
     )
     return sidecar
@@ -218,7 +218,7 @@ def test_the_scrubbed_environment_really_has_no_python() -> None:
     `py.exe` is not checked: the Python launcher installs into the Windows
     directory itself on an all-users install, so removing it would mean removing
     `System32` and no process could start. It is irrelevant here because a frozen
-    binary embeds its interpreter and never shells out to a launcher — what would
+    binary embeds its interpreter and never shells out to a launcher: what would
     break the app is an interpreter it expected to *find*, which is what `PATH`
     and `PYTHON*` control.
     """
@@ -272,7 +272,7 @@ def test_the_installed_sidecar_serves_with_no_python_available(
                 "\n".join(
                     [
                         f"the installed sidecar never bound {TEST_PORT} with no Python "
-                        f"on PATH — which is the failure this test exists to catch.",
+                        f"on PATH, which is the failure this test exists to catch.",
                         f"exit code: {process.returncode}",
                         "--- output ---",
                         output or "<none>",
@@ -330,7 +330,7 @@ def test_closing_stdin_leaves_no_orphan_process(installed: Path, tmp_path: Path)
 
         assert process.wait(timeout=SHUTDOWN_TIMEOUT_S) is not None
         assert _wait_for(TEST_PORT, open_=False, timeout=SHUTDOWN_TIMEOUT_S), (
-            "the port is still held after stdin closed — the real server was orphaned"
+            "the port is still held after stdin closed: the real server was orphaned"
         )
         assert _surviving_processes() == [], (
             f"orphaned processes remain: {_surviving_processes()}"

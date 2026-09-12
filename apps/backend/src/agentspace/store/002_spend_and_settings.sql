@@ -1,11 +1,11 @@
--- Migration 002 — spend ledger and workspace settings (BUILD_SPEC §4, §5 Phase 3).
+-- Migration 002 - spend ledger and workspace settings (BUILD_SPEC §4, §5 Phase 3).
 --
 -- `spend` is §4 verbatim. `settings` is an addition beyond the five tables §4
 -- specifies, and the reason is the Phase 3 acceptance criterion: "switching
 -- provider is a settings change with no code change" needs somewhere for that
 -- choice to live. A file beside the database would split authority between
 -- SQLite and the filesystem, and §2 is explicit that the database is the
--- authority. Keys are the one thing that never lands here — those stay in the
+-- authority. Keys are the one thing that never lands here - those stay in the
 -- OS keychain (§1 constraint 4).
 --
 -- This is also the first migration to run against an already-populated

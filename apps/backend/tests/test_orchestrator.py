@@ -9,16 +9,16 @@ that is easy to fake:
 
 A test that asserted only "some events were written" would pass against a log
 that had lost half the run. So `reconstruct` in `tests/support.py` reads
-**nothing but the event rows** — no run row, no orchestrator, no provider, and
-since Phase 5, no `agent_defs` table either. Every assertion about a run is
+**nothing but the event rows** (no run row, no orchestrator, no provider, and
+since Phase 5, no `agent_defs` table either). Every assertion about a run is
 made against that reconstruction rather than against live state, and
 `test_dropping_*` proves each one actually depends on the events it claims to.
 
 **Phase 5 changed the shape of a run without changing this contract.** Workers
 are no longer invented by the supervisor; they are rows of `agent_defs` that
 the supervisor selects by name, so `spawn_agent` takes an `agent` rather than a
-name and a role. The scripts below therefore spawn `researcher` and `writer` —
-the built-in definitions migration 003 seeds — and the roles asserted are the
+name and a role. The scripts below therefore spawn `researcher` and `writer`
+(the built-in definitions migration 003 seeds), and the roles asserted are the
 ones those rows carry rather than strings a model produced.
 """
 
@@ -159,7 +159,7 @@ async def test_each_worker_ran_and_reported(
 
     researcher = rebuilt.agent("researcher")
     # The role came from the `agent_defs` row, not from anything the model
-    # said — §5 Phase 5's whole point.
+    # said: §5 Phase 5's whole point.
     assert researcher.role == RESEARCHER_ROLE
     assert researcher.definition_name == "researcher"
     assert researcher.finished_reason == "finished"
@@ -256,7 +256,7 @@ async def test_the_models_reasoning_reaches_the_log_beside_its_answer(
     secrets: SecretStore,
 ) -> None:
     """A model that reasons at length and answers with nothing used to leave
-    a log that said it produced nothing — Phase 5 watched `qwen3:4b` do it
+    a log that said it produced nothing: Phase 5 watched `qwen3:4b` do it
     five times running. `llm.response` carries `thinking` now: `None` when
     the provider exposed no reasoning, the text when it did, so a replay can
     tell "said nothing" from "thought, then said nothing"."""
@@ -434,7 +434,7 @@ async def test_a_supervisor_that_runs_out_of_steps_fails_the_run(
 
     Found by running a local model, which hit the agent cap twice and then ran
     out of steps. The run was reported `completed` with the summary
-    "supervisor stopped after 4 steps with no result" — a terminal event that
+    "supervisor stopped after 4 steps with no result": a terminal event that
     says the run worked when it did not, which is exactly the drift between the
     log and reality that §2 exists to prevent. A supervisor that never called
     `finish` did not answer the goal, whatever its workers managed.
@@ -586,7 +586,7 @@ async def test_an_unknown_tool_name_is_reported_not_fatal(
     """A model naming a tool that does not exist gets told what it may use.
 
     The name here has to be one the tool catalogue does not know. `read_file`
-    used to serve — it was unknown to Phase 4 — but Phase 5 registers it, so it
+    used to serve (it was unknown to Phase 4), but Phase 5 registers it, so it
     is now a real tool the supervisor is *denied* rather than a name that means
     nothing. The next test covers that case; this one keeps covering this one.
     """
@@ -655,8 +655,8 @@ async def test_a_worker_handoff_tells_the_supervisor_how_to_continue_it(
     ledger: BudgetLedger,
     secrets: SecretStore,
 ) -> None:
-    """A worker cannot spawn — that would let any agent widen the run from
-    inside its own turn — so a handoff goes back to the supervisor as text.
+    """A worker cannot spawn (that would let any agent widen the run from
+    inside its own turn), so a handoff goes back to the supervisor as text.
     Phase 4 through Phase 6 recorded that nothing asserted the supervisor
     then did anything sensible with it. What it is handed now is explicit:
     who asked for whom, and that `spawn_agent` with that name continues it.
@@ -764,13 +764,13 @@ async def test_a_worker_is_not_offered_spawn_agent(
 #
 # CLAUDE.md recorded this as unverified after Phase 2: "no HTTP client has ever
 # overflowed a 512-event queue, because nothing yet emits events fast enough.
-# Revisit when Phase 4 streams `llm.token` at model speed — that is the first
+# Revisit when Phase 4 streams `llm.token` at model speed; that is the first
 # thing that plausibly outruns a subscriber."
 #
 # This is that revisit. A subscriber queue holds 512 events; one streamed model
 # response here produces well over that, and the consumer deliberately stops
 # reading while they are produced. The bus drops the buffer of a subscriber it
-# cannot keep up with — which is safe *only* because the durable row makes the
+# cannot keep up with, which is safe *only* because the durable row makes the
 # buffered copy worthless and the stream re-reads the range from SQLite. If that
 # resync were wrong, this is the test that shows it, as a gap or a duplicate in
 # what the client receives.
@@ -802,7 +802,7 @@ async def test_a_token_flood_reaches_a_slow_subscriber_without_gaps(
     """A subscriber that stops reading must still receive every event, once.
 
     The stream is consumed directly rather than over HTTP because httpx's ASGI
-    transport buffers a response body to completion before handing it back —
+    transport buffers a response body to completion before handing it back -
     so an in-process HTTP client cannot read a stream while the run producing
     it is still going. That is a limitation of the test transport, not of the
     server; the HTTP framing above this generator is covered by the Phase 2
@@ -844,7 +844,7 @@ async def test_a_token_flood_reaches_a_slow_subscriber_without_gaps(
     assert sequences == sorted(set(sequences)), "a gap or a duplicate reached the client"
     assert sequences == list(range(1, len(sequences) + 1))
     assert len(sequences) > DEFAULT_QUEUE_SIZE, (
-        f"only {len(sequences)} events — the {DEFAULT_QUEUE_SIZE}-event queue "
+        f"only {len(sequences)} events: the {DEFAULT_QUEUE_SIZE}-event queue "
         f"bound was never crossed, so this test proved nothing"
     )
     assert frames[-1]["type"] == "run.completed"

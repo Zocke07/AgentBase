@@ -22,7 +22,7 @@ const pending: ApprovalRecord = {
   agent: "escaper",
   tool: "write_file",
   risk: "medium",
-  prompt: 'Agent "escaper" wants to overwrite notes.txt (36 characters) — Allow / Deny',
+  prompt: 'Agent "escaper" wants to overwrite notes.txt (36 characters): Allow / Deny',
   status: "pending",
   automatic: false,
   seq: 12,
@@ -178,7 +178,7 @@ describe("answering", () => {
 
   it("offers no buttons when the viewer has scrubbed back from the head", () => {
     /* At this position the question is pending *in the fold*, and the run may
-       even still be live — but the answer is given at the head, and this is
+       even still be live, but the answer is given at the head, and this is
        not the head. The old dialog rendered live buttons here and a click got
        a 409. */
     panel([pending], vi.fn(), "replay");

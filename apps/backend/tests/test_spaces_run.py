@@ -1,7 +1,7 @@
 """A run happens *in* a space: its roster, its folder, its rules.
 
-§5 Phase 11's first two acceptance criteria, through the launcher — the one
-object that knows how to start a run — with a scripted provider standing in
+§5 Phase 11's first two acceptance criteria, through the launcher (the one
+object that knows how to start a run) with a scripted provider standing in
 for the model, a real sandbox rooted at each space's folder, and the real
 gate pre-answered. The live version of criteria 1 and 2 is in CLAUDE.md.
 """
@@ -219,5 +219,5 @@ async def test_a_run_with_no_space_named_lands_in_the_default_space(
     assert run.space_id == DEFAULT_SPACE_ID
     started = next(e for e in await store.read(run.id) if e.type == "run.started")
     assert started.payload["space"]["id"] == DEFAULT_SPACE_ID
-    # And the default roster — the three built-ins — was what it was offered.
+    # And the default roster (the three built-ins) was what it was offered.
     assert "researcher" in (provider.systems[0] or "")

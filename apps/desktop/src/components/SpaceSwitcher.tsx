@@ -4,11 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import * as api from "../lib/api";
 
 /**
- * The space switcher at the top of the rail — BUILD_SPEC §5 Phase 11.
+ * The space switcher at the top of the rail: BUILD_SPEC §5 Phase 11.
  *
  * The current space's name, a list to switch, and "New space…", which opens
  * a small form in place: a name and how the roster starts. Archived spaces
- * sit in a collapsed group under the live ones — still reachable, because
+ * sit in a collapsed group under the live ones, still reachable, because
  * an archived space's runs are still viewable and its settings page is
  * where it is unarchived, but out of the way.
  *

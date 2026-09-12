@@ -23,7 +23,7 @@ import { resolveSidecarBaseUrl } from "./sidecar";
  * Typed calls to the sidecar.
  *
  * Every request and response type here is imported from `@agentspace/schemas`,
- * which is generated from the FastAPI OpenAPI document — BUILD_SPEC §5 Phase 7:
+ * which is generated from the FastAPI OpenAPI document; BUILD_SPEC §5 Phase 7:
  * "never hand-write the API types". Nothing in this file declares the shape of
  * a payload; it only says which endpoint returns which generated type, so a
  * model that changes on the backend breaks the frontend's typecheck rather than
@@ -41,7 +41,7 @@ import { resolveSidecarBaseUrl } from "./sidecar";
  *
  * §5 Phase 5 made validation failures return `{message, field}` specifically so
  * §5 Phase 7 could "surface the API's validation errors inline on the offending
- * field — never a toast that loses which field was wrong". Losing `field` here
+ * field, never a toast that loses which field was wrong". Losing `field` here
  * would waste that.
  */
 export class ApiError extends Error {
@@ -108,7 +108,7 @@ type TransportListener = () => void;
 const transportListeners = new Set<TransportListener>();
 
 /**
- * Be told when a request could not reach the sidecar at all — not a 4xx or
+ * Be told when a request could not reach the sidecar at all, not a 4xx or
  * 5xx, which is the sidecar answering, but a connection that failed. The
  * shell uses it to go back to its reconnect loop: `/health` was checked once
  * at launch, and a sidecar that died afterwards left every panel failing on
@@ -123,7 +123,7 @@ export function onTransportFailure(listener: TransportListener): () => void {
 
 async function send(path: string, init?: RequestInit): Promise<Response> {
   // Built as a plain record rather than spread from `init.headers`, which is a
-  // union including a string-pair array — spreading that yields numeric indices.
+  // union including a string-pair array, spreading that yields numeric indices.
   const headers: Record<string, string> =
     init?.body === undefined ? {} : { "Content-Type": "application/json" };
 
@@ -168,7 +168,7 @@ function query(params: Record<string, string | number | undefined | null>): stri
 
 // --- spaces -----------------------------------------------------------------
 
-/** Every space, archived ones included — their runs are still viewable. */
+/** Every space, archived ones included, their runs are still viewable. */
 export const listSpaces = (): Promise<SpaceResponse[]> => request<SpaceResponse[]>("/spaces");
 
 export const createSpace = (body: CreateSpaceRequest): Promise<SpaceResponse> =>
@@ -176,7 +176,7 @@ export const createSpace = (body: CreateSpaceRequest): Promise<SpaceResponse> =>
 
 /**
  * Change a space. A PATCH: fields left out are untouched, and a rule sent as
- * `null` goes back to inheriting the app-wide default — which is why this
+ * `null` goes back to inheriting the app-wide default, which is why this
  * cannot drop nulls the way `updateSettings` does.
  */
 export const updateSpace = (id: string, body: UpdateSpaceRequest): Promise<SpaceResponse> =>
@@ -202,7 +202,7 @@ export const createRun = (goal: string, spaceId?: string): Promise<Run> =>
   request<Run>("/runs", { method: "POST", ...asJson({ goal, space_id: spaceId ?? null }) });
 
 /**
- * Ask a run to stop. Answers 202 with the row as it stands — the run stops at
+ * Ask a run to stop. Answers 202 with the row as it stands: the run stops at
  * its next check and writes `run.cancelled` itself, which arrives over the
  * stream like everything else. A 409 names the status of a run that cannot
  * be cancelled.
@@ -285,7 +285,7 @@ export const updateSettings = (patch: UpdateSettingsRequest): Promise<SettingsRe
   request<SettingsResponse>("/settings", { method: "PATCH", ...asJson(patch) });
 
 /**
- * Whether each chat adapter is actually connected — a question `GET /settings`
+ * Whether each chat adapter is actually connected: a question `GET /settings`
  * structurally cannot answer. A token that never reached the keychain, a
  * library that failed to load and a gateway refusing to connect all present
  * as a bot that says nothing; this says which.
@@ -297,7 +297,7 @@ export const listProviders = (): Promise<ProviderCatalogueResponse> =>
   request<ProviderCatalogueResponse>("/settings/providers");
 
 /**
- * Whether the current settings can build a provider — the same refusal a run
+ * Whether the current settings can build a provider: the same refusal a run
  * would get, without a model call. The dashboard's pre-flight before Start.
  */
 export const verifySettings = (spaceId?: string): Promise<VerifyResponse> =>

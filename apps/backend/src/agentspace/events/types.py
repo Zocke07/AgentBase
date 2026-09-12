@@ -1,7 +1,7 @@
 """The event type contract (BUILD_SPEC §4).
 
 This enum is the closed list from §4. Adding a member means updating the
-generated TS types and the `RunGraph` reducer in the same commit — both arrive
+generated TS types and the `RunGraph` reducer in the same commit: both arrive
 in Phase 7, at which point this docstring becomes a three-way obligation.
 
 **On payload models.** §3's layout comment for this module reads "event type
@@ -59,7 +59,7 @@ class EventType(StrEnum):
 
     LLM_REQUEST = "llm.request"
     # S105: flake8-bandit reads "token" as a credential. This is a streamed
-    # LLM output token — the event emitted per chunk of a model response.
+    # LLM output token: the event emitted per chunk of a model response.
     LLM_TOKEN = "llm.token"  # noqa: S105
     LLM_RESPONSE = "llm.response"
     LLM_ERROR = "llm.error"
@@ -97,7 +97,7 @@ class Event(BaseModel):
 
     ``seq`` is per-run and 1-based; it is the id the SSE stream publishes and
     the cursor ``Last-Event-ID`` carries. ``id`` is the global rowid and exists
-    for ordering across runs — never use it as a resume cursor, since a client
+    for ordering across runs: never use it as a resume cursor, since a client
     resuming one run would then skip every event another run interleaved.
     """
 

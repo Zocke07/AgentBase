@@ -8,7 +8,7 @@ import { KNOWN_EVENT_TYPES, reduceAll } from "./reducer";
 /**
  * The plain-language layer is a pure function of the log, and these tests
  * pin the two properties that matter about it: every event type gets a real
- * sentence, and the sentences say what the log says — never more.
+ * sentence, and the sentences say what the log says, never more.
  */
 
 describe("a sentence for every event", () => {
@@ -67,7 +67,7 @@ describe("a sentence for every event", () => {
     const done = twoAgentRun().at(-1);
     if (done === undefined) throw new Error("fixture changed");
     const sentence = sentenceFor(done);
-    expect(sentence).toContain("the supervisor says");
+    expect(sentence).toContain("The supervisor says");
     expect(sentence).toContain("saved to notes.txt");
   });
 
@@ -78,14 +78,14 @@ describe("a sentence for every event", () => {
       { tool: "write_file", args: { path: "notes.txt" }, summary: "overwrite the file notes.txt (31 characters)" },
       "writer",
     );
-    expect(sentenceFor(asked)).toBe("writer wants to overwrite the file notes.txt (31 characters) — waiting for you.");
+    expect(sentenceFor(asked)).toBe("writer wants to overwrite the file notes.txt (31 characters): waiting for you.");
 
     const byPolicy = log.add(
       "approval.requested",
       { tool: "read_file", args: { path: "a.txt" }, summary: "read the file a.txt", automatic: true },
       "writer",
     );
-    expect(sentenceFor(byPolicy)).toBe("writer wants to read the file a.txt — allowed by policy.");
+    expect(sentenceFor(byPolicy)).toBe("writer wants to read the file a.txt: allowed by policy.");
 
     /* A denial sticks for the run: the same call again is settled by the
        earlier answer, and neither event may read as though a person was
@@ -96,7 +96,7 @@ describe("a sentence for every event", () => {
       "writer-2",
     );
     expect(sentenceFor(repeat)).toBe(
-      "writer-2 wants to overwrite the file notes.txt (2 characters) — already denied earlier in this run.",
+      "writer-2 wants to overwrite the file notes.txt (2 characters): already denied earlier in this run.",
     );
     const repeatSettled = log.add(
       "approval.resolved",

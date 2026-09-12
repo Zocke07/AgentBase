@@ -4,14 +4,14 @@
 
 §5 Phase 5 requires that "every entry in `allowed_tools` must resolve to a
 registered tool", so validating an agent definition needs a registry of tools
-to resolve against — in this phase, before any tool can exist. §1 constraint 5
+to resolve against: in this phase, before any tool can exist. §1 constraint 5
 is why none can: every filesystem, shell and network call passes the approval
 gate, and that gate is Phase 6. Shipping a working `write_file` here to give
 the allowlist something real to point at would create exactly the ungated path
 the constraint forbids.
 
 So the catalogue is a *declaration* of the five built-ins §5 Phase 6 names,
-carrying the one fact Phase 5 and Phase 7 both need about them — their risk —
+carrying the one fact Phase 5 and Phase 7 both need about them (their risk)
 and nothing else. Phase 6 attaches implementations, the sandbox and the
 approval gate to these same names. Until it does, an agent permitted a
 catalogue tool that calls it is told the tool is not available yet; the call is
@@ -95,7 +95,7 @@ CATALOGUE: Final[tuple[ToolDeclaration, ...]] = (
         name="write_file",
         description="Create or overwrite a file inside the workspace.",
         # Medium, not high: the sandbox confines it to the workspace root, so
-        # the worst case is losing work the user put there — recoverable, and
+        # the worst case is losing work the user put there: recoverable, and
         # not the same class of thing as running arbitrary code.
         risk=RiskLevel.MEDIUM,
     ),
@@ -138,7 +138,7 @@ def effective_auto_approve(
     """Intersect a definition's `auto_approve` with the workspace policy.
 
     §5 Phase 5's security note: "`auto_approve` on an agent definition may only
-    *narrow* what the global policy already permits — it can never grant a risk
+    *narrow* what the global policy already permits; it can never grant a risk
     level the workspace policy has not enabled."
 
     An intersection is the whole implementation, and writing it as one is the
@@ -147,7 +147,7 @@ def effective_auto_approve(
     stop and reconsider on. There is no argument order that changes the answer
     and no value of ``requested`` that can add to ``policy``.
 
-    **Nothing calls this in Phase 5**, because nothing is approved in Phase 5 —
+    **Nothing calls this in Phase 5**, because nothing is approved in Phase 5 -
     there is no gate and no tool to put behind one. It exists, and is tested,
     so that Phase 6 wires the workspace policy into a rule that is already
     settled rather than inventing one at the point of building the gate.

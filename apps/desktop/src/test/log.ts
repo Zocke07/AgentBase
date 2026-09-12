@@ -4,8 +4,8 @@ import type { Event, EventType } from "@agentspace/schemas";
  * Builds event logs for tests, shaped exactly like the sidecar's.
  *
  * Sequence numbers are assigned here for the same reason the server assigns
- * them in one SQL statement: everything downstream — the SSE cursor, the replay
- * scrubber, the reducer's ordering — treats `seq` as dense and 1-based, and a
+ * them in one SQL statement: everything downstream (the SSE cursor, the replay
+ * scrubber, the reducer's ordering) treats `seq` as dense and 1-based, and a
  * fixture that produced gaps would be testing a log the server cannot emit.
  *
  * Timestamps are derived from `seq` rather than read from the clock. A fixture
@@ -39,7 +39,7 @@ export class LogBuilder {
  * A complete two-agent run: spawn, delegate, call a tool, get it approved,
  * hand back, finish.
  *
- * Deliberately includes the awkward cases rather than a happy path only — a
+ * Deliberately includes the awkward cases rather than a happy path only: a
  * denied call with `blocked_by`, an automatic approval, a streamed token, and a
  * `run.completed` whose summary claims more than the tool calls support. Every
  * one of those is something CLAUDE.md records a live run doing, and each is a
@@ -117,7 +117,7 @@ export function twoAgentRun(): Event[] {
         tool: "write_file",
         args: { path: "notes.txt" },
         risk: "medium",
-        prompt: 'Agent "researcher" wants to create notes.txt (31 characters) — Allow / Deny',
+        prompt: 'Agent "researcher" wants to create notes.txt (31 characters): Allow / Deny',
         summary: "create the file notes.txt (31 characters)",
       },
       "researcher",

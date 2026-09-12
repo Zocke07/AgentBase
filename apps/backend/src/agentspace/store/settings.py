@@ -1,4 +1,4 @@
-"""Workspace settings — the thing that makes provider switching a setting.
+"""Workspace settings: the thing that makes provider switching a setting.
 
 The Phase 3 acceptance criterion is that "switching provider is a settings
 change with no code change". This module is where that change lands.
@@ -7,7 +7,7 @@ change with no code change". This module is where that change lands.
 SQLite file as the event log, which is on disk in the clear. API keys reach the
 sidecar over stdin at spawn time and stay in memory (§1 constraint 4). What
 lives here is the *choice* of provider and model, the monthly cap, and the
-Ollama base URL — all of which are configuration, not credentials.
+Ollama base URL, all of which are configuration, not credentials.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ __all__ = [
 #: The default monthly spending cap: $20.00, in micros.
 #:
 #: A default of "unlimited" would mean the cap only exists for users who go
-#: looking for it, which is not what §5 Phase 3 asks for — the ledger is meant
+#: looking for it, which is not what §5 Phase 3 asks for: the ledger is meant
 #: to enforce a monthly cap, not to offer one. $20 is high enough not to
 #: interrupt ordinary use and low enough that a runaway loop is survivable.
 DEFAULT_MONTHLY_CAP_MICROS: Final[int] = 20_000_000
@@ -67,7 +67,7 @@ DEFAULT_AUTO_APPROVE: Final[tuple[RiskLevel, ...]] = ()
 
 #: The Phase 4 run limits (§5: "all configurable"). They live here rather than
 #: as constants in `orchestrator/limits.py` because a limit nobody can change
-#: is not configurable, and the `settings` table already exists — so this is a
+#: is not configurable, and the `settings` table already exists, so this is a
 #: new key, not a migration.
 DEFAULT_MAX_STEPS_PER_AGENT: Final[int] = 20
 DEFAULT_MAX_AGENTS_PER_RUN: Final[int] = 5
@@ -75,7 +75,7 @@ DEFAULT_MAX_RUN_SECONDS: Final[int] = 600
 
 #: Who may answer the approval gate for a run that came from a chat channel.
 #:
-#: ``dashboard_only`` — the question is *shown* in chat, so a run that has
+#: ``dashboard_only``: the question is *shown* in chat, so a run that has
 #: stopped does not look like a crashed bot, but the answer has to be given at
 #: the machine the tool call would run on. ``originator`` also lets the person
 #: who started the run answer it from the chat client they started it from.
@@ -84,7 +84,7 @@ DEFAULT_MAX_RUN_SECONDS: Final[int] = 600
 #: manual-approve-everything" in spirit: an approval is the moment the owner
 #: decides whether something touches their disk, their shell or their network,
 #: and the default should not move that decision onto a phone in a group chat.
-#: Neither value is a privileged path (§1 constraint 5) — both go through
+#: Neither value is a privileged path (§1 constraint 5); both go through
 #: :meth:`~agentspace.tools.approval.ApprovalService.resolve`, which is the same
 #: method `POST /approvals/{id}` calls. The setting decides who is asked, never
 #: whether the gate applies.
@@ -101,7 +101,7 @@ class WorkspaceSettings(BaseModel):
     ollama_base_url: str = DEFAULT_OLLAMA_BASE_URL
 
     #: The workspace approval policy. An agent definition's own `auto_approve`
-    #: is intersected with this and can only narrow it — see
+    #: is intersected with this and can only narrow it; see
     #: :func:`agentspace.tools.catalogue.effective_auto_approve` and §5 Phase 5's
     #: security note. Widening is the operation that does not exist.
     auto_approve: list[RiskLevel] = Field(default_factory=lambda: list(DEFAULT_AUTO_APPROVE))
@@ -120,7 +120,7 @@ class WorkspaceSettings(BaseModel):
     # "Phase 7's settings UI and Phase 8's channel config do not each need a
     # migration that widens a table", and that is exactly what happened: four
     # new settings, one of them a list of objects, and no migration to add
-    # them. (Migration 005 exists for the opposite move — removing a channel —
+    # them. (Migration 005 exists for the opposite move, removing a channel,
     # because a stored allowlist entry for it would otherwise fail validation
     # on every read.)
 
@@ -130,7 +130,7 @@ class WorkspaceSettings(BaseModel):
     discord_enabled: bool = False
 
     #: Who may address this workspace from a chat channel, and as whom. Empty
-    #: means nobody, which is the only safe reading — see
+    #: means nobody, which is the only safe reading; see
     #: :mod:`agentspace.channels.identity`.
     channel_identities: list[ChannelIdentity] = Field(default_factory=list)
 
@@ -150,7 +150,7 @@ class WorkspaceSettings(BaseModel):
         """Refuse a duplicate on write rather than shadowing one on read.
 
         Whichever entry resolution happened to pick, the other would be a rule
-        the owner wrote and the product ignored — and an allowlist that quietly
+        the owner wrote and the product ignored, and an allowlist that quietly
         ignores half of what it was told is the worst kind of security control.
         """
         return IdentityDirectory.validated(entries)
@@ -193,9 +193,9 @@ class SettingsStore:
     def _update_sync(self, changes: dict[str, Any]) -> WorkspaceSettings:
         current = self._get_sync()
 
-        # Merge as plain data, then validate once. The obvious version —
+        # Merge as plain data, then validate once. The obvious version -
         # `current.model_copy(update=changes)` followed by
-        # `model_validate(merged.model_dump())` — reaches the same answer and
+        # `model_validate(merged.model_dump())`, reaches the same answer and
         # passes through an object that is lying about its own types on the
         # way: `model_copy` does not validate, so a `channel_identities` list
         # arriving from the API as dicts sits in a field annotated
@@ -209,7 +209,7 @@ class SettingsStore:
         validated = WorkspaceSettings.model_validate(merged)
 
         # `mode="json"` rather than `getattr`: a setting whose value is a model
-        # — `channel_identities` is a list of them — is not JSON-serialisable as
+        # (`channel_identities` is a list of them) is not JSON-serialisable as
         # a Python object, and reaching for `getattr` would work for every
         # scalar setting and fail the first time a structured one was written.
         dumped = validated.model_dump(mode="json")

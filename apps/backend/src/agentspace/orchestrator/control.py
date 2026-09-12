@@ -3,14 +3,14 @@
 **These are not tools, and they do not live in `tools/`.** §1 constraint 5 is
 absolute: every filesystem, shell and network tool call passes the approval
 gate. What is here passes no gate at all, and the reason it may not is the
-reason it is here — these calls *touch nothing*. They end an agent's turn, hand
+reason it is here: these calls *touch nothing*. They end an agent's turn, hand
 work to another agent, or ask for a worker to exist. Each produces events and
 changes orchestration state, and nothing else.
 
 That distinction is what keeps the constraint checkable rather than a matter of
 trust. "Is this gated?" is not a judgement about a call site; it is the question
 of whether the call is in this module or in
-:mod:`agentspace.tools.builtin`, and the two sets are disjoint by construction —
+:mod:`agentspace.tools.builtin`, and the two sets are disjoint by construction:
 :meth:`agentspace.orchestrator.agent.Agent._permit` reaches the gate for one and
 never for the other. Adding anything here that reads a file or opens a socket
 would create exactly the ungated path the constraint forbids, so it goes in
@@ -18,7 +18,7 @@ would create exactly the ungated path the constraint forbids, so it goes in
 
 **The control vocabulary is not subject to `allowed_tools`.** §5 Phase 5 says
 an empty allowlist "means the agent can reason and hand off but touches
-nothing" — so `handoff` survives an empty list by name, and `finish` must, or
+nothing", so `handoff` survives an empty list by name, and `finish` must, or
 an agent could never end its turn. What the allowlist governs is the *tool
 catalogue* in :mod:`agentspace.tools.catalogue`. Which control calls a given
 agent has is decided by what it *is*: a worker gets `finish` and `handoff`, a
@@ -56,7 +56,7 @@ FINISH: Final[ToolSpec] = ToolSpec(
     description=(
         "End your turn. Call this when the task you were given is done, or when "
         "you have established that you cannot do it. This is the only way to "
-        "complete your work — a message on its own does not end your turn."
+        "complete your work: a message on its own does not end your turn."
     ),
     input_schema={
         "type": "object",
@@ -103,7 +103,7 @@ HANDOFF: Final[ToolSpec] = ToolSpec(
 #: all come from that row rather than from the model's imagination.
 #:
 #: The roster itself is listed in the supervisor's system prompt rather than in
-#: this description, because it differs per run — see
+#: this description, because it differs per run: see
 #: :func:`agentspace.orchestrator.supervisor.supervisor_prompt`.
 SPAWN_AGENT: Final[ToolSpec] = ToolSpec(
     name="spawn_agent",

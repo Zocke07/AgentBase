@@ -21,7 +21,7 @@ import { AgentList } from "./AgentList";
  * The agent tab: the roster, and the editor beside it.
  *
  * Together with `RunsView` this is the second half of §5 Phase 7's acceptance
- * criterion — "a new agent can be created, edited, and run without leaving the
+ * criterion: "a new agent can be created, edited, and run without leaving the
  * app". Creating and editing happen here; running happens next door, because a
  * definition the supervisor can draw on is one that is simply *enabled*.
  *
@@ -77,7 +77,7 @@ export function AgentsView({ workspaceProvider, spaceId = null, spaces = [] }: A
 
   const selected = agents.find((agent) => agent.id === selectedId) ?? null;
   // Every fetch this tab depends on reports here. A failed `/tools` used to
-  // render an editor with no checkboxes and no explanation — and a save from
+  // render an editor with no checkboxes and no explanation, and a save from
   // that state would have sent an empty allowlist.
   const error = actionError ?? rosterError ?? tools.error ?? catalogue.error;
 
@@ -145,7 +145,7 @@ export function AgentsView({ workspaceProvider, spaceId = null, spaces = [] }: A
       void reloadRoster();
     } catch (failure) {
       // A built-in refuses deletion with a 409 and a message saying so. Showing
-      // it is the point — §5 Phase 5 guards the delete path deliberately.
+      // it is the point: §5 Phase 5 guards the delete path deliberately.
       setActionError(failure instanceof Error ? failure.message : String(failure));
     } finally {
       setBusyId(null);

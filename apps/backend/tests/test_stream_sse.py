@@ -72,7 +72,7 @@ def test_format_sse_uses_seq_as_the_event_id() -> None:
     """`Last-Event-ID` is per-run, so the id must be `seq`, not the rowid.
 
     Using the global rowid would make a resume on one run skip every event
-    another run interleaved — a bug that only appears with concurrent runs.
+    another run interleaved: a bug that only appears with concurrent runs.
     """
     from datetime import UTC, datetime
 
@@ -96,7 +96,7 @@ def test_frames_are_unnamed_so_onmessage_receives_every_type() -> None:
     """A named SSE event never fires `EventSource.onmessage`.
 
     With an `event:` field the client must `addEventListener` for each of the
-    26 types in §4, and any type it has not registered is dropped silently —
+    26 types in §4, and any type it has not registered is dropped silently -
     invisible data loss in a UI whose contract is to be a faithful projection
     of the event log. Verified the hard way rather than reasoned about: a
     webview probe using `onmessage` received 0 of 20 events from a named-event
@@ -144,7 +144,7 @@ def test_stream_of_unknown_run_is_404(client: TestClient) -> None:
 def test_stream_declares_the_sse_content_type(client: TestClient) -> None:
     """Streamed against a run that terminates, on purpose.
 
-    A stream attached to an idle run stays open forever — which is what SSE is
+    A stream attached to an idle run stays open forever, which is what SSE is
     for, and which makes `TestClient`'s synchronous close block indefinitely,
     because it waits for the response body to end. Real clients are cancelled
     by uvicorn when their socket closes; the sync test client has no such
@@ -204,7 +204,7 @@ def test_after_seq_in_the_query_resumes_like_the_header(client: TestClient) -> N
 
 def test_the_header_wins_over_the_query_when_it_is_further_along(client: TestClient) -> None:
     """A browser reconnecting keeps the original URL, `after_seq` included,
-    and adds `Last-Event-ID` for the last frame it saw — which is later. Taking
+    and adds `Last-Event-ID` for the last frame it saw, which is later. Taking
     the query would replay everything since the history loaded."""
     run = client.post("/debug/fake_run?step_ms=0").json()
 
@@ -228,7 +228,7 @@ async def test_a_stream_on_a_run_that_no_longer_exists_ends(
     store: EventStore, bus: EventBus, db: Database
 ) -> None:
     """A run that is gone is over. `DELETE /runs/{id}` refuses an unfinished
-    run, so the product never opens this path — which is exactly why it has
+    run, so the product never opens this path, which is exactly why it has
     to be pinned here: the alternative is a keepalive loop that never ends,
     and nothing else would ever exercise it."""
     run = await store.create_run(goal="vanishes")
@@ -258,7 +258,7 @@ def test_reconnect_mid_stream_has_no_gaps_and_no_duplicates(client: TestClient) 
 
     Start the debug run, consume part of it, drop the connection without
     draining, then reconnect with `Last-Event-ID`. The two halves concatenated
-    must be exactly 1..20 — every event once, in order.
+    must be exactly 1..20: every event once, in order.
     """
     run = client.post("/debug/fake_run?step_ms=25").json()
 
@@ -373,7 +373,7 @@ def test_fake_run_emits_twenty_events_and_completes(client: TestClient) -> None:
 #: (`apps/desktop/src/state/reducer.ts`). Payloads are conventions, not schemas
 #: (`events/types.py`), so this is the one place the convention is written down
 #: from the reader's side. The script must speak it or the demo run renders
-#: wrongly — it showed an *expired* approval and an empty tool result, because
+#: wrongly: it showed an *expired* approval and an empty tool result, because
 #: it said ``decision`` where the reducer reads ``status`` and ``bytes`` where
 #: it reads ``result``.
 _KEYS_THE_REDUCER_READS: dict[EventType, set[str]] = {

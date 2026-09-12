@@ -1,4 +1,4 @@
-# AgentSpace — every dev task lives here.
+# AgentSpace: every dev task lives here.
 #
 # BUILD_SPEC §5 Phase 0: `just` recipes for every dev task, no `.sh` and no
 # `.bat` files anywhere. Recipes are single commands run from a per-recipe
@@ -12,8 +12,8 @@ set dotenv-load := false
 #
 # Tool *installations* stay where their installers put them (rustup toolchains,
 # VS Build Tools, uv's Python builds, Node). What is redirected here is the data
-# those tools generate — package caches and this application's own runtime state
-# — so that a clone on a roomy drive does not quietly fill the system drive.
+# those tools generate (package caches and this application's own runtime state),
+# so that a clone on a roomy drive does not quietly fill the system drive.
 #
 # These are `just` exports, so they apply to this repository's recipes only and
 # need no shell profile edits. Your other projects keep using the shared
@@ -30,7 +30,7 @@ export UV_CACHE_DIR := dev_dir / "cache" / "uv"
 export npm_config_cache := dev_dir / "cache" / "npm"
 
 # Dev-only override of the sidecar's data directory. The shipped application
-# still resolves the OS app-data dir (BUILD_SPEC §5 Phase 2) — see
+# still resolves the OS app-data dir (BUILD_SPEC §5 Phase 2); see
 # `agentspace.config.default_data_dir`. This only affects `just` recipes, so a
 # dev run's SQLite file, logs and agent workspace stay in the working tree where
 # they can be inspected and deleted, instead of in %LOCALAPPDATA%.
@@ -44,7 +44,7 @@ export PYINSTALLER_CONFIG_DIR := dev_dir / "cache" / "pyinstaller"
 # Sidecar naming.
 #
 # Tauri resolves an `externalBin` entry by appending the *target triple* to the
-# configured name — `binaries/agentspace-sidecar` is looked up on disk as
+# configured name: `binaries/agentspace-sidecar` is looked up on disk as
 # `binaries/agentspace-sidecar-x86_64-pc-windows-msvc.exe`. A binary named
 # anything else, including a plain `.exe`, is silently not found at bundle time.
 # BUILD_SPEC §5 Phase 1 calls this out as a trap; it is encoded here rather than
@@ -83,14 +83,14 @@ data_sep := if os() == "windows" { ";" } else { ":" }
 #
 # `tauri.conf.json` cannot express this: its `bundle.targets` is a single list
 # applied to whatever host is building, and `nsis` means nothing on macOS. The
-# alternative, `"targets": "all"`, would additionally build an MSI on Windows —
+# alternative, `"targets": "all"`, would additionally build an MSI on Windows:
 # a per-machine installer, which contradicts the per-user NSIS install Phase 1
 # settled on and verified.
 #
 # macOS gets `app` and not `dmg` deliberately. §5 Phase 9 builds macOS to catch
 # cross-platform breakage and explicitly does not publish it; a `.app` is the
-# Tauri bundle, and everything that can break in *our* code — the PyInstaller
-# freeze, the Rust compile, `externalBin` resolution — has already happened by
+# Tauri bundle, and everything that can break in *our* code (the PyInstaller
+# freeze, the Rust compile, `externalBin` resolution) has already happened by
 # the time it exists. A dmg is hdiutil re-packaging an app that already built,
 # so it adds a CI-flaky step that can only fail for reasons unrelated to this
 # repository, and a red CI nobody trusts is worse than one less artefact.
@@ -104,7 +104,7 @@ cross_platform := if os() == "windows" { "darwin" } else { "win32" }
 # Every migration, not just the first. A named `schema.sql` was correct while
 # migration 001 was the only one; naming files individually means each new
 # migration needs an edit here, and forgetting it produces a binary that starts
-# and then dies on a missing resource — a failure invisible to `just ci` and to
+# and then dies on a missing resource, a failure invisible to `just ci` and to
 # every dev run, because those read the file straight off the source tree.
 # `test_migration_sql_is_bundled` asserts this glob covers every MIGRATIONS
 # entry, so the omission fails a test instead of a release.
@@ -112,7 +112,7 @@ migrations_sql := justfile_directory() / "apps" / "backend" / "src" / "agentspac
 sidecar_path := sidecar_dir / sidecar_file
 
 # Generated TypeScript API types, per BUILD_SPEC §3's layout. Committed rather
-# than built on demand — see `just schemas`.
+# than built on demand; see `just schemas`.
 schemas_dir := justfile_directory() / "packages" / "schemas"
 
 # List every available recipe.
@@ -157,7 +157,7 @@ ci: check test
 # `lint-backend-format` is in here rather than standing alone because of a real
 # Phase 4 incident: a helper script writing source with `Path.write_text()`
 # converted six LF files to CRLF, and `ruff check`, `mypy` and `pytest` all
-# stayed green — `ruff format --check` was the only thing that noticed, and it
+# stayed green; `ruff format --check` was the only thing that noticed, and it
 # was the one check `just check` did not run. Phase 9 owns what the gate runs,
 # so it runs this too. It found ten already-drifted files the moment it was
 # added, all of them Phase 8's.
@@ -189,7 +189,7 @@ lint-desktop:
 #
 # The backend is typechecked twice, once per platform this project targets.
 # `mypy` narrows `sys.platform` to the host it runs on, so a Windows-only run
-# cannot see a branch that is dead on macOS — which is not hypothetical: it is
+# cannot see a branch that is dead on macOS, which is not hypothetical: it is
 # how CI run #2 failed, on a `warn_unreachable` error in a platform branch that
 # was clean on Windows and broken there. The second pass reproduces that
 # locally in twenty seconds instead of a push and a five-minute round trip.
@@ -202,14 +202,14 @@ typecheck-backend:
     uv run mypy
 
 # This named `darwin` unconditionally until the first Mac session, and on
-# Windows that was exactly right — darwin was always "the other one". On a Mac
+# Windows that was exactly right: darwin was always "the other one". On a Mac
 # it resolves to the host, so the second pass became a duplicate of the first
 # and a Windows-only `warn_unreachable` branch was invisible here in precisely
 # the way the macOS one was invisible on Windows. The recipe's whole purpose is
 # the platform you cannot run, so it now names that rather than a fixed one.
 #
-# CI's coverage is unchanged in the union — its Windows job already checks
-# win32 as the host — but a Mac developer now gets the same pre-push signal a
+# CI's coverage is unchanged in the union (its Windows job already checks
+# win32 as the host), but a Mac developer now gets the same pre-push signal a
 # Windows developer has always had.
 #
 # mypy --strict as if on the platform this host is not.
@@ -256,7 +256,7 @@ test: test-backend test-desktop
 test-backend *ARGS:
     uv run pytest {{ ARGS }}
 
-# vitest on the React frontend — the run reducer and the dashboard it renders.
+# vitest on the React frontend: the run reducer and the dashboard it renders.
 [group('test')]
 [working-directory('apps/desktop')]
 test-desktop *ARGS:
@@ -276,7 +276,7 @@ test-backend-cov:
 #
 # BUILD_SPEC §5 Phase 7: "Generate TS types from the FastAPI OpenAPI schema;
 # never hand-write the API types." Both outputs are committed, so `just check`
-# on a clean clone never needs a Python environment to typecheck the frontend —
+# on a clean clone never needs a Python environment to typecheck the frontend,
 # and `test_openapi_snapshot.py` fails if either drifts from the running app,
 # which is what stops a regeneration being forgotten.
 [group('build')]
@@ -316,7 +316,7 @@ _hash path:
     @echo "{{ path }}" ; echo "  $(wc -c < '{{ path }}') bytes" ; echo "  sha256 $(shasum -a 256 '{{ path }}' | cut -d' ' -f1)"
 
 # Vite's own dev port. `tauri dev` runs `beforeDevCommand` (`npm run dev`)
-# itself, so it needs this free — it does not reuse an already-running server.
+# itself, so it needs this free: it does not reuse an already-running server.
 dev_port := "5173"
 
 # Vite dev server on 127.0.0.1:5173.
@@ -328,7 +328,7 @@ dev-desktop:
 # `_check-dev-port` runs before the sidecar rebuild on purpose: a leftover Vite
 # server (a forgotten `dev-desktop`, or a previous `dev-app` whose `tauri dev`
 # died without taking Vite down with it) otherwise fails only once
-# `beforeDevCommand` runs — after ~30s of PyInstaller and cargo output — with a
+# `beforeDevCommand` runs (after ~30s of PyInstaller and cargo output) with a
 # bare "Port 5173 is already in use" naming neither the process nor the cause.
 #
 # Run the desktop app against the dev server. Rebuilds the sidecar first.
@@ -343,12 +343,12 @@ _dev-app:
 [private]
 [windows]
 _check-dev-port:
-    @$c = Get-NetTCPConnection -LocalPort {{ dev_port }} -State Listen -ErrorAction SilentlyContinue ; if (-not $c) { exit 0 } ; $procId = $c[0].OwningProcess ; $proc = Get-CimInstance Win32_Process -Filter "ProcessId=$procId" -ErrorAction SilentlyContinue ; $name = "unknown" ; if ($proc) { $name = $proc.Name } ; Write-Error "Port {{ dev_port }} is already in use by PID $procId ($name). tauri dev needs it free — a leftover Vite server (dev-desktop, or a dev-app whose tauri process died without it) is still running. Stop it first: taskkill /PID $procId /T /F" ; exit 1
+    @$c = Get-NetTCPConnection -LocalPort {{ dev_port }} -State Listen -ErrorAction SilentlyContinue ; if (-not $c) { exit 0 } ; $procId = $c[0].OwningProcess ; $proc = Get-CimInstance Win32_Process -Filter "ProcessId=$procId" -ErrorAction SilentlyContinue ; $name = "unknown" ; if ($proc) { $name = $proc.Name } ; Write-Error "Port {{ dev_port }} is already in use by PID $procId ($name). tauri dev needs it free: a leftover Vite server (dev-desktop, or a dev-app whose tauri process died without it) is still running. Stop it first: taskkill /PID $procId /T /F" ; exit 1
 
 [private]
 [unix]
 _check-dev-port:
-    @pid=$(lsof -ti tcp:{{ dev_port }} -sTCP:LISTEN 2>/dev/null) ; if [ -n "$pid" ]; then echo "Port {{ dev_port }} is already in use by PID $pid ($(ps -o comm= -p "$pid" 2>/dev/null || echo unknown)). tauri dev needs it free — a leftover Vite server (dev-desktop, or a dev-app whose tauri process died without it) is still running. Stop it first: kill $pid" >&2 ; exit 1 ; fi
+    @pid=$(lsof -ti tcp:{{ dev_port }} -sTCP:LISTEN 2>/dev/null) ; if [ -n "$pid" ]; then echo "Port {{ dev_port }} is already in use by PID $pid ($(ps -o comm= -p "$pid" 2>/dev/null || echo unknown)). tauri dev needs it free: a leftover Vite server (dev-desktop, or a dev-app whose tauri process died without it) is still running. Stop it first: kill $pid" >&2 ; exit 1 ; fi
 
 # Lint the Rust shell without producing a binary.
 #
@@ -365,7 +365,7 @@ check-tauri:
 # clone. `tauri build` is resolved with `npx --no-install`, and its
 # `beforeBuildCommand` is `npm run build`, so without `node_modules` it fails on
 # npm's unhelpful "could not determine executable to run". That is how CI run #4
-# failed on both platforms — after freezing the sidecar successfully — while
+# failed on both platforms (after freezing the sidecar successfully) while
 # working on every dev machine, where `node_modules` is always already there.
 #
 # The sidecar is rebuilt first so the bundle can never pick up a stale one
@@ -390,7 +390,7 @@ _build-installer:
 # Two of these guards caught a real staleness in Phase 8 the moment the sidecar
 # was rebuilt without the installer, so the ordering is not a formality.
 #
-# Check the built sidecar and installer — run AFTER a build, never before.
+# Check the built sidecar and installer: run AFTER a build, never before.
 [group('build')]
 [working-directory('apps/backend')]
 verify-build: setup
@@ -400,7 +400,7 @@ verify-build: setup
 # with Python scrubbed from its environment.
 #
 # This is §5 Phase 9's "runs on a second Windows machine with no Python
-# installed", as close as one machine can state it — see CLAUDE.md's "The
+# installed", as close as one machine can state it; see CLAUDE.md's "The
 # machine reality" for why the literal form is unavailable. In CI it runs on a
 # fresh windows-latest runner against the artefact the build job uploaded, which
 # is a different machine from any developer's and the exact bytes a user gets.

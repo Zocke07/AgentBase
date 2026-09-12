@@ -11,7 +11,7 @@ import { defineConfig } from "vitest/config";
  * `jsdom` rather than a browser: the thing under test is the run reducer and the
  * DOM the dashboard renders from it. BUILD_SPEC §5 Phase 7 asks that replaying a
  * run produce "pixel-identical UI state to what was shown live", and identical
- * DOM under identical CSS is what that reduces to — a claim a real DOM can make
+ * DOM under identical CSS is what that reduces to: a claim a real DOM can make
  * and a snapshot of component state cannot.
  */
 export default defineConfig({

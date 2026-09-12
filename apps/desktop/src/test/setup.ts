@@ -5,7 +5,7 @@ import { afterEach } from "vitest";
  * Unmount every rendered tree between tests.
  *
  * Testing Library does this automatically when Vitest's globals are injected,
- * and this project runs with `globals: false` — so without it the first test's
+ * and this project runs with `globals: false`, so without it the first test's
  * DOM is still mounted during the second, and a query that should match one
  * node matches two. That failure reads as a component bug, which is the worst
  * kind of test-harness defect.
@@ -23,7 +23,7 @@ afterEach(() => {
  *
  * The sizes below are not decoration. React Flow refuses to position an edge
  * between nodes it has not measured, so with zero-sized nodes it renders the
- * graph with every edge silently missing — which is exactly the bug a real run
+ * graph with every edge silently missing, which is exactly the bug a real run
  * exposed, and exactly the bug a test cannot see unless measurement reports
  * something. Reporting a fixed, plausible size is what lets
  * `RunGraph.test.tsx` assert that a handoff actually draws.
@@ -73,7 +73,7 @@ class StubResizeObserver implements ResizeObserver {
 }
 
 // Assigned unconditionally: TypeScript's DOM lib declares these as always
-// present, so a `??=` reads to the compiler as dead code — while in jsdom they
+// present, so a `??=` reads to the compiler as dead code, while in jsdom they
 // are genuinely missing at runtime.
 globalThis.ResizeObserver = StubResizeObserver;
 

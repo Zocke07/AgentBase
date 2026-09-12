@@ -2,11 +2,11 @@
 
 Two BUILD_SPEC constraints are enforced here rather than documented elsewhere:
 
-* **§1 constraint 3** — the bind address is a module constant. There is no
+* **§1 constraint 3**: the bind address is a module constant. There is no
   setting, no environment variable and no CLI flag that moves it off the
   loopback interface. :func:`assert_loopback_only` exists so a test can assert
   that fact rather than trusting a comment.
-* **§5 Phase 0** — every path is a :class:`pathlib.Path`. There is no string
+* **§5 Phase 0**: every path is a :class:`pathlib.Path`. There is no string
   concatenation of paths anywhere in this package; ruff's ``PTH`` rules are on
   to keep it that way.
 
@@ -38,29 +38,29 @@ APP_NAME: Final[str] = "AgentSpace"
 
 #: The Tauri bundle identifier, from ``tauri.conf.json``. Keep the two in step.
 #:
-#: This — not :data:`APP_NAME` — is what the data directory is derived from, and
+#: This (not :data:`APP_NAME`) is what the data directory is derived from, and
 #: the reason is a collision that has already happened once. Tauri's per-user
 #: NSIS installer installs into ``%LOCALAPPDATA%\\<productName>``, which is
-#: ``%LOCALAPPDATA%\\AgentSpace`` — byte for byte the path an ``APP_NAME``-based
+#: ``%LOCALAPPDATA%\\AgentSpace``: byte for byte the path an ``APP_NAME``-based
 #: data directory resolves to. The SQLite event log would then live *inside* the
 #: installation, where an uninstall deletes it and an upgrade may overwrite it.
 #:
 #: Deriving from the identifier instead puts the data in
 #: ``%LOCALAPPDATA%\\dev.agentspace.desktop``, matching what the Tauri shell
-#: injects at spawn time — so the injected value and this fallback name the same
+#: injects at spawn time, so the injected value and this fallback name the same
 #: directory rather than quietly differing.
 #:
 #: The shell calls ``app_local_data_dir()`` for that, *not* ``app_data_dir()``.
 #: On Windows the latter is ``%APPDATA%``, the roaming profile, which a domain
 #: environment copies to and from a server on every logon. Roaming a live SQLite
-#: database — with its ``-wal`` and ``-shm`` sidecars, an agent workspace and
-#: logs — invites corruption and bloats every logon. Not a theoretical
+#: database (with its ``-wal`` and ``-shm`` sidecars, an agent workspace and
+#: logs) invites corruption and bloats every logon. Not a theoretical
 #: distinction: the first packaged build of Phase 2 used ``app_data_dir()`` and
 #: put the database in ``%APPDATA%``, which was caught only by installing the
 #: app and looking at where the file landed.
 APP_IDENTIFIER: Final[str] = "dev.agentspace.desktop"
 
-#: The only interface this application ever binds. Hardcoded on purpose — see
+#: The only interface this application ever binds. Hardcoded on purpose; see
 #: BUILD_SPEC §1 constraint 3. Do not make this configurable.
 BIND_HOST: Final[str] = "127.0.0.1"
 
@@ -74,9 +74,9 @@ DATA_DIR_ENV_VAR: Final[str] = "AGENTSPACE_DATA_DIR"
 
 #: Page origins allowed to read responses from the sidecar.
 #:
-#: The webview does not share an origin with the sidecar — Tauri serves the app
+#: The webview does not share an origin with the sidecar (Tauri serves the app
 #: from ``http://tauri.localhost`` on Windows and ``tauri://localhost``
-#: elsewhere — so every request from the UI is cross-origin and the browser
+#: elsewhere), so every request from the UI is cross-origin and the browser
 #: withholds the response without these headers. Binding loopback stops other
 #: *machines* reaching the sidecar; it does nothing about which page origins a
 #: browser will hand the body to.
@@ -99,7 +99,7 @@ class AppPaths:
     data_dir: Path
     db_path: Path
     logs_dir: Path
-    #: One folder per space under here, named by the space's id — the sandbox
+    #: One folder per space under here, named by the space's id: the sandbox
     #: root for every tool call in that space's runs (§5 Phase 11). The folder
     #: for a given space is :meth:`agentspace.store.spaces.SpaceStore.folder_for`.
     spaces_dir: Path
@@ -110,7 +110,7 @@ class AppPaths:
     def ensure_exists(self) -> None:
         """Create the directories this application owns.
 
-        Not called at import time — a module import must never touch the disk.
+        Not called at import time: a module import must never touch the disk.
         """
         for directory in (self.data_dir, self.logs_dir, self.spaces_dir):
             directory.mkdir(parents=True, exist_ok=True)
@@ -122,8 +122,8 @@ def adopt_legacy_workspace(paths: AppPaths, default_space_folder: Path) -> bool:
     §5 Phase 11's migration "moves the existing workspace folder to become its
     folder". The SQL half of that migration cannot touch the disk, so this
     runs beside it at startup, once: the move happens only while the old
-    folder exists and the new one does not, so a second launch — or a data
-    directory that never had a workspace — does nothing. Returns whether a
+    folder exists and the new one does not, so a second launch (or a data
+    directory that never had a workspace) does nothing. Returns whether a
     move happened.
     """
     if not paths.legacy_workspace.is_dir() or default_space_folder.exists():

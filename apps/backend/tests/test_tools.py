@@ -2,18 +2,18 @@
 
 The sandbox is tested on its own in `test_sandbox.py` and the gate in
 `test_approval_gate.py`. What is left, and what this file covers, is each
-tool's own behaviour — its arguments, its result, and the difference between
+tool's own behaviour: its arguments, its result, and the difference between
 the two ways a call can fail:
 
-* :class:`~agentspace.tools.base.ToolArgumentError` — a malformed call, which
+* :class:`~agentspace.tools.base.ToolArgumentError`: a malformed call, which
   becomes `tool.error` and which the agent can fix by retrying;
-* :class:`~agentspace.tools.base.ToolExecutionError` — a correct call that did
+* :class:`~agentspace.tools.base.ToolExecutionError`: a correct call that did
   not work, which is an ordinary event in a run.
 
 Neither is a refusal. A refusal comes from the sandbox and is
 :class:`~agentspace.tools.sandbox.SandboxViolationError`, so a tool that raised
 `ToolArgumentError` for an out-of-bounds path would quietly downgrade a
-`tool.denied` into a `tool.error` — the log would then say an agent made a bad
+`tool.denied` into a `tool.error`: the log would then say an agent made a bad
 call rather than that it tried to leave the workspace.
 """
 
@@ -61,7 +61,7 @@ def test_the_registry_and_the_catalogue_name_the_same_tools() -> None:
     A catalogue entry with no implementation is a tool the Phase 7 editor
     offers, a definition can allow, and a run then refuses. An implementation
     with no entry is worse in a quieter way: `allowed_tools` validates against
-    the catalogue, so no definition could ever name it — unreachable code
+    the catalogue, so no definition could ever name it: unreachable code
     wearing the shape of a feature.
     """
     registry = build_registry()
@@ -113,7 +113,7 @@ async def test_read_file_returns_the_contents(sandbox: Sandbox) -> None:
 
 
 async def test_read_file_refuses_a_path_outside_the_workspace(sandbox: Sandbox) -> None:
-    """A refusal, not a bad argument — the distinction the event log turns on."""
+    """A refusal, not a bad argument: the distinction the event log turns on."""
     tool = ReadFileTool()
 
     with pytest.raises(SandboxViolationError):
@@ -314,8 +314,8 @@ async def test_http_get_connects_to_the_address_it_checked(
     """DNS rebinding: a name that answers public when checked and private when
     connected. The check and the connection used to be two resolutions, and
     the module docstring conceded the gap. Now the connection goes to the
-    address the check saw — the URL carries the address, the `Host` header
-    and the SNI carry the name — so a second answer is never asked for.
+    address the check saw: the URL carries the address, the `Host` header
+    and the SNI carry the name, so a second answer is never asked for.
 
     The second resolver here answers private; it must never be consulted.
     """
@@ -335,7 +335,7 @@ async def test_http_get_connects_to_the_address_it_checked(
 
     # The rebinding: by the time the request is made, the name points inside.
     # A resolver consulted now is the failure, so it does not merely answer
-    # differently — it raises.
+    # differently: it raises.
     def rebound(*_args: object, **_kwargs: object) -> object:
         raise AssertionError("the name was resolved a second time")
 
@@ -472,7 +472,7 @@ async def test_run_shell_returns_output(sandbox: Sandbox) -> None:
 async def test_run_shell_runs_inside_the_workspace(sandbox: Sandbox) -> None:
     """The command's working directory is the sandbox root.
 
-    Not a boundary — a shell command can `cd` anywhere, which is exactly why
+    Not a boundary: a shell command can `cd` anywhere, which is exactly why
     `run_shell` is `high` risk and why the module says plainly that this is not
     isolation. It is still the right default: a relative path in a command
     means the same thing it means to every other tool.
@@ -540,7 +540,7 @@ async def test_run_shell_kills_a_command_that_outlives_its_timeout(
     """§5 Phase 6: "`run_shell` has ... a hard timeout."
 
     Patched down to a second rather than waiting sixty. What is being asserted
-    is that the timeout fires and the call comes back as an execution failure —
+    is that the timeout fires and the call comes back as an execution failure -
     a command that hung the run forever would be the failure this prevents.
     """
     monkeypatch.setattr("agentspace.tools.builtin.shell.SHELL_TIMEOUT_SECONDS", 1.0)

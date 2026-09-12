@@ -11,7 +11,7 @@ import tseslint from "typescript-eslint";
  * The rule that matters here is `import-x/no-unresolved` with
  * `caseSensitiveStrict`. Windows and macOS have case-insensitive filesystems,
  * so `import Foo from "./foo"` resolves happily on a dev machine and fails only
- * on Linux CI — long after the commit that broke it. The strict variant walks
+ * on Linux CI - long after the commit that broke it. The strict variant walks
  * every path segment against the real directory entries, so the mismatch is a
  * lint error at the moment it is written.
  */

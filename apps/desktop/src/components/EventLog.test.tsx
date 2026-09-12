@@ -7,8 +7,8 @@ import { LogBuilder, twoAgentRun } from "../test/log";
 import { EventLog } from "./EventLog";
 
 /**
- * The log panel's filters are component state — which rows a person is looking
- * at is a fact about the person — and that is exactly why they can go stale:
+ * The log panel's filters are component state (which rows a person is looking
+ * at is a fact about the person), and that is exactly why they can go stale:
  * the run underneath them changes and the filter does not.
  */
 

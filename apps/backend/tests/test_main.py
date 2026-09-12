@@ -19,7 +19,7 @@ from agentspace.secrets import SecretStore
 
 
 def _server() -> uvicorn.Server:
-    """A real Server instance, unstarted — we only inspect `should_exit`."""
+    """A real Server instance, unstarted: we only inspect `should_exit`."""
     return uvicorn.Server(uvicorn.Config(app=main.create_app(), host=BIND_HOST, port=0))
 
 
@@ -37,9 +37,9 @@ def test_health_returns_ok() -> None:
 def test_health_echoes_the_instance_the_shell_launched_it_with() -> None:
     """The shell tags each launch and asks `/health` for the tag back.
 
-    The port is fixed, so whatever is listening on it answers `/health` — a
+    The port is fixed, so whatever is listening on it answers `/health` (a
     previous copy of this app still shutting down, a dev sidecar left running
-    in a terminal — and until now nothing could tell the shell that the
+    in a terminal), and until now nothing could tell the shell that the
     process answering was not the one it spawned. The packaged app once
     attached to the dev sidecar and rendered the dev data directory's runs.
     """
@@ -133,7 +133,7 @@ def test_shutdown_command_tolerates_surrounding_whitespace() -> None:
 
 
 def test_unrelated_stdin_lines_do_not_stop_the_server_early() -> None:
-    """Only the command or EOF ends it — not arbitrary chatter on the pipe.
+    """Only the command or EOF ends it: not arbitrary chatter on the pipe.
 
     The first line is consumed as the secrets handshake, so the sentinel here
     is deliberately not in first position.
@@ -228,7 +228,7 @@ def test_preflight_is_answered_for_allowed_origins(origin: str) -> None:
     ],
 )
 def test_unknown_origins_get_no_cors_headers(origin: str) -> None:
-    """The allowlist must stay an allowlist — never a wildcard."""
+    """The allowlist must stay an allowlist: never a wildcard."""
     with TestClient(main.create_app()) as client:
         response = client.get("/health", headers={"Origin": origin})
 

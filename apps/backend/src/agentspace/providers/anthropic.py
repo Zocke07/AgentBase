@@ -248,7 +248,7 @@ def _blocks(content: Any) -> list[dict[str, Any]]:
 def _non_negative_int(value: Any) -> int:
     """Coerce a reported token count, defaulting to 0 rather than raising.
 
-    A provider that omits usage must not crash a run — but it also must not
+    A provider that omits usage must not crash a run, but it also must not
     make the call look free, which is why the budget check happens *before*
     the call rather than relying on what comes back.
     """
@@ -383,7 +383,7 @@ class _StreamState:
 
         An `error` frame is raised rather than returned. Anthropic can send one
         mid-stream after a `200 OK`, so the status code alone does not decide
-        whether the call succeeded — returning a truncated completion here
+        whether the call succeeded: returning a truncated completion here
         would charge the user for a response that never finished and hand the
         orchestrator a silently incomplete answer.
         """
@@ -423,7 +423,7 @@ def _parse_arguments(parts: list[str]) -> dict[str, Any]:
     """Join the `input_json_delta` fragments and decode them.
 
     A tool call with no arguments streams zero fragments, which is an empty
-    string rather than `{}` — decoding that would raise, so it is handled
+    string rather than `{}`: decoding that would raise, so it is handled
     before `json.loads` sees it.
     """
     joined = "".join(parts).strip()

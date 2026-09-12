@@ -2,9 +2,9 @@
 
 Written before the store existed, per §6: the migration rebuilds two tables
 other tables reference, over a user's whole history, and there is no
-down-migration. The first test builds a *populated* v5 database — runs,
+down-migration. The first test builds a *populated* v5 database (runs,
 events, definitions, approvals, spend, with the foreign keys that tie them
-together — and asserts every row survives the upgrade with a space.
+together) and asserts every row survives the upgrade with a space.
 """
 
 from __future__ import annotations
@@ -369,8 +369,8 @@ def test_the_approval_policy_only_narrows() -> None:
 def test_the_python_copy_of_the_built_in_roles_matches_what_the_migrations_seeded(
     db: Database,
 ) -> None:
-    """Two copies of three roles — SQL for the first roster, Python for every
-    later one — checked against each other rather than trusted."""
+    """Two copies of three roles (SQL for the first roster, Python for every
+    later one) checked against each other rather than trusted."""
     from agentspace.store.builtins import BUILTIN_ROLES
 
     with db.read() as connection:

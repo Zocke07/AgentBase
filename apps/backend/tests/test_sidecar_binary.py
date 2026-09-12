@@ -7,13 +7,13 @@ processes.
 Why this needs testing at the binary level rather than in-process: with
 ``--onefile`` the bootloader unpacks to a temp directory and execs the real
 interpreter as a child. Two processes exist. Anything that kills only the
-bootloader — which is the only PID the Tauri shell knows — leaves the server
+bootloader (which is the only PID the Tauri shell knows) leaves the server
 alive and holding the port. The in-process tests in ``test_main.py`` cannot
 observe that, because in-process there is only ever one process.
 
 Skipped when the binary has not been built, so `just test` stays fast and does
-not silently depend on build order. Pass `--require-build-checks` — as
-`just verify-build` does after a freeze — to turn that skip into a failure, so a
+not silently depend on build order. Pass `--require-build-checks` (as
+`just verify-build` does after a freeze) to turn that skip into a failure, so a
 release cannot go out green on a binary nothing ever launched.
 """
 
@@ -51,7 +51,7 @@ def _target_triple(platform_name: str = sys.platform, machine: str | None = None
 
     Parameterized for the same reason as `agentspace.config.default_data_dir`:
     mypy narrows a literal `sys.platform` comparison to the host it runs on, so
-    `warn_unreachable` would call the other branches dead code — and the macOS
+    `warn_unreachable` would call the other branches dead code, and the macOS
     branch is one CI builds but no one here can execute.
     """
     if platform_name == "win32":
@@ -171,7 +171,7 @@ def sidecar(tmp_path: Path) -> Iterator[subprocess.Popen[str]]:
     """Launch the frozen binary with a live stdin pipe, as Tauri does.
 
     The data directory is redirected into `tmp_path` so these tests exercise a
-    first-launch database — schema creation included — instead of reusing, and
+    first-launch database (schema creation included) instead of reusing, and
     growing, the developer's own `.dev/data`.
     """
     assert _wait_for_port_release(TEST_PORT, 5), (
@@ -201,7 +201,7 @@ def _terminate(process: subprocess.Popen[str]) -> None:
 
     Killing the process is deliberately the last resort rather than the first
     move. With ``--onefile`` the PID we hold is the bootloader's, and killing it
-    leaves the real server running — worse, it keeps running until *our* end of
+    leaves the real server running: worse, it keeps running until *our* end of
     the stdin pipe is released, because until then the child never sees EOF.
     That is the orphan this whole mechanism exists to prevent, and a teardown
     that reached for kill() first would leak a port between tests instead of
@@ -244,7 +244,7 @@ def test_closing_stdin_leaves_no_orphan_process(sidecar: subprocess.Popen[str]) 
     assert exit_code is not None
 
     assert _wait_for_port_release(TEST_PORT, SHUTDOWN_TIMEOUT_S), (
-        "port still held after stdin closed — the real server was orphaned"
+        "port still held after stdin closed: the real server was orphaned"
     )
 
     survivors = _surviving_sidecar_processes()
@@ -323,7 +323,7 @@ def test_frozen_sidecar_creates_its_database(
 
     `schema.sql` reaches the binary only because the justfile passes
     `--add-data`. Without it the sidecar starts, answers `/health`, and then
-    fails the moment anything touches the database — which is exactly the shape
+    fails the moment anything touches the database, which is exactly the shape
     of the Phase 1 bug that looked healthy and was not. Asserting on a real
     database file is the cheapest way to keep that from recurring.
     """

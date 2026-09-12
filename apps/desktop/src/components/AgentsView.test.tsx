@@ -13,7 +13,7 @@ import { AgentsView } from "./AgentsView";
  * behind them.
  *
  * `lib/api` is mocked rather than `fetch`, because what this component owns is
- * which calls it makes and what it does with their outcomes — the request
+ * which calls it makes and what it does with their outcomes: the request
  * shapes are `api.ts`'s to get right, and are tested there.
  */
 
@@ -65,7 +65,7 @@ describe("what it fetches", () => {
   it("says the roster is loading rather than that it is empty", () => {
     /* `useFetched` starts with the initial value, and for the half-second
        before the first response an empty array read as "No agent definitions
-       yet." — wrong, and alarming on a fresh install that has three. */
+       yet.": wrong, and alarming on a fresh install that has three. */
     mocked.listAgents.mockReturnValue(new Promise(() => undefined));
 
     render(<AgentsView workspaceProvider="ollama" />);

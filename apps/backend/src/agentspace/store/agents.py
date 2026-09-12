@@ -1,4 +1,4 @@
-"""Agent definitions — the rows that replace hardcoded agent classes.
+"""Agent definitions: the rows that replace hardcoded agent classes.
 
 §5 Phase 5: "Agents stop being hardcoded Python classes and become editable
 data." This module owns the data half of that: the `agent_defs` row as a typed
@@ -6,7 +6,7 @@ object, and the CRUD that writes one.
 
 **Validation lives here, not in the API layer.** §5 Phase 5 says invalid writes
 must be rejected "at the API layer with a readable message, not a 500", and
-that is what happens — :mod:`agentspace.api.agents` maps each error below to a
+that is what happens: :mod:`agentspace.api.agents` maps each error below to a
 status code. But the *rule* is enforced at the only place a row can be written,
 because a rule that lives in a request handler is a rule the next writer of a
 row does not have to obey. Same reasoning as
@@ -16,12 +16,12 @@ and there is no second code path to remember.
 **Nothing here widens the security model.** A definition carries a
 user-authored system prompt and an allowlist of tool names. It cannot name a
 tool that does not exist, and its `auto_approve` can only narrow the workspace
-policy — see :func:`agentspace.tools.catalogue.effective_auto_approve`. A
+policy; see :func:`agentspace.tools.catalogue.effective_auto_approve`. A
 definition is a description of an agent, never a grant of privilege.
 
 **A definition belongs to exactly one space** (§5 Phase 11). Its name is
-unique within that space's roster — the only place a supervisor ever resolves
-one — so two spaces may each have a `writer`. Moving a definition is a
+unique within that space's roster (the only place a supervisor ever resolves
+one), so two spaces may each have a `writer`. Moving a definition is a
 `space_id` change; an in-flight run's roster is a snapshot, so a move mid-run
 leaves that run alone. Copying makes a new row with a new id that the user
 may delete, whatever the original was.
@@ -79,7 +79,7 @@ NAME_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9_-]{0,39}$")
 #:
 #: It is a *ceiling to fall back to*, not a value to assert: it is clamped to
 #: the workspace cap before use. Asserting the literal made creating any agent
-#: impossible whenever `max_steps_per_agent` was set below 20 — the request
+#: impossible whenever `max_steps_per_agent` was set below 20: the request
 #: was rejected naming `max_steps`, a field the caller had not supplied. Found
 #: by lowering the cap on a real sidecar and creating an ordinary agent.
 DEFAULT_AGENT_MAX_STEPS: Final[int] = 20
@@ -149,7 +149,7 @@ class AgentDef(BaseModel):
     allowed_tools: tuple[str, ...] = ()
     max_steps: int = Field(default=20, ge=1)
     #: Risk levels this agent would skip the prompt for. Only ever *narrowed*
-    #: against the workspace policy — see `tools.catalogue.effective_auto_approve`.
+    #: against the workspace policy; see `tools.catalogue.effective_auto_approve`.
     #: Nothing consumes it until Phase 6 builds the gate.
     auto_approve: tuple[RiskLevel, ...] = ()
     is_builtin: bool = False
@@ -188,7 +188,7 @@ class AgentDefStore:
     """Reads and writes `agent_defs`, refusing to write an invalid row.
 
     Holds a :class:`~agentspace.store.settings.SettingsStore` because one
-    validation rule — `max_steps` within the global cap — is a fact about
+    validation rule (`max_steps` within the global cap) is a fact about
     workspace settings rather than about the definition.
     :class:`~agentspace.budget.ledger.BudgetLedger` takes one for the same kind
     of reason.
@@ -208,7 +208,7 @@ class AgentDefStore:
         """The roster a run in ``space_id`` is offered.
 
         A disabled definition is not deleted, it is simply not something the
-        supervisor can spawn — which is what makes disabling a usable answer
+        supervisor can spawn, which is what makes disabling a usable answer
         for a built-in the user cannot delete. A definition on another space's
         roster is not offered either: that is what a space *is*.
         """
@@ -368,7 +368,7 @@ class AgentDefStore:
     async def update(self, definition_id: str, changes: dict[str, Any]) -> AgentDef:
         """Apply a partial update.
 
-        A built-in is editable — §5 Phase 5 guards only the delete path — so
+        A built-in is editable (§5 Phase 5 guards only the delete path), so
         `is_builtin` is not consulted here. It is also not *settable*: a user
         cannot promote their own definition into an undeletable one.
         """
@@ -562,7 +562,7 @@ def _validated_name(value: Any) -> str:
     if not NAME_PATTERN.match(name):
         raise AgentValidationError(
             f"{name!r} is not a usable agent name. Use lowercase letters, digits, "
-            f"'-' and '_', starting with a letter, up to 40 characters — a "
+            f"'-' and '_', starting with a letter, up to 40 characters, a "
             f"supervisor has to type this name back exactly to spawn the agent.",
             field="name",
         )
@@ -581,7 +581,7 @@ def _optional_text(value: Any) -> str | None:
     """``None`` and blank both mean "inherit the workspace default" (§4).
 
     Collapsing the two matters because a cleared form field arrives as `""`,
-    and a stored `""` is not a provider name — it is a definition that fails to
+    and a stored `""` is not a provider name: it is a definition that fails to
     build a provider at spawn time, long after the user could connect the two.
     """
     if value is None:
@@ -594,8 +594,8 @@ def _validated_provider(value: Any) -> str | None:
     """A pinned provider must be one that exists (§4: NULL inherits the default).
 
     Checked on write so the message arrives while the user is looking at the
-    form. It is not the only check — `ProviderPool` raises on an unknown name
-    too — because a column validated only on write stops being trustworthy the
+    form. It is not the only check (`ProviderPool` raises on an unknown name
+    too) because a column validated only on write stops being trustworthy the
     day a provider is removed from the registry.
     """
     provider = _optional_text(value)
@@ -659,7 +659,7 @@ def _validated_max_steps(value: Any, cap: int) -> int:
 
     if steps < 1:
         raise AgentValidationError(
-            "max_steps must be at least 1 — an agent with no steps cannot do anything.",
+            "max_steps must be at least 1: an agent with no steps cannot do anything.",
             field="max_steps",
         )
     if steps > cap:

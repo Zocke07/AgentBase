@@ -7,8 +7,8 @@ between what it produces and what is committed is `test_openapi_snapshot.py`.
 The property that matters most is the one in
 :class:`~agentspace.openapi.UnsupportedSchemaError`: a construct the emitter
 does not understand must raise, not become `unknown`. A generator that degrades
-silently produces a file that typechecks and protects nothing, and — like every
-other silent-success bug this project has hit — the test suite stays green while
+silently produces a file that typechecks and protects nothing, and (like every
+other silent-success bug this project has hit) the test suite stays green while
 it happens.
 """
 
@@ -46,7 +46,7 @@ def test_a_field_with_a_default_is_optional() -> None:
     FastAPI omits a defaulted field from `required` even on a response model
     that always sends it. Rendering it as required would be the generator
     improving on its input, which makes it a second source of truth about the
-    API — exactly what generating from the schema is meant to avoid.
+    API: exactly what generating from the schema is meant to avoid.
     """
     emitted = _emit({"type": "object", "properties": {"n": {"type": "integer", "default": 3}}})
 
@@ -123,7 +123,7 @@ def test_a_reference_becomes_the_referenced_name() -> None:
 
 
 def test_an_array_of_a_union_is_parenthesised() -> None:
-    """`(A | B)[]`, never `A | B[]` — which is a different and wrong type."""
+    """`(A | B)[]`, never `A | B[]`: which is a different and wrong type."""
     emitted = _emit(
         {
             "type": "object",
@@ -191,7 +191,7 @@ def test_nothing_emitted_has_trailing_whitespace() -> None:
 def test_an_unhandled_keyword_raises_rather_than_becoming_unknown(node: dict[str, Any]) -> None:
     """The property the whole generator rests on.
 
-    Every one of these is a construct a later phase could plausibly introduce —
+    Every one of these is a construct a later phase could plausibly introduce -
     a discriminated union of event payloads is the obvious Phase 8 candidate.
     Emitting `unknown` for it would leave the frontend typechecking against a
     field it knows nothing about, with nothing anywhere reporting a problem.
@@ -227,7 +227,7 @@ def test_the_error_names_the_offending_field() -> None:
 
 
 def test_every_component_schema_is_emitted() -> None:
-    """No model may be quietly skipped — that is the same failure as `unknown`."""
+    """No model may be quietly skipped: that is the same failure as `unknown`."""
     emitted = emit_typescript()
 
     for name in schema()["components"]["schemas"]:

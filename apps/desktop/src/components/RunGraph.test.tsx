@@ -65,7 +65,7 @@ describe("RunGraph", () => {
   it("names the tool an agent is running, and stops once the result is in", () => {
     /* Between `tool.called` and `tool.result` the agent is doing the one thing
        the log is most interested in. It used to read "waiting for approval"
-       here — the label the approval left behind — for as long as the tool ran. */
+       here (the label the approval left behind) for as long as the tool ran. */
     const events = twoAgentRun();
     const called = events.findIndex((event) => event.type === "tool.called" && event.agent_id === "researcher") + 1;
     const running = render(
@@ -119,12 +119,12 @@ describe("RunGraph", () => {
   it("gives every node the handles an edge attaches to", () => {
     /* The regression this file exists for, found by running a real run and
        reading the browser console. `AgentCard` rendered no `<Handle>`, so React
-       Flow refused every edge touching it — logging a warning and drawing
+       Flow refused every edge touching it, logging a warning and drawing
        nothing. The graph looked complete with every handoff missing, and every
        test here passed, because they all asserted node content.
 
-       React Flow will not lay out an SVG edge in jsdom at all — it needs real
-       measurement — so the drawn edge is verified in a browser rather than
+       React Flow will not lay out an SVG edge in jsdom at all (it needs real
+       measurement), so the drawn edge is verified in a browser rather than
        here. What is checkable here is the thing that was actually wrong. */
     const { container } = graph();
 

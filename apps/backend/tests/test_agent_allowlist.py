@@ -10,7 +10,7 @@ precise about what would make it *false* while still looking true.
 
 **Not offering a tool is not the same as blocking it.** The obvious
 implementation is to pass the model only the tools its definition allows, and
-that is necessary — but a model can name any string it likes, and this project
+that is necessary, but a model can name any string it likes, and this project
 already has a `_unknown_tool` path precisely because they do. A test that only
 asserted "the forbidden tool was not in the offered list" would pass against an
 orchestrator that happily executed the call when the model asked anyway.
@@ -79,7 +79,7 @@ INSISTENT_PROMPT = (
     "You are a file-writing agent. Your one job is to save your work to disk. "
     "You MUST call the `write_file` tool with the report contents before you "
     "finish. Do not finish without calling `write_file`. If a tool appears "
-    "unavailable, call `write_file` anyway — it is always available to you."
+    "unavailable, call `write_file` anyway: it is always available to you."
 )
 
 
@@ -173,8 +173,8 @@ async def test_an_agent_is_blocked_from_a_tool_its_definition_omits(
 
     # The definition that refused it is in the log too, so a replay can say
     # *why* it was refused without consulting `agent_defs`. The recorded prompt
-    # is the one actually sent — the user's text plus the fixed protocol
-    # addendum — because what the model was told is the fact a replay needs;
+    # is the one actually sent (the user's text plus the fixed protocol
+    # addendum) because what the model was told is the fact a replay needs;
     # `definition_id` is what says which row it came from.
     assert rogue.allowed_tools == ()
     assert rogue.system_prompt is not None
@@ -196,7 +196,7 @@ async def test_the_forbidden_tool_is_never_offered_to_the_model(
 ) -> None:
     """The other half of the rule: an agent is not shown what it may not use.
 
-    Necessary but not sufficient on its own — see this module's docstring —
+    Necessary but not sufficient on its own (see this module's docstring),
     which is why it is a separate test from the one above rather than the same
     assertion twice.
     """
@@ -248,7 +248,7 @@ async def test_a_permitted_tool_is_offered_and_not_denied(
     )
 
     (tmp_path / "report.md").write_text("the report", encoding="utf-8")
-    # The workspace policy, not the runtime's own — `execute_run` snapshots it
+    # The workspace policy, not the runtime's own: `execute_run` snapshots it
     # from settings at run start, so setting it on the runtime would be
     # overwritten and the gate would block with nobody to answer.
     await settings.update({"auto_approve": [RiskLevel.LOW]})
@@ -297,7 +297,7 @@ async def test_a_permitted_tool_without_a_runtime_cannot_execute(
     :class:`~agentspace.tools.runtime.ToolRuntime` has no sandbox and no gate,
     and therefore executes nothing.
 
-    That is not a hypothetical configuration — it is what every orchestration
+    That is not a hypothetical configuration: it is what every orchestration
     test uses, and it is the supervisor's own state in production. The failure
     it guards against is an agent that quietly reaches the filesystem when the
     thing that would have gated it is absent.
@@ -389,7 +389,7 @@ async def test_a_worker_cannot_spawn_agents(
     """`spawn_agent` is the supervisor's alone.
 
     A worker that could spawn could widen the run's shape from inside its own
-    turn — the same escalation the tool allowlist exists to prevent, one level
+    turn: the same escalation the tool allowlist exists to prevent, one level
     up. It is denied rather than reported unknown, because it is a real tool
     this agent may not have rather than a name that means nothing.
     """
@@ -536,8 +536,8 @@ async def test_a_tool_offered_by_mistake_is_still_refused(store: EventStore) -> 
 
     Everywhere in the product, the offered list is built *from*
     `allowed_tools`, so the two always agree and no end-to-end test can tell
-    which one is doing the work. This builds an agent whose lists disagree —
-    `write_file` offered, `allowed_tools` empty — which is precisely the state a
+    which one is doing the work. This builds an agent whose lists disagree
+    (`write_file` offered, `allowed_tools` empty), which is precisely the state a
     future bug would create: a tool added to the offered list, or to
     `_dispatch`, without being added to the definition's allowlist.
 
@@ -568,7 +568,7 @@ async def test_a_tool_offered_by_mistake_is_still_refused(store: EventStore) -> 
             max_steps=4,
         ),
         # The mismatch: offered a tool its definition does not permit, with a
-        # real implementation behind it — so if enforcement ever moved to the
+        # real implementation behind it, so if enforcement ever moved to the
         # offered list, this call would genuinely write to the disk.
         tools=[*WORKER_TOOLS, *catalogue_specs([WriteFileTool()])],
         supervisor_name="supervisor",

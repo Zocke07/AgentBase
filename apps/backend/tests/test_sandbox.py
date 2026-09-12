@@ -8,14 +8,14 @@ ledger and the sandbox. This file is that test, and it exists before
 outside [the workspace root] is rejected before the approval prompt is even
 shown", and its acceptance criterion is that an agent told to write outside the
 root is "blocked at the sandbox layer". So the property under test is not that
-a write fails — it is that the *decision* is reachable without executing
+a write fails: it is that the *decision* is reachable without executing
 anything and without asking anyone. Every test here calls the sandbox directly,
 with no tool, no agent and no approval in sight, because that is the layer the
 guarantee lives at.
 
 The escape attempts below are the ones that actually work against a naive
 implementation, not a list of scary-looking strings: a `..` segment, an
-absolute path, a symlink whose target is elsewhere, and — on Windows — a drive
+absolute path, a symlink whose target is elsewhere, and (on Windows) a drive
 letter and an alternate data stream. An implementation that string-matches
 `".."` passes a third of them.
 """
@@ -172,7 +172,7 @@ def _link_to_directory(link: Path, target: Path) -> None:
 
     Windows refuses `CreateSymbolicLink` to an unprivileged account unless
     Developer Mode is on, so on the project's primary platform (§1 constraint 7)
-    the obvious `symlink_to` call skips — and it skips on exactly the test that
+    the obvious `symlink_to` call skips, and it skips on exactly the test that
     covers the only escape a syntactic check cannot see. A *junction* needs no
     privilege, is followed by :meth:`Path.resolve` identically, and is what the
     real escape would use for that reason.
@@ -190,7 +190,7 @@ def _link_to_directory(link: Path, target: Path) -> None:
         # it is ordinary code following an always-taken `raise`, which
         # `warn_unreachable` reports on macOS while Windows stays clean. Keeping
         # both platforms' code inside branches keeps both hosts quiet, and keeps
-        # `_winapi` — which typeshed marks Windows-only — out of a macOS run.
+        # `_winapi` (which typeshed marks Windows-only) out of a macOS run.
         if sys.platform == "win32":
             import _winapi
 
@@ -218,7 +218,7 @@ def test_a_symlink_pointing_out_of_the_root_is_rejected(
     except (OSError, NotImplementedError, AttributeError):  # pragma: no cover
         pytest.skip("this platform/user can create neither a symlink nor a junction")
 
-    # The link really does reach the file — otherwise the test would pass
+    # The link really does reach the file: otherwise the test would pass
     # because the path was broken rather than because it was refused.
     assert (link / "secret.txt").read_text(encoding="utf-8") == "secret"
 
@@ -290,7 +290,7 @@ def test_resolve_url_hands_back_the_address_it_checked(
 ) -> None:
     """`check_url` answered yes or no; `resolve_url` also says *which* address
     was checked, so `http_get` can connect to that one and not to whatever a
-    second lookup returns — the rebinding gap `check_url`'s docstring used to
+    second lookup returns: the rebinding gap `check_url`'s docstring used to
     concede."""
     import socket
 
@@ -366,8 +366,8 @@ def test_a_loopback_url_is_rejected(sandbox: Sandbox, url: str) -> None:
     """The sidecar is on loopback, and so is Ollama.
 
     Without this, `http_get` is a tool that lets an agent call this
-    application's own API — reading settings, starting runs, resolving its own
-    approvals — from inside a run. §1 constraint 3 keeps other machines out;
+    application's own API (reading settings, starting runs, resolving its own
+    approvals) from inside a run. §1 constraint 3 keeps other machines out;
     nothing else keeps the agent from reaching back in.
     """
     with pytest.raises(UrlNotAllowedError) as caught:
@@ -386,7 +386,7 @@ def test_a_loopback_url_is_rejected(sandbox: Sandbox, url: str) -> None:
     ],
 )
 def test_a_private_or_link_local_url_is_rejected(sandbox: Sandbox, url: str) -> None:
-    """169.254.169.254 is the cloud metadata endpoint, and the rest is the LAN —
+    """169.254.169.254 is the cloud metadata endpoint, and the rest is the LAN -
     the user's router, printer and NAS. A local-first app has no business
     reaching any of it on an agent's say-so."""
     with pytest.raises(UrlNotAllowedError):

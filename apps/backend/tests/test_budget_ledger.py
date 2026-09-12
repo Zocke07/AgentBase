@@ -5,7 +5,7 @@ Written before `budget/ledger.py` (BUILD_SPEC §6).
 The Phase 3 acceptance criterion is precise about ordering: "a run that would
 exceed the monthly cap is refused with a clear reason **before any API call
 fires**." A test that only checks the error message would pass just as happily
-if the request went out first and the refusal came after — the user would be
+if the request went out first and the refusal came after, the user would be
 billed for a call the app claims it prevented.
 
 So the provider double here raises if it is called at all. Every refusal test
@@ -73,7 +73,7 @@ class ExplodingProvider:
         max_tokens: int = 4096,
     ) -> Completion:
         self.calls += 1
-        msg = "the API call fired despite the budget cap — this is the bug"
+        msg = "the API call fired despite the budget cap: this is the bug"
         raise AssertionError(msg)
 
     def stream(
@@ -88,12 +88,12 @@ class ExplodingProvider:
 
         The double implements the *whole* protocol on purpose. A double that
         only had `complete` would still satisfy every test that used it, while
-        proving nothing about the path the orchestrator actually takes — and
+        proving nothing about the path the orchestrator actually takes, and
         `mypy --strict` would reject it the moment it was passed somewhere a
         `Provider` is required.
         """
         self.calls += 1
-        msg = "the streamed API call fired despite the budget cap — this is the bug"
+        msg = "the streamed API call fired despite the budget cap: this is the bug"
         raise AssertionError(msg)
 
 
@@ -309,7 +309,7 @@ async def test_the_refusal_reason_is_human_legible(
 async def test_check_refuses_a_call_that_would_cross_the_cap(
     ledger: BudgetLedger, store: EventStore, settings: SettingsStore
 ) -> None:
-    """ "Would exceed", not "has exceeded" — the projected cost of *this* call
+    """ "Would exceed", not "has exceeded": the projected cost of *this* call
     counts, otherwise the cap is always breached by one whole request."""
     run_id = await _run_id(store)
     await settings.update({"monthly_cap_micros": 1_000_000})
@@ -327,7 +327,7 @@ async def test_an_unpriced_model_is_refused_before_the_call(
 ) -> None:
     """An unknown price cannot be checked against a cap, so it must refuse.
 
-    Charging it at zero would let an unpriced model run unbounded — the exact
+    Charging it at zero would let an unpriced model run unbounded: the exact
     hole `pricing.UnknownModelError` exists to close.
     """
     run_id = await _run_id(store)
@@ -371,7 +371,7 @@ async def test_budget_warning_is_not_emitted_below_the_threshold(
         run_id=run_id,
         provider="anthropic",
         model="claude-opus-5",
-        usage=TokenUsage(input_tokens=100_000),  # $0.50 — half the cap
+        usage=TokenUsage(input_tokens=100_000),  # $0.50: half the cap
     )
 
     events = await store.read(run_id)
@@ -382,7 +382,7 @@ async def test_budget_warning_is_not_emitted_below_the_threshold(
 async def test_budget_warning_fires_once_per_crossing_not_once_per_call(
     ledger: BudgetLedger, store: EventStore, settings: SettingsStore
 ) -> None:
-    """Warning on every call past 80% would bury the event log in duplicates —
+    """Warning on every call past 80% would bury the event log in duplicates -
     and the log is the UI's only source of truth."""
     run_id = await _run_id(store)
     await settings.update({"monthly_cap_micros": 1_000_000})
@@ -405,13 +405,13 @@ async def test_two_runs_crossing_the_threshold_together_warn_exactly_once(
     together. `record` used to read the period's total *before* taking the
     write lock and add its own cost to it, so both readers saw the same
     "before" and each computed an "after" without the other's cost. Two
-    calls that crossed together therefore warned twice — or, as here, where
+    calls that crossed together therefore warned twice, or, as here, where
     neither crosses alone, not at all: the old code reports zero warnings
     for a month that just went past 80%.
 
     The two are held at the old read point until both have read, which is
     the interleaving that produced the duplicate. Under the fix that read no
-    longer exists — the before and after come from inside the transaction —
+    longer exists (the before and after come from inside the transaction),
     and the barrier is never reached.
     """
     import asyncio
@@ -523,7 +523,7 @@ async def test_the_recorded_cost_uses_actual_usage_not_the_estimate(
 async def test_the_guard_preserves_the_provider_protocol(
     ledger: BudgetLedger, store: EventStore
 ) -> None:
-    """Wrapping must be invisible above this layer — the orchestrator (Phase 4)
+    """Wrapping must be invisible above this layer: the orchestrator (Phase 4)
     must not need to know whether it holds a provider or a guarded provider."""
     run_id = await _run_id(store)
     inner = StubProvider(model="claude-sonnet-5")
@@ -564,7 +564,7 @@ async def test_the_estimate_counts_the_system_prompt() -> None:
 #
 # Written before `BudgetedProvider.stream` exists (§6). The wrapper is what
 # makes "check before the call" structural rather than a rule Phase 4 has to
-# remember — but that only holds for the methods it actually wraps. A `stream`
+# remember, but that only holds for the methods it actually wraps. A `stream`
 # that reached the inner provider directly would reopen the exact hole
 # `BudgetedProvider` was built to close, and every existing test would still
 # pass, because they all go through `complete`.
@@ -596,7 +596,7 @@ async def test_the_refusal_happens_before_the_first_delta_is_yielded(
     """An async generator does nothing until it is iterated.
 
     That makes a subtle failure available: a `stream` that checks the budget
-    lazily still refuses, but only *after* the caller has started consuming —
+    lazily still refuses, but only *after* the caller has started consuming -
     by which point the orchestrator has already emitted `llm.request` and, on
     a real provider, the HTTP request is in flight. Pinning the refusal to the
     first `__anext__` keeps the guarantee observable.
@@ -657,7 +657,7 @@ async def test_an_abandoned_stream_records_nothing(
 ) -> None:
     """A consumer that stops early never reaches the terminal completion.
 
-    Recording nothing is the honest outcome — the usage figures live on the
+    Recording nothing is the honest outcome: the usage figures live on the
     item that was never produced, so any number written here would be invented.
     This is a documented consequence of the protocol, not an accident, and the
     pre-flight check is what stops it becoming a way to spend past the cap.

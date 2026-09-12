@@ -328,7 +328,7 @@
       },
       "CreateAgentRequest": {
         "additionalProperties": false,
-        "description": "A new definition.\n\nDeliberately not the same model as :class:`~agentspace.store.agents.AgentDef`:\n`id`, `created_at`, `updated_at` and `is_builtin` are ours to assign, and a\nrequest model that accepted them would let a caller mint a built-in \u2014 which\nis a definition the delete path refuses to remove.",
+        "description": "A new definition.\n\nDeliberately not the same model as :class:`~agentspace.store.agents.AgentDef`:\n`id`, `created_at`, `updated_at` and `is_builtin` are ours to assign, and a\nrequest model that accepted them would let a caller mint a built-in, which\nis a definition the delete path refuses to remove.",
         "properties": {
           "allowed_tools": {
             "items": {
@@ -497,7 +497,7 @@
         "type": "object"
       },
       "Event": {
-        "description": "One append-only row of the log.\n\n``seq`` is per-run and 1-based; it is the id the SSE stream publishes and\nthe cursor ``Last-Event-ID`` carries. ``id`` is the global rowid and exists\nfor ordering across runs \u2014 never use it as a resume cursor, since a client\nresuming one run would then skip every event another run interleaved.",
+        "description": "One append-only row of the log.\n\n``seq`` is per-run and 1-based; it is the id the SSE stream publishes and\nthe cursor ``Last-Event-ID`` carries. ``id`` is the global rowid and exists\nfor ordering across runs: never use it as a resume cursor, since a client\nresuming one run would then skip every event another run interleaved.",
         "properties": {
           "agent_id": {
             "anyOf": [
@@ -672,7 +672,7 @@
       },
       "ResolveApprovalRequest": {
         "additionalProperties": false,
-        "description": "A decision on one approval.\n\n``extra=\"forbid\"`` for the reason every request model in this project has\nit: Pydantic's default is to drop an unknown field, which turned a\nmisspelled setting into a `200 OK` that changed nothing once already\n(CLAUDE.md, Phase 4). Here the stakes are higher \u2014 a client that sent\n``{\"approve\": true}`` would have the typo silently read as a denial.",
+        "description": "A decision on one approval.\n\n``extra=\"forbid\"`` for the reason every request model in this project has\nit: Pydantic's default is to drop an unknown field, which turned a\nmisspelled setting into a `200 OK` that changed nothing once already\n(CLAUDE.md, Phase 4). Here the stakes are higher: a client that sent\n``{\"approve\": true}`` would have the typo silently read as a denial.",
         "properties": {
           "approved": {
             "title": "Approved",
@@ -966,7 +966,7 @@
       },
       "UpdateAgentRequest": {
         "additionalProperties": false,
-        "description": "A partial update. Every field optional; omitted fields are untouched.\n\n``None`` is meaningful for `provider` and `model` \u2014 it is how a definition\ngoes back to inheriting the workspace default \u2014 so this cannot use\n`exclude_none` the way `PATCH /settings` does. `model_fields_set` is what\nseparates \"sent as null\" from \"not sent\".",
+        "description": "A partial update. Every field optional; omitted fields are untouched.\n\n``None`` is meaningful for `provider` and `model` (it is how a definition\ngoes back to inheriting the workspace default), so this cannot use\n`exclude_none` the way `PATCH /settings` does. `model_fields_set` is what\nseparates \"sent as null\" from \"not sent\".",
         "properties": {
           "allowed_tools": {
             "anyOf": [
@@ -1090,7 +1090,7 @@
       },
       "UpdateSettingsRequest": {
         "additionalProperties": false,
-        "description": "A partial update. Every field optional; omitted fields are untouched.\n\n**Unknown fields are rejected rather than ignored.** Pydantic's default is\nto drop them, which turns a misspelled or not-yet-supported setting into a\n`200 OK` that changed nothing \u2014 the caller is told it worked and it did\nnot. That is exactly how the Phase 4 run limits appeared configurable\nthrough this endpoint for a while without being so.\n\n**This model must list every field of\n:class:`~agentspace.store.settings.WorkspaceSettings`.** It duplicates that\nlist because the two differ in bounds and optionality, and a duplicated\nlist is a list that drifts: Phase 6 added `auto_approve` to the settings\nmodel and not to this one, so `GET /settings` reported a policy that\n`PATCH /settings` refused to set \u2014 the workspace's entire approval policy\nwas unsettable through the API. `extra=\"forbid\"` made that loud rather than\nsilent, which is the Phase 4 fix working, and\n`test_every_workspace_setting_can_be_patched` is what stops the next field\nrepeating it.",
+        "description": "A partial update. Every field optional; omitted fields are untouched.\n\n**Unknown fields are rejected rather than ignored.** Pydantic's default is\nto drop them, which turns a misspelled or not-yet-supported setting into a\n`200 OK` that changed nothing: the caller is told it worked and it did\nnot. That is exactly how the Phase 4 run limits appeared configurable\nthrough this endpoint for a while without being so.\n\n**This model must list every field of\n:class:`~agentspace.store.settings.WorkspaceSettings`.** It duplicates that\nlist because the two differ in bounds and optionality, and a duplicated\nlist is a list that drifts: Phase 6 added `auto_approve` to the settings\nmodel and not to this one, so `GET /settings` reported a policy that\n`PATCH /settings` refused to set: the workspace's entire approval policy\nwas unsettable through the API. `extra=\"forbid\"` made that loud rather than\nsilent, which is the Phase 4 fix working, and\n`test_every_workspace_setting_can_be_patched` is what stops the next field\nrepeating it.",
         "properties": {
           "auto_approve": {
             "anyOf": [
@@ -1246,7 +1246,7 @@
       },
       "UpdateSpaceRequest": {
         "additionalProperties": false,
-        "description": "A partial update.\n\n``None`` is meaningful for every rule \u2014 it is how a space goes back to\ninheriting the app-wide default \u2014 so this uses `model_fields_set` rather\nthan `exclude_none` to tell \"not sent\" from \"sent as null\".",
+        "description": "A partial update.\n\n``None`` is meaningful for every rule (it is how a space goes back to\ninheriting the app-wide default), so this uses `model_fields_set` rather\nthan `exclude_none` to tell \"not sent\" from \"sent as null\".",
         "properties": {
           "archived": {
             "anyOf": [
@@ -1541,7 +1541,7 @@
   "paths": {
     "/agents": {
       "get": {
-        "description": "Every definition, enabled or not \u2014 this backs the roster editor.\n\nA run reads only the enabled ones; see\n:meth:`agentspace.orchestrator.registry.AgentRegistry.load`.",
+        "description": "Every definition, enabled or not: this backs the roster editor.\n\nA run reads only the enabled ones; see\n:meth:`agentspace.orchestrator.registry.AgentRegistry.load`.",
         "operationId": "list_agents_agents_get",
         "parameters": [
           {
@@ -1695,7 +1695,7 @@
         "summary": "Get Agent"
       },
       "patch": {
-        "description": "Apply a partial update.\n\nA built-in is editable here \u2014 \u00a75 Phase 5 guards only the delete path \u2014 so\nthere is deliberately no `is_builtin` check.",
+        "description": "Apply a partial update.\n\nA built-in is editable here (\u00a75 Phase 5 guards only the delete path), so\nthere is deliberately no `is_builtin` check.",
         "operationId": "update_agent_agents__definition_id__patch",
         "parameters": [
           {
@@ -2064,7 +2064,7 @@
     },
     "/runs": {
       "get": {
-        "description": "Recent runs, newest first \u2014 what the Phase 7 replay picker reads.\n\n\u00a75 Phase 7 requires \"Replay: scrub any past run from the event log\", and a\nuser cannot scrub a run they cannot find. The alternative \u2014 a UI keeping\nits own list of the runs it happens to have seen \u2014 would make the client an\nauthority on something the database already knows, which is the drift \u00a72\nexists to prevent.",
+        "description": "Recent runs, newest first: what the Phase 7 replay picker reads.\n\n\u00a75 Phase 7 requires \"Replay: scrub any past run from the event log\", and a\nuser cannot scrub a run they cannot find. The alternative (a UI keeping\nits own list of the runs it happens to have seen) would make the client an\nauthority on something the database already knows, which is the drift \u00a72\nexists to prevent.",
         "operationId": "list_runs_runs_get",
         "parameters": [
           {
@@ -2125,7 +2125,7 @@
         "summary": "List Runs"
       },
       "post": {
-        "description": "Create a run and start the orchestrator on it.\n\nReturns as soon as the row exists rather than waiting for the run to\nfinish. A run takes minutes and the client watches it over SSE \u2014 holding\nthe request open would make the event stream a second way to learn the same\nthing, and would put a proxy's idle timeout in charge of when a run ends.\n\n**The work of starting a run is not done here.** Phase 8 gave the chat\nchannels the same job, and assembling `execute_run`'s arguments at three\ncall sites would be the eighth instance of this project's recurring bug: one\nlist duplicated, correct everywhere on the day it was written, silently\ndivergent afterwards. :class:`~agentspace.orchestrator.launcher.RunLauncher`\nis the single copy.",
+        "description": "Create a run and start the orchestrator on it.\n\nReturns as soon as the row exists rather than waiting for the run to\nfinish. A run takes minutes and the client watches it over SSE: holding\nthe request open would make the event stream a second way to learn the same\nthing, and would put a proxy's idle timeout in charge of when a run ends.\n\n**The work of starting a run is not done here.** Phase 8 gave the chat\nchannels the same job, and assembling `execute_run`'s arguments at three\ncall sites would be the eighth instance of this project's recurring bug: one\nlist duplicated, correct everywhere on the day it was written, silently\ndivergent afterwards. :class:`~agentspace.orchestrator.launcher.RunLauncher`\nis the single copy.",
         "operationId": "create_run_runs_post",
         "requestBody": {
           "content": {
@@ -2164,7 +2164,7 @@
     },
     "/runs/{run_id}": {
       "delete": {
-        "description": "Remove a finished run, its events and its approvals. Its spend stays.\n\n204 with nothing to say: the run is gone from `GET /runs` and every route\nunder it is a 404. A run that has not ended is a 409 telling the caller to\ncancel it first \u2014 deleting the log from under an orchestrator that is\nstill appending to it is the one thing this must never do, and the row's\nstatus is checked inside the store's transaction so a terminal event\nlanding at the same moment cannot slip past it. A run this process is\nstill driving is refused on the same grounds even if its row has just\nturned terminal: the orchestrator lets go of it a moment after writing\nthe status, and that moment is not worth racing.\n\nWhy spend survives, and why files in the space's folder are not touched,\nis :meth:`~agentspace.events.store.EventStore.delete_run`'s to explain.",
+        "description": "Remove a finished run, its events and its approvals. Its spend stays.\n\n204 with nothing to say: the run is gone from `GET /runs` and every route\nunder it is a 404. A run that has not ended is a 409 telling the caller to\ncancel it first: deleting the log from under an orchestrator that is\nstill appending to it is the one thing this must never do, and the row's\nstatus is checked inside the store's transaction so a terminal event\nlanding at the same moment cannot slip past it. A run this process is\nstill driving is refused on the same grounds even if its row has just\nturned terminal: the orchestrator lets go of it a moment after writing\nthe status, and that moment is not worth racing.\n\nWhy spend survives, and why files in the space's folder are not touched,\nis :meth:`~agentspace.events.store.EventStore.delete_run`'s to explain.",
         "operationId": "delete_run_runs__run_id__delete",
         "parameters": [
           {
@@ -2234,7 +2234,7 @@
     },
     "/runs/{run_id}/cancel": {
       "post": {
-        "description": "Ask a run to stop.\n\n202, not 200: the run stops at its next check, before its next model\ncall, and writes `run.cancelled` itself \u2014 the stream is where that is\nseen, and the row returned here may still say `running`. A finished run\nis a 409 naming its status; one this process is not driving \u2014 the\nscripted debug run, or a row from before a restart \u2014 is a 409 too.",
+        "description": "Ask a run to stop.\n\n202, not 200: the run stops at its next check, before its next model\ncall, and writes `run.cancelled` itself: the stream is where that is\nseen, and the row returned here may still say `running`. A finished run\nis a 409 naming its status; one this process is not driving (the\nscripted debug run, or a row from before a restart) is a 409 too.",
         "operationId": "cancel_run_runs__run_id__cancel_post",
         "parameters": [
           {
@@ -2432,7 +2432,7 @@
     },
     "/settings/providers": {
       "get": {
-        "description": "What can be selected, and which models are priced.\n\nPhase 7's dropdowns read this instead of hardcoding a list that would drift\nfrom `pricing.py` the first time a model is added. Grouped per provider\nbecause a flat list let the editor offer every Anthropic model under\nprovider ``openai`` \u2014 and offered no Ollama model at all, since the wildcard\nprice row is not a model.",
+        "description": "What can be selected, and which models are priced.\n\nPhase 7's dropdowns read this instead of hardcoding a list that would drift\nfrom `pricing.py` the first time a model is added. Grouped per provider\nbecause a flat list let the editor offer every Anthropic model under\nprovider ``openai``, and offered no Ollama model at all, since the wildcard\nprice row is not a model.",
         "operationId": "list_providers_settings_providers_get",
         "responses": {
           "200": {
@@ -2451,7 +2451,7 @@
     },
     "/settings/verify": {
       "post": {
-        "description": "Check the current settings can actually build a provider.\n\nDeliberately does *not* call the model: that would spend money to answer a\nconfiguration question, and the budget check exists precisely to stop\nunbudgeted calls. It reports whether the credentials and the provider name\nare sufficient to construct one. It is also the dashboard's pre-flight \u2014\nthe same refusal a run would get, shown beside the goal box before Start.\nWith ``space_id``, it is that space's *effective* settings that are\nchecked \u2014 a space may pin a provider the app-wide default does not use.",
+        "description": "Check the current settings can actually build a provider.\n\nDeliberately does *not* call the model: that would spend money to answer a\nconfiguration question, and the budget check exists precisely to stop\nunbudgeted calls. It reports whether the credentials and the provider name\nare sufficient to construct one. It is also the dashboard's pre-flight -\nthe same refusal a run would get, shown beside the goal box before Start.\nWith ``space_id``, it is that space's *effective* settings that are\nchecked: a space may pin a provider the app-wide default does not use.",
         "operationId": "verify_provider_settings_verify_post",
         "parameters": [
           {

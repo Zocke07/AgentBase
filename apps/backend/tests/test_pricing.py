@@ -1,6 +1,6 @@
 """Tests for per-model pricing.
 
-Written before `pricing.py` (BUILD_SPEC §6 — money and the budget ledger are
+Written before `pricing.py` (BUILD_SPEC §6: money and the budget ledger are
 where silent bugs get expensive).
 
 Two properties matter more than the specific numbers:
@@ -8,8 +8,8 @@ Two properties matter more than the specific numbers:
 * **No float ever touches money.** A price that round-trips through a float is
   wrong by an amount nobody notices until a month of it accumulates. §4 says
   integer micros; these tests assert the *type*, not just the value.
-* **An unknown model is an error, not free.** The tempting default —
-  `PRICES.get(model, 0)` — makes the budget cap silently stop working the day
+* **An unknown model is an error, not free.** The tempting default
+  (`PRICES.get(model, 0)`) makes the budget cap silently stop working the day
   a new model id appears. That is the failure this suite is really guarding.
 """
 
@@ -32,7 +32,7 @@ from agentspace.providers.pricing import (
 
 
 def test_every_price_is_an_integer() -> None:
-    """Not `isinstance(x, int)` alone — bool is an int subclass, and a float
+    """Not `isinstance(x, int)` alone: bool is an int subclass, and a float
     that happens to be whole would pass a value-equality check."""
     for model, price in PRICES.items():
         assert type(price.input_micros_per_million) is int, model
@@ -104,7 +104,7 @@ def test_a_sub_micro_cost_rounds_up_rather_than_to_zero() -> None:
 
 
 def test_rounding_up_applies_to_the_total_not_each_token() -> None:
-    """Ceiling per call, not per token — otherwise 1000 tokens of a $0.05/M
+    """Ceiling per call, not per token: otherwise 1000 tokens of a $0.05/M
     model would cost 1000 micros instead of 50."""
     usage = TokenUsage(input_tokens=1_000, output_tokens=0)
 
@@ -122,7 +122,7 @@ def test_an_unknown_model_raises_rather_than_costing_zero() -> None:
     """The whole point of this module having an error type.
 
     If this ever returns 0, the monthly cap stops binding the moment a provider
-    ships a model id we have not priced — and nothing anywhere reports it.
+    ships a model id we have not priced, and nothing anywhere reports it.
     """
     with pytest.raises(UnknownModelError) as excinfo:
         cost_micros("some-model-released-tomorrow", TokenUsage(input_tokens=10))
@@ -141,7 +141,7 @@ def test_unknown_model_error_names_the_provider_prefix_when_it_can() -> None:
 
 def test_is_priced_reports_without_raising() -> None:
     """Callers that want to *check* rather than *charge* need a non-raising
-    path — the budget pre-flight uses it to fail before an API call."""
+    path: the budget pre-flight uses it to fail before an API call."""
     assert is_priced("claude-opus-5")
     assert not is_priced("some-model-released-tomorrow")
 

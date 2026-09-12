@@ -15,7 +15,7 @@
     "noEmit": true,
     "skipLibCheck": true,
 
-    /* Strictness — the frontend half of `just check`. */
+    /* Strictness: the frontend half of `just check`. */
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
