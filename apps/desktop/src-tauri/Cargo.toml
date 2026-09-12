@@ -16,10 +16,15 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 # BUILD_SPEC §5 Phase 3: keys are read from the OS keychain here and handed to
-# the sidecar over stdin. The plugin exposes `KeyringExt` to Rust (used at spawn
-# time, below) as well as JS commands for the Phase 7 settings UI, so one
-# dependency serves both halves.
+# the sidecar over stdin. The plugin provides the JS commands the settings
+# screen writes and clears keys with; the spawn-time *read* goes to the
+# `keyring` crate directly, below, because the plugin's `get_password` ends in
+# `.ok()` and turns every failure - a locked keychain, a user clicking Deny on
+# the macOS access prompt - into "no such key". The first Mac session found
+# that by clicking Deny and reading `sending 0 key(s)`. Same crate, same
+# features as the plugin pins, so Cargo resolves one instance.
 tauri-plugin-keyring = "0.1"
+keyring = { version = "3.6", features = ["apple-native", "windows-native", "sync-secret-service"] }
 # BUILD_SPEC §5 Phase 11: "Open folder" on a space's settings page. Used from
 # Rust only, behind `reveal_folder`, which checks the path is inside the data
 # directory before the plugin ever sees it; no JS command of the plugin is

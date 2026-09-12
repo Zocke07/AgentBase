@@ -96,6 +96,11 @@ data_sep := if os() == "windows" { ";" } else { ":" }
 # repository, and a red CI nobody trusts is worse than one less artefact.
 bundle_targets := if os() == "windows" { "nsis" } else { "app" }
 
+# The platform `just typecheck` cross-checks: whichever one this host is not.
+# Windows is the primary target (§1 constraint 7), so every non-Windows host
+# checks it; a Windows host checks macOS, which is the one CI builds.
+cross_platform := if os() == "windows" { "darwin" } else { "win32" }
+
 # Every migration, not just the first. A named `schema.sql` was correct while
 # migration 001 was the only one; naming files individually means each new
 # migration needs an edit here, and forgetting it produces a binary that starts
@@ -186,9 +191,9 @@ lint-desktop:
 # `mypy` narrows `sys.platform` to the host it runs on, so a Windows-only run
 # cannot see a branch that is dead on macOS — which is not hypothetical: it is
 # how CI run #2 failed, on a `warn_unreachable` error in a platform branch that
-# was clean here and broken there. `--platform darwin` reproduces that on this
-# machine in twenty seconds instead of a push and a five-minute round trip.
-typecheck: typecheck-backend typecheck-backend-macos typecheck-desktop
+# was clean on Windows and broken there. The second pass reproduces that
+# locally in twenty seconds instead of a push and a five-minute round trip.
+typecheck: typecheck-backend typecheck-backend-cross typecheck-desktop
 
 # mypy --strict on the Python sidecar.
 [group('typecheck')]
@@ -196,11 +201,22 @@ typecheck: typecheck-backend typecheck-backend-macos typecheck-desktop
 typecheck-backend:
     uv run mypy
 
-# mypy --strict as if on macOS, which CI builds and this machine cannot run.
+# This named `darwin` unconditionally until the first Mac session, and on
+# Windows that was exactly right — darwin was always "the other one". On a Mac
+# it resolves to the host, so the second pass became a duplicate of the first
+# and a Windows-only `warn_unreachable` branch was invisible here in precisely
+# the way the macOS one was invisible on Windows. The recipe's whole purpose is
+# the platform you cannot run, so it now names that rather than a fixed one.
+#
+# CI's coverage is unchanged in the union — its Windows job already checks
+# win32 as the host — but a Mac developer now gets the same pre-push signal a
+# Windows developer has always had.
+#
+# mypy --strict as if on the platform this host is not.
 [group('typecheck')]
 [working-directory('apps/backend')]
-typecheck-backend-macos:
-    uv run mypy --platform darwin
+typecheck-backend-cross:
+    uv run mypy --platform {{ cross_platform }}
 
 # tsc --noEmit on the React frontend.
 [group('typecheck')]
