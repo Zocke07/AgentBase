@@ -397,6 +397,59 @@ async def test_budget_warning_fires_once_per_crossing_not_once_per_call(
     assert len(warnings) == 1
 
 
+async def test_two_runs_crossing_the_threshold_together_warn_exactly_once(
+    ledger: BudgetLedger, store: EventStore, settings: SettingsStore
+) -> None:
+    """Phase 3 recorded the race and Phase 4 made it reachable: two runs each
+    recording spend at the same moment, neither over 80% alone, both over it
+    together. `record` used to read the period's total *before* taking the
+    write lock and add its own cost to it, so both readers saw the same
+    "before" and each computed an "after" without the other's cost. Two
+    calls that crossed together therefore warned twice — or, as here, where
+    neither crosses alone, not at all: the old code reports zero warnings
+    for a month that just went past 80%.
+
+    The two are held at the old read point until both have read, which is
+    the interleaving that produced the duplicate. Under the fix that read no
+    longer exists — the before and after come from inside the transaction —
+    and the barrier is never reached.
+    """
+    import asyncio
+
+    first = await _run_id(store)
+    second = await _run_id(store)
+    await settings.update({"monthly_cap_micros": 1_000_000})
+    usage = TokenUsage(input_tokens=100_000)  # $0.50 each; $1.00 together
+
+    both_have_read = asyncio.Barrier(2)
+    original = ledger.spent_micros
+
+    async def held_read(*args: object, **kwargs: object) -> int:
+        total = await original(*args, **kwargs)  # type: ignore[arg-type]
+        await both_have_read.wait()
+        return total
+
+    ledger.spent_micros = held_read  # type: ignore[method-assign]
+    try:
+        await asyncio.gather(
+            ledger.record(run_id=first, provider="a", model="claude-opus-5", usage=usage),
+            ledger.record(run_id=second, provider="a", model="claude-opus-5", usage=usage),
+        )
+    finally:
+        ledger.spent_micros = original  # type: ignore[method-assign]
+
+    warnings = [
+        event
+        for run_id in (first, second)
+        for event in await store.read(run_id)
+        if event.type == EventType.BUDGET_WARNING
+    ]
+
+    assert len(warnings) == 1
+    # And the one warning reports the real total, not its own share of it.
+    assert warnings[0].payload["spent_micros"] == 1_000_000
+
+
 async def test_budget_exceeded_is_emitted_when_a_call_is_refused(
     ledger: BudgetLedger, store: EventStore, settings: SettingsStore
 ) -> None:

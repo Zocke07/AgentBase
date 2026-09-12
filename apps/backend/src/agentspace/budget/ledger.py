@@ -35,6 +35,7 @@ from agentspace.providers.pricing import (
 )
 
 if TYPE_CHECKING:
+    import sqlite3
     from collections.abc import AsyncIterator
 
     from agentspace.events.store import EventStore
@@ -205,9 +206,9 @@ class BudgetLedger:
         cost = cost_micros(model, usage)  # raises before any row is written
         period = current_period()
 
-        before = await self.spent_micros(period)
-        await asyncio.to_thread(self._record_sync, run_id, period, provider, model, usage, cost)
-        after = before + cost
+        before, after = await asyncio.to_thread(
+            self._record_sync, run_id, period, provider, model, usage, cost
+        )
 
         await self._maybe_warn(run_id, before, after)
         return cost
@@ -220,8 +221,18 @@ class BudgetLedger:
         model: str,
         usage: TokenUsage,
         cost: int,
-    ) -> None:
+    ) -> tuple[int, int]:
+        """Insert the row and report the period's total before and after it.
+
+        Both totals are read inside the write transaction. `BEGIN IMMEDIATE`
+        serialises writers, so of two runs recording at the same moment,
+        exactly one sees the total cross the warning threshold — the other
+        reads a "before" that already includes the first. Reading "before"
+        outside the lock, as this once did, let both see the same total and
+        both warn.
+        """
         with self._db.write() as connection:
+            before = self._period_total(connection, period)
             connection.execute(
                 "INSERT INTO spend (run_id, period, provider, model, input_tokens,"
                 " output_tokens, cost_micros, ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -236,6 +247,16 @@ class BudgetLedger:
                     datetime.now(UTC).isoformat(),
                 ),
             )
+            after = self._period_total(connection, period)
+        return before, after
+
+    @staticmethod
+    def _period_total(connection: sqlite3.Connection, period: str) -> int:
+        row = connection.execute(
+            "SELECT COALESCE(SUM(cost_micros), 0) AS total FROM spend WHERE period = ?",
+            (period,),
+        ).fetchone()
+        return int(row["total"])
 
     # --- events ------------------------------------------------------------
 
