@@ -21,6 +21,7 @@
  */
 export interface AgentDef {
   id: string;
+  space_id: string;
   name: string;
   role: string;
   system_prompt: string;
@@ -54,6 +55,8 @@ export interface BudgetResponse {
   percent_used: number;
   spent_display: string;
   cap_display: string;
+  space_spent_micros?: number | null;
+  space_spent_display?: string | null;
 }
 
 /** One allowlist entry: this person, on this channel, is that identity. */
@@ -74,6 +77,16 @@ export interface ChannelStatusResponse {
   refused?: string[];
 }
 
+/** Where the copy goes. A copy is a new row with a new id, never a built-in. */
+export interface CopyAgentRequest {
+  space_id: string;
+}
+
+/** Seed a new space with copies of another space's roster. */
+export interface CopyFrom {
+  copy_from: string;
+}
+
 /**
  * A new definition.
  *
@@ -83,6 +96,7 @@ export interface ChannelStatusResponse {
  * is a definition the delete path refuses to remove.
  */
 export interface CreateAgentRequest {
+  space_id?: string | null;
   name: string;
   role: string;
   system_prompt: string;
@@ -96,8 +110,15 @@ export interface CreateAgentRequest {
 
 export interface CreateRunRequest {
   goal: string;
+  space_id?: string | null;
   origin?: "ui" | "discord";
   origin_ref?: string | null;
+}
+
+export interface CreateSpaceRequest {
+  name: string;
+  description?: string;
+  seed?: "empty" | "builtins" | CopyFrom;
 }
 
 /**
@@ -190,6 +211,7 @@ export type RiskLevel = "low" | "medium" | "high";
 /** A row of the `runs` table (§4). */
 export interface Run {
   id: string;
+  space_id: string;
   goal: string;
   status: "pending" | "running" | "paused" | "completed" | "failed" | "cancelled";
   origin: "ui" | "discord";
@@ -205,6 +227,24 @@ export interface SettingsResponse {
   known_secrets: string[];
   supported_providers: string[];
   model_is_priced: boolean;
+}
+
+/** A space, plus where its runs read and write. */
+export interface SpaceResponse {
+  id: string;
+  name: string;
+  description?: string;
+  provider?: string | null;
+  model?: string | null;
+  auto_approve?: RiskLevel[] | null;
+  max_steps_per_agent?: number | null;
+  max_agents_per_run?: number | null;
+  max_run_seconds?: number | null;
+  archived?: boolean;
+  created_at: string;
+  updated_at: string;
+  folder: string;
+  is_default: boolean;
 }
 
 /** One catalogue entry, as the agent editor renders it. */
@@ -224,6 +264,7 @@ export interface ToolResponse {
  * separates "sent as null" from "not sent".
  */
 export interface UpdateAgentRequest {
+  space_id?: string | null;
   name?: string | null;
   role?: string | null;
   system_prompt?: string | null;
@@ -267,6 +308,26 @@ export interface UpdateSettingsRequest {
   discord_enabled?: boolean | null;
   channel_identities?: ChannelIdentity[] | null;
   channel_approvals?: "dashboard_only" | "originator" | null;
+  channel_space_id?: string | null;
+}
+
+/**
+ * A partial update.
+ *
+ * ``None`` is meaningful for every rule — it is how a space goes back to
+ * inheriting the app-wide default — so this uses `model_fields_set` rather
+ * than `exclude_none` to tell "not sent" from "sent as null".
+ */
+export interface UpdateSpaceRequest {
+  name?: string | null;
+  description?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  auto_approve?: RiskLevel[] | null;
+  max_steps_per_agent?: number | null;
+  max_agents_per_run?: number | null;
+  max_run_seconds?: number | null;
+  archived?: boolean | null;
 }
 
 export interface ValidationError {
@@ -298,4 +359,5 @@ export interface WorkspaceSettings {
   discord_enabled?: boolean;
   channel_identities?: ChannelIdentity[];
   channel_approvals?: "dashboard_only" | "originator";
+  channel_space_id?: string | null;
 }

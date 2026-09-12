@@ -65,6 +65,17 @@ class Migration:
     #: the frozen binary runs.
     source: str | None = None
 
+    #: Run with ``PRAGMA foreign_keys`` off, and verify the result with
+    #: ``PRAGMA foreign_key_check`` before committing.
+    #:
+    #: A table rebuild — create, copy, drop, rename — is the only way SQLite
+    #: adds a ``NOT NULL REFERENCES`` column, and ``DROP TABLE`` on a table
+    #: other tables point at is refused while the check is on. The pragma
+    #: cannot change inside a transaction, so this is a property of the
+    #: migration rather than a statement in it, and the runner is what turns
+    #: the check off, runs the check by hand, and turns it back on.
+    defer_foreign_keys: bool = False
+
 
 def _load_sql(filename: str) -> str:
     """Read a bundled ``.sql`` file.
@@ -84,11 +95,21 @@ MIGRATION_FILES: tuple[tuple[int, str], ...] = (
     (3, "003_agent_defs.sql"),
     (4, "004_approvals.sql"),
     (5, "005_drop_telegram.sql"),
+    (6, "006_spaces.sql"),
 )
+
+#: The migrations that rebuild a table other tables reference. See
+#: :attr:`Migration.defer_foreign_keys`.
+_REBUILDS: frozenset[int] = frozenset({6})
 
 #: Applied in order, each exactly once, lowest version first.
 MIGRATIONS: tuple[Migration, ...] = tuple(
-    Migration(version=version, sql=_load_sql(filename), source=filename)
+    Migration(
+        version=version,
+        sql=_load_sql(filename),
+        source=filename,
+        defer_foreign_keys=version in _REBUILDS,
+    )
     for version, filename in MIGRATION_FILES
 )
 
@@ -211,19 +232,41 @@ class Database:
         and only if every statement succeeded. A failure leaves it untouched
         and the next launch retries. It takes no parameter binding, hence the
         f-string; the value is an int from a module constant, never user input.
+
+        A migration that rebuilds a referenced table runs with the foreign-key
+        check off — the pragma is a no-op inside a transaction, so it is set
+        before the script and restored after — and the rebuilt schema is
+        checked by hand with ``PRAGMA foreign_key_check`` before the version
+        is bumped. A violation rolls the whole migration back: a rebuild that
+        lost a row's parent must not be committed and then discovered by the
+        first query that joins across it.
         """
         script = (
             "BEGIN IMMEDIATE;\n"
             f"{migration.sql}\n"
             f"PRAGMA user_version = {int(migration.version)};\n"
-            "COMMIT;"
         )
 
         with self._lock:
             connection = self._require_connection()
+            if migration.defer_foreign_keys:
+                connection.execute("PRAGMA foreign_keys = OFF")
             try:
                 connection.executescript(script)
+                if migration.defer_foreign_keys:
+                    violations = connection.execute("PRAGMA foreign_key_check").fetchall()
+                    if violations:
+                        tables = sorted({str(row[0]) for row in violations})
+                        msg = (
+                            f"migration {migration.version} left foreign key violations in "
+                            f"{', '.join(tables)}; rolled back"
+                        )
+                        raise sqlite3.IntegrityError(msg)
+                connection.execute("COMMIT")
             except BaseException:
                 if connection.in_transaction:
                     connection.execute("ROLLBACK")
                 raise
+            finally:
+                if migration.defer_foreign_keys:
+                    connection.execute("PRAGMA foreign_keys = ON")

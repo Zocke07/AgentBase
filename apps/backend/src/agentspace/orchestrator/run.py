@@ -32,6 +32,7 @@ if TYPE_CHECKING:
 
     from agentspace.events.store import EventStore
     from agentspace.orchestrator.limits import RunLimits
+    from agentspace.store.spaces import Space
 
 __all__ = [
     "Mailbox",
@@ -89,6 +90,9 @@ class Run:
     limits: RunLimits
     #: Injected so tests can drive the wall-clock limit without sleeping.
     clock: Callable[[], float] = time.monotonic
+    #: The space this run happens in, or ``None`` under the app-wide rules.
+    #: Recorded in `run.started` so a replay can say which rules applied.
+    space: Space | None = None
     started_at: float = field(default=0.0, init=False)
     _agents: list[str] = field(default_factory=list, init=False)
     #: Set by `request_cancel`; consumed by `check_deadline`. A flag rather
@@ -101,10 +105,10 @@ class Run:
     async def start(self) -> None:
         """Emit `run.started` and begin the clock."""
         self.started_at = self.clock()
-        await self.emit(
-            EventType.RUN_STARTED,
-            {"goal": self.goal, "limits": self.limits.as_payload()},
-        )
+        payload: dict[str, Any] = {"goal": self.goal, "limits": self.limits.as_payload()}
+        if self.space is not None:
+            payload["space"] = self.space.as_payload()
+        await self.emit(EventType.RUN_STARTED, payload)
         await self.store.set_run_status(self.id, "running")
 
     async def complete(self, summary: str) -> None:

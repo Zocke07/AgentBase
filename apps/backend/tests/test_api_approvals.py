@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 
 from agentspace.main import create_app
 from agentspace.secrets import SecretStore
+from agentspace.store.spaces import DEFAULT_SPACE_ID
 from agentspace.tools.approval import ApprovalStatus
 from agentspace.tools.catalogue import RiskLevel
 
@@ -62,7 +63,15 @@ def test_the_application_builds_a_tool_runtime(client: TestClient) -> None:
 
     assert state.approvals is not None
     assert state.tool_runtime is not None
-    assert state.sandbox.root == state.paths.workspace_root
+    assert (
+        state.tool_runtime.sandbox.root == state.spaces.folder_for(DEFAULT_SPACE_ID).resolve()
+    )
+    # Directly under `spaces_dir`, not one level deeper. The first live launch
+    # moved the workspace to `spaces/spaces/<id>`, because the store was
+    # handed the data directory and joined "spaces" onto it a second time.
+    assert (
+        state.spaces.folder_for(DEFAULT_SPACE_ID) == state.paths.spaces_dir / DEFAULT_SPACE_ID
+    )
     assert set(state.tool_runtime.tools) == {
         "read_file",
         "list_dir",
@@ -72,18 +81,34 @@ def test_the_application_builds_a_tool_runtime(client: TestClient) -> None:
     }
 
 
+def test_the_old_workspace_folder_is_adopted_by_the_default_space(
+    app_paths: AppPaths, secrets: SecretStore
+) -> None:
+    """§5 Phase 11's third acceptance criterion, the folder half, through the
+    real app: a data directory from before spaces keeps its files."""
+    app_paths.legacy_workspace.mkdir(parents=True)
+    (app_paths.legacy_workspace / "notes.txt").write_text("kept", encoding="utf-8")
+
+    with TestClient(create_app(app_paths, secrets=secrets)) as client:
+        state = client.app.state  # type: ignore[attr-defined]
+        folder = state.spaces.folder_for(DEFAULT_SPACE_ID)
+        assert folder == app_paths.spaces_dir / DEFAULT_SPACE_ID
+        assert (folder / "notes.txt").read_text(encoding="utf-8") == "kept"
+        assert not app_paths.legacy_workspace.exists()
+
+
 def test_the_sandbox_root_is_inside_the_data_directory(client: TestClient) -> None:
     """Not the install directory, and not the repository.
 
-    `AppPaths.workspace_root` sits beside the event log in the OS app-data
-    directory, which is the decision CLAUDE.md records for the database and
-    which applies for the same reason: an uninstall should not be able to take
-    the user's files with it.
+    Every space's folder sits under `AppPaths.spaces_dir`, beside the event
+    log in the OS app-data directory, which is the decision CLAUDE.md records
+    for the database and which applies for the same reason: an uninstall
+    should not be able to take the user's files with it.
     """
     state = client.app.state  # type: ignore[attr-defined]
 
-    assert state.sandbox.root.is_relative_to(state.paths.data_dir)
-    assert state.sandbox.root.exists()
+    assert state.tool_runtime.sandbox.root.is_relative_to(state.paths.data_dir)
+    assert state.tool_runtime.sandbox.root.exists()
 
 
 # --- reading ------------------------------------------------------------------

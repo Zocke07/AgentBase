@@ -4,6 +4,7 @@ import type {
   ProviderCatalogueResponse,
   RiskLevel,
   SettingsResponse,
+  SpaceResponse,
   UpdateSettingsRequest,
   VerifyResponse,
   WorkspaceSettings,
@@ -44,6 +45,8 @@ import { useFetched } from "../state/useFetched";
 export interface SettingsViewProps {
   /** Called with the sidecar's reply after a save, so the shell can refresh. */
   onSaved: (settings: SettingsResponse) => void;
+  /** Every space, for choosing where a chat command's runs happen. */
+  spaces?: readonly SpaceResponse[];
 }
 
 interface Form {
@@ -59,6 +62,8 @@ interface Form {
   discord_enabled: boolean;
   channel_identities: ChannelIdentity[];
   channel_approvals: "dashboard_only" | "originator";
+  /** The space a chat command's runs happen in; "" is the default space. */
+  channel_space_id: string;
 }
 
 const RISK_LEVELS: readonly RiskLevel[] = ["low", "medium", "high"];
@@ -82,6 +87,7 @@ function fromSettings(settings: WorkspaceSettings): Form {
     discord_enabled: settings.discord_enabled ?? false,
     channel_identities: [...(settings.channel_identities ?? [])],
     channel_approvals: settings.channel_approvals ?? "dashboard_only",
+    channel_space_id: settings.channel_space_id ?? "",
   };
 }
 
@@ -117,10 +123,13 @@ function diff(opened: Form, form: Form): UpdateSettingsRequest {
     patch.channel_identities = form.channel_identities;
   }
   if (form.channel_approvals !== opened.channel_approvals) patch.channel_approvals = form.channel_approvals;
+  // An empty string is how the default space is chosen again: the sidecar
+  // stores it as null, and null cannot be sent through a PATCH that drops it.
+  if (form.channel_space_id !== opened.channel_space_id) patch.channel_space_id = form.channel_space_id;
   return patch;
 }
 
-export function SettingsView({ onSaved }: SettingsViewProps) {
+export function SettingsView({ onSaved, spaces = [] }: SettingsViewProps) {
   const loadSettings = useCallback(() => api.getSettings(), []);
   const loadCatalogue = useCallback(() => api.listProviders(), []);
   const loadChannels = useCallback(() => api.getChannels(), []);
@@ -148,6 +157,7 @@ export function SettingsView({ onSaved }: SettingsViewProps) {
           // Start the form from whatever copy is newest.
           key={JSON.stringify(loaded.settings)}
           loaded={loaded}
+          spaces={spaces}
           catalogue={catalogue.data}
           catalogueError={catalogue.error}
           channels={channels.data}
@@ -169,6 +179,7 @@ export function SettingsView({ onSaved }: SettingsViewProps) {
 
 interface SettingsFormProps {
   loaded: SettingsResponse;
+  spaces: readonly SpaceResponse[];
   catalogue: ProviderCatalogueResponse;
   catalogueError: string | null;
   channels: readonly ChannelStatusResponse[];
@@ -180,6 +191,7 @@ interface SettingsFormProps {
 
 function SettingsForm({
   loaded,
+  spaces,
   catalogue,
   catalogueError,
   channels,
@@ -246,7 +258,7 @@ function SettingsForm({
       {/* Two groups, in the order the spaces design splits them: the rules
           a run runs under, which a space will own, and the things that are
           the user's rather than any space's. */}
-      <h2 className="settings__group">How runs work</h2>
+      <h2 className="settings__group">Defaults for every space</h2>
 
       {/* --- model --------------------------------------------------------- */}
       <section className="settings__section">
@@ -355,6 +367,10 @@ function SettingsForm({
       {/* --- limits and the approval policy ------------------------------- */}
       <section className="settings__section">
         <h2>Limits and approvals</h2>
+        <p className="settings__hint">
+          What a run is held to unless its space says otherwise. A space can raise or lower a limit
+          and can narrow the approval policy, never widen it.
+        </p>
         <div className="editor__row">
           <NumberField
             label="Steps per agent"
@@ -533,6 +549,27 @@ function SettingsForm({
           ))}
           <FieldError field="channel_approvals" message={errorFor("channel_approvals")} />
         </fieldset>
+
+        <label className="editor__field editor__field--narrow">
+          <span>Where a chat command runs</span>
+          <select
+            value={form.channel_space_id}
+            onChange={(changed) => {
+              set("channel_space_id", changed.target.value);
+            }}
+            data-testid="setting-channel-space"
+          >
+            {spaces
+              .filter((space) => space.archived !== true)
+              .map((space) => (
+                <option key={space.id} value={space.is_default ? "" : space.id}>
+                  {space.name}
+                  {space.is_default ? " (default)" : ""}
+                </option>
+              ))}
+          </select>
+          <FieldError field="channel_space_id" message={errorFor("channel_space_id")} />
+        </label>
       </section>
 
       <AppearanceSection />

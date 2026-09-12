@@ -173,8 +173,17 @@ async def converse(
         # recorded it afterwards would be saying something untrue about order.
         await deps.store.append(run.id, EventType.CHANNEL_INBOUND, inbound.as_payload(identity))
 
+    # `channel_space_id` names where a chat-started run happens; a stored id
+    # for a space since deleted falls back to the default rather than turning
+    # every command into an error nobody in the channel can fix.
+    space_id = settings.channel_space_id
+    if space_id is not None and await deps.launcher.space_exists(space_id) is False:
+        logger.warning("channel_space_id %r is not a space; using the default", space_id)
+        space_id = None
+
     run = await deps.launcher.launch(
         goal,
+        space_id=space_id,
         origin=inbound.channel,
         origin_ref=inbound.thread_ref,
         prologue=prologue,

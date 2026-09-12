@@ -34,6 +34,7 @@ from agentspace.orchestrator.run import (
 from agentspace.orchestrator.supervisor import SUPERVISOR_NAME, Supervisor
 from agentspace.providers.base import ProviderError
 from agentspace.providers.factory import UnknownProviderError
+from agentspace.store.spaces import DEFAULT_SPACE_ID
 
 if TYPE_CHECKING:
     from collections.abc import Callable, MutableMapping
@@ -46,6 +47,7 @@ if TYPE_CHECKING:
     from agentspace.secrets import SecretStore
     from agentspace.store.agents import AgentDefStore
     from agentspace.store.settings import SettingsStore, WorkspaceSettings
+    from agentspace.store.spaces import Space
     from agentspace.tools.runtime import ToolRuntime
 
 __all__ = [
@@ -79,6 +81,7 @@ async def execute_run(
     provider: Provider | None = None,
     clock: Callable[[], float] | None = None,
     live: MutableMapping[str, Run] | None = None,
+    space: Space | None = None,
 ) -> None:
     """Drive one run from `run.started` to a terminal event.
 
@@ -98,8 +101,15 @@ async def execute_run(
     :param live: where the :class:`Run` is registered for the duration of the
         run, so that `POST /runs/{id}/cancel` can reach it. Removed on the way
         out, whatever the outcome.
+    :param space: the space the run happens in. Its rules are laid over the
+        app-wide settings before anything reads them — the limits, the
+        provider pool, the gate's policy — and its roster is the one the
+        supervisor is offered. ``None`` runs under the app-wide rules with the
+        default space's roster, which is what every orchestration test wants.
     """
     workspace = await settings.get()
+    if space is not None:
+        workspace = space.apply_to(workspace)
     limits = RunLimits.from_settings(workspace)
 
     run = Run(
@@ -108,6 +118,7 @@ async def execute_run(
         goal=goal,
         limits=limits,
         clock=clock if clock is not None else time.monotonic,
+        space=space,
     )
 
     if live is not None:
@@ -136,7 +147,9 @@ async def _execute(
 
     await run.start()
 
-    registry = await AgentRegistry.load(agents, limits)
+    registry = await AgentRegistry.load(
+        agents, limits, space_id=run.space.id if run.space is not None else DEFAULT_SPACE_ID
+    )
     providers = ProviderPool(
         workspace,
         secrets,

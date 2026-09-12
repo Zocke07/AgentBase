@@ -137,7 +137,8 @@ def schema() -> dict[str, Any]:
             data_dir=placeholder,
             db_path=placeholder / "agentspace.sqlite3",
             logs_dir=placeholder / "logs",
-            workspace_root=placeholder / "workspace",
+            spaces_dir=placeholder / "spaces",
+            legacy_workspace=placeholder / "workspace",
         )
     )
     document: dict[str, Any] = app.openapi()

@@ -13,11 +13,14 @@ import { HomeView } from "./components/HomeView";
 import { Rail, type Section } from "./components/Rail";
 import { RunsView } from "./components/RunsView";
 import { SettingsView } from "./components/SettingsView";
+import { SpaceSettingsView } from "./components/SpaceSettingsView";
 import * as api from "./lib/api";
 import { connectWithRetry, type SidecarStatus } from "./lib/sidecar";
 import { useTheme } from "./lib/theme";
+import { useRoster } from "./state/roster";
 import { unfinished, useRunList } from "./state/runList";
 import { useRunStore } from "./state/runStore";
+import { currentSpace, useSpaces } from "./state/spaces";
 
 /**
  * The shell: a rail of sections on the left, the section on the right, and a
@@ -27,10 +30,13 @@ import { useRunStore } from "./state/runStore";
  *
  * Its job is to establish that the sidecar is reachable, then hand over.
  * Nothing about a run is decided here — that is `RunsView` and, below it, the
- * reducer. What the shell does own is the two lists more than one section
- * shows (the runs and the roster, in shared stores) and the moments they are
- * re-read: a light poll while any listed run is unfinished, the window
- * becoming visible again, and a run being started or finished.
+ * reducer. What the shell does own is which space the window is looking at
+ * (BUILD_SPEC §5 Phase 11) and the lists that follow from it — the space's
+ * runs and its roster, in shared stores — and the moments they are re-read:
+ * a light poll while any listed run is unfinished, the window becoming
+ * visible again, and a run being started or finished. Switching spaces
+ * re-keys both stores and closes the open run; the header's approval badge
+ * opens the run it names in whatever space that run is in.
  *
  * The retry loop is inherited from the Phase 1 spike and still earns its place:
  * the webview is reliably ready before the frozen sidecar has finished unpacking
@@ -61,6 +67,15 @@ export function App() {
   // The theme is a fact about this window, applied to the document root and
   // remembered in this browser; the settings page offers the choice.
   useTheme();
+
+  // Which space the window is looking at — also a fact about this window.
+  const spaces = useSpaces((state) => state.spaces);
+  const spaceId = useSpaces((state) => state.currentId);
+  const loadSpaces = useSpaces((state) => state.load);
+  const selectSpace = useSpaces((state) => state.select);
+  const space = useSpaces(currentSpace);
+  const setRunListSpace = useRunList((state) => state.setSpace);
+  const setRosterSpace = useRoster((state) => state.setSpace);
 
   const connect = useCallback(() => {
     inFlight.current?.abort();
@@ -103,11 +118,13 @@ export function App() {
   );
 
   const refreshWorkspace = useCallback(() => {
-    void api.getBudget().then(setBudget).catch(() => undefined);
+    // The meter and the pre-flight are about the space on screen: its share
+    // of the month, and whether *its* effective settings can build a provider.
+    void api.getBudget(spaceId ?? undefined).then(setBudget).catch(() => undefined);
     void api.getSettings().then(setSettings).catch(() => undefined);
     // The sidecar's own answer to "would a run be refused right now" — the
     // same check a run fails on, without a model call.
-    void api.verifySettings().then(setVerified).catch(() => undefined);
+    void api.verifySettings(spaceId ?? undefined).then(setVerified).catch(() => undefined);
     // Every question waiting anywhere. The run panel shows the selected
     // run's own; this is for the ones on runs the user is not looking at,
     // which used to sit unanswered until the deadline.
@@ -117,11 +134,22 @@ export function App() {
         setPendingApprovals(all.filter((approval) => approval.status === "pending"));
       })
       .catch(() => undefined);
-  }, []);
+  }, [spaceId]);
 
   useEffect(() => {
     if (status.kind === "ready") refreshWorkspace();
   }, [status.kind, refreshWorkspace]);
+
+  // The spaces list, once the sidecar answers; then the two per-space lists
+  // follow the chosen space, and follow it again on every switch.
+  useEffect(() => {
+    if (status.kind === "ready") void loadSpaces();
+  }, [status.kind, loadSpaces]);
+  useEffect(() => {
+    if (spaceId === null) return;
+    setRunListSpace(spaceId);
+    setRosterSpace(spaceId);
+  }, [spaceId, setRunListSpace, setRosterSpace]);
 
   // Runs that happen elsewhere. The stream covers the open run; a run started
   // from Discord, or left going in the background, only reaches the list —
@@ -172,6 +200,46 @@ export function App() {
     setSection("runs");
   }, []);
 
+  // A run named from outside the space on screen — the header's approval
+  // badge — is opened in its own space: the picker lists one space's runs,
+  // and a panel showing a run the picker does not list would be a run with
+  // no way back to it.
+  const openRunWherever = useCallback(
+    (id: string) => {
+      const listed = useRunList.getState().runs.find((run) => run.id === id);
+      if (listed !== undefined) {
+        openRun(id);
+        return;
+      }
+      void api
+        .getRun(id)
+        .then((run) => {
+          selectSpace(run.space_id);
+          openRun(id);
+        })
+        .catch(() => {
+          openRun(id);
+        });
+    },
+    [openRun, selectSpace],
+  );
+
+  const switchSpace = useCallback(
+    (id: string) => {
+      if (id === spaceId) return;
+      selectSpace(id);
+      // The open run belongs to the space it was started in; a switch
+      // closes it rather than leaving a panel about somewhere else.
+      setRunId(null);
+    },
+    [spaceId, selectSpace],
+  );
+
+  // The provider and model a run in this space would use: the space's own
+  // choice where it made one, else the app-wide default.
+  const effectiveProvider = space?.provider ?? settings?.settings.provider ?? null;
+  const effectiveModel = space?.model ?? settings?.settings.model ?? null;
+
   // Why a run started now would be refused, or null. Shown on the Home screen
   // and disabling Start — the header already said "runs will be refused"
   // while the button stayed live, and every click added a dead `failed` row.
@@ -211,7 +279,19 @@ export function App() {
 
   return (
     <div className="app">
-      <Rail section={section} onSelect={setSection} />
+      <Rail
+        section={section}
+        onSelect={setSection}
+        spaces={spaces}
+        currentSpaceId={spaceId}
+        onSelectSpace={switchSpace}
+        onSpaceCreated={(created) => {
+          void loadSpaces().then(() => {
+            switchSpace(created.id);
+            setSection("home");
+          });
+        }}
+      />
 
       <div className="app__main">
         {lost !== null && (
@@ -238,9 +318,10 @@ export function App() {
 
         <header className="app__header">
           <h1 className="app__title">
-            {section === "home" && "Home"}
+            {section === "home" && (space?.name ?? "Home")}
             {section === "runs" && "Runs"}
             {section === "agents" && "Agents"}
+            {section === "space" && "Space settings"}
             {section === "settings" && "Settings"}
           </h1>
 
@@ -252,18 +333,22 @@ export function App() {
                 onClick={() => {
                   const first = pendingApprovals[0];
                   if (first === undefined) return;
-                  openRun(first.run_id);
+                  openRunWherever(first.run_id);
                 }}
               >
                 {pendingApprovals.length} approval{pendingApprovals.length === 1 ? "" : "s"} waiting
               </button>
             )}
-            {settings !== null && (
-              <span className="app__provider" title="The workspace default; a definition may pin its own">
-                {settings.settings.provider} · {settings.settings.model}
-                {!settings.model_is_priced && (
+            {effectiveProvider !== null && (
+              <span
+                className="app__provider"
+                title="What a run in this space uses; a definition may pin its own"
+                data-testid="header-model"
+              >
+                {effectiveProvider} · {effectiveModel}
+                {verified !== null && !verified.ok && (
                   <span className="app__unpriced" role="alert">
-                    unpriced — runs will be refused
+                    runs will be refused
                   </span>
                 )}
               </span>
@@ -283,6 +368,7 @@ export function App() {
           <div className="app__view" hidden={section !== "home"}>
             <ErrorBoundary label="the Home screen">
               <HomeView
+                space={space}
                 blocker={blocker}
                 pendingApprovals={pendingApprovals}
                 liveStatus={liveStatus}
@@ -315,12 +401,35 @@ export function App() {
           </div>
           <div className="app__view" hidden={section !== "agents"}>
             <ErrorBoundary label="the agents section">
-              <AgentsView workspaceProvider={settings?.settings.provider ?? null} />
+              <AgentsView
+                workspaceProvider={effectiveProvider}
+                spaceId={spaceId}
+                spaces={spaces}
+              />
+            </ErrorBoundary>
+          </div>
+          <div className="app__view" hidden={section !== "space"}>
+            <ErrorBoundary label="the space settings">
+              {space === null ? (
+                <p className="runs-view__placeholder">Loading the space…</p>
+              ) : (
+                <SpaceSettingsView
+                  space={space}
+                  settings={settings}
+                  onChanged={(changed) => {
+                    void loadSpaces().then(() => {
+                      if (changed === null) setSection("home");
+                      refreshWorkspace();
+                    });
+                  }}
+                />
+              )}
             </ErrorBoundary>
           </div>
           <div className="app__view" hidden={section !== "settings"}>
             <ErrorBoundary label="the settings page">
               <SettingsView
+                spaces={spaces}
                 onSaved={(reply) => {
                   // The reply is the whole settings document; the header and the
                   // pre-flight follow it without waiting for the next poll.

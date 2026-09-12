@@ -118,6 +118,9 @@ class Run(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     id: str
+    #: The space this run happened in (§5 Phase 11). Never NULL: a run whose
+    #: space was not named landed in the default space.
+    space_id: str
     goal: str
     status: RunStatus
     origin: RunOrigin

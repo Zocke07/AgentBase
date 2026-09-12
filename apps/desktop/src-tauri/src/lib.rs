@@ -81,6 +81,52 @@ fn keychain_service() -> String {
 /// `agentspace.config.DATA_DIR_ENV_VAR`.
 const DATA_DIR_ENV: &str = "AGENTSPACE_DATA_DIR";
 
+/// The data directory: the one the justfile exported for a dev run, else the
+/// one Tauri derives from the bundle identifier. One function, because the
+/// sidecar is spawned with it and `reveal_folder` refuses anything outside it,
+/// and those two must agree about where it is.
+fn data_dir(app: &AppHandle) -> Result<PathBuf, tauri::Error> {
+    match std::env::var_os(DATA_DIR_ENV) {
+        Some(inherited) => Ok(PathBuf::from(inherited)),
+        // `app_local_data_dir()`, deliberately, not `app_data_dir()`. On
+        // Windows the latter is %APPDATA% — the *roaming* profile, which is
+        // copied to and from a server on every logon in a domain environment.
+        // Roaming a live SQLite database (plus its -wal and -shm files, an
+        // agent workspace and logs) invites corruption and bloats every logon.
+        // This one is %LOCALAPPDATA%, which is also what
+        // `agentspace.config.default_data_dir` computes, so the injected value
+        // and the sidecar's own fallback name the same directory.
+        None => app.path().app_local_data_dir(),
+    }
+}
+
+/// Show a space's folder in the OS file manager.
+///
+/// The one path-opening command the webview may call, and it opens nothing
+/// it is merely told to: the path has to resolve inside the data directory
+/// this shell spawned the sidecar with. A space's folder always does — it is
+/// `<data dir>/spaces/<id>` by construction — and anything else is refused
+/// with a sentence rather than opened. The plugin's own JavaScript commands
+/// are not granted to the webview at all; this is the whole surface.
+#[tauri::command]
+fn reveal_folder(app: AppHandle, path: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+
+    let root = data_dir(&app).map_err(|error| error.to_string())?;
+    let root = std::fs::canonicalize(&root).map_err(|error| error.to_string())?;
+    let wanted = std::fs::canonicalize(&path)
+        .map_err(|_| format!("{path} does not exist yet — it is created by the first run"))?;
+    if !wanted.starts_with(&root) {
+        return Err(format!("{path} is not inside AgentSpace's data directory"));
+    }
+    if !wanted.is_dir() {
+        return Err(format!("{path} is not a folder"));
+    }
+    app.opener()
+        .open_path(wanted.to_string_lossy(), None::<&str>)
+        .map_err(|error| error.to_string())
+}
+
 /// Start the sidecar and keep its handle for shutdown.
 ///
 /// The data directory is resolved here, through Tauri's path API, and handed
@@ -100,18 +146,7 @@ fn spawn_sidecar(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     // overriding it here would move dev state into the real app-data directory
     // and quietly contradict the layout CLAUDE.md documents. A packaged app has
     // no such variable set, so it takes Tauri's path.
-    let data_dir = match std::env::var_os(DATA_DIR_ENV) {
-        Some(inherited) => PathBuf::from(inherited),
-        // `app_local_data_dir()`, deliberately, not `app_data_dir()`. On
-        // Windows the latter is %APPDATA% — the *roaming* profile, which is
-        // copied to and from a server on every logon in a domain environment.
-        // Roaming a live SQLite database (plus its -wal and -shm files, an
-        // agent workspace and logs) invites corruption and bloats every logon.
-        // This one is %LOCALAPPDATA%, which is also what
-        // `agentspace.config.default_data_dir` computes, so the injected value
-        // and the sidecar's own fallback name the same directory.
-        None => app.path().app_local_data_dir()?,
-    };
+    let data_dir = data_dir(app)?;
     std::fs::create_dir_all(&data_dir)?;
 
     let (mut rx, mut child) = app
@@ -260,8 +295,13 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_keyring::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(SidecarState::default())
-        .invoke_handler(tauri::generate_handler![sidecar_base_url, keychain_service])
+        .invoke_handler(tauri::generate_handler![
+            sidecar_base_url,
+            keychain_service,
+            reveal_folder
+        ])
         .setup(|app| {
             spawn_sidecar(app.handle())?;
             Ok(())

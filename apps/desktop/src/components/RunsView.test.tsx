@@ -54,6 +54,7 @@ const APPROVAL = {
 
 const row = (status: Run["status"], id = "run-1"): Run => ({
   id,
+  space_id: "space-main",
   goal: "Summarise the quarterly report",
   status,
   origin: "ui",
@@ -74,6 +75,7 @@ let handlers: RunStreamHandlers | null = null;
 beforeEach(() => {
   useRunStore.getState().reset();
   useRunList.getState().reset();
+  useRunList.setState({ spaceId: "space-main" });
   handlers = null;
   stream.mockImplementation((_origin, _runId, attached) => {
     handlers = attached;
@@ -261,7 +263,7 @@ describe("the picker", () => {
     await user.click(await screen.findByRole("button", { name: "Load more" }));
 
     await waitFor(() => {
-      expect(mocked.listRuns).toHaveBeenLastCalledWith(100);
+      expect(mocked.listRuns).toHaveBeenLastCalledWith(100, "space-main");
     });
   });
 });

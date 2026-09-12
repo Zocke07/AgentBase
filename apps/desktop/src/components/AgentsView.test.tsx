@@ -31,6 +31,7 @@ const mocked = vi.mocked(api);
 
 const writer: AgentDef = {
   id: "def-1",
+  space_id: "space-main",
   name: "writer",
   role: "Writes things",
   system_prompt: "You write.",
@@ -51,6 +52,7 @@ const tools: ToolResponse[] = [
 
 beforeEach(() => {
   useRoster.getState().reset();
+  useRoster.setState({ spaceId: "space-main" });
   mocked.listAgents.mockResolvedValue([writer]);
   mocked.listTools.mockResolvedValue(tools);
   mocked.listProviders.mockResolvedValue({

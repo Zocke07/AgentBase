@@ -116,16 +116,34 @@ class BudgetLedger:
 
     # --- reading -----------------------------------------------------------
 
-    async def spent_micros(self, period: str | None = None) -> int:
-        """Total recorded spend for a period, in micros."""
-        return await asyncio.to_thread(self._spent_micros_sync, period or current_period())
+    async def spent_micros(
+        self, period: str | None = None, *, space_id: str | None = None
+    ) -> int:
+        """Total recorded spend for a period, in micros.
 
-    def _spent_micros_sync(self, period: str) -> int:
+        ``space_id`` narrows it to the runs of one space, by joining `spend`
+        to `runs` — `spend` itself carries no space, because a run knows its
+        space and a second column would be a second place for the answer to
+        live (§5 Phase 11).
+        """
+        return await asyncio.to_thread(
+            self._spent_micros_sync, period or current_period(), space_id
+        )
+
+    def _spent_micros_sync(self, period: str, space_id: str | None) -> int:
         with self._db.read() as connection:
-            row = connection.execute(
-                "SELECT COALESCE(SUM(cost_micros), 0) AS total FROM spend WHERE period = ?",
-                (period,),
-            ).fetchone()
+            if space_id is None:
+                row = connection.execute(
+                    "SELECT COALESCE(SUM(cost_micros), 0) AS total FROM spend WHERE period = ?",
+                    (period,),
+                ).fetchone()
+            else:
+                row = connection.execute(
+                    "SELECT COALESCE(SUM(spend.cost_micros), 0) AS total FROM spend"
+                    " JOIN runs ON runs.id = spend.run_id"
+                    " WHERE spend.period = ? AND runs.space_id = ?",
+                    (period, space_id),
+                ).fetchone()
         return int(row["total"])
 
     async def cap_micros(self) -> int:

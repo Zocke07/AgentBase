@@ -4,13 +4,16 @@ import type {
   BudgetResponse,
   ChannelStatusResponse,
   CreateAgentRequest,
+  CreateSpaceRequest,
   Event,
   ProviderCatalogueResponse,
   Run,
   SettingsResponse,
+  SpaceResponse,
   ToolResponse,
   UpdateAgentRequest,
   UpdateSettingsRequest,
+  UpdateSpaceRequest,
   VerifyResponse,
 } from "@agentspace/schemas";
 
@@ -153,15 +156,50 @@ async function requestNoContent(path: string, init?: RequestInit): Promise<void>
 
 const asJson = (body: unknown): RequestInit => ({ body: JSON.stringify(body) });
 
+/** `?a=1&b=2` from the entries that have a value; `""` when none do. */
+function query(params: Record<string, string | number | undefined | null>): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null) search.set(key, String(value));
+  }
+  const rendered = search.toString();
+  return rendered === "" ? "" : `?${rendered}`;
+}
+
+// --- spaces -----------------------------------------------------------------
+
+/** Every space, archived ones included — their runs are still viewable. */
+export const listSpaces = (): Promise<SpaceResponse[]> => request<SpaceResponse[]>("/spaces");
+
+export const createSpace = (body: CreateSpaceRequest): Promise<SpaceResponse> =>
+  request<SpaceResponse>("/spaces", { method: "POST", ...asJson(body) });
+
+/**
+ * Change a space. A PATCH: fields left out are untouched, and a rule sent as
+ * `null` goes back to inheriting the app-wide default — which is why this
+ * cannot drop nulls the way `updateSettings` does.
+ */
+export const updateSpace = (id: string, body: UpdateSpaceRequest): Promise<SpaceResponse> =>
+  request<SpaceResponse>(`/spaces/${id}`, { method: "PATCH", ...asJson(body) });
+
+/** Delete an empty space and its agents. A 409 names why not: the default, or runs. */
+export const deleteSpace = (id: string): Promise<void> =>
+  requestNoContent(`/spaces/${id}`, { method: "DELETE" });
+
+/** Add fresh copies of the three built-in roles to a space's roster. */
+export const seedSpace = (id: string): Promise<AgentDef[]> =>
+  request<AgentDef[]>(`/spaces/${id}/seed`, { method: "POST" });
+
 // --- runs -------------------------------------------------------------------
 
-export const listRuns = (limit = 50): Promise<Run[]> =>
-  request<Run[]>(`/runs?limit=${String(limit)}`);
+export const listRuns = (limit = 50, spaceId?: string): Promise<Run[]> =>
+  request<Run[]>(`/runs${query({ limit, space_id: spaceId })}`);
 
 export const getRun = (runId: string): Promise<Run> => request<Run>(`/runs/${runId}`);
 
-export const createRun = (goal: string): Promise<Run> =>
-  request<Run>("/runs", { method: "POST", ...asJson({ goal }) });
+/** Start a run in a space. Omitting the space means the default one. */
+export const createRun = (goal: string, spaceId?: string): Promise<Run> =>
+  request<Run>("/runs", { method: "POST", ...asJson({ goal, space_id: spaceId ?? null }) });
 
 /**
  * Ask a run to stop. Answers 202 with the row as it stands — the run stops at
@@ -188,13 +226,19 @@ export const startDebugRun = (): Promise<Run> =>
 
 // --- agents -----------------------------------------------------------------
 
-export const listAgents = (): Promise<AgentDef[]> => request<AgentDef[]>("/agents");
+/** One space's roster, or every definition when no space is named. */
+export const listAgents = (spaceId?: string): Promise<AgentDef[]> =>
+  request<AgentDef[]>(`/agents${query({ space_id: spaceId })}`);
 
 export const createAgent = (body: CreateAgentRequest): Promise<AgentDef> =>
   request<AgentDef>("/agents", { method: "POST", ...asJson(body) });
 
 export const updateAgent = (id: string, body: UpdateAgentRequest): Promise<AgentDef> =>
   request<AgentDef>(`/agents/${id}`, { method: "PATCH", ...asJson(body) });
+
+/** A copy of a definition on another space's roster: a new row with a new id. */
+export const copyAgent = (id: string, spaceId: string): Promise<AgentDef> =>
+  request<AgentDef>(`/agents/${id}/copy`, { method: "POST", ...asJson({ space_id: spaceId }) });
 
 export const deleteAgent = (id: string): Promise<void> =>
   requestNoContent(`/agents/${id}`, { method: "DELETE" });
@@ -218,7 +262,9 @@ export const resolveApproval = (id: string, approved: boolean): Promise<Approval
 
 // --- settings and budget ----------------------------------------------------
 
-export const getBudget = (): Promise<BudgetResponse> => request<BudgetResponse>("/budget");
+/** The month's spend against the one cap; with a space, that space's share too. */
+export const getBudget = (spaceId?: string): Promise<BudgetResponse> =>
+  request<BudgetResponse>(`/budget${query({ space_id: spaceId })}`);
 
 export const getSettings = (): Promise<SettingsResponse> => request<SettingsResponse>("/settings");
 
@@ -246,5 +292,5 @@ export const listProviders = (): Promise<ProviderCatalogueResponse> =>
  * Whether the current settings can build a provider — the same refusal a run
  * would get, without a model call. The dashboard's pre-flight before Start.
  */
-export const verifySettings = (): Promise<VerifyResponse> =>
-  request<VerifyResponse>("/settings/verify", { method: "POST" });
+export const verifySettings = (spaceId?: string): Promise<VerifyResponse> =>
+  request<VerifyResponse>(`/settings/verify${query({ space_id: spaceId })}`, { method: "POST" });

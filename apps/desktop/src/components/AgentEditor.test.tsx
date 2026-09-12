@@ -231,6 +231,7 @@ describe("the model field follows the provider", () => {
        holds — the mismatch is the thing the user needs to see. */
     const agent: AgentDef = {
       id: "def-1",
+      space_id: "space-main",
       name: "odd",
       role: "r",
       system_prompt: "p",
@@ -315,6 +316,7 @@ describe("what gets sent", () => {
   it("loads an existing definition into the form", () => {
     const agent: AgentDef = {
       id: "def-1",
+      space_id: "space-main",
       name: "note_keeper",
       role: "Keeps notes",
       system_prompt: "You keep notes.",
@@ -347,6 +349,7 @@ describe("what gets sent", () => {
     const user = userEvent.setup();
     const agent: AgentDef = {
       id: "def-1",
+      space_id: "space-main",
       name: "note_keeper",
       role: "Keeps notes",
       system_prompt: "You keep notes.",
@@ -373,6 +376,7 @@ describe("what gets sent", () => {
     const user = userEvent.setup();
     const agent: AgentDef = {
       id: "def-1",
+      space_id: "space-main",
       name: "note_keeper",
       role: "Keeps notes",
       system_prompt: "p",
@@ -394,6 +398,7 @@ describe("what gets sent", () => {
   it("says a built-in cannot be deleted", () => {
     const agent: AgentDef = {
       id: "def-2",
+      space_id: "space-main",
       name: "researcher",
       role: "Researches",
       system_prompt: "p",

@@ -56,7 +56,8 @@ def app_paths(tmp_path: Path) -> AppPaths:
         data_dir=tmp_path,
         db_path=tmp_path / "agentspace.sqlite3",
         logs_dir=tmp_path / "logs",
-        workspace_root=tmp_path / "workspace",
+        spaces_dir=tmp_path / "spaces",
+        legacy_workspace=tmp_path / "workspace",
     )
     paths.ensure_exists()
     return paths

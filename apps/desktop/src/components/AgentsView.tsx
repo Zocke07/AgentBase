@@ -2,6 +2,7 @@ import type {
   AgentDef,
   CreateAgentRequest,
   ProviderCatalogueResponse,
+  SpaceResponse,
   ToolResponse,
   UpdateAgentRequest,
 } from "@agentspace/schemas";
@@ -33,11 +34,15 @@ const NO_TOOLS: ToolResponse[] = [];
 const NO_CATALOGUE: ProviderCatalogueResponse = { providers: [], models: {} };
 
 export interface AgentsViewProps {
-  /** The workspace's provider, so the editor knows what "inherit" means. */
+  /** The provider a run in this space uses, so the editor knows what "inherit" means. */
   workspaceProvider: string | null;
+  /** The space whose roster this is; a new definition joins it. Null before the list loads. */
+  spaceId?: string | null;
+  /** Every space, for moving or copying a definition to another. */
+  spaces?: readonly SpaceResponse[];
 }
 
-export function AgentsView({ workspaceProvider }: AgentsViewProps) {
+export function AgentsView({ workspaceProvider, spaceId = null, spaces = [] }: AgentsViewProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editing, setEditing] = useState<"none" | "new" | "existing">("none");
   const [actionError, setActionError] = useState<string | null>(null);
@@ -58,7 +63,7 @@ export function AgentsView({ workspaceProvider }: AgentsViewProps) {
 
   // The roster is shared with the Home screen, which has its own toggle for
   // each agent; one store, so a change on either side shows on both.
-  const agents = useRoster((state) => state.data);
+  const agents = useRoster((state) => state.agents);
   const rosterLoading = useRoster((state) => state.loading);
   const rosterError = useRoster((state) => state.error);
   const reloadRoster = useRoster((state) => state.load);
@@ -79,11 +84,34 @@ export function AgentsView({ workspaceProvider }: AgentsViewProps) {
   // No try/catch in either: the editor renders the failure inline against the
   // field the server named. See the module note.
   const create = async (body: CreateAgentRequest) => {
-    const created = await api.createAgent(body);
+    const created = await api.createAgent(spaceId === null ? body : { ...body, space_id: spaceId });
     setSelectedId(created.id);
     void reloadRoster();
     setEditing("none");
   };
+
+  // Moving a definition changes which roster it is on; copying makes a new
+  // row on another roster. Either way this space's roster is re-read, and a
+  // moved definition is no longer here to edit.
+  const [transferError, setTransferError] = useState<string | null>(null);
+  const transfer = async (agent: AgentDef, toSpaceId: string, copy: boolean) => {
+    setTransferError(null);
+    setBusyId(agent.id);
+    try {
+      if (copy) await api.copyAgent(agent.id, toSpaceId);
+      else await api.updateAgent(agent.id, { space_id: toSpaceId });
+      if (!copy && selectedId === agent.id) {
+        setSelectedId(null);
+        setEditing("none");
+      }
+      void reloadRoster();
+    } catch (failure) {
+      setTransferError(failure instanceof Error ? failure.message : String(failure));
+    } finally {
+      setBusyId(null);
+    }
+  };
+  const otherSpaces = spaces.filter((space) => space.id !== spaceId && space.archived !== true);
 
   const patch = async (changes: UpdateAgentRequest) => {
     if (selected === null) return;
@@ -182,6 +210,54 @@ export function AgentsView({ workspaceProvider }: AgentsViewProps) {
                 </button>
               </div>
             )}
+          {editing === "existing" && selected !== null && otherSpaces.length > 0 && (
+            <div className="transfer" data-testid="transfer">
+              <span className="transfer__label">This agent lives in this space.</span>
+              <label>
+                Move to
+                <select
+                  value=""
+                  disabled={busyId === selected.id}
+                  onChange={(changed) => {
+                    if (changed.target.value !== "") void transfer(selected, changed.target.value, false);
+                  }}
+                  aria-label="Move to space"
+                  data-testid="move-to"
+                >
+                  <option value="">…</option>
+                  {otherSpaces.map((space) => (
+                    <option key={space.id} value={space.id}>
+                      {space.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Copy to
+                <select
+                  value=""
+                  disabled={busyId === selected.id}
+                  onChange={(changed) => {
+                    if (changed.target.value !== "") void transfer(selected, changed.target.value, true);
+                  }}
+                  aria-label="Copy to space"
+                  data-testid="copy-to"
+                >
+                  <option value="">…</option>
+                  {otherSpaces.map((space) => (
+                    <option key={space.id} value={space.id}>
+                      {space.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {transferError !== null && (
+                <span className="field-error" role="alert">
+                  {transferError}
+                </span>
+              )}
+            </div>
+          )}
           <AgentEditor
             // Remount on a different definition so the form state starts from
             // the row being edited rather than the one before it.

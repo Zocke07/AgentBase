@@ -1,0 +1,517 @@
+import type {
+  ProviderCatalogueResponse,
+  RiskLevel,
+  SettingsResponse,
+  SpaceResponse,
+  UpdateSpaceRequest,
+} from "@agentspace/schemas";
+import { useCallback, useState } from "react";
+
+import * as api from "../lib/api";
+import { ApiError } from "../lib/api";
+import { revealFolder, revealAvailable } from "../lib/folder";
+import { useFetched } from "../state/useFetched";
+
+/**
+ * One space's settings — BUILD_SPEC §5 Phase 11, "space settings are one
+ * page; app settings are another".
+ *
+ * Name and description; the folder its runs read and write, shown as a
+ * path with a button that opens it; then the rules — model, approval
+ * policy, run limits — each with **Inherit** as the first choice, because
+ * a rule a space has not set is the app-wide default and the page has to say
+ * so rather than show the default as if the space had chosen it. And a
+ * danger zone: archive, and delete when the sidecar allows it.
+ *
+ * **Save is a PATCH of what changed**, and a rule set back to Inherit is
+ * sent as `null` — that is how the sidecar tells "inherit again" from "not
+ * sent", so this cannot drop nulls the way the app settings form does. A
+ * refusal lands on the field the server named.
+ *
+ * The approval policy here can only *narrow* the app-wide one — the sidecar
+ * intersects the two — and the page says so beside the checkboxes rather
+ * than letting a tick the app-wide policy does not include look like it did
+ * something.
+ */
+
+export interface SpaceSettingsViewProps {
+  space: SpaceResponse;
+  /** The app-wide settings, so "Inherit" can say what it inherits. */
+  settings: SettingsResponse | null;
+  /** The space changed, or was archived or deleted; the shell re-reads the list. */
+  onChanged: (space: SpaceResponse | null) => void;
+}
+
+interface Form {
+  name: string;
+  description: string;
+  provider: string;
+  model: string;
+  /** Null: inherit. A list: this space's own policy. */
+  auto_approve: RiskLevel[] | null;
+  max_steps_per_agent: string;
+  max_agents_per_run: string;
+  max_run_seconds: string;
+}
+
+const RISK_LEVELS: readonly RiskLevel[] = ["low", "medium", "high"];
+const LIMITS = ["max_steps_per_agent", "max_agents_per_run", "max_run_seconds"] as const;
+const LIMIT_LABEL: Record<(typeof LIMITS)[number], string> = {
+  max_steps_per_agent: "Steps per agent",
+  max_agents_per_run: "Agents per run",
+  max_run_seconds: "Seconds per run",
+};
+const FORM = "__form__";
+const EMPTY_CATALOGUE: ProviderCatalogueResponse = { providers: [], models: {} };
+
+/** A limit as typed: blank for inherit, whether the row said null or nothing. */
+function limitText(value: number | null | undefined): string {
+  return value === null || value === undefined ? "" : String(value);
+}
+
+function fromSpace(space: SpaceResponse): Form {
+  return {
+    name: space.name,
+    description: space.description ?? "",
+    provider: space.provider ?? "",
+    model: space.model ?? "",
+    auto_approve: space.auto_approve === undefined || space.auto_approve === null ? null : [...space.auto_approve],
+    max_steps_per_agent: limitText(space.max_steps_per_agent),
+    max_agents_per_run: limitText(space.max_agents_per_run),
+    max_run_seconds: limitText(space.max_run_seconds),
+  };
+}
+
+/** The request for what differs between `opened` and `form`. Blank is inherit. */
+function diff(opened: Form, form: Form): UpdateSpaceRequest {
+  const patch: UpdateSpaceRequest = {};
+  if (form.name !== opened.name) patch.name = form.name.trim();
+  if (form.description !== opened.description) patch.description = form.description.trim();
+  if (form.provider !== opened.provider) patch.provider = form.provider === "" ? null : form.provider;
+  if (form.model !== opened.model) patch.model = form.model.trim() === "" ? null : form.model.trim();
+  if (JSON.stringify(form.auto_approve) !== JSON.stringify(opened.auto_approve)) {
+    patch.auto_approve = form.auto_approve;
+  }
+  for (const limit of LIMITS) {
+    if (form[limit] !== opened[limit]) patch[limit] = form[limit].trim() === "" ? null : Number(form[limit]);
+  }
+  return patch;
+}
+
+export function SpaceSettingsView({ space, settings, onChanged }: SpaceSettingsViewProps) {
+  const loadCatalogue = useCallback(() => api.listProviders(), []);
+  const catalogue = useFetched(loadCatalogue, EMPTY_CATALOGUE);
+  // Held above the form: a save reloads the space list, the row's
+  // `updated_at` changes, and the form remounts from it — which would lose a
+  // "saved" note kept inside it before it was read.
+  const [saved, setSaved] = useState(false);
+
+  return (
+    <div className="settings">
+      <SpaceForm
+        // Start the form from the row being edited, and again when it changes underneath.
+        key={`${space.id}:${space.updated_at}`}
+        space={space}
+        settings={settings}
+        catalogue={catalogue.data}
+        saved={saved}
+        onEdited={() => {
+          setSaved(false);
+        }}
+        onChanged={(changed) => {
+          setSaved(changed !== null);
+          onChanged(changed);
+        }}
+      />
+    </div>
+  );
+}
+
+function SpaceForm({
+  space,
+  settings,
+  catalogue,
+  saved,
+  onEdited,
+  onChanged,
+}: SpaceSettingsViewProps & {
+  catalogue: ProviderCatalogueResponse;
+  saved: boolean;
+  onEdited: () => void;
+}) {
+  const [opened] = useState<Form>(() => fromSpace(space));
+  const [form, setForm] = useState<Form>(opened);
+  const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
+  const [saving, setSaving] = useState(false);
+  const [dangerBusy, setDangerBusy] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [opening, setOpening] = useState<string | null>(null);
+
+  const set = <K extends keyof Form>(key: K, value: Form[K]) => {
+    setForm((prior) => ({ ...prior, [key]: value }));
+    setErrors(({ [key]: _cleared, ...rest }) => rest);
+    onEdited();
+  };
+  const errorFor = (field: string): string | null => errors[field] ?? null;
+
+  const patch = diff(opened, form);
+  const dirty = Object.keys(patch).length > 0;
+  const inherited = settings?.settings;
+  const providerEntry = catalogue.providers.find((entry) => entry.name === form.provider);
+  const knownModels = catalogue.models[form.provider] ?? [];
+  const freeText = providerEntry?.free_text_model ?? form.provider === "";
+
+  const save = async () => {
+    setErrors({});
+    for (const limit of LIMITS) {
+      const text = form[limit].trim();
+      if (text !== "" && (!/^\d+$/.test(text) || Number(text) < 1)) {
+        setErrors({ [limit]: "A whole number of 1 or more, or blank to inherit." });
+        return;
+      }
+    }
+    if (!dirty) return;
+    setSaving(true);
+    try {
+      onChanged(await api.updateSpace(space.id, patch));
+    } catch (failure) {
+      if (failure instanceof ApiError) setErrors({ [failure.field ?? FORM]: failure.message });
+      else setErrors({ [FORM]: failure instanceof Error ? failure.message : String(failure) });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const setArchived = async (archived: boolean) => {
+    setDangerBusy(true);
+    setErrors({});
+    try {
+      onChanged(await api.updateSpace(space.id, { archived }));
+    } catch (failure) {
+      setErrors({ [FORM]: failure instanceof Error ? failure.message : String(failure) });
+    } finally {
+      setDangerBusy(false);
+    }
+  };
+
+  const remove = async () => {
+    setDangerBusy(true);
+    setErrors({});
+    try {
+      await api.deleteSpace(space.id);
+      onChanged(null);
+    } catch (failure) {
+      setConfirmingDelete(false);
+      setErrors({ [FORM]: failure instanceof Error ? failure.message : String(failure) });
+    } finally {
+      setDangerBusy(false);
+    }
+  };
+
+  const open = async () => {
+    setOpening(null);
+    try {
+      await revealFolder(space.folder);
+    } catch (failure) {
+      setOpening(failure instanceof Error ? failure.message : String(failure));
+    }
+  };
+
+  return (
+    <form
+      className="settings__form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void save();
+      }}
+      data-testid="space-form"
+    >
+      {space.archived === true && (
+        <div className="card card--notice" role="status">
+          <h2 className="card__title">This space is archived</h2>
+          <p>Its runs can still be opened. It starts no new ones and is left out of the switcher.</p>
+        </div>
+      )}
+
+      <section className="settings__section">
+        <h2>About this space</h2>
+        <div className="editor__row">
+          <label className="editor__field">
+            <span>Name</span>
+            <input
+              type="text"
+              value={form.name}
+              maxLength={60}
+              onChange={(changed) => {
+                set("name", changed.target.value);
+              }}
+              aria-invalid={errorFor("name") !== null}
+              data-testid="space-name"
+            />
+            <FieldError field="name" message={errorFor("name")} />
+          </label>
+        </div>
+        <label className="editor__field">
+          <span>Description</span>
+          <textarea
+            rows={2}
+            value={form.description}
+            onChange={(changed) => {
+              set("description", changed.target.value);
+            }}
+            data-testid="space-description"
+          />
+        </label>
+        <div className="editor__field">
+          <span>Folder</span>
+          <div className="settings__folder">
+            <code className="settings__folder-path" data-testid="space-folder">
+              {space.folder}
+            </code>
+            {revealAvailable() && (
+              <button type="button" className="button button--small" onClick={() => void open()}>
+                Open folder
+              </button>
+            )}
+          </div>
+          <span className="editor__hint editor__hint--field">
+            Every file this space&apos;s agents read or write is inside this folder. It was created
+            by AgentSpace and cannot be pointed elsewhere.
+          </span>
+          {opening !== null && (
+            <p className="field-error" role="alert">
+              {opening}
+            </p>
+          )}
+        </div>
+      </section>
+
+      <section className="settings__section">
+        <h2>Model</h2>
+        <p className="settings__hint">
+          Inherit uses the app-wide default
+          {inherited !== undefined && ` — ${inherited.provider ?? "?"} · ${inherited.model ?? "?"}`}.
+        </p>
+        <div className="editor__row">
+          <label className="editor__field">
+            <span>Provider</span>
+            <select
+              value={form.provider}
+              onChange={(changed) => {
+                set("provider", changed.target.value);
+                set("model", "");
+              }}
+              data-testid="space-provider"
+            >
+              <option value="">Inherit</option>
+              {catalogue.providers.map((entry) => (
+                <option key={entry.name} value={entry.name}>
+                  {entry.name}
+                </option>
+              ))}
+            </select>
+            <FieldError field="provider" message={errorFor("provider")} />
+          </label>
+          <label className="editor__field">
+            <span>Model</span>
+            {freeText ? (
+              <input
+                type="text"
+                value={form.model}
+                placeholder={form.provider === "" ? "Inherit" : "model name"}
+                onChange={(changed) => {
+                  set("model", changed.target.value);
+                }}
+                data-testid="space-model"
+              />
+            ) : (
+              <select
+                value={form.model}
+                onChange={(changed) => {
+                  set("model", changed.target.value);
+                }}
+                data-testid="space-model"
+              >
+                <option value="">Inherit</option>
+                {knownModels.map((model) => (
+                  <option key={model} value={model}>
+                    {model}
+                  </option>
+                ))}
+              </select>
+            )}
+            <FieldError field="model" message={errorFor("model")} />
+          </label>
+        </div>
+      </section>
+
+      <section className="settings__section">
+        <h2>Limits and approvals</h2>
+        <p className="settings__hint">Blank inherits the app-wide default.</p>
+        <div className="editor__row">
+          {LIMITS.map((limit) => (
+            <label key={limit} className="editor__field editor__field--narrow">
+              <span>{LIMIT_LABEL[limit]}</span>
+              <input
+                inputMode="numeric"
+                value={form[limit]}
+                placeholder={inherited === undefined ? "Inherit" : String(inherited[limit] ?? "")}
+                onChange={(changed) => {
+                  set(limit, changed.target.value);
+                }}
+                aria-invalid={errorFor(limit) !== null}
+                data-testid={`space-${limit}`}
+              />
+              <FieldError field={limit} message={errorFor(limit)} />
+            </label>
+          ))}
+        </div>
+
+        <fieldset className="editor__tools">
+          <legend>Calls that run without asking</legend>
+          <label className="editor__tool">
+            <input
+              type="radio"
+              name="approval-mode"
+              checked={form.auto_approve === null}
+              onChange={() => {
+                set("auto_approve", null);
+              }}
+              data-testid="space-approvals-inherit"
+            />
+            <span className="editor__tool-description">
+              Inherit the app-wide policy
+              {inherited !== undefined &&
+                ` (${(inherited.auto_approve ?? []).length === 0 ? "ask for everything" : (inherited.auto_approve ?? []).join(", ")})`}
+            </span>
+          </label>
+          <label className="editor__tool">
+            <input
+              type="radio"
+              name="approval-mode"
+              checked={form.auto_approve !== null}
+              onChange={() => {
+                set("auto_approve", []);
+              }}
+              data-testid="space-approvals-own"
+            />
+            <span className="editor__tool-description">This space&apos;s own policy — nothing ticked asks for everything</span>
+          </label>
+          {form.auto_approve !== null && (
+            <div className="editor__risks">
+              {RISK_LEVELS.map((level) => {
+                const allowedAbove = (inherited?.auto_approve ?? []).includes(level);
+                const chosen = form.auto_approve?.includes(level) ?? false;
+                return (
+                  <label key={level} className="editor__tool">
+                    <input
+                      type="checkbox"
+                      checked={chosen}
+                      onChange={() => {
+                        const current = form.auto_approve ?? [];
+                        set(
+                          "auto_approve",
+                          chosen
+                            ? current.filter((item) => item !== level)
+                            : RISK_LEVELS.filter((item) => item === level || current.includes(item)),
+                        );
+                      }}
+                      data-testid={`space-auto-${level}`}
+                    />
+                    <span className={`risk risk--${level}`}>{level}</span>
+                    <span className="editor__tool-description">
+                      {level === "low" && "reads inside the folder"}
+                      {level === "medium" && "writes inside the folder, fetches a public URL"}
+                      {level === "high" && "runs a shell command"}
+                      {inherited !== undefined && chosen && !allowedAbove && " — not enabled app-wide, so still asks"}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+          <p className="editor__hint">
+            A space can narrow the app-wide policy but never widen it: a level ticked here that the
+            app-wide policy does not include still stops for you.
+          </p>
+          <FieldError field="auto_approve" message={errorFor("auto_approve")} />
+        </fieldset>
+      </section>
+
+      {errorFor(FORM) !== null && (
+        <p className="editor__error editor__error--form" role="alert" data-testid="error-form">
+          {errorFor(FORM)}
+        </p>
+      )}
+
+      <div className="editor__actions settings__actions">
+        {saved && !dirty && <span className="settings__saved">Saved. Applies to the next run.</span>}
+        <button type="submit" className="button button--primary" disabled={saving || !dirty}>
+          {saving ? "Saving…" : "Save space"}
+        </button>
+      </div>
+
+      {!space.is_default && (
+        <section className="settings__section settings__section--danger" data-testid="danger-zone">
+          <h2>Archive or delete</h2>
+          <p className="settings__hint">
+            Archiving keeps every run this space has had and takes it out of the switcher. Deleting
+            is only allowed for a space with no runs, and removes its agents.
+          </p>
+          <div className="card__actions">
+            <button
+              type="button"
+              className="button"
+              disabled={dangerBusy}
+              onClick={() => void setArchived(space.archived !== true)}
+            >
+              {space.archived === true ? "Unarchive" : "Archive this space"}
+            </button>
+            {confirmingDelete ? (
+              <span className="roster__confirm">
+                <span>Delete {space.name} and its agents?</span>
+                <button
+                  type="button"
+                  className="button button--small button--danger"
+                  disabled={dangerBusy}
+                  onClick={() => void remove()}
+                >
+                  Delete
+                </button>
+                <button
+                  type="button"
+                  className="button button--small"
+                  onClick={() => {
+                    setConfirmingDelete(false);
+                  }}
+                >
+                  Keep
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="button button--danger"
+                disabled={dangerBusy}
+                onClick={() => {
+                  setConfirmingDelete(true);
+                }}
+              >
+                Delete this space…
+              </button>
+            )}
+          </div>
+        </section>
+      )}
+    </form>
+  );
+}
+
+function FieldError({ field, message }: { field: string; message: string | null }) {
+  if (message === null) return null;
+  return (
+    <span className="editor__error" role="alert" data-testid={`error-${field}`}>
+      {message}
+    </span>
+  );
+}

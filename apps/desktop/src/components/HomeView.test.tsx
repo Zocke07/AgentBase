@@ -26,6 +26,7 @@ const mocked = vi.mocked(api);
 
 const row = (status: Run["status"], id = "run-1", goal = "Summarise the quarterly report"): Run => ({
   id,
+  space_id: "space-main",
   goal,
   status,
   origin: "ui",
@@ -36,6 +37,7 @@ const row = (status: Run["status"], id = "run-1", goal = "Summarise the quarterl
 
 const writer: AgentDef = {
   id: "def-1",
+  space_id: "space-main",
   name: "writer",
   role: "Writes things",
   system_prompt: "You write.",
@@ -69,7 +71,14 @@ function home(props: Partial<HomeViewProps> = {}) {
     onWorkspaceChanged: vi.fn(),
   };
   render(
-    <HomeView blocker={null} pendingApprovals={[]} liveStatus={null} {...handlers} {...props} />,
+    <HomeView
+      space={null}
+      blocker={null}
+      pendingApprovals={[]}
+      liveStatus={null}
+      {...handlers}
+      {...props}
+    />,
   );
   return handlers;
 }
@@ -77,6 +86,8 @@ function home(props: Partial<HomeViewProps> = {}) {
 beforeEach(() => {
   useRunList.getState().reset();
   useRoster.getState().reset();
+  useRunList.setState({ spaceId: "space-main" });
+  useRoster.setState({ spaceId: "space-main" });
   mocked.listRuns.mockResolvedValue([row("completed")]);
   mocked.listAgents.mockResolvedValue([writer]);
 });
@@ -91,7 +102,7 @@ describe("starting a run", () => {
     await user.type(screen.getByTestId("goal-input"), "do a thing");
     await user.click(screen.getByRole("button", { name: "Start run" }));
 
-    expect(mocked.createRun).toHaveBeenCalledWith("do a thing");
+    expect(mocked.createRun).toHaveBeenCalledWith("do a thing", undefined);
     expect(onOpenRun).toHaveBeenCalledWith("run-new");
     await waitFor(() => {
       expect(mocked.listRuns).toHaveBeenCalledTimes(2);
@@ -108,7 +119,7 @@ describe("starting a run", () => {
     expect(mocked.createRun).not.toHaveBeenCalled();
     await user.keyboard("{Enter}");
 
-    expect(mocked.createRun).toHaveBeenCalledWith("first line\nsecond");
+    expect(mocked.createRun).toHaveBeenCalledWith("first line\nsecond", undefined);
   });
 
   it("says why a run would be refused and does not offer to start one", async () => {

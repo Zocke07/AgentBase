@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from agentspace.api.stream import SSE_HEADERS, parse_last_event_id, run_stream
 from agentspace.events.store import DEFAULT_RUN_LIST_LIMIT, MAX_RUN_LIST_LIMIT
 from agentspace.events.types import Event, EventType, Run, RunOrigin
+from agentspace.store.spaces import SpaceArchivedError, SpaceNotFoundError
 
 if TYPE_CHECKING:
     from collections.abc import Coroutine
@@ -145,6 +146,10 @@ DEFAULT_STEP_MS: Final[int] = 500
 
 class CreateRunRequest(BaseModel):
     goal: str = Field(min_length=1, max_length=10_000)
+    #: Where the run happens. Omitted means the default space, which is what
+    #: keeps `POST /debug/fake_run` and a chat command with no space configured
+    #: working unchanged.
+    space_id: str | None = None
     origin: RunOrigin = "ui"
     origin_ref: str | None = None
 
@@ -185,9 +190,14 @@ async def create_run(request: Request, body: CreateRunRequest) -> Run:
     divergent afterwards. :class:`~agentspace.orchestrator.launcher.RunLauncher`
     is the single copy.
     """
-    return await _launcher(request).launch(
-        body.goal, origin=body.origin, origin_ref=body.origin_ref
-    )
+    try:
+        return await _launcher(request).launch(
+            body.goal, space_id=body.space_id, origin=body.origin, origin_ref=body.origin_ref
+        )
+    except SpaceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except SpaceArchivedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 def _launcher(request: Request) -> RunLauncher:
@@ -213,6 +223,7 @@ def _spawn(request: Request, coroutine: Coroutine[Any, Any, None]) -> None:
 async def list_runs(
     request: Request,
     limit: Annotated[int, Query(ge=1, le=MAX_RUN_LIST_LIMIT)] = DEFAULT_RUN_LIST_LIMIT,
+    space_id: str | None = None,
 ) -> list[Run]:
     """Recent runs, newest first — what the Phase 7 replay picker reads.
 
@@ -222,7 +233,7 @@ async def list_runs(
     authority on something the database already knows, which is the drift §2
     exists to prevent.
     """
-    return await _store(request).list_runs(limit)
+    return await _store(request).list_runs(limit, space_id)
 
 
 @router.get("/runs/{run_id}")

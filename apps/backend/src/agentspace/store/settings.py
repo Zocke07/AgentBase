@@ -136,6 +136,12 @@ class WorkspaceSettings(BaseModel):
 
     channel_approvals: ChannelApprovalPolicy = DEFAULT_CHANNEL_APPROVALS
 
+    #: Where a run started from a chat channel happens (§5 Phase 11). ``None``
+    #: is the default space. The API checks the id names a space that exists
+    #: and is not archived; this model cannot, and a stored id for a space
+    #: since deleted falls back to the default at launch rather than failing.
+    channel_space_id: str | None = None
+
     @field_validator("channel_identities")
     @classmethod
     def _identities_are_unambiguous(

@@ -29,6 +29,7 @@ from agentspace.providers.factory import (
 from agentspace.providers.pricing import MODELS_BY_PROVIDER, PRICES, format_micros, is_priced
 from agentspace.secrets import SECRET_KEYS
 from agentspace.store.settings import ChannelApprovalPolicy, WorkspaceSettings
+from agentspace.store.spaces import SpaceArchivedError, SpaceNotFoundError
 from agentspace.tools.catalogue import RiskLevel
 
 if TYPE_CHECKING:
@@ -36,6 +37,7 @@ if TYPE_CHECKING:
     from agentspace.channels.service import ChannelService
     from agentspace.secrets import SecretStore
     from agentspace.store.settings import SettingsStore
+    from agentspace.store.spaces import SpaceStore
 
 __all__ = ["router"]
 
@@ -112,6 +114,11 @@ class UpdateSettingsRequest(BaseModel):
     channel_identities: list[ChannelIdentity] | None = None
     channel_approvals: ChannelApprovalPolicy | None = None
 
+    # §5 Phase 11: the space a chat-started run happens in. `exclude_none`
+    # means null cannot be *sent*; an empty string is how a caller says "the
+    # default space", and is stored as null.
+    channel_space_id: str | None = None
+
 
 class BudgetResponse(BaseModel):
     period: str
@@ -120,6 +127,10 @@ class BudgetResponse(BaseModel):
     percent_used: int
     spent_display: str
     cap_display: str
+    #: This space's share of the period's spend, when a space was asked
+    #: about. The cap is app-wide — one wallet — so there is no per-space cap.
+    space_spent_micros: int | None = None
+    space_spent_display: str | None = None
 
 
 def _settings_store(request: Request) -> SettingsStore:
@@ -135,6 +146,11 @@ def _secrets(request: Request) -> SecretStore:
 def _ledger(request: Request) -> BudgetLedger:
     ledger: BudgetLedger = request.app.state.ledger
     return ledger
+
+
+def _spaces(request: Request) -> SpaceStore:
+    spaces: SpaceStore = request.app.state.spaces
+    return spaces
 
 
 async def _response(request: Request, settings: WorkspaceSettings) -> SettingsResponse:
@@ -195,6 +211,20 @@ async def update_settings(request: Request, body: UpdateSettingsRequest) -> Sett
         raise _reject(
             f"unknown provider {changes['provider']!r}. Supported: {supported}.", "provider"
         )
+
+    if "channel_space_id" in changes:
+        wanted = changes["channel_space_id"].strip()
+        if wanted == "":
+            changes["channel_space_id"] = None
+        else:
+            space = await _spaces(request).get(wanted)
+            if space is None:
+                raise _reject(f"No space with id {wanted!r}.", "channel_space_id")
+            if space.archived:
+                raise _reject(
+                    f"{space.name!r} is archived; a chat command cannot start a run there.",
+                    "channel_space_id",
+                )
 
     try:
         updated = await _settings_store(request).update(changes)
@@ -259,11 +289,17 @@ async def list_providers() -> ProviderCatalogueResponse:
 
 
 @router.get("/budget")
-async def get_budget(request: Request) -> BudgetResponse:
-    """Month-to-date spend against the cap. Phase 7's budget meter reads this."""
+async def get_budget(request: Request, space_id: str | None = None) -> BudgetResponse:
+    """Month-to-date spend against the cap. Phase 7's budget meter reads this.
+
+    ``space_id`` adds that space's share of the period beside the app-wide
+    figures. The cap stays app-wide: §5 Phase 11 keeps one wallet, so a run
+    is refused over the cap whichever space it is in.
+    """
     ledger = _ledger(request)
     spent = await ledger.spent_micros()
     cap = await ledger.cap_micros()
+    in_space = None if space_id is None else await ledger.spent_micros(space_id=space_id)
 
     return BudgetResponse(
         period=current_period(),
@@ -272,6 +308,8 @@ async def get_budget(request: Request) -> BudgetResponse:
         percent_used=(spent * 100 // cap) if cap > 0 else 100,
         spent_display=format_micros(spent),
         cap_display=format_micros(cap),
+        space_spent_micros=in_space,
+        space_spent_display=None if in_space is None else format_micros(in_space),
     )
 
 
@@ -287,7 +325,7 @@ class VerifyResponse(BaseModel):
 
 
 @router.post("/settings/verify")
-async def verify_provider(request: Request) -> VerifyResponse:
+async def verify_provider(request: Request, space_id: str | None = None) -> VerifyResponse:
     """Check the current settings can actually build a provider.
 
     Deliberately does *not* call the model: that would spend money to answer a
@@ -295,8 +333,18 @@ async def verify_provider(request: Request) -> VerifyResponse:
     unbudgeted calls. It reports whether the credentials and the provider name
     are sufficient to construct one. It is also the dashboard's pre-flight —
     the same refusal a run would get, shown beside the goal box before Start.
+    With ``space_id``, it is that space's *effective* settings that are
+    checked — a space may pin a provider the app-wide default does not use.
     """
     settings = await _settings_store(request).get()
+    if space_id is not None:
+        try:
+            space = await _spaces(request).require(space_id)
+        except SpaceNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        if space.archived:
+            return VerifyResponse(ok=False, reason=SpaceArchivedError(space.name).args[0])
+        settings = space.apply_to(settings)
 
     try:
         provider = build_provider(settings, _secrets(request))

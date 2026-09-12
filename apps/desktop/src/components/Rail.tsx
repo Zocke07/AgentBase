@@ -1,24 +1,29 @@
+import type { SpaceResponse } from "@agentspace/schemas";
 import type { ReactNode } from "react";
+
+import { SpaceSwitcher } from "./SpaceSwitcher";
 
 /**
  * The left rail — BUILD_SPEC §5 Phase 11, "a sidebar, not tabs".
  *
- * Top to bottom: the product's name, then the sections of the workspace —
- * Home, Runs, Agents — and, pinned to the bottom, the app-wide Settings. The
- * gap under the name is deliberate: it is where the space switcher goes when
- * spaces land, and laying the rail out with room for it now means that step
- * adds a control rather than rearranging the frame.
+ * Top to bottom: the product's name, the space switcher, then the sections
+ * of the current space — Home, Runs, Agents, Space settings — and, pinned to
+ * the bottom, the app-wide Settings: keys, budget, Discord, appearance.
  *
  * Every entry is a button, not a link: the shell has no router, and the
  * sections are all mounted at once behind `hidden` so a visit to one does not
  * unmount another's stream.
  */
 
-export type Section = "home" | "runs" | "agents" | "settings";
+export type Section = "home" | "runs" | "agents" | "space" | "settings";
 
 export interface RailProps {
   section: Section;
   onSelect: (section: Section) => void;
+  spaces: readonly SpaceResponse[];
+  currentSpaceId: string | null;
+  onSelectSpace: (id: string) => void;
+  onSpaceCreated: (space: SpaceResponse) => void;
 }
 
 const SECTIONS: readonly { id: Section; label: string; icon: ReactNode }[] = [
@@ -51,9 +56,25 @@ const SECTIONS: readonly { id: Section; label: string; icon: ReactNode }[] = [
       </svg>
     ),
   },
+  {
+    id: "space",
+    label: "Space settings",
+    icon: (
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        <path d="M3 5.5A1.5 1.5 0 0 1 4.5 4h3.6l1.6 1.6h5.8A1.5 1.5 0 0 1 17 7.1V15a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 15z" />
+      </svg>
+    ),
+  },
 ];
 
-export function Rail({ section, onSelect }: RailProps) {
+export function Rail({
+  section,
+  onSelect,
+  spaces,
+  currentSpaceId,
+  onSelectSpace,
+  onSpaceCreated,
+}: RailProps) {
   const entry = (id: Section, label: string, icon: ReactNode) => (
     <button
       key={id}
@@ -75,6 +96,13 @@ export function Rail({ section, onSelect }: RailProps) {
         <span className="rail__logo" aria-hidden="true" />
         <span className="rail__name">AgentSpace</span>
       </div>
+
+      <SpaceSwitcher
+        spaces={spaces}
+        currentId={currentSpaceId}
+        onSelect={onSelectSpace}
+        onCreated={onSpaceCreated}
+      />
 
       <div className="rail__sections">{SECTIONS.map(({ id, label, icon }) => entry(id, label, icon))}</div>
 

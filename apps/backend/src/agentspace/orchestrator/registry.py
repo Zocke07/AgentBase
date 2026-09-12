@@ -42,6 +42,7 @@ from agentspace.orchestrator.control import (
     catalogue_specs,
 )
 from agentspace.providers.factory import build_provider
+from agentspace.store.spaces import DEFAULT_SPACE_ID
 
 if TYPE_CHECKING:
     import httpx2
@@ -98,10 +99,18 @@ class AgentRegistry:
     max_steps_ceiling: int
 
     @classmethod
-    async def load(cls, agents: AgentDefStore, limits: RunLimits) -> AgentRegistry:
-        """Read the roster once, at run start."""
+    async def load(
+        cls, agents: AgentDefStore, limits: RunLimits, *, space_id: str = DEFAULT_SPACE_ID
+    ) -> AgentRegistry:
+        """Read one space's roster once, at run start.
+
+        Only that space's definitions: §5 Phase 11's first acceptance
+        criterion is that a run in space A "never spawns" an agent that lives
+        in space B, however the goal names it, and the way to make that
+        structural is for B's rows never to reach this tuple.
+        """
         return cls(
-            definitions=tuple(await agents.list_enabled()),
+            definitions=tuple(await agents.list_enabled(space_id)),
             max_steps_ceiling=limits.max_steps_per_agent,
         )
 

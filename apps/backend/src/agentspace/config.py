@@ -28,6 +28,7 @@ __all__ = [
     "BIND_HOST",
     "DEFAULT_BIND_PORT",
     "AppPaths",
+    "adopt_legacy_workspace",
     "assert_loopback_only",
     "default_data_dir",
     "resolve_app_paths",
@@ -98,15 +99,38 @@ class AppPaths:
     data_dir: Path
     db_path: Path
     logs_dir: Path
-    workspace_root: Path
+    #: One folder per space under here, named by the space's id — the sandbox
+    #: root for every tool call in that space's runs (§5 Phase 11). The folder
+    #: for a given space is :meth:`agentspace.store.spaces.SpaceStore.folder_for`.
+    spaces_dir: Path
+    #: Where the single workspace lived before spaces. Only read by
+    #: :func:`adopt_legacy_workspace`, which moves it under `spaces_dir`.
+    legacy_workspace: Path
 
     def ensure_exists(self) -> None:
         """Create the directories this application owns.
 
         Not called at import time — a module import must never touch the disk.
         """
-        for directory in (self.data_dir, self.logs_dir, self.workspace_root):
+        for directory in (self.data_dir, self.logs_dir, self.spaces_dir):
             directory.mkdir(parents=True, exist_ok=True)
+
+
+def adopt_legacy_workspace(paths: AppPaths, default_space_folder: Path) -> bool:
+    """Make the old single workspace the default space's folder.
+
+    §5 Phase 11's migration "moves the existing workspace folder to become its
+    folder". The SQL half of that migration cannot touch the disk, so this
+    runs beside it at startup, once: the move happens only while the old
+    folder exists and the new one does not, so a second launch — or a data
+    directory that never had a workspace — does nothing. Returns whether a
+    move happened.
+    """
+    if not paths.legacy_workspace.is_dir() or default_space_folder.exists():
+        return False
+    default_space_folder.parent.mkdir(parents=True, exist_ok=True)
+    paths.legacy_workspace.rename(default_space_folder)
+    return True
 
 
 def default_data_dir(platform_name: str = sys.platform) -> Path:
@@ -149,7 +173,8 @@ def resolve_app_paths(data_dir: Path | None = None) -> AppPaths:
         data_dir=resolved,
         db_path=resolved / "agentspace.sqlite3",
         logs_dir=resolved / "logs",
-        workspace_root=resolved / "workspace",
+        spaces_dir=resolved / "spaces",
+        legacy_workspace=resolved / "workspace",
     )
 
 

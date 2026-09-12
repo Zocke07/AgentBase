@@ -30,6 +30,7 @@ from agentspace.store.agents import (
     BuiltinNotDeletableError,
     DuplicateAgentNameError,
 )
+from agentspace.store.spaces import SpaceNotFoundError
 from agentspace.tools.catalogue import CATALOGUE
 
 if TYPE_CHECKING:
@@ -51,6 +52,10 @@ class CreateAgentRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    #: The roster this definition joins. ``None`` is the default space, which
+    #: keeps every caller that predates spaces working; the window always
+    #: names the space it is showing.
+    space_id: str | None = None
     name: str
     role: str
     system_prompt: str
@@ -77,6 +82,9 @@ class UpdateAgentRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    #: A move to another space's roster. An in-flight run's roster is a
+    #: snapshot, so a move mid-run leaves that run alone.
+    space_id: str | None = None
     name: str | None = None
     role: str | None = None
     system_prompt: str | None = None
@@ -86,6 +94,12 @@ class UpdateAgentRequest(BaseModel):
     max_steps: int | None = None
     auto_approve: list[str] | None = None
     enabled: bool | None = None
+
+
+class CopyAgentRequest(BaseModel):
+    """Where the copy goes. A copy is a new row with a new id, never a built-in."""
+
+    space_id: str
 
 
 class ToolResponse(BaseModel):
@@ -124,13 +138,13 @@ def _reject(exc: AgentValidationError) -> HTTPException:
 
 
 @router.get("/agents")
-async def list_agents(request: Request) -> list[AgentDef]:
+async def list_agents(request: Request, space_id: str | None = None) -> list[AgentDef]:
     """Every definition, enabled or not — this backs the roster editor.
 
     A run reads only the enabled ones; see
     :meth:`agentspace.orchestrator.registry.AgentRegistry.load`.
     """
-    return await _store(request).list_all()
+    return await _store(request).list_all(space_id)
 
 
 @router.get("/agents/{definition_id}")
@@ -145,6 +159,25 @@ async def get_agent(request: Request, definition_id: str) -> AgentDef:
 async def create_agent(request: Request, body: CreateAgentRequest) -> AgentDef:
     try:
         return await _store(request).create(body.model_dump())
+    except AgentValidationError as exc:
+        raise _reject(exc) from exc
+    except SpaceNotFoundError as exc:
+        raise HTTPException(
+            status_code=400, detail={"message": str(exc), "field": "space_id"}
+        ) from exc
+
+
+@router.post("/agents/{definition_id}/copy", status_code=201)
+async def copy_agent(request: Request, definition_id: str, body: CopyAgentRequest) -> AgentDef:
+    """A copy of one definition on another space's roster."""
+    try:
+        return await _store(request).copy(definition_id, body.space_id)
+    except AgentNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except SpaceNotFoundError as exc:
+        raise HTTPException(
+            status_code=400, detail={"message": str(exc), "field": "space_id"}
+        ) from exc
     except AgentValidationError as exc:
         raise _reject(exc) from exc
 
@@ -166,6 +199,10 @@ async def update_agent(
         return await _store(request).update(definition_id, changes)
     except AgentNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except SpaceNotFoundError as exc:
+        raise HTTPException(
+            status_code=400, detail={"message": str(exc), "field": "space_id"}
+        ) from exc
     except AgentValidationError as exc:
         raise _reject(exc) from exc
 

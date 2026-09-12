@@ -1,4 +1,4 @@
-import type { Run } from "@agentspace/schemas";
+import type { Run, SpaceResponse } from "@agentspace/schemas";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -10,6 +10,7 @@ import * as sidecar from "./lib/sidecar";
 import { useRoster } from "./state/roster";
 import { useRunList } from "./state/runList";
 import { useRunStore } from "./state/runStore";
+import { useSpaces } from "./state/spaces";
 
 /**
  * The shell: which section is showing, what survives switching, and when the
@@ -22,6 +23,8 @@ vi.mock("./lib/sidecar", () => ({
 
 vi.mock("./lib/api", () => ({
   onTransportFailure: vi.fn(() => () => undefined),
+  listSpaces: vi.fn(),
+  getRun: vi.fn(),
   listRuns: vi.fn(),
   createRun: vi.fn(),
   startDebugRun: vi.fn(),
@@ -47,8 +50,19 @@ vi.mock("./lib/events", async (importOriginal) => ({
 
 const mocked = vi.mocked(api);
 
+const space = (id: string, name: string, extra: Partial<SpaceResponse> = {}): SpaceResponse => ({
+  id,
+  name,
+  created_at: "2026-09-12T00:00:00Z",
+  updated_at: "2026-09-12T00:00:00Z",
+  folder: `D:\\data\\spaces\\${id}`,
+  is_default: false,
+  ...extra,
+});
+
 const row = (status: Run["status"], id = "run-1"): Run => ({
   id,
+  space_id: "space-main",
   goal: "Summarise the quarterly report",
   status,
   origin: "ui",
@@ -61,6 +75,19 @@ beforeEach(() => {
   useRunStore.getState().reset();
   useRunList.getState().reset();
   useRoster.getState().reset();
+  useSpaces.getState().reset();
+  try {
+    localStorage.removeItem("agentspace.space");
+  } catch {
+    // jsdom always has storage; kept symmetrical with the store's own guard.
+  }
+  mocked.listSpaces.mockResolvedValue([
+    space("space-main", "Main", { is_default: true }),
+    space("space-lab", "Lab"),
+  ]);
+  mocked.getRun.mockImplementation((id) =>
+    Promise.resolve({ ...row("running", id), space_id: id === "run-lab" ? "space-lab" : "space-main" }),
+  );
   vi.mocked(sidecar.connectWithRetry).mockImplementation((onStatus) => {
     onStatus({ kind: "ready", health: { ok: true }, baseUrl: "http://x" });
     return Promise.resolve();
@@ -293,5 +320,83 @@ describe("runs that happen elsewhere", () => {
       expect(mocked.listRuns).toHaveBeenCalledTimes(2);
     });
     expect(mocked.getBudget.mock.calls.length).toBe(budgetReads + 1);
+  });
+});
+
+describe("spaces", () => {
+  it("opens on the default space and asks for that space's runs and roster", async () => {
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Space: Main/ });
+    await waitFor(() => {
+      expect(mocked.listRuns).toHaveBeenCalledWith(50, "space-main");
+    });
+    expect(mocked.listAgents).toHaveBeenCalledWith("space-main");
+    expect(mocked.getBudget).toHaveBeenLastCalledWith("space-main");
+    expect(mocked.verifySettings).toHaveBeenLastCalledWith("space-main");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Main");
+  });
+
+  it("re-keys both lists, the meter and the pre-flight on a switch, and closes the open run", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByTestId("run-card-run-1"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-panel")).toBeDefined();
+    });
+
+    await user.click(screen.getByRole("button", { name: /Space: Main/ }));
+    await user.click(screen.getByRole("button", { name: "Lab" }));
+
+    await waitFor(() => {
+      expect(mocked.listRuns).toHaveBeenLastCalledWith(50, "space-lab");
+    });
+    expect(mocked.listAgents).toHaveBeenLastCalledWith("space-lab");
+    expect(mocked.getBudget).toHaveBeenLastCalledWith("space-lab");
+    expect(mocked.verifySettings).toHaveBeenLastCalledWith("space-lab");
+    expect(screen.getByRole("button", { name: /Space: Lab/ })).toBeDefined();
+    expect(screen.queryByTestId("run-panel")).toBeNull();
+  });
+
+  it("remembers the space in this browser", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<App />);
+    await user.click(await screen.findByRole("button", { name: /Space: Main/ }));
+    await user.click(screen.getByRole("button", { name: "Lab" }));
+    await screen.findByRole("button", { name: /Space: Lab/ });
+    unmount();
+    useSpaces.getState().reset();
+
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: /Space: Lab/ })).toBeDefined();
+  });
+
+  it("opens an approval's run in the space it belongs to", async () => {
+    /* The badge is global; the picker is per space. A run opened from the
+       badge while another space is on screen would be a panel about a run
+       the picker does not list. */
+    const user = userEvent.setup();
+    mocked.listApprovals.mockResolvedValue([
+      {
+        id: "ap-1",
+        run_id: "run-lab",
+        tool: "write_file",
+        args: {},
+        risk: "medium",
+        status: "pending",
+        created_at: "2026-09-10T12:00:00Z",
+      },
+    ]);
+    render(<App />);
+    await screen.findByRole("button", { name: /Space: Main/ });
+
+    await user.click(await screen.findByRole("button", { name: /1 approval waiting/ }));
+
+    expect(await screen.findByRole("button", { name: /Space: Lab/ })).toBeDefined();
+    await waitFor(() => {
+      expect(screen.getByTestId("run-panel")).toBeDefined();
+    });
+    expect(mocked.getRunHistory).toHaveBeenCalledWith("run-lab");
   });
 });

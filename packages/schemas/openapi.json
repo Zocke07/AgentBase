@@ -75,6 +75,10 @@
             "title": "Role",
             "type": "string"
           },
+          "space_id": {
+            "title": "Space Id",
+            "type": "string"
+          },
           "system_prompt": {
             "title": "System Prompt",
             "type": "string"
@@ -87,6 +91,7 @@
         },
         "required": [
           "id",
+          "space_id",
           "name",
           "role",
           "system_prompt",
@@ -169,6 +174,28 @@
           "period": {
             "title": "Period",
             "type": "string"
+          },
+          "space_spent_display": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Space Spent Display"
+          },
+          "space_spent_micros": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Space Spent Micros"
           },
           "spent_display": {
             "title": "Spent Display",
@@ -271,6 +298,34 @@
         "title": "ChannelStatusResponse",
         "type": "object"
       },
+      "CopyAgentRequest": {
+        "description": "Where the copy goes. A copy is a new row with a new id, never a built-in.",
+        "properties": {
+          "space_id": {
+            "title": "Space Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "space_id"
+        ],
+        "title": "CopyAgentRequest",
+        "type": "object"
+      },
+      "CopyFrom": {
+        "description": "Seed a new space with copies of another space's roster.",
+        "properties": {
+          "copy_from": {
+            "title": "Copy From",
+            "type": "string"
+          }
+        },
+        "required": [
+          "copy_from"
+        ],
+        "title": "CopyFrom",
+        "type": "object"
+      },
       "CreateAgentRequest": {
         "additionalProperties": false,
         "description": "A new definition.\n\nDeliberately not the same model as :class:`~agentspace.store.agents.AgentDef`:\n`id`, `created_at`, `updated_at` and `is_builtin` are ours to assign, and a\nrequest model that accepted them would let a caller mint a built-in \u2014 which\nis a definition the delete path refuses to remove.",
@@ -335,6 +390,17 @@
             "title": "Role",
             "type": "string"
           },
+          "space_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Space Id"
+          },
           "system_prompt": {
             "title": "System Prompt",
             "type": "string"
@@ -375,12 +441,59 @@
               }
             ],
             "title": "Origin Ref"
+          },
+          "space_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Space Id"
           }
         },
         "required": [
           "goal"
         ],
         "title": "CreateRunRequest",
+        "type": "object"
+      },
+      "CreateSpaceRequest": {
+        "properties": {
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "enum": [
+                  "empty",
+                  "builtins"
+                ],
+                "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/CopyFrom"
+              }
+            ],
+            "default": "builtins",
+            "title": "Seed"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CreateSpaceRequest",
         "type": "object"
       },
       "Event": {
@@ -603,6 +716,10 @@
             ],
             "title": "Origin Ref"
           },
+          "space_id": {
+            "title": "Space Id",
+            "type": "string"
+          },
           "status": {
             "enum": [
               "pending",
@@ -618,6 +735,7 @@
         },
         "required": [
           "id",
+          "space_id",
           "goal",
           "status",
           "origin",
@@ -666,6 +784,129 @@
           "model_is_priced"
         ],
         "title": "SettingsResponse",
+        "type": "object"
+      },
+      "SpaceResponse": {
+        "description": "A space, plus where its runs read and write.",
+        "properties": {
+          "archived": {
+            "default": false,
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "auto_approve": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RiskLevel"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Approve"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "folder": {
+            "title": "Folder",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_default": {
+            "title": "Is Default",
+            "type": "boolean"
+          },
+          "max_agents_per_run": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Agents Per Run"
+          },
+          "max_run_seconds": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Run Seconds"
+          },
+          "max_steps_per_agent": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Steps Per Agent"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "created_at",
+          "updated_at",
+          "folder",
+          "is_default"
+        ],
+        "title": "SpaceResponse",
         "type": "object"
       },
       "ToolResponse": {
@@ -795,6 +1036,17 @@
             ],
             "title": "Role"
           },
+          "space_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Space Id"
+          },
           "system_prompt": {
             "anyOf": [
               {
@@ -856,6 +1108,17 @@
               }
             ],
             "title": "Channel Identities"
+          },
+          "channel_space_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Space Id"
           },
           "discord_enabled": {
             "anyOf": [
@@ -953,6 +1216,121 @@
           }
         },
         "title": "UpdateSettingsRequest",
+        "type": "object"
+      },
+      "UpdateSpaceRequest": {
+        "additionalProperties": false,
+        "description": "A partial update.\n\n``None`` is meaningful for every rule \u2014 it is how a space goes back to\ninheriting the app-wide default \u2014 so this uses `model_fields_set` rather\nthan `exclude_none` to tell \"not sent\" from \"sent as null\".",
+        "properties": {
+          "archived": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived"
+          },
+          "auto_approve": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RiskLevel"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Approve"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "max_agents_per_run": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Agents Per Run"
+          },
+          "max_run_seconds": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Run Seconds"
+          },
+          "max_steps_per_agent": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Steps Per Agent"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          }
+        },
+        "title": "UpdateSpaceRequest",
         "type": "object"
       },
       "ValidationError": {
@@ -1068,6 +1446,17 @@
             "title": "Channel Identities",
             "type": "array"
           },
+          "channel_space_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Space Id"
+          },
           "discord_enabled": {
             "default": false,
             "title": "Discord Enabled",
@@ -1128,6 +1517,24 @@
       "get": {
         "description": "Every definition, enabled or not \u2014 this backs the roster editor.\n\nA run reads only the enabled ones; see\n:meth:`agentspace.orchestrator.registry.AgentRegistry.load`.",
         "operationId": "list_agents_agents_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "space_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Space Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -1142,6 +1549,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "List Agents"
@@ -1300,6 +1717,56 @@
         "summary": "Update Agent"
       }
     },
+    "/agents/{definition_id}/copy": {
+      "post": {
+        "description": "A copy of one definition on another space's roster.",
+        "operationId": "copy_agent_agents__definition_id__copy_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definition_id",
+            "required": true,
+            "schema": {
+              "title": "Definition Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CopyAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDef"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Copy Agent"
+      }
+    },
     "/approvals": {
       "get": {
         "description": "Every approval still waiting for an answer, oldest first.",
@@ -1440,8 +1907,26 @@
     },
     "/budget": {
       "get": {
-        "description": "Month-to-date spend against the cap. Phase 7's budget meter reads this.",
+        "description": "Month-to-date spend against the cap. Phase 7's budget meter reads this.\n\n``space_id`` adds that space's share of the period beside the app-wide\nfigures. The cap stays app-wide: \u00a75 Phase 11 keeps one wallet, so a run\nis refused over the cap whichever space it is in.",
         "operationId": "get_budget_budget_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "space_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Space Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -1452,6 +1937,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Get Budget"
@@ -1560,6 +2055,22 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "space_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Space Id"
             }
           }
         ],
@@ -1887,8 +2398,26 @@
     },
     "/settings/verify": {
       "post": {
-        "description": "Check the current settings can actually build a provider.\n\nDeliberately does *not* call the model: that would spend money to answer a\nconfiguration question, and the budget check exists precisely to stop\nunbudgeted calls. It reports whether the credentials and the provider name\nare sufficient to construct one. It is also the dashboard's pre-flight \u2014\nthe same refusal a run would get, shown beside the goal box before Start.",
+        "description": "Check the current settings can actually build a provider.\n\nDeliberately does *not* call the model: that would spend money to answer a\nconfiguration question, and the budget check exists precisely to stop\nunbudgeted calls. It reports whether the credentials and the provider name\nare sufficient to construct one. It is also the dashboard's pre-flight \u2014\nthe same refusal a run would get, shown beside the goal box before Start.\nWith ``space_id``, it is that space's *effective* settings that are\nchecked \u2014 a space may pin a provider the app-wide default does not use.",
         "operationId": "verify_provider_settings_verify_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "space_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Space Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -1899,9 +2428,240 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Verify Provider"
+      }
+    },
+    "/spaces": {
+      "get": {
+        "description": "Every space, archived ones included: an archived space's runs are\nstill viewable, and their cards need its name.",
+        "operationId": "list_spaces_spaces_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SpaceResponse"
+                  },
+                  "title": "Response List Spaces Spaces Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Spaces"
+      },
+      "post": {
+        "description": "Create a space and seed its roster.\n\nThe seed runs after the row exists, as its own write: a copy that fails\nhalf-way leaves a space with a partial roster the user can see and fix,\nrather than no space and a message about one.",
+        "operationId": "create_space_spaces_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSpaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Space"
+      }
+    },
+    "/spaces/{space_id}": {
+      "delete": {
+        "description": "Delete an empty space and its agents. 409 for the default, or one with runs.",
+        "operationId": "delete_space_spaces__space_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Space"
+      },
+      "get": {
+        "operationId": "get_space_spaces__space_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Space"
+      },
+      "patch": {
+        "operationId": "update_space_spaces__space_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSpaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Space"
+      }
+    },
+    "/spaces/{space_id}/seed": {
+      "post": {
+        "description": "Add fresh copies of the three seeded roles to an existing space's roster.\n\nWhat the Home screen offers an empty space. Roles already on the roster\nby name are skipped, so it is safe to press twice.",
+        "operationId": "seed_space_spaces__space_id__seed_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AgentDef"
+                  },
+                  "title": "Response Seed Space Spaces  Space Id  Seed Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Seed Space"
       }
     },
     "/tools": {

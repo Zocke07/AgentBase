@@ -139,7 +139,7 @@ def test_data_survives_a_reconnect(app_paths: AppPaths) -> None:
     first.connect()
     with first.write() as connection:
         connection.execute(
-            "INSERT INTO runs (id, goal, status, origin, created_at) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO runs (id, space_id, goal, status, origin, created_at) VALUES (?, '5c1e5a2e-0d4b-4c93-9a7f-3b2e8d1c6f00', ?, ?, ?, ?)",
             ("r1", "goal", "pending", "ui", "2026-09-09T00:00:00+00:00"),
         )
     first.close()
@@ -227,7 +227,7 @@ def test_events_table_has_the_unique_run_seq_constraint(db: Database) -> None:
     """
     with db.write() as connection:
         connection.execute(
-            "INSERT INTO runs (id, goal, status, origin, created_at) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO runs (id, space_id, goal, status, origin, created_at) VALUES (?, '5c1e5a2e-0d4b-4c93-9a7f-3b2e8d1c6f00', ?, ?, ?, ?)",
             ("r1", "g", "pending", "ui", "2026-09-09T00:00:00+00:00"),
         )
         connection.execute(
@@ -246,7 +246,7 @@ def test_write_rolls_back_on_error(db: Database) -> None:
     """`write()` is a transaction boundary, not just a cursor."""
     with pytest.raises(RuntimeError), db.write() as connection:
         connection.execute(
-            "INSERT INTO runs (id, goal, status, origin, created_at) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO runs (id, space_id, goal, status, origin, created_at) VALUES (?, '5c1e5a2e-0d4b-4c93-9a7f-3b2e8d1c6f00', ?, ?, ?, ?)",
             ("rollback-me", "g", "pending", "ui", "2026-09-09T00:00:00+00:00"),
         )
         raise RuntimeError("boom")
@@ -474,6 +474,7 @@ def test_agent_defs_table_matches_the_specified_columns(db: Database) -> None:
 
     assert set(columns) == {
         "id",
+        "space_id",
         "name",
         "role",
         "system_prompt",
@@ -492,7 +493,7 @@ def test_agent_defs_table_matches_the_specified_columns(db: Database) -> None:
     assert columns["enabled"] == "INTEGER"
 
 
-def test_agent_name_is_unique(db: Database) -> None:
+def test_agent_name_is_unique_within_a_space(db: Database) -> None:
     """The constraint behind `DuplicateAgentNameError`.
 
     The store checks for a clash before inserting so the user gets a message
@@ -501,7 +502,8 @@ def test_agent_name_is_unique(db: Database) -> None:
     """
     with pytest.raises(sqlite3.IntegrityError), db.write() as connection:
         connection.execute(
-            "INSERT INTO agent_defs (id, name, role, system_prompt, allowed_tools,"
+            "INSERT INTO agent_defs (id, space_id, name, role, system_prompt, allowed_tools,"
             " max_steps, auto_approve, is_builtin, enabled, created_at, updated_at)"
-            " VALUES ('x', 'researcher', 'r', 'p', '[]', 5, '[]', 0, 1, 't', 't')"
+            " VALUES ('x', '5c1e5a2e-0d4b-4c93-9a7f-3b2e8d1c6f00', 'researcher', 'r', 'p',"
+            " '[]', 5, '[]', 0, 1, 't', 't')"
         )

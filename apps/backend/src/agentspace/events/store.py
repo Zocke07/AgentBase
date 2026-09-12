@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Final
 
 from agentspace.events.types import Event, EventType, Run, RunOrigin, RunStatus
+from agentspace.store.spaces import DEFAULT_SPACE_ID
 
 if TYPE_CHECKING:
     import sqlite3
@@ -75,6 +76,7 @@ def _row_to_run(row: sqlite3.Row) -> Run:
     finished = row["finished_at"]
     return Run(
         id=row["id"],
+        space_id=row["space_id"],
         goal=row["goal"],
         status=row["status"],
         origin=row["origin"],
@@ -192,17 +194,26 @@ class EventStore:
         goal: str,
         origin: RunOrigin = "ui",
         origin_ref: str | None = None,
+        space_id: str = DEFAULT_SPACE_ID,
     ) -> Run:
         """Insert a run row.
 
         This creates the row only. Attaching an orchestrator to it is Phase 4;
         until then a run's status moves because something explicitly moves it.
+        The space defaults so that every caller that predates spaces — the
+        debug script, a chat command with no space configured — lands in the
+        default one, which migration 006 guarantees exists.
         """
-        return await asyncio.to_thread(self._create_run_sync, goal, origin, origin_ref)
+        return await asyncio.to_thread(
+            self._create_run_sync, goal, origin, origin_ref, space_id
+        )
 
-    def _create_run_sync(self, goal: str, origin: RunOrigin, origin_ref: str | None) -> Run:
+    def _create_run_sync(
+        self, goal: str, origin: RunOrigin, origin_ref: str | None, space_id: str
+    ) -> Run:
         run = Run(
             id=str(uuid.uuid4()),
+            space_id=space_id,
             goal=goal,
             status="pending",
             origin=origin,
@@ -212,10 +223,11 @@ class EventStore:
 
         with self._db.write() as connection:
             connection.execute(
-                "INSERT INTO runs (id, goal, status, origin, origin_ref, created_at)"
-                " VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO runs (id, space_id, goal, status, origin, origin_ref, created_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (
                     run.id,
+                    run.space_id,
                     run.goal,
                     run.status,
                     run.origin,
@@ -226,7 +238,9 @@ class EventStore:
 
         return run
 
-    async def list_runs(self, limit: int = DEFAULT_RUN_LIST_LIMIT) -> list[Run]:
+    async def list_runs(
+        self, limit: int = DEFAULT_RUN_LIST_LIMIT, space_id: str | None = None
+    ) -> list[Run]:
         """Recent runs, newest first — what the Phase 7 replay picker reads.
 
         Reads the `runs` table rather than deriving the list from events. The
@@ -234,19 +248,21 @@ class EventStore:
         the authority on which runs exist, and a run created but never started
         has no events at all. That run is precisely the one a user goes looking
         for an explanation of, so a listing that omitted it would be worse than
-        useless.
+        useless. ``space_id`` narrows the list to one space's runs.
         """
-        return await asyncio.to_thread(self._list_runs_sync, limit)
+        return await asyncio.to_thread(self._list_runs_sync, limit, space_id)
 
-    def _list_runs_sync(self, limit: int) -> list[Run]:
+    def _list_runs_sync(self, limit: int, space_id: str | None) -> list[Run]:
+        where = "" if space_id is None else " WHERE space_id = ?"
+        params: tuple[Any, ...] = (limit,) if space_id is None else (space_id, limit)
         with self._db.read() as connection:
             rows = connection.execute(
                 # `rowid` breaks the tie. `created_at` is an ISO timestamp and
                 # two runs started in the same microsecond would otherwise come
                 # back in whatever order SQLite chose, which makes the ordering
                 # test flaky rather than the ordering wrong.
-                "SELECT * FROM runs ORDER BY created_at DESC, rowid DESC LIMIT ?",
-                (limit,),
+                f"SELECT * FROM runs{where} ORDER BY created_at DESC, rowid DESC LIMIT ?",  # noqa: S608
+                params,
             ).fetchall()
 
         return [_row_to_run(row) for row in rows]

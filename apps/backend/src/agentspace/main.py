@@ -48,6 +48,7 @@ from agentspace.api.approvals import router as approvals_router
 from agentspace.api.channels import router as channels_router
 from agentspace.api.runs import router as runs_router
 from agentspace.api.settings import router as settings_router
+from agentspace.api.spaces import router as spaces_router
 from agentspace.budget.ledger import BudgetLedger
 from agentspace.channels.service import ChannelDeps, ChannelService
 from agentspace.config import (
@@ -55,6 +56,7 @@ from agentspace.config import (
     BIND_HOST,
     DEFAULT_BIND_PORT,
     AppPaths,
+    adopt_legacy_workspace,
     assert_loopback_only,
     resolve_app_paths,
 )
@@ -65,6 +67,7 @@ from agentspace.secrets import SecretStore, parse_secrets_line
 from agentspace.store.agents import AgentDefStore
 from agentspace.store.db import Database
 from agentspace.store.settings import SettingsStore
+from agentspace.store.spaces import DEFAULT_SPACE_ID, SpaceStore
 from agentspace.tools.approval import ApprovalService, ApprovalStore
 from agentspace.tools.runtime import ToolRuntime
 from agentspace.tools.sandbox import Sandbox
@@ -125,8 +128,17 @@ def create_app(paths: AppPaths | None = None, secrets: SecretStore | None = None
 
         approval_store = ApprovalStore(database)
         app.state.approvals = ApprovalService(approval_store, app.state.store)
-        app.state.sandbox = Sandbox(resolved.workspace_root)
-        app.state.tool_runtime = ToolRuntime.build(app.state.sandbox, app.state.approvals)
+        app.state.spaces = SpaceStore(database, resolved.spaces_dir)
+        # The single workspace from before spaces becomes the default space's
+        # folder, once. The SQL half of migration 006 cannot move a directory.
+        default_folder = app.state.spaces.folder_for(DEFAULT_SPACE_ID)
+        if adopt_legacy_workspace(resolved, default_folder):
+            logger.info("moved the workspace folder to %s", default_folder)
+        default_folder.mkdir(parents=True, exist_ok=True)
+        # Built once over the default space's folder; the launcher rebinds the
+        # sandbox to the run's own space per run. The tools and the gate are
+        # process-wide, the root is not.
+        app.state.tool_runtime = ToolRuntime.build(Sandbox(default_folder), app.state.approvals)
 
         # One object knows how to start a run, and every caller uses it — the
         # HTTP endpoint and both chat channels. See `orchestrator/launcher.py`
@@ -139,6 +151,7 @@ def create_app(paths: AppPaths | None = None, secrets: SecretStore | None = None
             ledger=app.state.ledger,
             secrets=secret_store,
             runtime=app.state.tool_runtime,
+            spaces=app.state.spaces,
             tasks=app.state.background_tasks,
         )
 
@@ -218,6 +231,7 @@ def create_app(paths: AppPaths | None = None, secrets: SecretStore | None = None
     app.include_router(channels_router)
     app.include_router(runs_router)
     app.include_router(settings_router)
+    app.include_router(spaces_router)
 
     return app
 

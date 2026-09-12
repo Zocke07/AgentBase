@@ -53,7 +53,7 @@ def test_resolve_app_paths_honours_an_explicit_override(tmp_path: Path) -> None:
     assert paths.data_dir == tmp_path.resolve()
     assert paths.db_path == tmp_path.resolve() / "agentspace.sqlite3"
     assert paths.logs_dir.parent == paths.data_dir
-    assert paths.workspace_root.parent == paths.data_dir
+    assert paths.spaces_dir.parent == paths.data_dir
 
 
 def test_resolve_app_paths_reads_the_data_dir_env_var(
@@ -68,7 +68,7 @@ def test_every_resolved_path_is_a_pathlib_path(tmp_path: Path) -> None:
     """§5 Phase 0: paths are Path objects, never assembled strings."""
     paths = config.resolve_app_paths(tmp_path)
 
-    for value in (paths.data_dir, paths.db_path, paths.logs_dir, paths.workspace_root):
+    for value in (paths.data_dir, paths.db_path, paths.logs_dir, paths.spaces_dir):
         assert isinstance(value, Path)
         assert value.is_absolute()
 
@@ -81,7 +81,42 @@ def test_ensure_exists_creates_the_directories(tmp_path: Path) -> None:
 
     assert paths.data_dir.is_dir()
     assert paths.logs_dir.is_dir()
-    assert paths.workspace_root.is_dir()
+    assert paths.spaces_dir.is_dir()
+    # The pre-spaces workspace is never created; it is only ever adopted.
+    assert not paths.legacy_workspace.exists()
+
+
+def test_the_old_workspace_becomes_the_default_space_folder_once(tmp_path: Path) -> None:
+    """§5 Phase 11's third acceptance criterion, the folder half: a data
+    directory from before spaces keeps its files, under the default space."""
+    paths = config.resolve_app_paths(tmp_path)
+    paths.legacy_workspace.mkdir(parents=True)
+    (paths.legacy_workspace / "notes.txt").write_text("kept", encoding="utf-8")
+    target = paths.spaces_dir / "default-space"
+
+    assert config.adopt_legacy_workspace(paths, target) is True
+
+    assert not paths.legacy_workspace.exists()
+    assert (target / "notes.txt").read_text(encoding="utf-8") == "kept"
+    # A second launch finds nothing to move; a fresh directory finds nothing either.
+    assert config.adopt_legacy_workspace(paths, target) is False
+    assert (
+        config.adopt_legacy_workspace(config.resolve_app_paths(tmp_path / "new"), target)
+        is False
+    )
+
+
+def test_an_existing_default_space_folder_is_never_overwritten(tmp_path: Path) -> None:
+    paths = config.resolve_app_paths(tmp_path)
+    paths.legacy_workspace.mkdir(parents=True)
+    target = paths.spaces_dir / "default-space"
+    target.mkdir(parents=True)
+    (target / "mine.txt").write_text("already here", encoding="utf-8")
+
+    assert config.adopt_legacy_workspace(paths, target) is False
+
+    assert paths.legacy_workspace.is_dir()
+    assert (target / "mine.txt").read_text(encoding="utf-8") == "already here"
 
 
 def test_app_paths_is_frozen(tmp_path: Path) -> None:

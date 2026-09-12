@@ -24,10 +24,12 @@ fact rather than a hope.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 from agentspace.orchestrator import execute_run
+from agentspace.store.spaces import DEFAULT_SPACE_ID, SpaceArchivedError
+from agentspace.tools.sandbox import Sandbox
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Coroutine
@@ -41,6 +43,7 @@ if TYPE_CHECKING:
     from agentspace.secrets import SecretStore
     from agentspace.store.agents import AgentDefStore
     from agentspace.store.settings import SettingsStore
+    from agentspace.store.spaces import Space, SpaceStore
     from agentspace.tools.runtime import ToolRuntime
 
 __all__ = ["RunLauncher"]
@@ -63,6 +66,10 @@ class RunLauncher:
     ledger: BudgetLedger
     secrets: SecretStore
     runtime: ToolRuntime | None = None
+    #: Where a run's space, and so its rules, roster and folder, come from.
+    #: ``None`` — the orchestration tests — runs everything in the default
+    #: space with the app-wide rules and whatever sandbox `runtime` carries.
+    spaces: SpaceStore | None = None
     #: Overrides the configured provider for every agent. Tests pass a scripted
     #: one; nothing in the shipped app sets it, and `execute_run` still wraps it
     #: in the budget guard — so a test cannot accidentally prove the cap holds
@@ -81,23 +88,68 @@ class RunLauncher:
         self,
         goal: str,
         *,
+        space_id: str | None = None,
         origin: RunOrigin = "ui",
         origin_ref: str | None = None,
         prologue: Callable[[RunRow], Awaitable[None]] | None = None,
     ) -> RunRow:
         """Create the run, run ``prologue`` against it, then start it.
 
+        :param space_id: where the run happens — its roster, rules and
+            folder. ``None`` is the default space, which is what keeps the
+            debug script and a chat command with no space configured working.
         :param prologue: appended to the log before the orchestrator emits
             anything, so a caller can guarantee its event is first. See the
             module docstring for why this is not a general-purpose hook.
+        :raises SpaceNotFoundError: for an id that is not a space.
+        :raises SpaceArchivedError: an archived space starts no runs.
         """
-        run = await self.store.create_run(goal=goal, origin=origin, origin_ref=origin_ref)
+        space = await self._resolve_space(space_id)
+        run = await self.store.create_run(
+            goal=goal,
+            origin=origin,
+            origin_ref=origin_ref,
+            space_id=space.id if space is not None else DEFAULT_SPACE_ID,
+        )
 
         if prologue is not None:
             await prologue(run)
 
-        self.spawn(self._drive(run.id, goal))
+        self.spawn(self._drive(run.id, goal, space))
         return run
+
+    async def space_exists(self, space_id: str) -> bool | None:
+        """Whether ``space_id`` names a space that can start a run; ``None``
+        when this launcher has no space store to ask."""
+        if self.spaces is None:
+            return None
+        space = await self.spaces.get(space_id)
+        return space is not None and not space.archived
+
+    async def _resolve_space(self, space_id: str | None) -> Space | None:
+        if self.spaces is None:
+            return None
+        space = await self.spaces.require(
+            space_id if space_id is not None else DEFAULT_SPACE_ID
+        )
+        if space.archived:
+            raise SpaceArchivedError(space.name)
+        return space
+
+    def _runtime_for(self, space: Space | None) -> ToolRuntime | None:
+        """The process-wide tools and gate, rooted at this space's folder.
+
+        `Sandbox` is constructed per run from the space, not once per process
+        (§5 Phase 11): a `write_file` from a run in space A to a path under
+        space B's folder resolves outside A's root and is refused exactly as
+        a path outside the old single root was. The folder is created here,
+        on first use, so an unused space costs no directory.
+        """
+        if self.runtime is None or space is None or self.spaces is None:
+            return self.runtime
+        folder = self.spaces.folder_for(space.id)
+        folder.mkdir(parents=True, exist_ok=True)
+        return replace(self.runtime, sandbox=Sandbox(folder))
 
     def spawn(self, coroutine: Coroutine[Any, Any, None]) -> asyncio.Task[None]:
         """Run a coroutine in the background, keeping a strong reference."""
@@ -123,7 +175,7 @@ class RunLauncher:
             await self.runtime.approvals.release_run(run_id)
         return True
 
-    async def _drive(self, run_id: str, goal: str) -> None:
+    async def _drive(self, run_id: str, goal: str, space: Space | None) -> None:
         """Hand one run to the orchestrator.
 
         Every failure path inside `execute_run` writes its own terminal event,
@@ -138,7 +190,8 @@ class RunLauncher:
             self.secrets,
             run_id,
             goal,
-            runtime=self.runtime,
+            runtime=self._runtime_for(space),
             provider=self.provider,
             live=self.live,
+            space=space,
         )

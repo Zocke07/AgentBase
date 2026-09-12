@@ -1,4 +1,4 @@
-import type { AgentDef, ApprovalResponse, Run } from "@agentspace/schemas";
+import type { AgentDef, ApprovalResponse, Run, SpaceResponse } from "@agentspace/schemas";
 import { useEffect, useState } from "react";
 
 import * as api from "../lib/api";
@@ -30,6 +30,8 @@ import { RunCard } from "./RunCard";
  */
 
 export interface HomeViewProps {
+  /** The space this screen is about; null until the list has loaded. */
+  space: SpaceResponse | null;
   /** Why a run started now would be refused, or null when one can start. */
   blocker: string | null;
   /** Every approval waiting anywhere, so a card can say its run is stuck on one. */
@@ -48,6 +50,7 @@ export interface HomeViewProps {
 const RECENT = 6;
 
 export function HomeView({
+  space,
   blocker,
   pendingApprovals,
   liveStatus,
@@ -63,13 +66,14 @@ export function HomeView({
   const [demoError, setDemoError] = useState<string | null>(null);
   const [busyAgent, setBusyAgent] = useState<string | null>(null);
   const [rosterError, setRosterError] = useState<string | null>(null);
+  const [seeding, setSeeding] = useState(false);
 
   const runs = useRunList((state) => state.runs);
   const runsLoaded = useRunList((state) => state.loaded);
   const runsError = useRunList((state) => state.error);
   const reloadRuns = useRunList((state) => state.load);
   const ensureRuns = useRunList((state) => state.ensure);
-  const agents = useRoster((state) => state.data);
+  const agents = useRoster((state) => state.agents);
   const rosterLoaded = useRoster((state) => state.loaded);
   const reloadRoster = useRoster((state) => state.load);
   const ensureRoster = useRoster((state) => state.ensure);
@@ -97,7 +101,7 @@ export function HomeView({
     setStarting(true);
     setStartError(null);
     try {
-      const run = await api.createRun(trimmed);
+      const run = await api.createRun(trimmed, space?.id);
       setGoal("");
       onOpenRun(run.id);
       void reloadRuns();
@@ -118,6 +122,22 @@ export function HomeView({
       void reloadRuns();
     } catch (failure) {
       setDemoError(failure instanceof Error ? failure.message : String(failure));
+    }
+  };
+
+  // An empty roster gets the three built-in roles on request — what a space
+  // created with "no agents" is offered once its owner changes their mind.
+  const seed = async () => {
+    if (space === null) return;
+    setRosterError(null);
+    setSeeding(true);
+    try {
+      await api.seedSpace(space.id);
+      await reloadRoster();
+    } catch (failure) {
+      setRosterError(failure instanceof Error ? failure.message : String(failure));
+    } finally {
+      setSeeding(false);
     }
   };
 
@@ -167,7 +187,9 @@ export function HomeView({
           }}
         >
           <label className="new-run__label" htmlFor="goal">
-            {firstLaunch ? "What should your agents work on first?" : "What should your agents work on?"}
+            {firstLaunch
+              ? `What should ${space?.name ?? "this space"} work on first?`
+              : `What should ${space?.name ?? "this space"} work on?`}
           </label>
           <textarea
             id="goal"
@@ -201,6 +223,14 @@ export function HomeView({
                   : `${String(enabled.length)} agent${enabled.length === 1 ? "" : "s"} ready: ${enabled
                       .map((agent) => agent.name)
                       .join(", ")}.`}
+                {firstLaunch && rosterLoaded && agents.length === 0 && space !== null && (
+                  <>
+                    {" "}
+                    <button type="button" className="link" disabled={seeding} onClick={() => void seed()}>
+                      Start from the built-in roles
+                    </button>
+                  </>
+                )}
                 {firstLaunch && (
                   <>
                     {" "}
@@ -276,7 +306,14 @@ export function HomeView({
               </p>
             )}
             {rosterLoaded && agents.length === 0 && (
-              <p className="home__empty">No agents are defined. The supervisor will have nobody to delegate to.</p>
+              <p className="home__empty">
+                No agents are defined, so the supervisor would have nobody to delegate to.{" "}
+                {space !== null && (
+                  <button type="button" className="link" disabled={seeding} onClick={() => void seed()}>
+                    Start from the built-in roles
+                  </button>
+                )}
+              </p>
             )}
             <ul className="roster-cards">
               {agents.map((agent) => (
