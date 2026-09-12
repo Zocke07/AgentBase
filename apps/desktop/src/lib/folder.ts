@@ -13,10 +13,7 @@
  * there is no shell to ask, and the button is not offered.
  */
 
-/** Whether we are running inside the Tauri webview rather than a browser tab. */
-export function revealAvailable(): boolean {
-  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-}
+export { insideTauri as revealAvailable } from "./tauri";
 
 /** Show `path` in the OS file manager. Rejects if the shell refuses. */
 export async function revealFolder(path: string): Promise<void> {

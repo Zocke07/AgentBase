@@ -6,13 +6,14 @@ and you watch them work in real time on a live graph.
 Everything runs on your machine — orchestration, tool execution, and state.
 The only traffic that leaves it is model inference.
 
-**Status: Phase 9 of 10 (CI and release).** The application works end to end:
-agents are rows you edit, a supervisor delegates to them, every filesystem,
-shell and network call stops at an approval gate, and the whole run is watchable
-live on a graph — from the dashboard or from Discord. What remains
-is Phase 10's portfolio pass. See [BUILD_SPEC.md](BUILD_SPEC.md) for the full
-design and phase plan, and [CLAUDE.md](CLAUDE.md) for what each phase actually
-verified.
+**Status: Phase 11 of 11 done; Phase 10's portfolio pass remains.** The
+application works end to end: you define a *space* — a roster of agents, a
+folder they may touch, and the rules their runs are held to — a supervisor
+delegates to that roster, every filesystem, shell and network call stops at an
+approval gate, and the whole run is watchable live on a graph, in plain
+language, from the window or from Discord. See [BUILD_SPEC.md](BUILD_SPEC.md)
+for the full design and phase plan, and [CLAUDE.md](CLAUDE.md) for what each
+phase actually verified.
 
 ## Development
 
@@ -74,9 +75,11 @@ certificate would remove the prompt; it costs real money and buys nothing else,
 so it is deliberately skipped.
 
 The installer needs no administrator rights and installs for the current user
-only. Your data — the event log, agent definitions and the agent workspace —
-lives in `%LOCALAPPDATA%\dev.agentspace.desktop`, outside the installation, so
-upgrading or uninstalling the app does not touch it.
+only. Your data — the event log, agent definitions and one folder per space
+under `spaces\` — lives in `%LOCALAPPDATA%\dev.agentspace.desktop`, outside the
+installation, so upgrading or uninstalling the app does not touch it. An install
+from before spaces existed keeps its files: the old `workspace` folder becomes
+the default space's folder on the first launch.
 
 Once it is installed, the **[User Guide](docs/USER_GUIDE.md)** covers everything
 after the first launch: adding an API key or using a local model, changing

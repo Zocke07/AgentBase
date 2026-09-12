@@ -23,8 +23,8 @@ import { RunPanel } from "./RunPanel";
  *
  *  - **live**: `open()` then `appendEvent()` per event, folding forward one step
  *    at a time, exactly as the SSE client drives it.
- *  - **replay**: `loadHistory()` with the whole array, folding in bulk, exactly
- *    as opening a past run drives it.
+ *  - **replay**: `open()` with the whole array, folding in bulk, exactly as
+ *    opening a past run drives it.
  *
  * A component that read a clock, fetched anything, or kept run state of its own
  * would break this, and that is the point — the criterion is a constraint on
@@ -42,8 +42,7 @@ function live(events: ReturnType<typeof twoAgentRun>, upto = events.length) {
 
 /** Drive the store the way opening a finished run does. */
 function replay(events: ReturnType<typeof twoAgentRun>, cursor?: number) {
-  store().open("run-1");
-  store().loadHistory(events);
+  store().open("run-1", events);
   if (cursor !== undefined) store().setCursor(cursor);
   return store();
 }
@@ -155,7 +154,7 @@ describe("replay renders identically to live", () => {
       useRunStore.getState().reset();
       store().open("run-1");
       for (let index = 0; index < events.length; index += size) {
-        store().loadHistory(events.slice(0, Math.min(index + size, events.length)));
+        store().appendEvents(events.slice(index, index + size));
       }
       expect(markup(store()), `batch size ${String(size)}`).toBe(reference);
     }

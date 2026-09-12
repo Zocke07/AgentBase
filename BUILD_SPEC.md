@@ -497,6 +497,12 @@ portfolio artefacts — the GIF, the README screenshots, the demo — should sho
 this phase produces, not the one it replaces. Design first: this section is reviewed by the
 maintainer before any of it is coded (§6, "ask before deviating" — and this changes §4).*
 
+*Built 2026-09-12. The maintainer asked for the redesign first, so the order of work below
+ran (4)–(7) against the single workspace and then (1)–(3), (6) and (8) — the redesign was
+laid out so the switcher and the space settings page dropped in. Where the build settled a
+question the design left open, or found the design wrong, the note is inline below,
+dated.*
+
 **The idea, in the maintainer's words:** instead of creating standalone agents, let the user
 define a *coworking space* first, and assign agents to live in that space. A run happens in
 a space, with that space's agents, that space's rules, in that space's folder.
@@ -512,6 +518,8 @@ wallet), the Discord connection and its allowlist.
 **What a space is not.** Not a tenant, not an account, not a project directory the user
 points at their home folder. §7's non-goals stand. The blast radius of an approval misclick
 is the space's folder, and in v1 that folder is always one this application created.
+*(2026-09-12: settled as written — no user-picked folder. The space settings page shows the
+path and opens it; it cannot change it.)*
 
 #### Data model (§4 additions)
 
@@ -560,7 +568,11 @@ name a path outside the place the application owns. Renaming a space does not mo
 `effective = definition ∩ space ∩ app-wide` for `auto_approve`, extending §5 Phase 5's rule:
 a definition "can never grant a risk level the workspace policy has not enabled", and now
 neither can a space. The Phase 6 reading holds at each layer — an empty/NULL list means
-*inherit*, not *none*. Model and limits are overrides, not narrowings: a space wanting longer
+*inherit*, not *none*. *(2026-09-12: for a **space**, NULL means inherit and the empty list
+means "ask for everything". The column is nullable precisely so the two can differ, and a
+space stricter than the app-wide policy — a sensitive one that asks about every read —
+is a legitimate thing a nullable column can express and a NOT NULL `'[]'` cannot. A
+definition's column is NOT NULL `'[]'`, so the Phase 6 reading stands there.)* Model and limits are overrides, not narrowings: a space wanting longer
 runs than the default is a legitimate thing, and the wall clock is a cost control that the
 app-wide budget cap still bounds. `run.started` records the effective rules and the space
 (`space: {id, name}`) so a replay can say which rules a run ran under. **No new event
@@ -573,15 +585,21 @@ types** — the §4 list is unchanged, so no three-way update is needed.
   `seed: "empty" | "builtins" | {"copy_from": "<space id>"}` — a new space starts empty,
   with fresh copies of the three seeded roles, or with copies of another space's roster.
   Copies are new rows with new ids and `is_builtin = 0`.
-- `GET /agents?space_id=`, `POST /agents` requires `space_id`, `PATCH /agents/{id}` may set
+- `GET /agents?space_id=`, `POST /agents` takes `space_id` *(2026-09-12: optional, the
+  default space when omitted — the same reading as `POST /runs`, and for the same reason;
+  the window always names the space it is showing)*, `PATCH /agents/{id}` may set
   `space_id` (a **move**; an in-flight run's roster is a snapshot, per Phase 5, so a move
   mid-run leaves that run alone), `POST /agents/{id}/copy {space_id}`.
+  `POST /spaces/{id}/seed` adds the built-in roles an existing roster lacks.
 - `GET /runs?space_id=`; `POST /runs {goal, space_id?}` — omitted means the default space,
   which is what keeps `POST /debug/fake_run` and today's Discord path working unchanged.
 - `GET /budget?space_id=` adds this space's spend for the period beside the app-wide cap.
   Derived by joining `spend` to `runs`; no new column.
 - `WorkspaceSettings.channel_space_id` (NULL = default): where `/agent` from Discord runs.
   *May:* an optional `space` option on the slash command, autocompleted from names.
+  *(2026-09-12: not built. One setting is the whole of it; a stored id for a space since
+  deleted falls back to the default at launch rather than turning every command into an
+  error nobody in the channel can fix.)*
 - Every filesystem tool resolves against the run's space folder. `Sandbox` is constructed
   per run from the space, not once per process — and a `write_file` from a run in space A
   to a path under space B's folder is `tool.denied` with `blocked_by: "sandbox"`, exactly as
@@ -638,7 +656,11 @@ every step.
   — a new, single-purpose dependency, replacing nothing), model, approval policy, limits,
   each with "Inherit" as the first choice, and a danger zone (archive; delete when
   allowed). *Settings*: what the current tab holds minus what moved to spaces, plus theme
-  and `channel_space_id`.
+  and `channel_space_id`. *(2026-09-12: nothing "moved" — model, limits and the approval
+  policy stay on the app page as the defaults every space inherits, since Inherit has to
+  inherit from somewhere the user can see. The opener plugin is used from Rust only, behind
+  one command that refuses any path outside the data directory; none of its JavaScript
+  commands are granted to the webview.)*
 - **Windowed event log.** Long runs render only the rows in view. Deferred from the frontend
   pass as "nothing larger than 291 events has been measured"; the redesign touches every row
   anyway, and the Home screen's cards mean the log is no longer the first thing loaded.

@@ -38,7 +38,7 @@ export interface RunListState {
 }
 
 /** How many runs the list asks for at a time. */
-export const PAGE = 50;
+const PAGE = 50;
 
 const NO_RUNS: readonly Run[] = [];
 

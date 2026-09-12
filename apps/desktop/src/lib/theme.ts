@@ -30,7 +30,7 @@ function isTheme(value: unknown): value is Theme {
   return value === "system" || value === "light" || value === "dark";
 }
 
-export function readStoredTheme(): Theme {
+function readStoredTheme(): Theme {
   try {
     const stored = localStorage.getItem(KEY);
     return isTheme(stored) ? stored : "system";
@@ -40,7 +40,7 @@ export function readStoredTheme(): Theme {
 }
 
 /** Put the choice on the document root, where the stylesheet reads it. */
-export function applyTheme(theme: Theme): void {
+function applyTheme(theme: Theme): void {
   const root = document.documentElement;
   if (theme === "system") delete root.dataset.theme;
   else root.dataset.theme = theme;

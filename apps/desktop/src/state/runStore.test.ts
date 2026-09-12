@@ -29,8 +29,7 @@ describe("live and replay are the same fold", () => {
     const live = store().view;
 
     useRunStore.getState().reset();
-    store().open("run-1");
-    store().loadHistory(events);
+    store().open("run-1", events);
     const replayed = store().view;
 
     expect(replayed).toEqual(live);
@@ -46,8 +45,7 @@ describe("live and replay are the same fold", () => {
 
     // The same position, reached by loading the whole run and scrubbing back.
     useRunStore.getState().reset();
-    store().open("run-1");
-    store().loadHistory(events);
+    store().open("run-1", events);
     store().setCursor(12);
 
     expect(store().view).toEqual(liveAtTwelve);
@@ -55,8 +53,7 @@ describe("live and replay are the same fold", () => {
 
   it("scrubbing backwards and forwards again returns to the same view", () => {
     const events = twoAgentRun();
-    store().open("run-1");
-    store().loadHistory(events);
+    store().open("run-1", events);
     const atHead = store().view;
 
     store().setCursor(5);
@@ -70,8 +67,7 @@ describe("live and replay are the same fold", () => {
        incremental path through `appendEvent`, and both have to agree with the
        bulk fold or the scrubber drifts from the stream. */
     const events = twoAgentRun();
-    store().open("run-1");
-    store().loadHistory(events);
+    store().open("run-1", events);
     const atHead = store().view;
 
     store().setCursor(0);
@@ -94,8 +90,7 @@ describe("the cursor", () => {
 
   it("stops following once the user scrubs back", () => {
     const events = twoAgentRun();
-    store().open("run-1");
-    store().loadHistory(events);
+    store().open("run-1", events);
 
     store().setCursor(3);
 
@@ -121,8 +116,7 @@ describe("the cursor", () => {
 
   it("catches up to everything that arrived while scrubbed when following resumes", () => {
     const events = twoAgentRun();
-    store().open("run-1");
-    store().loadHistory(events.slice(0, 10));
+    store().open("run-1", events.slice(0, 10));
     store().setCursor(4);
     for (const event of events.slice(10)) store().appendEvent(event);
 
@@ -154,8 +148,7 @@ describe("the cursor", () => {
 
   it("clamps a cursor outside the log", () => {
     const events = twoAgentRun();
-    store().open("run-1");
-    store().loadHistory(events);
+    store().open("run-1", events);
 
     store().setCursor(-5);
     expect(store().cursor).toBe(0);
@@ -165,8 +158,7 @@ describe("the cursor", () => {
   });
 
   it("shows an empty run at cursor zero", () => {
-    store().open("run-1");
-    store().loadHistory(twoAgentRun());
+    store().open("run-1", twoAgentRun());
 
     store().setCursor(0);
 
@@ -272,8 +264,7 @@ describe("duplicate and repeated delivery", () => {
   it("orders a history that arrives unsorted", () => {
     const events = twoAgentRun();
 
-    store().open("run-1");
-    store().loadHistory([...events].reverse());
+    store().open("run-1", [...events].reverse());
 
     expect(store().events.map((event) => event.seq)).toEqual(events.map((event) => event.seq));
     expect(store().view.status).toBe("completed");
@@ -282,8 +273,7 @@ describe("duplicate and repeated delivery", () => {
 
 describe("opening a run", () => {
   it("clears the previous run entirely", () => {
-    store().open("run-1");
-    store().loadHistory(twoAgentRun());
+    store().open("run-1", twoAgentRun());
 
     store().open("run-2");
 

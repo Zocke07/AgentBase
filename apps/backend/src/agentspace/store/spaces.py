@@ -36,7 +36,7 @@ import json
 import uuid
 from collections.abc import Iterable
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, Final, Literal
+from typing import TYPE_CHECKING, Any, Final
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -55,7 +55,6 @@ __all__ = [
     "DEFAULT_SPACE_NAME",
     "DefaultSpaceProtectedError",
     "DuplicateSpaceNameError",
-    "Seed",
     "Space",
     "SpaceArchivedError",
     "SpaceHasRunsError",
@@ -68,10 +67,6 @@ __all__ = [
 #: definition into. Fixed, so this module and the migration agree by literal.
 DEFAULT_SPACE_ID: Final[str] = "5c1e5a2e-0d4b-4c93-9a7f-3b2e8d1c6f00"
 DEFAULT_SPACE_NAME: Final[str] = "Main"
-
-#: How a new space starts: with nothing, with fresh copies of the three
-#: seeded roles, or with copies of another space's roster.
-Seed = Literal["empty", "builtins"] | dict[str, str]
 
 #: What a space may be called: anything non-empty that fits in a switcher.
 MAX_NAME_LENGTH: Final[int] = 60
@@ -260,10 +255,6 @@ class SpaceStore:
         if space is None:
             raise SpaceNotFoundError(space_id)
         return space
-
-    async def default(self) -> Space:
-        """The space a run lands in when none is named. Migration 006 guarantees it."""
-        return await self.require(DEFAULT_SPACE_ID)
 
     # --- writes ------------------------------------------------------------
 

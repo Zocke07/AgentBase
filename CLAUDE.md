@@ -1062,6 +1062,84 @@ records for this model, now visible from a phone.
 **52 events became a handful of message edits**, which is the one-message-per-run
 design doing its job — the throttle never had to be clever.
 
+### What Phase 11 established, and how it was verified
+
+**The redesign came first, and it changed no projection.** The rail, the Home
+screen, the run cards, the sentences, the Now line, the two themes and the
+windowed log replaced the developer dashboard's chrome; the graph, the log and
+the summary stayed one fold of the log inside `run-projection`, and
+`replayIdentity.test.tsx` passed at every step. The sentences live in
+`state/describe.ts` beside the reducer, because the reducer decides what an
+event *means* and the wording of that meaning belongs with it — and because
+they render inside the projection, they are compared live against replay at
+every position. A sentence that read a clock would fail the criterion.
+
+**Two facts about real runs shaped the wording.** A supervisor's `spawn_agent`
+stays open for as long as its worker works, so for most of a run two agents
+are "executing" and only one is running anything — control calls read as
+"delegating", and the Now line says "supervisor is waiting on researcher"
+rather than "supervisor and researcher are running tools". And `tool.approved`
+and `tool.result` carry no arguments, so they name the call by the sidecar's
+summary or by its tool; the first version rendered "researcher wrote ?".
+
+**The windowed log found its own bug on first contact.** On the first scroll,
+the remembered viewport height could lag the element's by a render, so a list
+that was at its end read as not — and the tail stopped following the moment
+the token toggle tripled the rows. The handler reads the element's live height
+now. Probed on a 296-row run: 18–31 rows in the DOM at any position, an
+opened payload measured at 145px and the row below it moved by exactly that.
+
+**Spaces went in from the schema up, test first.** Migration 006 rebuilds
+`agent_defs` and `runs` to add a NOT NULL `space_id` — the trap the design
+named in advance, and it was real: SQLite will not add a REFERENCES column
+with a non-NULL default while foreign keys are on, and DROP TABLE on a table
+`events` points at is refused. The runner gained `defer_foreign_keys`: the
+check goes off around that one migration, `PRAGMA foreign_key_check` runs by
+hand, and a violation rolls the whole migration back before the version is
+bumped. The upgrade test builds a populated v5 database first. Then the real
+one: the dev data directory came up at `schema v6` with its 13 runs, 1,173
+events, 3 definitions, 9 approvals and 48 spend rows intact and in the default
+space, foreign keys clean, `integrity_check: ok`, and the three workspace files
+under the default space's folder.
+
+**Rules resolve in layers, and only the approval layer narrows.** A space's
+`auto_approve` goes through the same `effective_auto_approve` that narrows a
+definition, so no layer can grant what the one above has not; model and limits
+override, because a space wanting longer runs is legitimate and the wall clock
+is a cost control the app-wide cap still bounds. Seen live: a space with
+`max_run_seconds: 300` ended its run at 300 s with the app-wide default at 540,
+and `run.started` recorded both the space and the effective limits.
+
+**The sandbox is per run, not per process.** The launcher rebinds the
+process-wide tools and gate to the run's space folder. Tested through the
+launcher with a real sandbox: a write from a run in space A to a path under
+space B's folder is `tool.denied` with `blocked_by: "sandbox"` while the write
+to A's folder lands; live, `lab.txt` landed in the new space's folder with the
+exact bytes and nowhere else.
+
+**A run in space A never spawns B's agent, structurally.** `AgentRegistry.load`
+reads one space's roster, so B's rows never reach the tuple the supervisor is
+offered. Tested: a scripted supervisor naming B's agent gets `tool.error`
+"There is no agent named 'sniper'" and the run completes without it. Live,
+against qwen3:4b with a goal that named B's agent: the supervisor's roster in
+`agent.spawned` listed the space's three agents and not that one — and the
+model never tried the name, so the refusal itself has been seen only in the
+unit test. That is the honest reading of acceptance criterion 1: the roster
+half live, the refusal half scripted.
+
+### The bug the live launch found (Phase 11)
+
+**The workspace moved to `spaces/spaces/<id>`.** `SpaceStore` was handed the
+data directory and joined `"spaces"` onto it itself, while `AppPaths` had
+already done so — two definitions of one path, and every test agreed with
+itself because each built the store the same wrong way. The first real launch
+put the folder one level too deep. The store takes `spaces_dir` now, the one
+definition; a test pins the default space's folder to `spaces_dir / id`, and
+another runs the adoption through the real app rather than the helper alone.
+This is the **tenth** instance of the shape this file keeps recording — correct
+everywhere except where it is actually used, invisible to a green suite — and
+it was found the way every one of the others was: by running the thing.
+
 ### The frontend pass (2026-09-11)
 
 Between Phase 9 and Phase 10, a full pass over `apps/desktop/src` for the things
@@ -1163,16 +1241,14 @@ tick. The Discord live path and macOS were not touched (Telegram has since
 been removed). The untracked `docs/USER_GUIDE.md` still describes the window
 it predates.
 
-Next up: **Phase 11 — Spaces, and the redesign around them**, written into
-BUILD_SPEC §5 on 2026-09-11 and built *before* Phase 10 so the portfolio artefacts
-show the finished product. **It is a design awaiting the maintainer's review: do
-not start coding it until they have read the section and said so.** Two open
-choices are flagged in the design for them — whether a space's folder may ever
-be a directory the user picks (v1 says no, for blast radius), and whether the
-Discord slash command should take a `space` option or only follow the
-`channel_space_id` setting.
+**Phase 11 — Spaces, and the redesign around them.** Complete (2026-09-12).
+Built in the order the maintainer asked for — the redesign first, against the
+single workspace, then spaces underneath it. See "What Phase 11 established"
+below. The two choices the design left open were settled the way it leaned: a
+space's folder is always one this application created, and Discord follows
+`channel_space_id` with no `space` option on the command.
 
-After it, **Phase 10 — Portfolio artifacts.** Do not start it before re-reading
+Next up: **Phase 10 — Portfolio artifacts.** Do not start it before re-reading
 BUILD_SPEC §5 Phase 10. Two things bear on it directly:
 
 - Phase 9's acceptance criterion is met except for "a second Windows machine",
@@ -1653,6 +1729,46 @@ wildcard would let any page the user has open read from their agent workspace.
   that knew only migration 001 with one that knows four, over a populated data
   directory, and the data survived. Still nothing like the number of upgrade
   cycles a released app sees.
+
+Phase 11 specifically:
+
+- **The refusal of another space's agent has only been seen scripted.** The
+  live run offered the supervisor one space's roster and it never named the
+  other space's agent, so the `tool.error` that criterion 1 asks to see in the
+  log came from the launcher test, not from a model.
+- ~~**"Open folder" has not been pressed in the packaged app.**~~ **Closed.**
+  The rebuilt installer was installed, the app launched with WebView2's
+  debugging port open, and the button pressed on the default space's settings
+  page: an Explorer window opened on
+  `%LOCALAPPDATA%\dev.agentspace.desktop\spaces\<id>` (window count 0 → 1),
+  no error shown. The refusal was exercised by accident first — see below.
+  The installed app also performed the second real 5 → 6 upgrade, over the
+  data directory Phase 9 recorded: 15 runs, 544 events, 2 approvals, 18 spend
+  rows intact, foreign keys clean, `integrity_check: ok`, and `reminder.txt`
+  under the default space's folder. Closed by window close: zero
+  `agentspace-*` processes, port 8787 released.
+- **Discord has not started a run in a non-default space.** `channel_space_id`
+  is validated on write and read at launch, and the fallback for a deleted
+  space is covered by its reading; no `/agent` has been typed since spaces.
+- **Replay was compared in one theme.** The identity test is DOM, and the
+  same DOM under two token sets is the same pixels by construction; but the
+  pixel comparison from Phase 7 has not been rerun under the redesign in
+  either theme.
+- **Two things the packaged launch showed, neither fixed here.** With the dev
+  sidecar still listening on 8787, the packaged app's own sidecar could not
+  bind and the webview attached to the *dev* one — it rendered the dev data
+  directory's runs and its "Open folder" sent the dev path, which
+  `reveal_folder` refused as outside the installed app's data directory.
+  Correct behaviour from the check, and a hazard from the fixed port: nothing
+  tells the shell the sidecar it is talking to is not the one it spawned. And
+  the NSIS installer follows the `InstallLocation` an earlier install left in
+  the registry — this machine's went to `D:\Z\Master\Code\AgentSpace`, not
+  `%LOCALAPPDATA%\AgentSpace` — so "installed over the existing install" is
+  only true of whichever location the registry remembers.
+- **No run has held enough events to stress the windowed log**; 407 is the
+  most any run has produced, and the window was measured on 296 rows. The
+  arithmetic is the same at 50,000 rows, and nothing has checked that the
+  prefix sum stays cheap there.
 
 Phase 9 specifically:
 
@@ -2195,6 +2311,18 @@ inline in the HTTP handler, which was right while there was one caller; three
 copies of that list would have been the eighth instance of this project's
 recurring bug, and this file exists specifically so it cannot be.
 
+Phase 11 added `store/spaces.py` (the `Space` row, its validation, and
+`Space.apply_to`, the one implementation of the layering), `store/builtins.py`
+(the three seeded roles as data, pinned to migration 003's rows by a test),
+`store/006_spaces.sql`, and `api/spaces.py`. On the desktop: `state/describe.ts`
+(the sentences, the activity and status labels, the Now line), `state/spaces.ts`,
+`state/runList.ts` and `state/roster.ts` (the three shared stores, each keyed on
+the current space), `components/Rail.tsx`, `SpaceSwitcher.tsx`, `HomeView.tsx`,
+`RunCard.tsx`, `SpaceSettingsView.tsx`, `lib/theme.ts`, `lib/folder.ts` and
+`lib/tauri.ts`. `useFetched` stays for the per-component fetches (tools, the
+provider catalogue, channels). The Rust shell gained `reveal_folder` and the
+opener plugin.
+
 Phase 9 added `.github/`, which §3 sketches as a single
 `.github/workflows/build.yml` and which is two files. The second,
 `.github/actions/toolchain/action.yml`, is the setup both jobs need — GitHub
@@ -2212,6 +2340,48 @@ say".
 
 Recorded here as they happen, so a later session does not re-litigate them.
 
+- **2026-09-12 — the redesign was built before spaces, against the single
+  workspace.** The maintainer asked for it first. The rail was laid out with
+  the switcher's place under the name, the run list and the roster went into
+  shared stores from the start, and settings were grouped into "defaults for
+  every space" and "your account and this app" — so spaces added a switcher,
+  a page and a key on two stores rather than rearranging anything.
+- **2026-09-12 — the theme and the current space are facts about the window.**
+  Both live in this browser's storage, not in the settings table: two windows
+  may look at two spaces, and a theme that followed the data directory to
+  another machine would mean nothing there. Both are wrapped, because storage
+  can be unavailable and neither is worth a blank page.
+- **2026-09-12 — a list that does not know its space loads nothing.** The
+  shell keys the run list and the roster once the space list has answered,
+  and that is the one request; a view that also loaded on mount made a second,
+  un-keyed fetch, and the test that counts fetches on mount caught it.
+- **2026-09-12 — for a space, NULL inherits and `[]` asks for everything.**
+  Unlike a definition's NOT NULL `'[]'`, which the Phase 6 reading makes
+  "inherit". The column is nullable precisely so a space can be stricter than
+  the app-wide policy; the page says which of the two is chosen, and says
+  beside any ticked level the app-wide policy lacks that the call still asks.
+- **2026-09-12 — `POST /agents` and `POST /runs` default to the default
+  space.** The design said `POST /agents` requires it. Both take the same
+  reading for the same reason: the window always names the space it shows, and
+  a caller that predates spaces lands where its data did.
+- **2026-09-12 — the old workspace folder is adopted, once, and never
+  overwritten.** The SQL half of migration 006 cannot move a directory, so
+  `adopt_legacy_workspace` runs beside it at startup: only while the old
+  folder exists and the default space's does not. A second launch, or a data
+  directory that never had a workspace, does nothing.
+- **2026-09-12 — "Open folder" goes through one Rust command that checks the
+  path.** The opener plugin's JavaScript commands are not granted; its scopes
+  cannot say "under the data directory" when a dev run keeps its data in the
+  repository. `reveal_folder` canonicalises both and refuses anything that
+  does not resolve inside the directory the shell spawned the sidecar with.
+- **2026-09-12 — an archived space stays reachable.** It leaves the live list
+  and sits in a collapsed group under it, because its runs are still viewable
+  and its settings page is the only place it is unarchived. It starts no run:
+  the launcher refuses, and the pre-flight says why on its Home screen.
+- **2026-09-12 — a run opened from the approval badge is opened in its own
+  space.** The badge is global and the picker is per space; a panel about a run
+  the picker does not list would be a run with no way back to it. `GET /runs/{id}`
+  says which space, and the shell switches before it opens.
 - **2026-09-11 — Telegram is removed; Discord is the only channel.** A §6
   deviation from §5 Phase 8, which names both, agreed with the maintainer. The
   adapter never held a session — no bot token ever existed — and

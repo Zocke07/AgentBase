@@ -17,10 +17,7 @@
  * at startup. Every caller says "restart to apply" for that reason.
  */
 
-/** Whether we are running inside the Tauri webview rather than a browser tab. */
-export function keychainAvailable(): boolean {
-  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-}
+export { insideTauri as keychainAvailable } from "./tauri";
 
 async function invoke<T = unknown>(command: string, args?: Record<string, unknown>): Promise<T> {
   const core = await import("@tauri-apps/api/core");

@@ -75,7 +75,6 @@ export interface RunStoreState {
    * the fold is the same, called less.
    */
   appendEvents: (batch: readonly Event[]) => void;
-  loadHistory: (events: readonly Event[]) => void;
   setCursor: (cursor: number) => void;
   follow: () => void;
   setConnection: (connection: ConnectionStatus) => void;
@@ -151,18 +150,6 @@ export const useRunStore = create<RunStoreState>()((set, get) => ({
       view: headView,
       headView,
       gaps,
-    });
-  },
-
-  loadHistory: (events) => {
-    const ordered = [...events].sort((left, right) => left.seq - right.seq);
-    const headView = reduceAll(ordered);
-    set({
-      events: ordered,
-      cursor: ordered.length,
-      following: true,
-      view: headView,
-      headView,
     });
   },
 
