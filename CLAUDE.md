@@ -1064,6 +1064,70 @@ records for this model, now visible from a phone.
 **52 events became a handful of message edits**, which is the one-message-per-run
 design doing its job — the throttle never had to be clever.
 
+### What the first Mac session showed
+
+**Recorded 2026-09-12.** "The machine reality" says the maintainer's other
+device is a Mac and that nothing in this project had ever run on it. This is
+that session. The machine is Apple Silicon, macOS 26.6.2, arm64, with nothing
+installed beyond Node and the Xcode command-line tools. Windows remains the
+release target (§1 constraint 7, §7); this was development and verification,
+not a macOS release.
+
+#### The gate came up green, first try
+
+`just setup`, `just check` and `just ci` each passed on the first attempt and
+**no recipe needed fixing**. That is the payoff for Phase 0's platform
+variables and for the `[unix]` twins of the two PowerShell recipes:
+`target_triple` resolved to `aarch64-apple-darwin`, `exe_suffix` to nothing,
+`data_sep` to `:` and `bundle_targets` to `app`, and every redirected cache
+landed inside the clone exactly where `just paths` says it should.
+
+| | |
+|---|---|
+| just | 1.58.0 (Homebrew) |
+| uv | 0.12.13 (Homebrew) |
+| Node | 26.1.0 via fnm, pinned to `.nvmrc` — the same file CI's `setup-node` reads |
+| Rust | 1.98.1 stable `aarch64-apple-darwin`, plus clippy |
+| Xcode CLT | already present |
+
+`just ci` reports **719 backend tests passed, 20 skipped** and **313 frontend
+tests passed** over 27 files. Phase 9 recorded 635 and 124 from CI; the suite
+has grown by the frontend pass, the CRUD audit and the sweep since.
+
+Every one of the 20 skips is one that should happen here, and the reasons were
+read rather than assumed: eight are the NSIS installer and Windows
+drive-relative path tests declining to run on a platform with no NSIS
+installer, and twelve are `test_sidecar_binary.py` waiting on a frozen binary
+that did not exist yet — they run below. Nothing skipped for a reason that
+hides a failure, which is the check Phase 9's run #7 earned.
+
+#### The cross-platform mypy pass was checking this host
+
+**`just typecheck` ran mypy twice and, on this machine, twice for the same
+platform.** The second pass named `--platform darwin` unconditionally, and on
+Windows that was exactly right — darwin was always "the other one", and the
+recipe's own comment says its purpose is to reproduce a CI failure "on this
+machine in twenty seconds instead of a push and a five-minute round trip". On
+a Mac `darwin` *is* the host, so the second pass duplicated the first and a
+Windows-only `warn_unreachable` branch was invisible here in precisely the way
+the macOS one was invisible on Windows. The recipe that exists to check the
+platform you cannot run was checking the one you are sitting at.
+
+This is the same shape the file keeps recording — correct everywhere except
+where it is actually used, invisible to a green suite — arriving this time by
+a change of machine rather than a change of code. It is the mildest instance
+yet: CI's union was never affected, because the Windows job checks `win32` as
+its host, so the only thing lost was a Mac developer's pre-push signal.
+
+Fixed rather than noted, because the fix is the recipe's own stated intent:
+`cross_platform` joins `target_triple`, `exe_suffix`, `data_sep` and
+`bundle_targets` as a per-host fact, and `typecheck-backend-macos` becomes
+`typecheck-backend-cross`, which names the platform this host is not. Verified
+both ways on this machine: `uv run mypy --platform win32` reports
+`Success: no issues found in 96 source files`, so nothing was hiding behind
+the duplicate pass, and `just typecheck` now prints `--platform win32` here
+where it printed `--platform darwin` before.
+
 ### What Phase 11 established, and how it was verified
 
 **The redesign came first, and it changed no projection.** The rail, the Home
