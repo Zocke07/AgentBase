@@ -298,6 +298,11 @@ class Agent:
             EventType.LLM_RESPONSE,
             {
                 "text": completion.text,
+                # Reasoning the provider exposed beside the answer, or None.
+                # Kept separate from `text` because it is not the answer; kept
+                # at all because a model that reasoned at length and said
+                # nothing used to leave a log saying it produced nothing.
+                "thinking": completion.thinking,
                 "input_tokens": completion.usage.input_tokens,
                 "output_tokens": completion.usage.output_tokens,
                 # The ledger's figure, so a replay can total what a run cost

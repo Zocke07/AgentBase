@@ -95,6 +95,42 @@ describe("a sentence for every event", () => {
     expect(sentenceFor(long)).toContain("…");
   });
 
+  it("tells a model that reasoned and said nothing from one that said nothing", () => {
+    /* Phase 5 watched a local model return empty content five times running
+       with its whole response in a separate thinking field; the log said it
+       had produced nothing. Now that `llm.response` carries `thinking`, the
+       sentence says which of the two happened. */
+    const log = new LogBuilder();
+    const silent = log.add(
+      "llm.response",
+      { text: "", thinking: null, input_tokens: 40, output_tokens: 0, stop_reason: "end_turn", tool_calls: [] },
+      "writer",
+    );
+    const thought = log.add(
+      "llm.response",
+      {
+        text: "",
+        thinking: "The user wants a file but I have no tool for it.",
+        input_tokens: 40,
+        output_tokens: 60,
+        stop_reason: "end_turn",
+        tool_calls: [],
+      },
+      "writer",
+    );
+    const answered = log.add(
+      "llm.response",
+      { text: "Done.", thinking: "Let me check.", input_tokens: 40, output_tokens: 6, stop_reason: "end_turn", tool_calls: [] },
+      "writer",
+    );
+
+    expect(sentenceFor(silent)).toMatch(/said nothing/);
+    expect(sentenceFor(silent)).not.toMatch(/reason/);
+    expect(sentenceFor(thought)).toMatch(/reasoned .* said nothing|reasoned, then said nothing/);
+    expect(sentenceFor(answered)).toMatch(/answered writer/);
+    expect(sentenceFor(answered)).not.toMatch(/nothing/);
+  });
+
   it("falls back to the raw call for a tool it has no verb for", () => {
     expect(callPhrase("summon_dragon", { name: "Smaug" }).infinitive).toBe("call summon_dragon(name=Smaug)");
   });

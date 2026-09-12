@@ -248,6 +248,37 @@ async def test_streamed_tokens_reach_the_log(
     )
 
 
+async def test_the_models_reasoning_reaches_the_log_beside_its_answer(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+) -> None:
+    """A model that reasons at length and answers with nothing used to leave
+    a log that said it produced nothing — Phase 5 watched `qwen3:4b` do it
+    five times running. `llm.response` carries `thinking` now: `None` when
+    the provider exposed no reasoning, the text when it did, so a replay can
+    tell "said nothing" from "thought, then said nothing"."""
+    script = [
+        says("", thinking="The goal is done already; I should finish."),
+        says("Done.", call("finish", summary="nothing to do")),
+    ]
+    run_id, _ = await drive(store, settings, agents, ledger, secrets, script)
+
+    responses = [
+        event.payload
+        for event in await store.read(run_id)
+        if event.type is EventType.LLM_RESPONSE
+    ]
+
+    assert [r["thinking"] for r in responses] == [
+        "The goal is done already; I should finish.",
+        None,
+    ]
+    assert responses[0]["text"] == ""
+
+
 async def test_the_run_starts_with_its_limits_recorded(
     store: EventStore,
     settings: SettingsStore,

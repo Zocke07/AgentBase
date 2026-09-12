@@ -160,7 +160,19 @@ export function sentenceFor(event: Event): string {
       return `${who} streamed ${quote(read("text"))}`;
     case "llm.response": {
       const tool = read("stop_reason") === "tool_use" ? ", with a tool call" : "";
-      return `The model answered ${who} (${shown("input_tokens")} tokens in, ${shown("output_tokens")} out${tool}).`;
+      const tokens = `${shown("input_tokens")} tokens in, ${shown("output_tokens")} out${tool}`;
+      // A response with no text and no tool call is a model that said
+      // nothing — and the log can now say whether it reasoned first. Phase
+      // 5 watched a local model do that five times running with the whole
+      // response in a separate thinking field; before `thinking` travelled
+      // in this event, the two were the same row.
+      if ((read("text") ?? "") === "" && tool === "") {
+        const thinking = read("thinking") ?? "";
+        return thinking === ""
+          ? `The model said nothing to ${who} (${tokens}).`
+          : `The model reasoned, then said nothing to ${who} (${tokens}).`;
+      }
+      return `The model answered ${who} (${tokens}).`;
     }
     case "llm.error":
       return `${who}'s model call failed: ${ellipsise(read("error") ?? "", 140)}`;

@@ -167,11 +167,15 @@ class OllamaProvider:
         message = message if isinstance(message, dict) else {}
 
         content = message.get("content")
+        thinking = message.get("thinking")
 
         return Completion(
             provider=self.name,
             model=self._model,
             text=content if isinstance(content, str) else "",
+            # Ollama keeps a thinking model's reasoning out of `content` and
+            # in its own field. Absent or empty is "none exposed".
+            thinking=thinking if isinstance(thinking, str) and thinking else None,
             usage=TokenUsage(
                 # Ollama's names for input and output tokens.
                 input_tokens=_non_negative_int(body.get("prompt_eval_count")),
@@ -243,10 +247,11 @@ def _frame_text(frame: dict[str, Any]) -> str:
 def _merge_frame(accumulated: dict[str, Any], frame: dict[str, Any]) -> dict[str, Any]:
     """Fold one streamed line into a response object shaped like a blocking one.
 
-    Later fields win, except `message.content`, which concatenates — that is
-    the whole point of a stream. Doing it this way rather than with a bespoke
-    accumulator means the streamed and blocking paths converge on one parser,
-    so a field added to `_to_completion` cannot be read on only one of them.
+    Later fields win, except `message.content` and `message.thinking`, which
+    concatenate — that is the whole point of a stream. Doing it this way
+    rather than with a bespoke accumulator means the streamed and blocking
+    paths converge on one parser, so a field added to `_to_completion` cannot
+    be read on only one of them.
     """
     merged = dict(accumulated)
     merged.update(frame)
@@ -257,6 +262,7 @@ def _merge_frame(accumulated: dict[str, Any], frame: dict[str, Any]) -> dict[str
         message = dict(incoming)
         if isinstance(previous, dict):
             message["content"] = _text_of(previous) + _text_of(incoming)
+            message["thinking"] = _thinking_of(previous) + _thinking_of(incoming)
             # A tool call arrives on one line only; a later empty message
             # must not erase it.
             if not incoming.get("tool_calls") and previous.get("tool_calls"):
@@ -269,3 +275,8 @@ def _merge_frame(accumulated: dict[str, Any], frame: dict[str, Any]) -> dict[str
 def _text_of(message: dict[str, Any]) -> str:
     content = message.get("content")
     return content if isinstance(content, str) else ""
+
+
+def _thinking_of(message: dict[str, Any]) -> str:
+    thinking = message.get("thinking")
+    return thinking if isinstance(thinking, str) else ""

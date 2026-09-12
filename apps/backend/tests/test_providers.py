@@ -108,6 +108,36 @@ async def test_anthropic_normalizes_a_text_response() -> None:
     assert result.stop_reason == "end_turn"
 
 
+async def test_anthropic_exposes_thinking_blocks_beside_the_text() -> None:
+    """Extended thinking arrives as its own content blocks. They are not the
+    answer and stay out of `text`; they are not dropped either."""
+    provider = AnthropicProvider(
+        api_key="k",
+        model="claude-opus-5",
+        client=mock_client(
+            {
+                "id": "msg_1",
+                "model": "claude-opus-5",
+                "content": [
+                    {
+                        "type": "thinking",
+                        "thinking": "Two lines, then a third.",
+                        "signature": "s",
+                    },
+                    {"type": "text", "text": "Here is a haiku."},
+                ],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 10, "output_tokens": 30},
+            }
+        ),
+    )
+
+    result = await provider.complete([Message(role=Role.USER, content="haiku")])
+
+    assert result.text == "Here is a haiku."
+    assert result.thinking == "Two lines, then a third."
+
+
 async def test_anthropic_sends_the_documented_headers() -> None:
     captured = Captured()
     provider = AnthropicProvider(
@@ -361,6 +391,46 @@ async def test_ollama_normalizes_a_text_response() -> None:
     assert result.provider == "ollama"
     assert result.text == "Hello there."
     assert result.usage == TokenUsage(input_tokens=12, output_tokens=5)
+
+
+async def test_ollama_exposes_thinking_beside_the_answer() -> None:
+    """Phase 5 watched `qwen3:4b` return empty content and no tool call five
+    times running, with the whole response in Ollama's separate
+    `message.thinking` field — and the adapter dropped it, so the log said
+    the model produced nothing. It said a great deal; it was just not the
+    answer. Reasoning is not output, so it stays out of `text`; it travels
+    beside it so the log can tell silence from thought."""
+    provider = OllamaProvider(
+        "qwen3:4b",
+        client=mock_client(
+            {
+                "model": "qwen3:4b",
+                "message": {
+                    "role": "assistant",
+                    "content": "",
+                    "thinking": "The user wants a file written but I have no such tool.",
+                },
+                "done_reason": "stop",
+                "prompt_eval_count": 40,
+                "eval_count": 60,
+            }
+        ),
+    )
+
+    result = await provider.complete([Message(role=Role.USER, content="write it")])
+
+    assert result.text == ""
+    assert result.thinking == "The user wants a file written but I have no such tool."
+
+
+async def test_a_completion_with_no_reasoning_has_none_not_empty() -> None:
+    """`None` is "the provider exposed nothing"; `""` would be "it reasoned
+    and said nothing", and the log should not have to guess which."""
+    provider = OllamaProvider("llama3.3", client=mock_client(OLLAMA_OK))
+
+    result = await provider.complete([Message(role=Role.USER, content="hi")])
+
+    assert result.thinking is None
 
 
 async def test_ollama_namespaces_the_model_so_pricing_sees_it_as_local() -> None:
@@ -738,6 +808,60 @@ async def test_anthropic_stream_sets_the_stream_flag_and_keeps_the_blocking_body
     assert captured.headers["anthropic-version"] == ANTHROPIC_VERSION
 
 
+async def test_anthropic_stream_folds_thinking_deltas_without_yielding_them() -> None:
+    body = "\n".join(
+        [
+            "event: message_start",
+            'data: {"type":"message_start","message":{"id":"msg_1",'
+            '"model":"claude-opus-5","usage":{"input_tokens":25,"output_tokens":1}}}',
+            "",
+            "event: content_block_start",
+            'data: {"type":"content_block_start","index":0,'
+            '"content_block":{"type":"thinking","thinking":""}}',
+            "",
+            "event: content_block_delta",
+            'data: {"type":"content_block_delta","index":0,'
+            '"delta":{"type":"thinking_delta","thinking":"Let me "}}',
+            "",
+            "event: content_block_delta",
+            'data: {"type":"content_block_delta","index":0,'
+            '"delta":{"type":"thinking_delta","thinking":"count."}}',
+            "",
+            "event: content_block_delta",
+            'data: {"type":"content_block_delta","index":0,'
+            '"delta":{"type":"signature_delta","signature":"abc"}}',
+            "",
+            "event: content_block_stop",
+            'data: {"type":"content_block_stop","index":0}',
+            "",
+            "event: content_block_start",
+            'data: {"type":"content_block_start","index":1,'
+            '"content_block":{"type":"text","text":""}}',
+            "",
+            "event: content_block_delta",
+            'data: {"type":"content_block_delta","index":1,'
+            '"delta":{"type":"text_delta","text":"Five."}}',
+            "",
+            "event: message_delta",
+            'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},'
+            '"usage":{"output_tokens":9}}',
+            "",
+            "event: message_stop",
+            'data: {"type":"message_stop"}',
+            "",
+        ]
+    )
+    provider = AnthropicProvider(
+        api_key="k", model="claude-opus-5", client=mock_stream_client(body)
+    )
+
+    deltas, completion = await collect(provider)
+
+    assert deltas == ["Five."]
+    assert completion.text == "Five."
+    assert completion.thinking == "Let me count."
+
+
 async def test_anthropic_stream_reassembles_a_tool_call_from_json_fragments() -> None:
     """`input_json_delta` arrives as slices of a JSON string, not as an object.
 
@@ -1026,6 +1150,31 @@ async def test_ollama_stream_matches_the_blocking_call() -> None:
     _, actual = await collect(streaming)
 
     assert actual == expected
+
+
+async def test_ollama_stream_concatenates_thinking_across_frames() -> None:
+    """Streamed, the reasoning arrives a few words per line like the answer
+    does, and is folded the same way — never yielded as a `TextDelta`,
+    because a delta is the answer being typed and this is not the answer."""
+    body = "\n".join(
+        [
+            '{"model":"qwen3:4b","message":{"role":"assistant","content":"",'
+            '"thinking":"First, "},"done":false}',
+            '{"model":"qwen3:4b","message":{"role":"assistant","content":"",'
+            '"thinking":"count the syllables."},"done":false}',
+            '{"model":"qwen3:4b","message":{"role":"assistant","content":"Five."},"done":false}',
+            '{"model":"qwen3:4b","message":{"role":"assistant","content":""},"done":true,'
+            '"done_reason":"stop","prompt_eval_count":30,"eval_count":20}',
+            "",
+        ]
+    )
+    provider = OllamaProvider(model="qwen3:4b", client=mock_stream_client(body))
+
+    deltas, completion = await collect(provider)
+
+    assert deltas == ["Five."]
+    assert completion.text == "Five."
+    assert completion.thinking == "First, count the syllables."
 
 
 async def test_ollama_stream_keeps_a_tool_call_a_later_empty_message_would_erase() -> None:

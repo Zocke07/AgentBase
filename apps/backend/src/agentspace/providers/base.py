@@ -110,6 +110,15 @@ class Completion:
     #: the moment it records the spend, so the figure in the event log is the
     #: figure in the ledger. ``None`` from a provider that was not wrapped.
     cost_micros: int | None = None
+    #: Reasoning the provider exposed separately from its answer — Ollama's
+    #: ``message.thinking``, Anthropic's thinking blocks. ``None`` when the
+    #: provider exposed none, which is different from ``""``: a model that
+    #: reasoned at length and answered with nothing is the case this exists
+    #: for. Phase 5 watched a local model do exactly that five times running
+    #: and the log said it had produced nothing. Not part of ``text`` and
+    #: never a :class:`TextDelta` — reasoning is not the answer — but it rides
+    #: in ``llm.response`` so a replay can tell silence from thought.
+    thinking: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

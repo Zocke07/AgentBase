@@ -191,6 +191,7 @@ def says(
     *calls: ToolCall,
     input_tokens: int = 100,
     output_tokens: int = 50,
+    thinking: str | None = None,
 ) -> Completion:
     return Completion(
         provider="scripted",
@@ -199,6 +200,7 @@ def says(
         usage=TokenUsage(input_tokens=input_tokens, output_tokens=output_tokens),
         tool_calls=calls,
         stop_reason="tool_use" if calls else "end_turn",
+        thinking=thinking,
     )
 
 

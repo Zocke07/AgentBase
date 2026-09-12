@@ -173,6 +173,7 @@ class AnthropicProvider:
 
     def _to_completion(self, body: dict[str, Any]) -> Completion:
         text_parts: list[str] = []
+        thinking_parts: list[str] = []
         tool_calls: list[ToolCall] = []
 
         for block in _blocks(body.get("content")):
@@ -181,6 +182,13 @@ class AnthropicProvider:
                 value = block.get("text")
                 if isinstance(value, str):
                     text_parts.append(value)
+            elif kind == "thinking":
+                # Extended thinking: its own block type, never part of the
+                # answer. The signature beside it is for round-tripping and
+                # is not kept.
+                value = block.get("thinking")
+                if isinstance(value, str):
+                    thinking_parts.append(value)
             elif kind == "tool_use":
                 arguments = block.get("input")
                 tool_calls.append(
@@ -198,6 +206,7 @@ class AnthropicProvider:
             provider=self.name,
             model=str(body.get("model", self._model)),
             text="".join(text_parts),
+            thinking="".join(thinking_parts) or None,
             usage=TokenUsage(
                 input_tokens=_non_negative_int(usage.get("input_tokens")),
                 output_tokens=_non_negative_int(usage.get("output_tokens")),
@@ -275,6 +284,7 @@ class _StreamState:
     def __init__(self, model: str) -> None:
         self._model = model
         self._text: list[str] = []
+        self._thinking: list[str] = []
         self._blocks: dict[int, dict[str, Any]] = {}
         self._input_tokens = 0
         self._output_tokens = 0
@@ -339,6 +349,13 @@ class _StreamState:
                 return text
             return ""
 
+        if delta.get("type") == "thinking_delta":
+            # Folded, not yielded: a `TextDelta` is the answer being typed.
+            thinking = delta.get("thinking")
+            if isinstance(thinking, str):
+                self._thinking.append(thinking)
+            return ""
+
         if delta.get("type") == "input_json_delta":
             partial = delta.get("partial_json")
             block = self._blocks.get(_index_of(frame))
@@ -387,6 +404,7 @@ class _StreamState:
             provider=provider,
             model=self._model,
             text="".join(self._text),
+            thinking="".join(self._thinking) or None,
             usage=TokenUsage(
                 input_tokens=self._input_tokens,
                 output_tokens=self._output_tokens,
