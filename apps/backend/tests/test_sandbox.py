@@ -285,6 +285,57 @@ def test_an_ordinary_public_url_is_allowed(sandbox: Sandbox, url: str) -> None:
     assert sandbox.check_url(url) == url
 
 
+def test_resolve_url_hands_back_the_address_it_checked(
+    sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`check_url` answered yes or no; `resolve_url` also says *which* address
+    was checked, so `http_get` can connect to that one and not to whatever a
+    second lookup returns — the rebinding gap `check_url`'s docstring used to
+    concede."""
+    import socket
+
+    def resolver(host: str, *_args: object, **_kwargs: object) -> list[tuple[object, ...]]:
+        assert host == "example.com"
+        return [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.35", 0)),
+        ]
+
+    monkeypatch.setattr(socket, "getaddrinfo", resolver)
+
+    checked = sandbox.resolve_url("https://example.com:8443/path?q=1")
+
+    assert checked.url == "https://example.com:8443/path?q=1"
+    assert checked.host == "example.com"
+    assert str(checked.address) == "93.184.216.34"
+
+
+def test_resolve_url_pins_a_literal_address_to_itself(sandbox: Sandbox) -> None:
+    checked = sandbox.resolve_url("http://93.184.216.34/x")
+
+    assert checked.host == "93.184.216.34"
+    assert str(checked.address) == "93.184.216.34"
+
+
+def test_resolve_url_refuses_when_any_address_is_private(
+    sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A host answering with one public and one private address is refused
+    outright, so there is never a "safe one" to pin."""
+    import socket
+
+    def resolver(*_args: object, **_kwargs: object) -> list[tuple[object, ...]]:
+        return [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.5", 0)),
+        ]
+
+    monkeypatch.setattr(socket, "getaddrinfo", resolver)
+
+    with pytest.raises(UrlNotAllowedError, match=r"10.0.0.5"):
+        sandbox.resolve_url("https://example.com/")
+
+
 @pytest.mark.parametrize(
     "url",
     [

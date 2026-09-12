@@ -277,9 +277,26 @@ async def test_list_dir_on_a_file_points_at_read_file(sandbox: Sandbox) -> None:
 # --- http_get -----------------------------------------------------------------
 
 
-async def test_http_get_returns_the_body(sandbox: Sandbox) -> None:
-    def handler(request: httpx2.Request) -> httpx2.Response:
-        assert str(request.url) == "https://example.com/page"
+def _resolves_to(monkeypatch: pytest.MonkeyPatch, *addresses: str) -> None:
+    """Make every name resolve to ``addresses``, in that order."""
+    import socket
+
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda *_a, **_k: [
+            (socket.AF_INET6 if ":" in a else socket.AF_INET, socket.SOCK_STREAM, 6, "", (a, 0))
+            for a in addresses
+        ],
+    )
+
+
+async def test_http_get_returns_the_body(
+    sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _resolves_to(monkeypatch, "93.184.216.34")
+
+    def handler(_request: httpx2.Request) -> httpx2.Response:
         return httpx2.Response(200, text="the page")
 
     client = httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
@@ -289,6 +306,94 @@ async def test_http_get_returns_the_body(sandbox: Sandbox) -> None:
     assert await tool.execute(prepared, sandbox) == "the page"
 
     await client.aclose()
+
+
+async def test_http_get_connects_to_the_address_it_checked(
+    sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """DNS rebinding: a name that answers public when checked and private when
+    connected. The check and the connection used to be two resolutions, and
+    the module docstring conceded the gap. Now the connection goes to the
+    address the check saw — the URL carries the address, the `Host` header
+    and the SNI carry the name — so a second answer is never asked for.
+
+    The second resolver here answers private; it must never be consulted.
+    """
+    import socket
+
+    _resolves_to(monkeypatch, "93.184.216.34")
+    seen: list[httpx2.Request] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        seen.append(request)
+        return httpx2.Response(200, text="pinned")
+
+    client = httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+    tool = HttpGetTool(client)
+
+    prepared = tool.prepare({"url": "https://example.com:8443/page?q=1"}, sandbox)
+
+    # The rebinding: by the time the request is made, the name points inside.
+    # A resolver consulted now is the failure, so it does not merely answer
+    # differently — it raises.
+    def rebound(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("the name was resolved a second time")
+
+    monkeypatch.setattr(socket, "getaddrinfo", rebound)
+
+    assert await tool.execute(prepared, sandbox) == "pinned"
+    await client.aclose()
+
+    (request,) = seen
+    assert request.url.host == "93.184.216.34"
+    assert request.url.port == 8443
+    assert request.url.path == "/page"
+    assert request.url.query == b"q=1"
+    assert request.headers["host"] == "example.com:8443"
+    assert request.extensions["sni_hostname"] == "example.com"
+
+
+async def test_http_get_pins_an_ipv6_address_in_brackets(
+    sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _resolves_to(monkeypatch, "2606:2800:220:1:248:1893:25c8:1946")
+    seen: list[httpx2.Request] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        seen.append(request)
+        return httpx2.Response(200, text="six")
+
+    client = httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+    tool = HttpGetTool(client)
+
+    prepared = tool.prepare({"url": "http://example.com/six"}, sandbox)
+    assert await tool.execute(prepared, sandbox) == "six"
+    await client.aclose()
+
+    (request,) = seen
+    assert str(request.url) == "http://[2606:2800:220:1:248:1893:25c8:1946]/six"
+    assert request.headers["host"] == "example.com"
+    # Plain HTTP has no TLS handshake to name the server in.
+    assert "sni_hostname" not in request.extensions
+
+
+async def test_http_get_leaves_a_literal_address_alone(sandbox: Sandbox) -> None:
+    seen: list[httpx2.Request] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        seen.append(request)
+        return httpx2.Response(200, text="literal")
+
+    client = httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+    tool = HttpGetTool(client)
+
+    prepared = tool.prepare({"url": "https://93.184.216.34/x"}, sandbox)
+    assert await tool.execute(prepared, sandbox) == "literal"
+    await client.aclose()
+
+    (request,) = seen
+    assert str(request.url) == "https://93.184.216.34/x"
+    assert request.headers["host"] == "93.184.216.34"
 
 
 async def test_http_get_refuses_loopback_before_any_request(sandbox: Sandbox) -> None:

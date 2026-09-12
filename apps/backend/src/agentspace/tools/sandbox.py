@@ -24,7 +24,9 @@ containment idea has a direct analogue: the machine's own services are inside
 the boundary and must stay unreachable. Without :meth:`Sandbox.check_url`, an
 agent can fetch `http://127.0.0.1:8787/settings` and read this application's own
 API from inside a run — §1 constraint 3 keeps other *machines* out and does
-nothing about that. See the method for the limit of what this can enforce.
+nothing about that. :meth:`Sandbox.resolve_url` also hands back the address it
+checked, so `http_get` connects to that one rather than resolving the name a
+second time — see the method for why that matters.
 """
 
 from __future__ import annotations
@@ -38,6 +40,7 @@ from urllib.parse import urlsplit
 
 __all__ = [
     "SHELL_TIMEOUT_SECONDS",
+    "CheckedUrl",
     "Sandbox",
     "SandboxViolationError",
     "UrlNotAllowedError",
@@ -68,6 +71,24 @@ class SandboxViolationError(Exception):
 
 class UrlNotAllowedError(Exception):
     """A URL `http_get` will not fetch. Same contract as its sibling above."""
+
+
+@dataclass(frozen=True, slots=True)
+class CheckedUrl:
+    """A URL `http_get` may fetch, and the address that was checked.
+
+    ``address`` is what the connection must be made to. The check resolved
+    the name and looked at every answer; connecting by name again would ask
+    the resolver a second time, and a second answer is the whole of the
+    rebinding attack.
+    """
+
+    url: str
+    #: The hostname as written — what the `Host` header and the TLS handshake
+    #: carry, so the server sees the name the agent asked for.
+    host: str
+    #: The address the check saw, and the one to connect to.
+    address: ipaddress.IPv4Address | ipaddress.IPv6Address
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,16 +197,27 @@ class Sandbox:
     def check_url(self, candidate: str) -> str:
         """Return ``candidate`` if `http_get` may fetch it, else refuse.
 
-        **What this enforces and what it does not.** A literal address in a
-        private, loopback, link-local or otherwise reserved range is refused,
-        and so is a hostname that resolves into one right now. What it cannot
-        stop is a name that resolves to a public address here and a private one
-        when the request is actually made — DNS rebinding — because the check
-        and the connection are separate resolutions. Closing that needs the
-        connection itself pinned to the address that was checked, which is a
-        property of the HTTP client rather than of this function. Recorded
-        rather than papered over: this raises the cost of reaching the LAN, it
-        does not make it impossible.
+        :meth:`resolve_url` without the address. Kept for callers that only
+        need the yes or no.
+        """
+        return self.resolve_url(candidate).url
+
+    def resolve_url(self, candidate: str) -> CheckedUrl:
+        """Check ``candidate`` and say which address was checked.
+
+        A literal address in a private, loopback, link-local or otherwise
+        reserved range is refused, and so is a hostname any of whose addresses
+        is one. The address handed back is the first the resolver gave — the
+        operating system's preference — and every one of them passed.
+
+        **Why the address travels with the answer.** A name can resolve to a
+        public address when checked and a private one when the request is
+        made — DNS rebinding — and a check that answered yes and then let the
+        client resolve the name again had only raised the cost of reaching the
+        LAN, not closed the way in. `http_get` therefore connects to
+        ``address`` and carries ``host`` in the `Host` header and the TLS
+        handshake, so the resolver is asked once, here, and the answer it gave
+        is the connection that is made.
 
         :raises UrlNotAllowedError: for a bad scheme, a missing host, or a host
             that is or resolves to a non-public address.
@@ -214,7 +246,8 @@ class Sandbox:
             msg = f"{candidate!r} cannot be fetched: it names no host."
             raise UrlNotAllowedError(msg)
 
-        for address in self._addresses_for(hostname, candidate):
+        addresses = self._addresses_for(hostname, candidate)
+        for address in addresses:
             if not address.is_global:
                 msg = (
                     f"{candidate!r} cannot be fetched: {hostname} is a "
@@ -225,7 +258,11 @@ class Sandbox:
                 )
                 raise UrlNotAllowedError(msg)
 
-        return candidate.strip()
+        if not addresses:
+            msg = f"{candidate!r} cannot be fetched: {hostname} resolved to no address."
+            raise UrlNotAllowedError(msg)
+
+        return CheckedUrl(url=candidate.strip(), host=hostname, address=addresses[0])
 
     def _addresses_for(
         self, hostname: str, candidate: str

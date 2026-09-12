@@ -7,6 +7,15 @@ than a page view. The URL goes through
 :meth:`agentspace.tools.sandbox.Sandbox.check_url` in `prepare`, which refuses
 `file:`, `data:`, and every address that is not on the public internet —
 including this application's own API on loopback.
+
+**The connection is made to the address that was checked.** `prepare` keeps
+the address `resolve_url` saw, and `execute` puts it in the URL it connects
+to, with the name the agent wrote carried in the `Host` header and, over
+TLS, as the SNI — so the certificate is still verified against the name. The
+resolver is asked once, at the check; a name that would answer differently
+the second time is never asked a second time. That is the DNS-rebinding gap
+`check_url` used to concede, closed where the docstring said it had to be:
+in the client.
 """
 
 from __future__ import annotations
@@ -84,24 +93,37 @@ class HttpGetTool:
             msg = f"{self.name}'s 'url' must be a string, not {type(url).__name__}."
             raise ToolArgumentError(msg)
 
-        checked = sandbox.check_url(url)
+        checked = sandbox.resolve_url(url)
         return Prepared(
             tool_name=self.name,
-            summary=f"fetch {checked} over the internet",
-            payload={"url": checked},
+            summary=f"fetch {checked.url} over the internet",
+            payload={"url": checked.url, "host": checked.host, "address": str(checked.address)},
             raw_arguments=dict(arguments),
         )
 
     async def execute(self, prepared: Prepared, sandbox: Sandbox) -> str:
         url: str = prepared.payload["url"]
+        host: str = prepared.payload["host"]
+        address: str = prepared.payload["address"]
 
         client = self._client
         owned = client is None
         if client is None:
             client = httpx2.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS)
 
+        # Connect to the checked address; present the name. A literal address
+        # rewrites to itself. `httpx2` brackets an IPv6 literal for us, and it
+        # would otherwise set `Host` from the URL — the address — so the header
+        # is given explicitly, port included when one was written.
+        parsed = httpx2.URL(url)
+        pinned = parsed.copy_with(host=address)
+        headers = {"host": host if parsed.port is None else f"{host}:{parsed.port}"}
+        extensions: dict[str, Any] = {"sni_hostname": host} if parsed.scheme == "https" else {}
+
         try:
-            response = await client.get(url, follow_redirects=False)
+            response = await client.get(
+                pinned, headers=headers, extensions=extensions, follow_redirects=False
+            )
         except httpx2.HTTPError as exc:
             msg = f"{url} could not be fetched: {exc}"
             raise ToolExecutionError(msg) from exc
