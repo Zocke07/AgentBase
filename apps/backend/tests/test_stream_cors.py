@@ -35,6 +35,13 @@ if TYPE_CHECKING:
 #: only bites after `tauri build`.
 TAURI_WINDOWS_ORIGIN = "http://tauri.localhost"
 
+#: The origin the packaged app runs from on macOS and Linux — a custom
+#: scheme, not an `http` one. Pinned by name: the parametrised test below runs
+#: for every allowlisted origin, so removing this one would only shrink that
+#: parametrisation and stay green, and nothing on this machine can open the
+#: macOS webview to notice.
+TAURI_MACOS_ORIGIN = "tauri://localhost"
+
 
 @pytest.fixture
 def client(app_paths: AppPaths) -> Iterator[TestClient]:
@@ -44,6 +51,31 @@ def client(app_paths: AppPaths) -> Iterator[TestClient]:
 
 def test_the_packaged_app_origin_is_allowlisted() -> None:
     assert TAURI_WINDOWS_ORIGIN in ALLOWED_ORIGINS
+
+
+def test_the_macos_packaged_app_origin_is_allowlisted() -> None:
+    assert TAURI_MACOS_ORIGIN in ALLOWED_ORIGINS
+
+
+def test_the_macos_origin_survives_the_reconnect_preflight(client: TestClient) -> None:
+    """Phase 1's CORS bug on Windows was found by installing the app and
+    looking. Nobody can look on macOS from here, so the one thing a test can
+    do is hold the two origins to the same contract — including the
+    preflighted reconnect, which is where a stream that worked once dies."""
+    run = client.post("/runs", json={"goal": "g"}).json()
+
+    response = client.options(
+        f"/runs/{run['id']}/events",
+        headers={
+            "Origin": TAURI_MACOS_ORIGIN,
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "last-event-id",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == TAURI_MACOS_ORIGIN
+    assert "last-event-id" in response.headers.get("access-control-allow-headers", "").lower()
 
 
 def test_sse_response_carries_allow_origin_for_the_webview(client: TestClient) -> None:
