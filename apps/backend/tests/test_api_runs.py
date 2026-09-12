@@ -20,6 +20,7 @@ from fastapi.testclient import TestClient
 
 from agentspace.main import create_app
 from agentspace.secrets import SecretStore
+from support import ScriptedProvider, call, says
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -93,6 +94,77 @@ def test_an_out_of_range_limit_is_refused(client: TestClient, limit: int) -> Non
     notice (CLAUDE.md, Phase 4).
     """
     assert client.get("/runs", params={"limit": limit}).status_code == 422
+
+
+# --- DELETE /runs/{id} ------------------------------------------------------
+
+
+def _finished_debug_run(client: TestClient) -> str:
+    run = client.post("/debug/fake_run", params={"step_ms": 0}).json()
+    client.get(f"/runs/{run['id']}/events")  # drains to the terminal event
+    return str(run["id"])
+
+
+def test_deleting_a_finished_run_removes_it_and_its_log(client: TestClient) -> None:
+    run_id = _finished_debug_run(client)
+    assert client.get(f"/runs/{run_id}/events/history").json() != []
+
+    response = client.delete(f"/runs/{run_id}")
+
+    assert response.status_code == 204
+    assert client.get(f"/runs/{run_id}").status_code == 404
+    assert client.get(f"/runs/{run_id}/events/history").status_code == 404
+    assert client.get(f"/runs/{run_id}/events").status_code == 404
+    assert client.get("/runs").json() == []
+
+
+def test_deleting_one_run_leaves_the_others_listed(client: TestClient) -> None:
+    keep = _finished_debug_run(client)
+    drop = _finished_debug_run(client)
+
+    assert client.delete(f"/runs/{drop}").status_code == 204
+
+    assert [run["id"] for run in client.get("/runs").json()] == [keep]
+    assert client.get(f"/runs/{keep}/events/history").json() != []
+
+
+def test_deleting_an_unknown_run_is_404(client: TestClient) -> None:
+    assert client.delete("/runs/nope").status_code == 404
+
+
+def test_deleting_a_run_still_in_progress_is_409_and_says_to_cancel_it(
+    client: TestClient,
+) -> None:
+    """A run that has not ended cannot be deleted from under its orchestrator.
+    The debug run at a slow step is running for the length of this test."""
+    run = client.post("/debug/fake_run", params={"step_ms": 5000}).json()
+
+    response = client.delete(f"/runs/{run['id']}")
+
+    assert response.status_code == 409
+    detail = response.json()["detail"]
+    assert "cancel" in detail.lower()
+    assert client.get(f"/runs/{run['id']}").status_code == 200
+
+
+def test_deleting_a_run_keeps_the_months_spend(app_paths: AppPaths) -> None:
+    """Through the API, against a run that actually charged the ledger: the
+    app-wide figure `GET /budget` reports is the same before and after."""
+    app = create_app(app_paths, secrets=SecretStore())
+    with TestClient(app) as client:
+        app.state.launcher.provider = ScriptedProvider(
+            [says("Done.", call("finish", summary="nothing to do"))]
+        )
+        run = client.post("/runs", json={"goal": "spend a little"}).json()
+        client.get(f"/runs/{run['id']}/events")  # drains to the terminal event
+        before = client.get("/budget").json()
+        assert before["spent_micros"] > 0
+
+        assert client.delete(f"/runs/{run['id']}").status_code == 204
+
+        after = client.get("/budget").json()
+
+    assert after["spent_micros"] == before["spent_micros"]
 
 
 # --- the store method behind it ---------------------------------------------

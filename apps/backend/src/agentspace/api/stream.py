@@ -151,9 +151,13 @@ class _RunStream:
         Safe against the obvious race: `_play_script` sets the status only
         after appending its last event, so a terminal status implies every
         event is already committed and one more catch-up drains them.
+
+        A run that no longer exists is over. `DELETE /runs/{id}` refuses an
+        unfinished run, so a stream should never be open on one that goes —
+        but if it ever is, ending is right and waiting forever is not.
         """
         run = await self._store.get_run(self._run_id)
-        return run is not None and run.status in TERMINAL_RUN_STATUSES
+        return run is None or run.status in TERMINAL_RUN_STATUSES
 
     async def stream(self) -> AsyncIterator[Event | None]:
         """Yield this run's events in order; ``None`` is an idle tick.

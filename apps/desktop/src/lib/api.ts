@@ -211,6 +211,14 @@ export const cancelRun = (runId: string): Promise<Run> =>
   request<Run>(`/runs/${runId}/cancel`, { method: "POST" });
 
 /**
+ * Remove a finished run, its log and its approvals. Its spend stays in the
+ * month's figure. A 409 names why not: the run has not ended (cancel it
+ * first), or the sidecar is still letting go of it.
+ */
+export const deleteRun = (runId: string): Promise<void> =>
+  requestNoContent(`/runs/${runId}`, { method: "DELETE" });
+
+/**
  * A finished run's event log as an array.
  *
  * Replay uses the SSE endpoint like live does, so this is not the replay path.

@@ -13,12 +13,17 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Annotated, Any, Final
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from agentspace.api.stream import SSE_HEADERS, parse_last_event_id, run_stream
-from agentspace.events.store import DEFAULT_RUN_LIST_LIMIT, MAX_RUN_LIST_LIMIT
+from agentspace.events.store import (
+    DEFAULT_RUN_LIST_LIMIT,
+    MAX_RUN_LIST_LIMIT,
+    RunNotFoundError,
+    RunUnfinishedError,
+)
 from agentspace.events.types import Event, EventType, Run, RunOrigin
 from agentspace.store.spaces import SpaceArchivedError, SpaceNotFoundError
 
@@ -262,6 +267,41 @@ async def cancel_run(request: Request, run_id: str) -> Run:
             detail=f"run {run_id} is not being driven by this process and cannot be cancelled",
         )
     return run
+
+
+@router.delete("/runs/{run_id}", status_code=204)
+async def delete_run(request: Request, run_id: str) -> Response:
+    """Remove a finished run, its events and its approvals. Its spend stays.
+
+    204 with nothing to say: the run is gone from `GET /runs` and every route
+    under it is a 404. A run that has not ended is a 409 telling the caller to
+    cancel it first — deleting the log from under an orchestrator that is
+    still appending to it is the one thing this must never do, and the row's
+    status is checked inside the store's transaction so a terminal event
+    landing at the same moment cannot slip past it. A run this process is
+    still driving is refused on the same grounds even if its row has just
+    turned terminal: the orchestrator lets go of it a moment after writing
+    the status, and that moment is not worth racing.
+
+    Why spend survives, and why files in the space's folder are not touched,
+    is :meth:`~agentspace.events.store.EventStore.delete_run`'s to explain.
+    """
+    launcher: RunLauncher = request.app.state.launcher
+    if run_id in launcher.live:
+        raise HTTPException(
+            status_code=409,
+            detail=f"run {run_id} is still running in this process; cancel it first",
+        )
+    try:
+        await _store(request).delete_run(run_id)
+    except RunNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"no run with id {run_id!r}") from exc
+    except RunUnfinishedError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=f"run {run_id} is still {exc.status}; cancel it first, then delete it",
+        ) from exc
+    return Response(status_code=204)
 
 
 @router.get("/runs/{run_id}/events/history")

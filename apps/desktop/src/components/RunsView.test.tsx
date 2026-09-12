@@ -28,6 +28,7 @@ import { RunsView, type RunsViewProps } from "./RunsView";
 vi.mock("../lib/api", () => ({
   listRuns: vi.fn(),
   cancelRun: vi.fn(),
+  deleteRun: vi.fn(),
   getRunHistory: vi.fn(),
   resolveApproval: vi.fn(),
   baseUrl: vi.fn(() => Promise.resolve("http://x")),
@@ -329,5 +330,98 @@ describe("cancelling a run", () => {
     await user.click(screen.getByRole("button", { name: "Cancel run" }));
 
     expect((await screen.findByRole("alert")).textContent).toContain("already completed");
+  });
+});
+
+describe("deleting a run", () => {
+  it("offers to delete a finished run, asks first, and closes it once the sidecar has", async () => {
+    /* Deleting history is the one irreversible thing this section does, so
+       the button asks — the same shape as deleting a space. On a yes, the
+       run leaves the picker and the panel, and the meter is told the
+       space's spend may have moved. */
+    const user = userEvent.setup();
+    const onRunChanged = vi.fn();
+    mocked.listRuns.mockResolvedValue([row("completed")]);
+    mocked.getRunHistory.mockResolvedValue(twoAgentRun());
+    mocked.deleteRun.mockImplementation(async () => {
+      mocked.listRuns.mockResolvedValue([]);
+      await Promise.resolve();
+    });
+    render(<Harness onRunChanged={onRunChanged} pendingApprovals={[]} />);
+    await pick(user, "quarterly", false);
+    const listed = mocked.listRuns.mock.calls.length;
+
+    await user.click(screen.getByRole("button", { name: "Delete run…" }));
+    expect(mocked.deleteRun).not.toHaveBeenCalled();
+    expect(screen.getByText(/Delete this run and its log\?/)).toBeDefined();
+
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(mocked.deleteRun).toHaveBeenCalledWith("run-1");
+    await waitFor(() => {
+      expect(screen.queryByTestId("run-panel")).toBeNull();
+      expect(screen.getByText(/Pick a run/)).toBeDefined();
+    });
+    expect(mocked.listRuns.mock.calls.length).toBeGreaterThan(listed);
+    expect(onRunChanged).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: /quarterly/ })).toBeNull();
+    });
+  });
+
+  it("backs out on Keep without asking the sidecar", async () => {
+    const user = userEvent.setup();
+    mocked.listRuns.mockResolvedValue([row("completed")]);
+    mocked.getRunHistory.mockResolvedValue(twoAgentRun());
+    render(<Harness onRunChanged={vi.fn()} pendingApprovals={[]} />);
+    await pick(user, "quarterly", false);
+
+    await user.click(screen.getByRole("button", { name: "Delete run…" }));
+    await user.click(screen.getByRole("button", { name: "Keep" }));
+
+    expect(mocked.deleteRun).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Delete run…" })).toBeDefined();
+    expect(screen.getByTestId("run-panel")).toBeDefined();
+  });
+
+  it("does not offer to delete a run that is still going", async () => {
+    /* The sidecar would refuse anyway; the button not being there is what
+       stops a person reaching for it while a run they meant to cancel is
+       mid-flight. */
+    const user = userEvent.setup();
+    mocked.listRuns.mockResolvedValue([row("running")]);
+    render(<Harness onRunChanged={vi.fn()} pendingApprovals={[]} />);
+    await pick(user, "quarterly");
+    await deliver(twoAgentRun().slice(0, 3));
+
+    expect(screen.queryByRole("button", { name: /Delete run/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Cancel run" })).toBeDefined();
+  });
+
+  it("offers to delete once a watched run ends", async () => {
+    const user = userEvent.setup();
+    mocked.listRuns.mockResolvedValue([row("running")]);
+    render(<Harness onRunChanged={vi.fn()} pendingApprovals={[]} />);
+    await pick(user, "quarterly");
+    await deliver(twoAgentRun());
+
+    expect(await screen.findByRole("button", { name: "Delete run…" })).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Cancel run" })).toBeNull();
+  });
+
+  it("shows the sidecar's refusal and keeps the run open", async () => {
+    const user = userEvent.setup();
+    mocked.listRuns.mockResolvedValue([row("completed")]);
+    mocked.getRunHistory.mockResolvedValue(twoAgentRun());
+    mocked.deleteRun.mockRejectedValue(new Error("run run-1 is still running; cancel it first"));
+    render(<Harness onRunChanged={vi.fn()} pendingApprovals={[]} />);
+    await pick(user, "quarterly", false);
+
+    await user.click(screen.getByRole("button", { name: "Delete run…" }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain("cancel it first");
+    expect(screen.getByTestId("run-panel")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Delete run…" })).toBeDefined();
   });
 });

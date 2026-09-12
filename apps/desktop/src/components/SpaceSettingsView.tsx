@@ -456,7 +456,8 @@ function SpaceForm({
           <h2>Archive or delete</h2>
           <p className="settings__hint">
             Archiving keeps every run this space has had and takes it out of the switcher. Deleting
-            is only allowed for a space with no runs, and removes its agents.
+            is only allowed for a space with no runs — delete them one by one from Runs first, or
+            archive instead — and removes its agents.
           </p>
           <div className="card__actions">
             <button

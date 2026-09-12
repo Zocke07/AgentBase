@@ -12,10 +12,18 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Final
 
-from agentspace.events.types import Event, EventType, Run, RunOrigin, RunStatus
+from agentspace.events.types import (
+    TERMINAL_RUN_STATUSES,
+    Event,
+    EventType,
+    Run,
+    RunOrigin,
+    RunStatus,
+)
 from agentspace.store.spaces import DEFAULT_SPACE_ID
 
 if TYPE_CHECKING:
@@ -24,7 +32,14 @@ if TYPE_CHECKING:
     from agentspace.events.bus import EventBus
     from agentspace.store.db import Database
 
-__all__ = ["DEFAULT_RUN_LIST_LIMIT", "MAX_RUN_LIST_LIMIT", "EventStore"]
+__all__ = [
+    "DEFAULT_RUN_LIST_LIMIT",
+    "MAX_RUN_LIST_LIMIT",
+    "DeletedRun",
+    "EventStore",
+    "RunNotFoundError",
+    "RunUnfinishedError",
+]
 
 #: How many runs :meth:`EventStore.list_runs` returns when nobody says.
 DEFAULT_RUN_LIST_LIMIT: Final[int] = 50
@@ -34,8 +49,38 @@ DEFAULT_RUN_LIST_LIMIT: Final[int] = 50
 #: rather than the database's.
 MAX_RUN_LIST_LIMIT: Final[int] = 500
 
-#: Statuses after which a run is over and `finished_at` is stamped.
-_TERMINAL_STATUSES: frozenset[str] = frozenset({"completed", "failed", "cancelled"})
+#: Statuses after which a run is over and `finished_at` is stamped. The one
+#: list in `events/types.py`, not a second copy of it.
+_TERMINAL_STATUSES: frozenset[str] = TERMINAL_RUN_STATUSES
+
+
+class RunNotFoundError(LookupError):
+    """No run has this id."""
+
+
+class RunUnfinishedError(RuntimeError):
+    """The run has not ended, so its log is still being written.
+
+    Carries the status so the caller can name it.
+    """
+
+    def __init__(self, run_id: str, status: str) -> None:
+        super().__init__(f"run {run_id} is still {status}")
+        self.run_id = run_id
+        self.status = status
+
+
+@dataclass(frozen=True, slots=True)
+class DeletedRun:
+    """What a delete removed, for the caller to report."""
+
+    run_id: str
+    events: int
+    approvals: int
+    #: Spend rows that now name no run. They are not removed — see
+    #: :meth:`EventStore.delete_run`.
+    spend_detached: int
+
 
 #: One statement, so that reading the current maximum and writing the next
 #: value cannot be separated by another writer. Combined with the
@@ -288,6 +333,67 @@ class EventStore:
                 "UPDATE runs SET status = ?, finished_at = ? WHERE id = ?",
                 (status, finished_at, run_id),
             )
+
+    async def delete_run(self, run_id: str) -> DeletedRun:
+        """Remove a finished run and everything that hangs off it.
+
+        The event log is append-only *within* a run (§2): no event is ever
+        edited or removed on its own, because a log with a hole in it can no
+        longer reconstruct the run. Removing a whole run is a different act —
+        every surviving log is still complete — and it is the one delete a
+        person legitimately wants: a failed experiment, a demo run, a goal
+        typed by mistake.
+
+        Three rules make it safe:
+
+        - **Only a finished run.** An unfinished one has an orchestrator
+          appending to it and may have an agent suspended on one of its
+          approvals; the row's status is the guard, and the API adds "not
+          driven by this process" on top.
+        - **Everything that names the run goes with it**, in one transaction.
+          §4 declares the foreign keys without ``ON DELETE``, so the cascade
+          lives here rather than in the schema — and with ``PRAGMA
+          foreign_keys`` on, a table this method forgot fails the delete
+          loudly instead of leaving an orphan.
+        - **Spend is kept.** The monthly cap is one wallet, and money a run
+          spent was spent whether or not the run is remembered. The rows stay
+          with their ``run_id`` cleared, which §4 allows (the column is
+          nullable), so deleting runs is not a way past the cap. The one
+          figure that changes is the run's *space's* share of the period,
+          which is derived by joining through the run and honestly no longer
+          includes it.
+
+        What is not touched: files a run wrote into its space's folder. They
+        are the user's, not the run's, and nothing records which run wrote
+        them.
+        """
+        return await asyncio.to_thread(self._delete_run_sync, run_id)
+
+    def _delete_run_sync(self, run_id: str) -> DeletedRun:
+        with self._db.write() as connection:
+            row = connection.execute(
+                "SELECT status FROM runs WHERE id = ?", (run_id,)
+            ).fetchone()
+            if row is None:
+                raise RunNotFoundError(run_id)
+            status = str(row["status"])
+            if status not in _TERMINAL_STATUSES:
+                raise RunUnfinishedError(run_id, status)
+
+            detached = connection.execute(
+                "UPDATE spend SET run_id = NULL WHERE run_id = ?", (run_id,)
+            ).rowcount
+            approvals = connection.execute(
+                "DELETE FROM approvals WHERE run_id = ?", (run_id,)
+            ).rowcount
+            events = connection.execute(
+                "DELETE FROM events WHERE run_id = ?", (run_id,)
+            ).rowcount
+            connection.execute("DELETE FROM runs WHERE id = ?", (run_id,))
+
+        return DeletedRun(
+            run_id=run_id, events=events, approvals=approvals, spend_detached=detached
+        )
 
     async def fail_orphaned_runs(self, reason: str) -> list[str]:
         """Fail every run a previous process left unfinished. Called at startup.

@@ -15,13 +15,16 @@ import pytest
 from fastapi.testclient import TestClient
 
 from agentspace import main
-from agentspace.api.stream import format_sse, parse_last_event_id
+from agentspace.api.stream import format_sse, parse_last_event_id, run_events
 from agentspace.events.types import Event, EventType
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
     from agentspace.config import AppPaths
+    from agentspace.events.bus import EventBus
+    from agentspace.events.store import EventStore
+    from agentspace.store.db import Database
 
 
 @pytest.fixture
@@ -218,6 +221,25 @@ def test_last_event_id_beyond_the_head_yields_nothing_and_closes(client: TestCli
     body = client.get(f"/runs/{run['id']}/events", headers={"Last-Event-ID": "999"}).text
 
     assert _parse_frames(body) == []
+
+
+@pytest.mark.anyio
+async def test_a_stream_on_a_run_that_no_longer_exists_ends(
+    store: EventStore, bus: EventBus, db: Database
+) -> None:
+    """A run that is gone is over. `DELETE /runs/{id}` refuses an unfinished
+    run, so the product never opens this path — which is exactly why it has
+    to be pinned here: the alternative is a keepalive loop that never ends,
+    and nothing else would ever exercise it."""
+    run = await store.create_run(goal="vanishes")
+    # The row disappears from under the cursor. The store will not do this to
+    # an unfinished run, so the test does.
+    with db.write() as connection:
+        connection.execute("DELETE FROM runs WHERE id = ?", (run.id,))
+
+    seen = [event async for event in run_events(store, bus, run.id)]
+
+    assert seen == []
 
 
 def test_stream_emits_a_retry_hint(client: TestClient) -> None:

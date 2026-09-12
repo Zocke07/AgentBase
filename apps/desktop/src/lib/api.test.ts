@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, cancelRun, deleteAgent, listRuns, onTransportFailure, resetBaseUrl, updateSettings } from "./api";
+import {
+  ApiError,
+  cancelRun,
+  deleteAgent,
+  deleteRun,
+  listRuns,
+  onTransportFailure,
+  resetBaseUrl,
+  updateSettings,
+} from "./api";
 
 /**
  * The typed calls to the sidecar. `fetch` is stubbed; what is under test is
@@ -64,6 +73,17 @@ describe("requests", () => {
     fetchStub.mockResolvedValue(new Response(null, { status: 204 }));
 
     await expect(deleteAgent("def-1")).resolves.toBeUndefined();
+  });
+
+  it("deletes a run with DELETE on its own route, and surfaces the 409 for one still running", async () => {
+    fetchStub.mockResolvedValue(new Response(null, { status: 204 }));
+    await expect(deleteRun("run-1")).resolves.toBeUndefined();
+    const [url, init] = fetchStub.mock.calls[0] ?? [];
+    expect(url).toBe("http://127.0.0.1:8787/runs/run-1");
+    expect(init?.method).toBe("DELETE");
+
+    fetchStub.mockResolvedValue(respond(409, { detail: "run run-1 is still running; cancel it first" }));
+    await expect(deleteRun("run-1")).rejects.toMatchObject({ status: 409, message: /cancel it first/ });
   });
 });
 

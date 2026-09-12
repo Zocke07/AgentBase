@@ -291,3 +291,147 @@ async def test_the_orphan_sweep_is_a_no_op_on_a_clean_table(store: EventStore) -
     await store.set_run_status(done.id, "failed")
 
     assert await store.fail_orphaned_runs("reason") == []
+
+
+# --- deleting a run ---------------------------------------------------------
+
+
+def _tables_with_a_run_id(db: Database) -> list[str]:
+    """Every table with a ``run_id`` column, read from the schema itself.
+
+    The delete has to know what hangs off a run, and the schema is the only
+    authority on that. Listing the tables here by hand would be a second copy
+    of that knowledge — the one that drifts when a later migration adds a
+    table with a ``run_id`` and nobody updates the test.
+    """
+    with db.read() as connection:
+        tables = [
+            str(row["name"])
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+                " AND name NOT LIKE 'sqlite_%' ORDER BY name"
+            ).fetchall()
+        ]
+        return [
+            table
+            for table in tables
+            if any(
+                row["name"] == "run_id"
+                for row in connection.execute(f"PRAGMA table_info({table})").fetchall()
+            )
+        ]
+
+
+def _rows_naming(db: Database, table: str, run_id: str) -> int:
+    with db.read() as connection:
+        row = connection.execute(
+            f"SELECT COUNT(*) AS n FROM {table} WHERE run_id = ?",  # noqa: S608
+            (run_id,),
+        ).fetchone()
+    return int(row["n"])
+
+
+async def _finished_run_with_everything(store: EventStore, db: Database) -> str:
+    """A completed run with a row in every table that can name a run."""
+    from agentspace.budget.ledger import BudgetLedger
+    from agentspace.providers.base import TokenUsage
+    from agentspace.store.settings import SettingsStore
+    from agentspace.tools.approval import ApprovalStore
+    from agentspace.tools.catalogue import RiskLevel
+
+    run_id = await _new_run(store)
+    await store.append(run_id, EventType.RUN_STARTED, {"goal": "test goal"})
+    await store.append(run_id, EventType.RUN_COMPLETED, {"summary": "done"})
+    await ApprovalStore(db).create(run_id, "write_file", {"path": "a.txt"}, RiskLevel.MEDIUM)
+    await BudgetLedger(db, SettingsStore(db)).record(
+        run_id, "anthropic", "claude-opus-5", TokenUsage(input_tokens=1_000, output_tokens=100)
+    )
+    await store.set_run_status(run_id, "completed")
+
+    for table in _tables_with_a_run_id(db):
+        assert _rows_naming(db, table, run_id) >= 1, f"{table} should name the run before"
+    return run_id
+
+
+async def test_the_schema_has_the_tables_the_delete_test_expects(db: Database) -> None:
+    """If a migration adds a table with a ``run_id``, this names it, and the
+    fixture above has to learn to put a row in it — otherwise the delete test
+    would pass while never exercising the new table."""
+    assert _tables_with_a_run_id(db) == ["approvals", "events", "spend"]
+
+
+async def test_deleting_a_finished_run_removes_everything_that_hangs_off_it(
+    store: EventStore, db: Database
+) -> None:
+    run_id = await _finished_run_with_everything(store, db)
+
+    deleted = await store.delete_run(run_id)
+
+    assert deleted.events == 2
+    assert await store.get_run(run_id) is None
+    assert await store.read(run_id) == []
+    for table in _tables_with_a_run_id(db):
+        assert _rows_naming(db, table, run_id) == 0, f"{table} still names the deleted run"
+
+
+async def test_deleting_a_run_keeps_its_spend_in_the_ledger(
+    store: EventStore, db: Database
+) -> None:
+    """The monthly cap is one wallet (§5 Phase 3, Phase 11). Money a run spent
+    was spent whether or not the run is kept, so the row survives with its
+    ``run_id`` cleared rather than being removed — otherwise deleting runs
+    would be a way to spend past the cap."""
+    from agentspace.budget.ledger import BudgetLedger
+    from agentspace.store.settings import SettingsStore
+
+    ledger = BudgetLedger(db, SettingsStore(db))
+    run_id = await _finished_run_with_everything(store, db)
+    before = await ledger.spent_micros()
+    assert before > 0
+
+    await store.delete_run(run_id)
+
+    assert await ledger.spent_micros() == before
+    with db.read() as connection:
+        rows = connection.execute("SELECT run_id, cost_micros FROM spend").fetchall()
+    assert [row["run_id"] for row in rows] == [None]
+    assert rows[0]["cost_micros"] == before
+
+
+async def test_deleting_an_unfinished_run_is_refused_and_removes_nothing(
+    store: EventStore,
+) -> None:
+    """An orchestrator is still appending to it, and its gate may be holding a
+    future on one of its approvals. The row's status is the guard."""
+    from agentspace.events.store import RunUnfinishedError
+
+    run_id = await _new_run(store)
+    await store.append(run_id, EventType.RUN_STARTED, {"goal": "test goal"})
+    await store.set_run_status(run_id, "running")
+
+    with pytest.raises(RunUnfinishedError, match="running"):
+        await store.delete_run(run_id)
+
+    assert await store.get_run(run_id) is not None
+    assert len(await store.read(run_id)) == 1
+
+
+async def test_deleting_an_unknown_run_raises(store: EventStore) -> None:
+    from agentspace.events.store import RunNotFoundError
+
+    with pytest.raises(RunNotFoundError):
+        await store.delete_run("does-not-exist")
+
+
+async def test_deleting_one_run_leaves_the_others_alone(
+    store: EventStore, db: Database
+) -> None:
+    keep = await _finished_run_with_everything(store, db)
+    drop = await _finished_run_with_everything(store, db)
+
+    await store.delete_run(drop)
+
+    assert await store.get_run(keep) is not None
+    assert len(await store.read(keep)) == 2
+    for table in _tables_with_a_run_id(db):
+        assert _rows_naming(db, table, keep) >= 1, f"{table} lost the other run's row"

@@ -17,9 +17,9 @@ import { RunPanel } from "./RunPanel";
  *
  * Everything about the *run* comes from `RunPanel`, which is a pure projection
  * of the event log. What lives here is the chrome around it — the picker, the
- * connection indicator, the cancel button — plus the one genuinely two-way
- * piece of the dashboard: answering an approval. Starting a run moved to the
- * Home screen with the redesign; the picker offers the way there.
+ * connection indicator, the cancel and delete buttons — plus the one genuinely
+ * two-way piece of the dashboard: answering an approval. Starting a run moved
+ * to the Home screen with the redesign; the picker offers the way there.
  */
 
 export interface RunsViewProps {
@@ -75,13 +75,19 @@ export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, o
   // other, so switching runs needs no reset and no effect.
   const [selection, setSelection] = useState<PerRun<string | null>>({ runId: null, value: null });
   const [cancelFailure, setCancelFailure] = useState<PerRun<string | null>>({ runId: null, value: null });
+  const [deleteAsked, setDeleteAsked] = useState<PerRun<boolean>>({ runId: null, value: false });
+  const [deleting, setDeleting] = useState(false);
   const selectedAgent = selection.runId === runId ? selection.value : null;
   const cancelError = cancelFailure.runId === runId ? cancelFailure.value : null;
+  const confirmingDelete = deleteAsked.runId === runId && deleteAsked.value;
   const setSelectedAgent = (value: string | null) => {
     setSelection({ runId, value });
   };
   const setCancelError = (value: string | null) => {
     setCancelFailure({ runId, value });
+  };
+  const setConfirmingDelete = (value: boolean) => {
+    setDeleteAsked({ runId, value });
   };
 
   const view = useRunStore((state) => state.view);
@@ -171,6 +177,34 @@ export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, o
     }
   };
 
+  // Whether the selected run is one that can be deleted: it has ended. The
+  // log's word when it has one; the row's for a run with no events yet. Only
+  // the complement of `cancellable` in the common case — a run that has not
+  // loaded is neither.
+  const settledStatus = headStatus ?? (loading ? null : (selectedRow?.status ?? null));
+  const deletable = runId !== null && settledStatus !== null && !unfinished({ status: settledStatus });
+
+  const remove = async () => {
+    if (runId === null) return;
+    setDeleting(true);
+    setCancelError(null);
+    try {
+      await api.deleteRun(runId);
+      // The run is gone: close it, and tell the picker and the meter. The
+      // store still holds its fold until the next run is opened, which the
+      // placeholder hides — clearing it here would be a second way for the
+      // panel to empty, and the switch is built to never pass through one.
+      onSelectRun(null);
+      onRunChanged();
+      void reloadRuns();
+    } catch (failure) {
+      setConfirmingDelete(false);
+      setCancelError(failure instanceof Error ? failure.message : String(failure));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const resolveApproval = useCallback(async (id: string, approved: boolean) => {
     await api.resolveApproval(id, approved);
     // Deliberately no local state change: the answer produces `approval.resolved`
@@ -245,6 +279,40 @@ export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, o
                   {stopping === runId ? "Stopping…" : cancelling ? "Cancelling…" : "Cancel run"}
                 </button>
               )}
+              {deletable &&
+                (confirmingDelete ? (
+                  <span className="roster__confirm">
+                    <span>Delete this run and its log? Its spend stays in the month's total.</span>
+                    <button
+                      type="button"
+                      className="button button--small button--danger"
+                      disabled={deleting}
+                      onClick={() => void remove()}
+                    >
+                      {deleting ? "Deleting…" : "Delete"}
+                    </button>
+                    <button
+                      type="button"
+                      className="button button--small"
+                      disabled={deleting}
+                      onClick={() => {
+                        setConfirmingDelete(false);
+                      }}
+                    >
+                      Keep
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    className="button button--small button--danger"
+                    onClick={() => {
+                      setConfirmingDelete(true);
+                    }}
+                  >
+                    Delete run…
+                  </button>
+                ))}
             </div>
             {/* Reset on the run so a panel that threw on one run does not
                 stay in its fallback when another is opened — without

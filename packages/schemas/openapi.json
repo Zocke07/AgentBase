@@ -2141,6 +2141,37 @@
       }
     },
     "/runs/{run_id}": {
+      "delete": {
+        "description": "Remove a finished run, its events and its approvals. Its spend stays.\n\n204 with nothing to say: the run is gone from `GET /runs` and every route\nunder it is a 404. A run that has not ended is a 409 telling the caller to\ncancel it first \u2014 deleting the log from under an orchestrator that is\nstill appending to it is the one thing this must never do, and the row's\nstatus is checked inside the store's transaction so a terminal event\nlanding at the same moment cannot slip past it. A run this process is\nstill driving is refused on the same grounds even if its row has just\nturned terminal: the orchestrator lets go of it a moment after writing\nthe status, and that moment is not worth racing.\n\nWhy spend survives, and why files in the space's folder are not touched,\nis :meth:`~agentspace.events.store.EventStore.delete_run`'s to explain.",
+        "operationId": "delete_run_runs__run_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Run"
+      },
       "get": {
         "operationId": "get_run_runs__run_id__get",
         "parameters": [

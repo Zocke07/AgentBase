@@ -1140,6 +1140,64 @@ This is the **tenth** instance of the shape this file keeps recording — correc
 everywhere except where it is actually used, invisible to a green suite — and
 it was found the way every one of the others was: by running the thing.
 
+### The CRUD audit (2026-09-12)
+
+The maintainer asked for "CRUD on every object that can and is safe to be" —
+agents, runs, spaces, history. Audited rather than assumed, so the table is
+here for the next session that wonders:
+
+| Object | Create | Read | Update | Delete |
+|---|---|---|---|---|
+| spaces | `POST /spaces` (+ seed) | list, one | `PATCH` incl. archive | `DELETE`, 409 for the default or with runs |
+| agents | `POST /agents` (+ copy) | list, one | `PATCH` incl. move | `DELETE`, 409 for a built-in |
+| runs | `POST /runs` | list, one, log, stream | cancel only — nothing on a run is a fact a person edits | **`DELETE /runs/{id}` — new** |
+| approvals | the gate | list, one | resolve | with their run |
+| settings | singleton | `GET` | `PATCH` | — |
+| secrets | keychain | names only, by design | keychain | keychain |
+| events, spend | append-only | history, `/budget` | **never** | **never**, on their own |
+
+The one gap was run deletion, and the one deliberately unfilled cell is
+editing or removing an individual event or spend row: a log with a hole in
+it cannot reconstruct its run (§2), and a spend row that can be removed is a
+cap that can be evaded.
+
+**Deleting a run is safe under three rules, and each has a test.** Only a
+finished run — the row's status is checked inside the store's transaction,
+and the API refuses on top while the launcher still holds the run, since the
+orchestrator lets go a moment after writing the status. Everything that names
+the run goes with it in one transaction: events and approvals; §4 declares
+the foreign keys without `ON DELETE`, so the cascade lives in
+`EventStore.delete_run` and, with foreign keys on, a table it forgot fails
+the delete loudly. And **spend is kept**: the rows stay with `run_id` cleared
+(the column is nullable), so the month's figure `GET /budget` reports is the
+same before and after — the wallet is app-wide, and money a run spent was
+spent whether or not the run is remembered. A test reads the schema for every
+table with a `run_id` column, so one added later has to be accounted for.
+
+Files a run wrote in its space's folder are not touched; they are the user's
+and nothing records which run wrote them.
+
+**Verified against a copy of the real dev database** (14 runs, 1,576 events,
+10 approvals, 62 spend rows, schema v6), on a sidecar on port 8799 because the
+installed app was open on 8787: `DELETE` on a completed `qwen3:4b` run
+answered 204; the run, its history and its stream were all 404 afterwards;
+the list held 13; its 296 events and 1 approval were gone and its 11 spend
+rows remained with `run_id` NULL; `foreign_key_check` clean,
+`integrity_check: ok`. A debug run mid-flight was refused with 409 "still
+running; cancel it first, then delete it" and was still there afterwards.
+
+**Found on the way:** the SSE cursor treated a run that no longer exists as
+"not over" and would have held the keepalive loop forever. Unreachable from
+the product, since an unfinished run cannot be deleted, and pinned anyway —
+the test times out against the old line.
+
+**Not verified:** the *button*. `RunsView` offers "Delete run…" on a finished
+run, asks first, closes the run and refreshes the picker and the meter on a
+yes, and shows the sidecar's refusal on a no — five jsdom tests. It has not
+been clicked in a browser: the page outside Tauri talks to 8787, which the
+installed app was holding, and closing the maintainer's app was not mine to
+do.
+
 ### The frontend pass (2026-09-11)
 
 Between Phase 9 and Phase 10, a full pass over `apps/desktop/src` for the things
@@ -2340,6 +2398,15 @@ say".
 
 Recorded here as they happen, so a later session does not re-litigate them.
 
+- **2026-09-12 — a run can be deleted; an event cannot.** §2's append-only
+  rule is about the log *within* a run — a hole in it means a run that cannot
+  be reconstructed. Removing a whole run leaves every surviving log complete,
+  and it is the delete a person actually wants: a demo run, a failed
+  experiment, a goal typed by mistake. Three rules make it safe (finished
+  only; everything that names it goes with it, in one transaction; spend
+  stays with `run_id` cleared so the cap cannot be evaded), and Phase 11's
+  "a space with runs cannot be deleted" now has an honest route: delete them
+  one by one first, or archive. See "The CRUD audit".
 - **2026-09-12 — the redesign was built before spaces, against the single
   workspace.** The maintainer asked for it first. The rail was laid out with
   the switcher's place under the name, the run list and the roster went into
