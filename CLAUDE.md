@@ -1128,6 +1128,88 @@ both ways on this machine: `uv run mypy --platform win32` reports
 the duplicate pass, and `just typecheck` now prints `--platform win32` here
 where it printed `--platform darwin` before.
 
+#### The packaged app ran, and three things that had never happened did
+
+`just build-installer` froze a 21,971,904-byte `agentspace-sidecar-aarch64-apple-darwin`
+and bundled `AgentSpace.app`; `just verify-build` reported **12 passed, 4
+skipped** — the same figures CI's macOS job has reported since Phase 9, now
+from a Mac somebody can look at. The four skips are the NSIS tests. The
+bundle's sidecar matches `binaries/` by SHA-256, checked by hand as well as by
+the guard. `just check-tauri` is clean. Two things about the bundle are worth
+knowing before the keychain section: it is ad-hoc, *linker*-signed
+(`flags=0x20002(adhoc,linker-signed)`, `Info.plist=not bound`, identifier
+`agentspace_desktop-<hash>` rather than the bundle id), and it carries
+`com.apple.provenance` but no `com.apple.quarantine` — a locally built app was
+never downloaded, so Gatekeeper never asked. The `xattr -d` step "The machine
+reality" predicts applies to an artefact that arrives from CI, not this one.
+
+The app was launched four times by running
+`AgentSpace.app/Contents/MacOS/agentspace-desktop` directly, so the shell's
+stderr — where it forwards the sidecar's output with a `[sidecar]` prefix —
+could be captured. Screen capture and assistive access were both denied to
+this session, so nothing below was seen on a screen; every claim is from a
+process list, a socket table, a file on disk or a log line.
+
+**The shell spawned the frozen sidecar and the window connected to it.** The
+first launch logged `[keychain] sending 0 key(s): []` — the `apple-native`
+backend executing for the first time, three misses, no prompt — then
+`launched as instance 30833-18d48a8c2ed349d8`, migrations 1 through 6, and
+`Uvicorn running on http://127.0.0.1:8787`. The process list held the Phase 1
+shape exactly: the shell, a bootloader `agentspace-sidecar` under it, and the
+real interpreter under that, the last one holding the port.
+
+Whether the *window* reached it needed more than that, because Phase 1's
+CORS bug is precisely a webview that connects, fetches, and throws the body
+away. `access_log` is off in the sidecar and the page writes nothing to disk
+on an untouched launch, so the evidence is the socket table, sampled every
+100 ms from the moment of launch. The first ESTABLISHED connection appeared at
+t ≈ 2.4 s — the moment the frozen binary finished unpacking and bound — and it
+came from `com.apple.WebKit.Networking`, the XPC service that does the
+WKWebView's networking. **Six** connections opened in that same instant,
+expired together about five seconds later, and nothing followed through the
+end of the window at t ≈ 15 s; a further 10 s sampled in steady state saw
+zero. That is the signature of `connectWithRetry` reading a good `/health`,
+`status` becoming `ready`, and `refreshWorkspace` and `loadSpaces` firing
+their parallel fetches — after which an idle window makes no requests, as the
+frontend pass designed. A page refused by CORS or by the instance tag looks
+entirely different: one keep-alive connection polling `/health` every 250 ms
+until attempt 40, at t ≈ 10 s, and then a failure. Nothing of that shape
+occurred. Separately, the frozen sidecar answers `Origin: tauri://localhost`
+with `access-control-allow-origin: tauri://localhost`, allows `Last-Event-ID`
+on the reconnect preflight, and gives `http://evil.example` no header at all.
+
+**The two definitions of the data directory agree on macOS.** The sidecar's
+own fallback, `default_data_dir("darwin")`, computes
+`~/Library/Application Support/dev.agentspace.desktop`. The shell hands the
+sidecar `app_local_data_dir()`, and the sidecar logged its database at
+`/Users/rivanw/Library/Application Support/dev.agentspace.desktop/agentspace.sqlite3`
+— the same path, byte for byte. That directory did not exist before the first
+launch and afterwards held `agentspace.sqlite3` with its `-wal` and `-shm`,
+`logs/`, and `spaces/5c1e5a2e-…/` for the default space. On macOS Tauri's
+`app_data_dir()` and `app_local_data_dir()` resolve to the same place, so the
+Windows divergence Phase 2 recorded cannot recur here — but the point of
+looking was that nothing had ever looked.
+
+**Closing leaves zero processes and releases the port — checked four ways,
+one of them harsher than Phase 1's.** Three launches were ended with a Quit
+Apple Event (`tell application "AgentSpace" to quit`), which reaches the same
+`RunEvent::Exit` a window close does. Each time the log read
+`shutdown requested over stdin` → `stdin reached EOF; shutting down` →
+`Finished server process`, and two seconds later `pgrep -f agentspace-`
+counted **0** and nothing listened on 8787. The fourth launch was ended with
+**SIGKILL on the shell** — no Exit handler, no `shutdown` line, nothing
+cooperative — and both sidecar processes were gone and the port free within
+three seconds, because the pipe closed when the shell died and the reader
+thread treats EOF as the order to stop. That is the "belt" of Phase 1's belt
+and braces on its own, and it holds.
+
+What this does *not* say: the window's close button was never pressed,
+because this session cannot click it and a Tauri app answers no Apple Event
+but `quit`. Tauri's documented default is to exit when the last window closes
+on every platform, and this shell does not prevent it, so the close button
+should reach the same `RunEvent::Exit` — but "should" is the word, and a
+person at the keyboard can settle it in a second.
+
 ### What Phase 11 established, and how it was verified
 
 **The redesign came first, and it changed no projection.** The rail, the Home
@@ -1933,8 +2015,11 @@ wildcard would let any page the user has open read from their agent workspace.
   minimal environment and no Python on `PATH` and served correctly, but this
   machine has Python. Genuine proof needs a second machine, which is Phase 9's
   acceptance criterion.
-- **macOS.** Nothing has run there. Phase 9 wrote the CI job that would, and it
-  has never executed, because there is no remote to push to.
+- ~~**macOS.** Nothing has run there. Phase 9 wrote the CI job that would, and it
+  has never executed, because there is no remote to push to.~~ **Closed.**
+  CI's macOS job has run since Phase 9, and on 2026-09-12 the whole gate, the
+  bundle and the packaged app ran on a real Mac — see "What the first Mac
+  session showed".
 - **Reinstall-over-existing at scale.** Four `/S` reinstalls over an existing
   install have now worked, each with a rebuilt sidecar, and the fourth (Phase 9)
   was the first across a *schema migration* — it replaced a Phase 1-era sidecar
@@ -1998,11 +2083,18 @@ Phase 9 specifically:
   the pipeline ran green, and `gh release create` attached the installer. It has
   fired exactly once, on a run that predates the `smoke` job; the `needs: [build,
   smoke]` it carries now has not been exercised by a tag.
-- **macOS is built and has never been *run*.** The `.app` bundles and the frozen
+- ~~**macOS is built and has never been *run*.** The `.app` bundles and the frozen
   sidecar inside it starts, serves and shuts down under `verify-build` — but
   nobody has launched `AgentSpace.app`, opened its webview, or watched the Tauri
-  shell spawn the sidecar there. The keychain path in particular is `apple-native`
-  in the plugin and has never executed.
+  shell spawn the sidecar there.~~ **Closed in the first Mac session.**
+  `AgentSpace.app` was launched four times; the shell spawned the frozen
+  sidecar, the webview's networking process connected to it in the burst that
+  only a CORS-readable `/health` with a matching tag produces, the data
+  directory landed where the sidecar's own fallback says, and every close —
+  including a SIGKILL of the shell — left zero processes. ~~The keychain path
+  in particular is `apple-native` in the plugin and has never executed.~~ It
+  executed on every launch, for three misses; the round trip with a real key
+  is in the same section.
 - **The workflow was never linted by a workflow linter.** `actionlint` is a Go
   binary and is not in this toolchain. What stands in for it: PyYAML parses both
   files, `test_ci_workflow.py` asserts the job graph and both orderings, every
