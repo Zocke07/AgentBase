@@ -89,7 +89,7 @@ beforeEach(() => {
     Promise.resolve({ ...row("running", id), space_id: id === "run-lab" ? "space-lab" : "space-main" }),
   );
   vi.mocked(sidecar.connectWithRetry).mockImplementation((onStatus) => {
-    onStatus({ kind: "ready", health: { ok: true }, baseUrl: "http://x" });
+    onStatus({ kind: "ready", health: { ok: true, instance: null }, baseUrl: "http://x" });
     return Promise.resolve();
   });
   vi.mocked(events.streamRun).mockReturnValue({ close: vi.fn() });

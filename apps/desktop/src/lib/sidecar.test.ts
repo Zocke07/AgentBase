@@ -2,6 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { connectWithRetry, fetchHealth, type SidecarStatus } from "./sidecar";
 
+// The shell's two answers, for the tests that stand inside Tauri.
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn((command: string) =>
+    Promise.resolve(command === "sidecar_instance" ? "launch-1" : "http://127.0.0.1:8787"),
+  ),
+}));
+
 /**
  * The startup loop. Its comment always said the retry policy was "testable
  * on its own"; now it is tested.
@@ -20,7 +27,16 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const ok = () => new Response(JSON.stringify({ ok: true }), { status: 200 });
+const ok = (instance: string | null = null) =>
+  new Response(JSON.stringify({ ok: true, instance }), { status: 200 });
+
+/** Stand inside the Tauri webview for one test: the shell can be asked. */
+function insideTauri() {
+  (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};
+  return () => {
+    delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
+  };
+}
 
 describe("connectWithRetry", () => {
   it("reports each attempt, then ready, once the sidecar answers", async () => {
@@ -53,6 +69,59 @@ describe("connectWithRetry", () => {
     expect(seen.filter((status) => status.kind === "connecting")).toHaveLength(40);
   });
 
+  it("keeps retrying while the port answers as something else, and says so when it gives up", async () => {
+    /* The port is fixed. The packaged app once started while a dev sidecar
+       held 8787: its own sidecar could not bind and exited, the webview got
+       a healthy `/health` from the stranger, and the window showed the dev
+       data directory's runs with nothing anywhere saying so. Retrying, not
+       failing at once: a copy of this app closed a second ago answers for a
+       moment more, and then the new sidecar binds. */
+    const leave = insideTauri();
+    try {
+      // A `Response` body can be read once; each attempt gets its own.
+      fetchStub.mockImplementation(() => Promise.resolve(ok(null)));
+      const seen: SidecarStatus[] = [];
+
+      const loop = connectWithRetry((status) => seen.push(status));
+      await vi.runAllTimersAsync();
+      await loop;
+
+      const last = seen.at(-1);
+      expect(last?.kind).toBe("failed");
+      expect(last?.kind === "failed" ? last.message : "").toMatch(/something else is listening/i);
+      expect(seen.filter((status) => status.kind === "connecting")).toHaveLength(40);
+    } finally {
+      leave();
+    }
+  });
+
+  it("is ready the moment the sidecar answering is the one the shell launched", async () => {
+    const leave = insideTauri();
+    try {
+      fetchStub.mockResolvedValueOnce(ok("someone-else")).mockResolvedValueOnce(ok("launch-1"));
+      const seen: SidecarStatus[] = [];
+
+      const loop = connectWithRetry((status) => seen.push(status));
+      await vi.runAllTimersAsync();
+      await loop;
+
+      expect(seen.map((status) => status.kind)).toEqual(["connecting", "connecting", "ready"]);
+    } finally {
+      leave();
+    }
+  });
+
+  it("does not care about the instance in a plain browser, where no shell launched anything", async () => {
+    fetchStub.mockImplementation(() => Promise.resolve(ok("whatever")));
+    const seen: SidecarStatus[] = [];
+
+    const loop = connectWithRetry((status) => seen.push(status));
+    await vi.runAllTimersAsync();
+    await loop;
+
+    expect(seen.at(-1)?.kind).toBe("ready");
+  });
+
   it("stops quietly when aborted", async () => {
     fetchStub.mockRejectedValue(new TypeError("Failed to fetch"));
     const controller = new AbortController();
@@ -76,6 +145,17 @@ describe("fetchHealth", () => {
 
     fetchStub.mockResolvedValueOnce(new Response(JSON.stringify({ hello: 1 }), { status: 200 }));
     await expect(fetchHealth("http://x")).rejects.toThrow("unrecognised");
+  });
+
+  it("refuses a healthy answer from a sidecar the shell did not launch", async () => {
+    fetchStub.mockResolvedValueOnce(ok(null));
+    await expect(fetchHealth("http://x", undefined, "launch-1")).rejects.toThrow(/not started by this app/);
+
+    fetchStub.mockResolvedValueOnce(ok("launch-2"));
+    await expect(fetchHealth("http://x", undefined, "launch-1")).rejects.toThrow(/another AgentSpace/);
+
+    fetchStub.mockResolvedValueOnce(ok("launch-1"));
+    await expect(fetchHealth("http://x", undefined, "launch-1")).resolves.toMatchObject({ instance: "launch-1" });
   });
 
   it("gives up on a request that hangs, rather than waiting on the browser", async () => {

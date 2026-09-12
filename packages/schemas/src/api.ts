@@ -172,6 +172,12 @@ export interface HTTPValidationError {
   detail?: ValidationError[];
 }
 
+/** What `/health` says. The shell polls it to decide the sidecar is up. */
+export interface HealthResponse {
+  ok: boolean;
+  instance: string | null;
+}
+
 /** What can be selected, and which models are priced, per provider. */
 export interface ProviderCatalogueResponse {
   providers: ProviderEntry[];

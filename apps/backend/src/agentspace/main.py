@@ -42,6 +42,7 @@ from typing import TYPE_CHECKING, Final
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from agentspace.api.agents import router as agents_router
 from agentspace.api.approvals import router as approvals_router
@@ -85,8 +86,30 @@ SHUTDOWN_COMMAND: Final[str] = "shutdown"
 #: Environment variable the shell uses to pin the sidecar's port.
 PORT_ENV_VAR: Final[str] = "AGENTSPACE_PORT"
 
+#: Environment variable carrying the shell's tag for this launch, echoed by
+#: `/health`. Not a secret — a label, so the shell can tell the sidecar it
+#: spawned from whatever else is listening on the fixed port.
+INSTANCE_ENV_VAR: Final[str] = "AGENTSPACE_INSTANCE"
 
-def create_app(paths: AppPaths | None = None, secrets: SecretStore | None = None) -> FastAPI:
+
+class HealthResponse(BaseModel):
+    """What `/health` says. The shell polls it to decide the sidecar is up."""
+
+    ok: bool
+    #: The tag the shell launched this process with, or ``None`` for a sidecar
+    #: run by hand. The port is fixed, so the process answering `/health` is
+    #: whatever holds it — a previous copy of the app still shutting down, a
+    #: dev sidecar in a terminal — and this is how the shell tells its own
+    #: apart. The packaged app once attached to the dev sidecar and showed the
+    #: dev data directory's runs with nothing anywhere saying so.
+    instance: str | None
+
+
+def create_app(
+    paths: AppPaths | None = None,
+    secrets: SecretStore | None = None,
+    instance: str | None = None,
+) -> FastAPI:
     """Build the ASGI application.
 
     A factory rather than a module-level singleton so tests can build an
@@ -98,6 +121,7 @@ def create_app(paths: AppPaths | None = None, secrets: SecretStore | None = None
     :param secrets: the API keys delivered over stdin. Passed in rather than
         constructed here because the stdin reader thread — which owns the other
         end of the handshake — must write into the same instance.
+    :param instance: the shell's tag for this launch, echoed by `/health`.
     """
     resolved = paths if paths is not None else resolve_app_paths()
     secret_store = secrets if secrets is not None else SecretStore()
@@ -222,9 +246,9 @@ def create_app(paths: AppPaths | None = None, secrets: SecretStore | None = None
     )
 
     @app.get("/health")
-    def health() -> dict[str, bool]:
-        """Liveness probe. The shell polls this to decide the sidecar is up."""
-        return {"ok": True}
+    def health() -> HealthResponse:
+        """Liveness probe, carrying the launch tag so the shell knows it is us."""
+        return HealthResponse(ok=True, instance=instance)
 
     app.include_router(agents_router)
     app.include_router(approvals_router)
@@ -305,17 +329,29 @@ def _read_stdin(
     server.should_exit = True
 
 
+def resolve_instance() -> str | None:
+    """The shell's tag for this launch, or ``None`` when there is no shell.
+
+    Empty is ``None``: a variable exported with nothing in it must not make
+    every ``/health`` match an empty expectation.
+    """
+    return os.environ.get(INSTANCE_ENV_VAR) or None
+
+
 def run() -> None:
     """Serve until stdin closes. The process entry point."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
     assert_loopback_only(BIND_HOST)
     port = resolve_port()
+    instance = resolve_instance()
+    if instance is not None:
+        logger.info("launched as instance %s", instance)
 
     secrets = SecretStore()
 
     config = uvicorn.Config(
-        app=create_app(secrets=secrets),
+        app=create_app(secrets=secrets, instance=instance),
         host=BIND_HOST,
         port=port,
         log_level="info",

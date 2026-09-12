@@ -229,7 +229,8 @@ def test_frozen_sidecar_serves_health(sidecar: subprocess.Popen[str]) -> None:
 
     with urllib.request.urlopen(f"http://127.0.0.1:{TEST_PORT}/health", timeout=5) as response:
         assert response.status == 200
-        assert response.read() == b'{"ok":true}'
+        # No shell launched this one, so it carries no instance tag.
+        assert json.loads(response.read()) == {"ok": True, "instance": None}
 
 
 def test_closing_stdin_leaves_no_orphan_process(sidecar: subprocess.Popen[str]) -> None:

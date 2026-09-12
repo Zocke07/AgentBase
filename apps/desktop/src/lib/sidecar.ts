@@ -13,6 +13,8 @@
  * nothing but start and cancel it.
  */
 
+import type { HealthResponse } from "@agentspace/schemas";
+
 /** Matches `agentspace.config.DEFAULT_BIND_PORT` and the Rust `SIDECAR_PORT`. */
 const DEFAULT_BASE_URL = "http://127.0.0.1:8787";
 
@@ -26,8 +28,19 @@ const RETRY_DELAY_MS = 250;
  */
 const HEALTH_TIMEOUT_MS = 2_000;
 
-export interface Health {
-  ok: boolean;
+/**
+ * What `/health` says. `instance` is the shell's tag for the launch that
+ * started the sidecar answering, or null for one run by hand. The port is
+ * fixed, so whatever holds it answers `/health`; the tag is how the webview
+ * tells the shell's own sidecar from a stranger — see `fetchHealth`.
+ */
+export type Health = HealthResponse;
+
+/** Where the sidecar should be, and which launch it should say it is. */
+export interface SidecarIdentity {
+  baseUrl: string;
+  /** Null in a plain browser tab: no shell launched anything to compare with. */
+  instance: string | null;
 }
 
 export type SidecarStatus =
@@ -61,8 +74,47 @@ export async function resolveSidecarBaseUrl(): Promise<string> {
   }
 }
 
-/** Fetch `/health`, rejecting on anything that is not a well-formed 200. */
-export async function fetchHealth(baseUrl: string, signal?: AbortSignal): Promise<Health> {
+/**
+ * Ask the shell where the sidecar is and which launch it should answer as.
+ *
+ * Both come from the shell, so there is one place that decides the port and
+ * one that mints the tag. A plain browser tab gets the default origin and no
+ * tag, and `fetchHealth` then accepts whoever answers — there is nothing to
+ * compare with.
+ */
+export async function resolveSidecarIdentity(): Promise<SidecarIdentity> {
+  if (!insideTauri()) {
+    return { baseUrl: DEFAULT_BASE_URL, instance: null };
+  }
+
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const [baseUrl, instance] = await Promise.all([
+      invoke<string>("sidecar_base_url"),
+      invoke<string>("sidecar_instance"),
+    ]);
+    return { baseUrl, instance };
+  } catch {
+    return { baseUrl: DEFAULT_BASE_URL, instance: null };
+  }
+}
+
+/**
+ * Fetch `/health`, rejecting on anything that is not a well-formed 200 — or,
+ * when `expected` is given, on a healthy answer from the wrong process.
+ *
+ * The port is fixed. When something else already holds it, the sidecar this
+ * shell spawned cannot bind and exits, and `/health` still answers — from the
+ * stranger. The packaged app once did exactly this against a dev sidecar left
+ * in a terminal: it rendered the dev data directory's runs, its "Open folder"
+ * sent the dev path, and nothing anywhere said the process on the other end
+ * was not its own. The tag is what says so.
+ */
+export async function fetchHealth(
+  baseUrl: string,
+  signal?: AbortSignal,
+  expected: string | null = null,
+): Promise<Health> {
   const signals = [AbortSignal.timeout(HEALTH_TIMEOUT_MS), ...(signal ? [signal] : [])];
   const response = await fetch(`${baseUrl}/health`, { signal: AbortSignal.any(signals) });
 
@@ -76,11 +128,23 @@ export async function fetchHealth(baseUrl: string, signal?: AbortSignal): Promis
     throw new Error("sidecar returned an unrecognised payload");
   }
 
-  return body as Health;
+  const health = body as Health;
+  if (expected !== null && health.instance !== expected) {
+    const who =
+      health.instance === null
+        ? "a sidecar not started by this app — a dev sidecar in a terminal, most likely"
+        : "another AgentSpace, still running or still shutting down";
+    throw new Error(
+      `Something else is listening on ${baseUrl}: ${who}. Close it and relaunch; this app's own sidecar could not take the port.`,
+    );
+  }
+
+  return health;
 }
 
 /**
- * Poll `/health` until it answers, reporting progress through `onStatus`.
+ * Poll `/health` until it answers as the sidecar the shell launched, reporting
+ * progress through `onStatus`.
  *
  * Retrying is not defensiveness: the webview is reliably ready before the
  * frozen sidecar has finished unpacking itself and binding its port, so the
@@ -90,13 +154,17 @@ export async function connectWithRetry(
   onStatus: (status: SidecarStatus) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const baseUrl = await resolveSidecarBaseUrl();
+  const { baseUrl, instance } = await resolveSidecarIdentity();
 
   // Read through a function: `signal.aborted` changes underneath us, and a
   // direct comparison lets TypeScript narrow it to a constant after the first
   // check.
   const aborted = () => signal?.aborted ?? false;
 
+  // A wrong instance is retried like a refused connection rather than failed
+  // at once: a copy of this app closed a second ago answers for a moment
+  // more, and then the new sidecar binds. A stranger that stays is reported
+  // when the attempts run out, by name.
   for (let attempt = 1; attempt <= STARTUP_ATTEMPTS; attempt += 1) {
     if (aborted()) {
       return;
@@ -105,7 +173,7 @@ export async function connectWithRetry(
     onStatus({ kind: "connecting", attempt });
 
     try {
-      const health = await fetchHealth(baseUrl, signal);
+      const health = await fetchHealth(baseUrl, signal, instance);
       onStatus({ kind: "ready", health, baseUrl });
       return;
     } catch (error) {

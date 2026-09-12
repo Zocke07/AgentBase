@@ -31,7 +31,63 @@ def test_health_returns_ok() -> None:
         response = client.get("/health")
 
     assert response.status_code == 200
-    assert response.json() == {"ok": True}
+    assert response.json() == {"ok": True, "instance": None}
+
+
+def test_health_echoes_the_instance_the_shell_launched_it_with() -> None:
+    """The shell tags each launch and asks `/health` for the tag back.
+
+    The port is fixed, so whatever is listening on it answers `/health` — a
+    previous copy of this app still shutting down, a dev sidecar left running
+    in a terminal — and until now nothing could tell the shell that the
+    process answering was not the one it spawned. The packaged app once
+    attached to the dev sidecar and rendered the dev data directory's runs.
+    """
+    with TestClient(main.create_app(instance="launch-42")) as client:
+        assert client.get("/health").json() == {"ok": True, "instance": "launch-42"}
+
+
+def test_the_instance_tag_comes_from_the_environment_at_startup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`run()` reads it the way it reads the port: from the variable the shell
+    sets, and nothing else. Read through the same helper `run()` uses so the
+    test cannot pass against a different one."""
+    monkeypatch.setenv(main.INSTANCE_ENV_VAR, "launch-7")
+    assert main.resolve_instance() == "launch-7"
+
+    monkeypatch.delenv(main.INSTANCE_ENV_VAR)
+    assert main.resolve_instance() is None
+
+    # An empty value is no tag: a shell that exported the variable and set
+    # nothing must not make every `/health` match an empty expectation.
+    monkeypatch.setenv(main.INSTANCE_ENV_VAR, "")
+    assert main.resolve_instance() is None
+
+
+def test_the_rust_shell_and_the_sidecar_agree_on_every_shared_constant() -> None:
+    """Four values are declared once in `lib.rs` and once here, and each pair
+    has a comment saying it must match the other. `test_secrets.py` compares
+    `SECRET_NAMES`; nothing compared these. The instance tag joins the list,
+    and a tag sent under one name and read under another would make every
+    launch look like a stranger on the port.
+    """
+    import re
+    from pathlib import Path
+
+    lib_rs = (
+        Path(__file__).resolve().parents[3] / "apps/desktop/src-tauri/src/lib.rs"
+    ).read_text(encoding="utf-8")
+
+    def declared(name: str) -> str:
+        match = re.search(rf"const {name}:\s*[^=]+=\s*(.+?);", lib_rs)
+        assert match is not None, f"{name} is not declared as expected in lib.rs"
+        return match.group(1).strip()
+
+    assert declared("SIDECAR_PORT") == str(DEFAULT_BIND_PORT)
+    assert declared("SHUTDOWN_LINE") == 'b"' + main.SHUTDOWN_COMMAND + '\\n"'
+    assert declared("DATA_DIR_ENV") == f'"{config.DATA_DIR_ENV_VAR}"'
+    assert declared("INSTANCE_ENV") == f'"{main.INSTANCE_ENV_VAR}"'
 
 
 def test_openapi_schema_is_served() -> None:

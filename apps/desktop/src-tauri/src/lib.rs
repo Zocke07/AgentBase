@@ -61,10 +61,42 @@ const SECRET_NAMES: [&str; 3] = [
 #[derive(Default)]
 struct SidecarState(Mutex<Option<CommandChild>>);
 
+/// Environment variable carrying this launch's tag to the sidecar, which
+/// echoes it from `/health`. Must match `agentspace.main.INSTANCE_ENV_VAR`.
+const INSTANCE_ENV: &str = "AGENTSPACE_INSTANCE";
+
+/// The tag for this launch, minted once and handed to both the sidecar and
+/// the webview.
+///
+/// The port is fixed, so whatever holds it answers `/health` — a copy of this
+/// app still shutting down, a dev sidecar left in a terminal. Until the tag
+/// existed nothing could tell the webview that the process answering was not
+/// the one this shell spawned: the packaged app once attached to the dev
+/// sidecar and showed the dev data directory's runs. Not a secret, so the
+/// environment is a fine channel; unique per launch is all it has to be, and
+/// the process id plus the clock gives that without a random-number crate.
+struct Instance(String);
+
+impl Instance {
+    fn mint() -> Self {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|since| since.as_nanos())
+            .unwrap_or(0);
+        Self(format!("{}-{nanos:x}", std::process::id()))
+    }
+}
+
 /// The origin the webview should talk to.
 #[tauri::command]
 fn sidecar_base_url() -> String {
     format!("http://127.0.0.1:{SIDECAR_PORT}")
+}
+
+/// The tag `/health` must echo for the webview to trust what answered.
+#[tauri::command]
+fn sidecar_instance(instance: tauri::State<'_, Instance>) -> String {
+    instance.0.clone()
 }
 
 /// The keychain service the settings screen writes secrets under.
@@ -149,10 +181,22 @@ fn spawn_sidecar(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let data_dir = data_dir(app)?;
     std::fs::create_dir_all(&data_dir)?;
 
+    // Said up front, because the failure it predicts is otherwise silent: the
+    // sidecar spawned below cannot bind and exits, and the webview then finds
+    // a healthy `/health` from whatever does hold the port. The webview
+    // refuses it by the instance tag; this line is for whoever reads the log.
+    if port_is_open(SIDECAR_PORT) {
+        eprintln!(
+            "[sidecar] port {SIDECAR_PORT} is already in use — another AgentSpace, or a dev              sidecar? This app's sidecar will not be able to bind it."
+        );
+    }
+
+    let instance = app.state::<Instance>().0.clone();
     let (mut rx, mut child) = app
         .shell()
         .sidecar(SIDECAR_NAME)?
         .env(DATA_DIR_ENV, data_dir.as_os_str())
+        .env(INSTANCE_ENV, &instance)
         .spawn()?;
 
     // The API-key handshake, written before anything else can reach the
@@ -297,8 +341,10 @@ pub fn run() {
         .plugin(tauri_plugin_keyring::init())
         .plugin(tauri_plugin_opener::init())
         .manage(SidecarState::default())
+        .manage(Instance::mint())
         .invoke_handler(tauri::generate_handler![
             sidecar_base_url,
+            sidecar_instance,
             keychain_service,
             reveal_folder
         ])

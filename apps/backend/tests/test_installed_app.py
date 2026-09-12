@@ -284,7 +284,7 @@ def test_the_installed_sidecar_serves_with_no_python_available(
             f"http://127.0.0.1:{TEST_PORT}/health", timeout=10
         ) as response:
             assert response.status == 200
-            assert json.loads(response.read()) == {"ok": True}
+            assert json.loads(response.read()) == {"ok": True, "instance": None}
 
         # The database too: `--onefile` collects bytecode automatically and data
         # files only because the justfile passes `--add-data`, so a migration

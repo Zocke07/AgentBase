@@ -592,6 +592,32 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HealthResponse": {
+        "description": "What `/health` says. The shell polls it to decide the sidecar is up.",
+        "properties": {
+          "instance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "instance"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
       "ProviderCatalogueResponse": {
         "description": "What can be selected, and which models are priced, per provider.",
         "properties": {
@@ -2019,18 +2045,14 @@
     },
     "/health": {
       "get": {
-        "description": "Liveness probe. The shell polls this to decide the sidecar is up.",
+        "description": "Liveness probe, carrying the launch tag so the shell knows it is us.",
         "operationId": "health_health_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "boolean"
-                  },
-                  "title": "Response Health Health Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/HealthResponse"
                 }
               }
             },
