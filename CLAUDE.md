@@ -17,10 +17,10 @@ and disconnects their stored keys.
   redesign) was deliberately built before Phase 10.
 - Phase 10, the portfolio presentation and optional Docker reviewer demo,
   remains open. Do not restart Phase 0 or assume the demo already exists.
-- The published release recorded by this repository is `v0.1.0`, for Windows.
-  Local **0.2.0** preparation includes the rewritten guides, aligned versions,
-  and a verified unsigned macOS app archive. No 0.2.0 tag, remote CI run or
-  release has been published from this work.
+- The current release line is **0.2.0**. It includes rewritten guides, aligned
+  versions, the Windows installer and an unsigned Apple Silicon macOS app
+  archive. Check the release page and tag workflow for publication status and
+  cross-platform CI evidence.
 - The UI has a left rail, spaces, Home, Runs, Agents, Space settings, and
   app-wide Settings. Approvals are docked. Discord is the only chat adapter;
   Telegram was removed on 2026-09-11.

@@ -6,9 +6,10 @@ superseded gaps. A test result below is scoped to what was actually executed.
 
 ## 0.2.0 preparation
 
-Documentation and local release preparation are complete. No `v0.2.0` tag has
-been created or pushed in this session, and no 0.2.0 release has been published
-by this session. Publication and cross-platform CI remain separate steps.
+Documentation and local release preparation were completed before publication.
+The [v0.2.0 release page](https://github.com/Zocke07/AgentBase/releases/tag/v0.2.0)
+is the authority for publication status and downloadable artifacts. The tag
+workflow is the authority for cross-platform CI results.
 
 On Apple Silicon macOS, `just ci` passed with **734 backend tests and 313
 frontend tests** after the documentation, version and Discord mention changes.
@@ -27,10 +28,6 @@ modes and hashes, fresh database startup, HTTP health, and clean extracted
 sidecar shutdown with Python removed from its environment. Rust Clippy passed.
 The packaged Tauri window and a downloaded copy's Gatekeeper flow were not
 opened in this session.
-
-The docs split must be committed together with deletion of the combined
-guides and their README link updates. The three existing local commits are
-distinct units and do not need squashing.
 
 ## Backend coverage baseline
 
