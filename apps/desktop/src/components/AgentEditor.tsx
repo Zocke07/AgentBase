@@ -305,7 +305,7 @@ export function AgentEditor({
             }}
             data-testid="field-provider"
           >
-            <option value={INHERIT}>inherit the workspace default</option>
+            <option value={INHERIT}>inherit the space default</option>
             {catalogue.providers.map((entry) => (
               <option key={entry.name} value={entry.name}>
                 {entry.name}
@@ -324,7 +324,7 @@ export function AgentEditor({
           {freeText ? (
             <input
               value={form.model}
-              placeholder="inherit the workspace default"
+              placeholder="inherit the space default"
               onChange={(changed) => {
                 set("model", changed.target.value);
               }}
@@ -339,7 +339,7 @@ export function AgentEditor({
               }}
               data-testid="field-model"
             >
-              <option value={INHERIT}>inherit the workspace default</option>
+              <option value={INHERIT}>inherit the space default</option>
               {knownModels.map((name) => (
                 <option key={name} value={name}>
                   {name}
@@ -371,7 +371,7 @@ export function AgentEditor({
             type="number"
             min={1}
             value={form.max_steps}
-            placeholder="workspace limit"
+            placeholder="default (up to 20)"
             onChange={(changed) => {
               set("max_steps", changed.target.value);
             }}
@@ -423,8 +423,8 @@ export function AgentEditor({
       <fieldset className="editor__tools">
         <legend>Calls this agent may make without asking</legend>
         <p className="editor__hint">
-          Narrows the workspace policy for this agent only: it can never widen it.
-          Nothing ticked means the workspace policy applies as it is.
+          Narrows the space policy for this agent only: it can never widen it.
+          Nothing ticked means the space policy applies as it is.
         </p>
         <div className="editor__risks">
           {RISK_LEVELS.map((level) => (
@@ -439,8 +439,8 @@ export function AgentEditor({
               />
               <span className={`risk risk--${level}`}>{level}</span>
               <span className="editor__tool-description">
-                {level === "low" && "reads inside the workspace"}
-                {level === "medium" && "writes inside the workspace, fetches a public URL"}
+                {level === "low" && "reads inside the space folder"}
+                {level === "medium" && "writes inside the space folder, fetches a public URL"}
                 {level === "high" && "runs a shell command"}
               </span>
             </label>

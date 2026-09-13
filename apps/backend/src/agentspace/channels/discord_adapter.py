@@ -1,11 +1,12 @@
 """Discord, over `discord.py`.
 
 Slash commands and @mentions only, and no `MessageContent` intent (§5 Phase
-8): :data:`INTENTS` is `guilds` and nothing else, so the gateway does not
-deliver the text of messages this bot was not addressed in, and §1 constraint
-6 holds because the data never arrives. The interaction is deferred before any
-slow work, since Discord closes one not acknowledged within three seconds. The
-mention path takes the text after the mention and nothing else.
+8). The non-privileged `guild_messages` intent is required for mention events;
+without `message_content`, Discord includes content only in the exceptional
+messages its API documents, including messages that mention this bot. The
+handler rejects every message without that explicit mention, so ordinary chat
+never enters agent context. The interaction is deferred before any slow work,
+since Discord closes one not acknowledged within three seconds.
 """
 
 from __future__ import annotations
@@ -32,9 +33,11 @@ __all__ = ["INTENTS", "DiscordAdapter"]
 
 logger = logging.getLogger("agentspace.channels.discord")
 
-#: `guilds` only: enough to know which servers to sync commands into.
+#: `guilds` finds servers for command sync; `guild_messages` delivers explicit
+#: mention events. Message content stays privileged and disabled.
 INTENTS: Final[discord.Intents] = discord.Intents.none()
 INTENTS.guilds = True
+INTENTS.guild_messages = True
 
 #: How long an Allow/Deny button stays live; the approval itself is bounded by
 #: the run's own deadline.

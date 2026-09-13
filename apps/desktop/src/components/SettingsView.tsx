@@ -390,8 +390,8 @@ function SettingsForm({
         <fieldset className="editor__tools">
           <legend>Calls that run without asking</legend>
           <p className="editor__hint">
-            The workspace policy for unattended runs. Nothing ticked means every medium and high risk
-            call stops for you; an agent definition can narrow this further but never widen it.
+            The app-wide policy for unattended runs. Nothing ticked means every tool call stops for
+            you; a space or agent definition can narrow this further but never widen it.
           </p>
           <div className="editor__risks">
             {RISK_LEVELS.map((level) => (

@@ -1,9 +1,9 @@
 """What the adapters ask their platforms for, asserted without a network.
 
-Two §5 Phase 8 requirements fail only silently, by working while listening to
-more than they should: no `MessageContent` intent (so ambient messages never
-arrive, and §1 constraint 6 holds structurally), and exactly two triggers,
-slash commands and mentions.
+Two §5 Phase 8 requirements fail only silently: no privileged `MessageContent`
+intent, and exactly two triggers, slash commands and mentions. Discord requires
+the non-privileged guild-message intent to deliver an explicit mention event;
+the handler discards messages that do not name the bot.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ def test_no_privileged_intent_is_requested_at_all() -> None:
     assert INTENTS.presences is False
 
 
-def test_the_only_intent_requested_is_guilds() -> None:
+def test_only_the_two_required_intents_are_requested() -> None:
     """Everything else off, so a new default in `discord.py` cannot widen this.
 
     `Intents.none()` plus one flag means an upgrade that adds a
@@ -40,7 +40,7 @@ def test_the_only_intent_requested_is_guilds() -> None:
     """
     enabled = {name for name, value in INTENTS if value}
 
-    assert enabled == {"guilds"}
+    assert enabled == {"guild_messages", "guilds"}
 
 
 def test_the_baseline_is_narrower_than_discord_pys_own_default() -> None:
@@ -167,9 +167,7 @@ async def test_the_nickname_form_of_a_mention_is_stripped_too() -> None:
 
 
 async def test_a_message_that_does_not_mention_the_bot_starts_nothing() -> None:
-    """§1 constraint 6, at the code level: the gateway already withholds the
-    text of such messages, and if one arrived anyway it would still be
-    ignored. Neither a run nor a reply."""
+    """§1 constraint 6: an ordinary message starts neither a run nor a reply."""
     adapter, started = _adapter_with_bot_user(99)
     from types import SimpleNamespace
 

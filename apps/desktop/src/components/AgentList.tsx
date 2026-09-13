@@ -79,7 +79,7 @@ export function AgentList({
               </span>
               <span className="roster__role">{agent.role}</span>
               <span className="roster__meta">
-                {agent.model ?? "workspace model"} ·{" "}
+                {agent.model ?? "space model"} ·{" "}
                 {(agent.allowed_tools ?? []).length === 0
                   ? "no tools"
                   : `${String((agent.allowed_tools ?? []).length)} tools`}

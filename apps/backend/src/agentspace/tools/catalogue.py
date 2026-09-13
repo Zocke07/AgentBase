@@ -70,7 +70,10 @@ CATALOGUE: Final[tuple[ToolDeclaration, ...]] = (
     ),
     ToolDeclaration(
         name="run_shell",
-        description="Run a shell command in the workspace with no network access.",
+        description=(
+            "Run a shell command as your user, starting in the space folder, "
+            "with a timeout. The command can access the network."
+        ),
         risk=RiskLevel.HIGH,
     ),
 )
