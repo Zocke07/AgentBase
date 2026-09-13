@@ -109,6 +109,48 @@ def test_no_api_keys_in_tracked_files() -> None:
     assert offenders == [], f"possible API key committed in: {offenders}"
 
 
+#: File types whose text is this project's own prose: source, docs, config.
+#: Lockfiles are excluded because their contents are a dependency's words.
+PROSE_SUFFIXES = frozenset(
+    {
+        ".css",
+        ".html",
+        ".json",
+        ".md",
+        ".py",
+        ".rs",
+        ".sql",
+        ".toml",
+        ".ts",
+        ".tsx",
+        ".yaml",
+        ".yml",
+    }
+)
+PROSE_FILENAMES = frozenset({".gitattributes", ".gitignore", "justfile"})
+GENERATED_FILES = frozenset({"package-lock.json", "Cargo.lock", "uv.lock"})
+
+
+def test_no_em_dashes_in_tracked_text() -> None:
+    """House style: no em dashes, anywhere. Use a colon, a parenthesis or a full stop.
+
+    Settled on 2026-09-12, when a tree-wide sweep replaced every one. The
+    character is written as an escape here so this file cannot fail itself.
+    """
+    em_dash = "\u2014"
+    offenders: list[str] = []
+    for path in _walk_tracked_files():
+        is_prose = path.suffix.lower() in PROSE_SUFFIXES or path.name in PROSE_FILENAMES
+        if not is_prose or path.name in GENERATED_FILES:
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        if em_dash in text:
+            line = next(i for i, row in enumerate(text.splitlines(), 1) if em_dash in row)
+            offenders.append(f"{path.relative_to(REPO_ROOT).as_posix()}:{line}")
+
+    assert offenders == [], f"em dashes are not house style; rewrite these: {offenders}"
+
+
 def test_generated_trees_are_pruned_not_scanned() -> None:
     """The walker must never descend into `.dev`.
 
