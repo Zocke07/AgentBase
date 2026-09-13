@@ -1,22 +1,8 @@
-"""The approval gate, and §5 Phase 6's acceptance criterion.
-
-> **Accept when:** an agent instructed to write outside the workspace root is
-> blocked at the sandbox layer, and this is visible in the event log as
-> `tool.denied`.
-
-:func:`test_an_agent_told_to_write_outside_the_workspace_is_blocked` is that
-sentence, end to end, through a real run. Everything else here covers the
-machinery it depends on and the three ways a call can be stopped, which the log
-has to be able to tell apart:
-
-* the **allowlist** refused it: the agent's definition never permitted it
-  (Phase 5's boundary, covered in `test_agent_allowlist.py`);
-* the **sandbox** refused it: out of bounds, and nobody was asked;
-* the **user** refused it: in bounds, asked, and declined.
-
-All three are `tool.denied`. A log that could not separate them would show a
-prompt-injected agent probing the boundary and a user declining a routine write
-as the same event.
+"""The approval gate, and §5 Phase 6's acceptance criterion: an agent told to
+write outside the workspace root is blocked at the sandbox layer, visible as
+`tool.denied`. :func:`test_an_agent_told_to_write_outside_the_workspace_is_blocked`
+is that sentence through a real run. The rest covers the three ways a call can
+be stopped (allowlist, sandbox, user), which the log has to tell apart.
 """
 
 from __future__ import annotations

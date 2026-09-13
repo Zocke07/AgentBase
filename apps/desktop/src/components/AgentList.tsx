@@ -2,21 +2,10 @@ import type { AgentDef } from "@agentspace/schemas";
 import { useState } from "react";
 
 /**
- * The roster: §5 Phase 7's `AgentList.tsx`: "every defined agent, its role,
- * model, and tool count. Enable/disable toggle. Create and delete."
- *
- * The list shows every definition, enabled or not, because this is the editor's
- * view of them. A *run* sees only the enabled ones (the registry filters at
- * load time), so the toggle here is what decides whether the supervisor can
- * draw on an agent at all, and hiding disabled rows would make that invisible.
- *
- * Delete is offered on every row and refused by the server for built-ins with a
- * 409. That refusal is rendered rather than pre-empted by hiding the button:
- * §5 Phase 5 guards the delete path deliberately, and a user who tries deserves
- * to be told why rather than to find a missing control.
- *
- * Delete asks first, inline. A user-authored system prompt is unrecoverable,
- * and one misclick on a row used to send the request.
+ * The roster: every definition, enabled or not, with the toggle that decides
+ * whether the supervisor may draw on it. Delete asks first, is offered on
+ * every row, and renders the server's 409 for a built-in rather than hiding
+ * the button.
  */
 
 export interface AgentListProps {

@@ -1,24 +1,11 @@
 """In-process asyncio fan-out of appended events.
 
-**The bus is a hint, not a channel.** SQLite is the source of truth; this only
-tells subscribers that something new exists. That framing is what makes the
-rest of the design safe, and it is load-bearing in three places:
-
-*Ordering.* `EventStore.append` commits inside `asyncio.to_thread`, and two
-concurrent appends can resume in either order, so events can reach `publish`
-out of sequence even though they committed in sequence. The stream consumer
-therefore tracks its own cursor and treats any jump as a signal to re-read
-from the database, rather than trusting bus order.
-
-*Backpressure.* Queues are bounded. A subscriber that stops reading (a
-webview on a suspended tab, a `curl` piped into `less`) would otherwise grow
-the queue until the process dies. On overflow the subscription is flagged
-stale and its queue dropped; the consumer notices and re-syncs from the
-database. Losing a buffered copy costs nothing because the row is durable.
-
-*Cancellation.* Subscriptions are handed out through a context manager so an
-SSE client that disconnects mid-stream is unregistered even though its task was
-cancelled rather than returning.
+The bus is a hint, not a channel: SQLite is the source of truth. Events can
+reach `publish` out of sequence (appends commit on worker threads), so the
+consumer keeps its own cursor and re-reads on any jump. Queues are bounded:
+on overflow the subscription is flagged stale and its buffer dropped, which
+costs nothing because the rows are durable. Subscriptions are context
+managers so a cancelled SSE task is still unregistered.
 """
 
 from __future__ import annotations
@@ -38,8 +25,6 @@ __all__ = ["DEFAULT_QUEUE_SIZE", "EventBus", "Subscription"]
 logger = logging.getLogger("agentspace.events")
 
 #: Buffered events per subscriber before the subscription is declared stale.
-#: Large enough that an ordinary slow render never trips it, small enough that
-#: a wedged client cannot consume meaningful memory.
 DEFAULT_QUEUE_SIZE: Final[int] = 512
 
 
@@ -67,12 +52,7 @@ class Subscription:
             self.mark_stale()
 
     def mark_stale(self) -> None:
-        """Flag a resync and release the buffer.
-
-        The buffered events are discarded on purpose: the consumer is about to
-        re-read the whole range from SQLite, so holding them only wastes memory
-        during exactly the episode where memory is under pressure.
-        """
+        """Flag a resync and release the buffer; the consumer will re-read from SQLite."""
         self._stale = True
         while True:
             try:
@@ -86,13 +66,7 @@ class Subscription:
         self._stale = False
 
     async def get(self, wait_seconds: float | None = None) -> Event | None:
-        """Wait for the next event, or return None once ``wait_seconds`` elapses.
-
-        Returning a sentinel rather than raising is what lets the SSE loop emit
-        a keepalive comment and carry on, instead of treating an idle run as an
-        error. Not named ``timeout``: this does not cancel the caller, and the
-        name would suggest the cancellation semantics of ``asyncio.timeout``.
-        """
+        """Wait for the next event, or return None once ``wait_seconds`` elapses."""
         if wait_seconds is None:
             return await self._queue.get()
 
@@ -112,10 +86,8 @@ class EventBus:
     def publish(self, event: Event) -> None:
         """Offer ``event`` to every subscriber of its run.
 
-        Synchronous by design. `put_nowait` needs no await, and introducing one
-        here would create a suspension point between an append committing and
-        its event being offered, during which another append could publish and
-        widen the reordering window the consumer has to repair.
+        Synchronous: an await here would widen the window between a commit and
+        its event being offered.
         """
         for subscription in tuple(self._subscriptions.get(event.run_id, ())):
             subscription.offer(event)
@@ -136,6 +108,7 @@ class EventBus:
                     del self._subscriptions[run_id]
 
     def subscriber_count(self, run_id: str) -> int:
-        """Live subscriptions for ``run_id``. Exists so a test can assert that
-        a disconnected client is actually unregistered rather than leaked."""
+        """Live subscriptions for ``run_id``, so a test can assert a disconnected client is
+        unregistered.
+        """
         return len(self._subscriptions.get(run_id, ()))

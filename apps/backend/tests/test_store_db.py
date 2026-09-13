@@ -1,16 +1,8 @@
-"""Tests for the SQLite connection and the migration runner.
-
-The migration runner is deliberately exercised as a *sequence*, not a one-shot
-schema load. Migration 001 creates `runs` and `events`; 002 adds `spend` and
-`settings` for Phase 3; 003 adds `agent_defs` for Phase 5 and seeds it.
-`approvals` still arrives in the phase that uses it (BUILD_SPEC §5 says do not
-build ahead), so the synthetic-migration tests below stay: they prove stepping
-works past whatever the current head happens to be.
-
-Migration 002 was the first one that runs against a database that already holds
-a user's data, which is the case that breaks in the field rather than on a
-fresh clone. `test_upgrade_preserves_an_existing_populated_database` covers it,
-and now runs the whole chain rather than a single step.
+"""Tests for the SQLite connection and the migration runner, exercised as a
+sequence rather than a one-shot schema load. The synthetic-migration tests
+prove stepping works past whatever the current head is;
+`test_upgrade_preserves_an_existing_populated_database` runs the whole chain
+over a database that already holds data.
 """
 
 from __future__ import annotations

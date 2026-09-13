@@ -4,15 +4,10 @@ import type { ReactNode } from "react";
 import { SpaceSwitcher } from "./SpaceSwitcher";
 
 /**
- * The left rail: BUILD_SPEC §5 Phase 11, "a sidebar, not tabs".
- *
- * Top to bottom: the product's name, the space switcher, then the sections
- * of the current space (Home, Runs, Agents, Space settings) and, pinned to
- * the bottom, the app-wide Settings: keys, budget, Discord, appearance.
- *
- * Every entry is a button, not a link: the shell has no router, and the
- * sections are all mounted at once behind `hidden` so a visit to one does not
- * unmount another's stream.
+ * The left rail: the product's name, the space switcher, the current space's
+ * sections (Home, Runs, Agents, Space settings) and, pinned to the bottom,
+ * the app-wide Settings. Buttons, not links: there is no router, and every
+ * section stays mounted behind `hidden`.
  */
 
 export type Section = "home" | "runs" | "agents" | "space" | "settings";

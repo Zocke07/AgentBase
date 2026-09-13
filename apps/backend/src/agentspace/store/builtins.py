@@ -1,14 +1,8 @@
 """The three seeded roles, as data a new space can be seeded from.
 
-Migration 003 seeds these into the first roster and migration 004 widens
-their allowlists; both are SQL that runs exactly once. A space created later
-asks for "fresh copies of the three seeded roles" (§5 Phase 11), which needs
-the roles in Python, and a test asserts these match what the migrations
-seeded, so the two copies cannot drift.
-
-Only the *content* of a role lives here. Ids are minted per copy: the fixed
-ids in migration 003 name the built-ins of the default space, and a copy in
-another space is a new row that the user may delete.
+Migrations 003 and 004 seed and widen them once; a space created later needs
+them in Python, and a test asserts the two copies match. Only the content is
+here; ids are minted per copy.
 """
 
 from __future__ import annotations

@@ -1,33 +1,12 @@
 """The installed app, launched on a machine that has no Python.
 
-This is BUILD_SPEC §5 Phase 9's acceptance criterion, adapted because its literal
-form cannot be met: "a green CI run produces a downloadable installer that runs on
-a second Windows machine with no Python installed". There is one Windows machine
-here and there will not be a second; see CLAUDE.md's "The machine reality".
-
-The property the criterion is really protecting is narrow and testable without a
-second machine: **the frozen sidecar must not depend on the development machine's
-Python installation.** `--onefile` embeds an interpreter, and the failure mode is a
-binary that works everywhere a Python install happens to sit and nowhere else. The
-symptom on a user's machine is an app that starts and immediately dies.
-
-So this module installs the produced installer and launches the *installed*
-sidecar with Python removed from its environment. On a GitHub `windows-latest`
-runner that is a genuinely different machine (a clean VM with no `.venv`, no
-`node_modules`, no repository and no toolchain), which is weaker than a friend's
-laptop in one respect and stronger in another: it runs on every release rather
-than once.
-
-**It is not part of `just test`.** It installs software, which no test run should
-do behind a developer's back, so it is skipped unless `--install-smoke` is passed
-and `just verify-installed` is the recipe that passes it.
-
-Two things this deliberately does not claim. It does not launch the GUI: a Tauri
-window on a headless runner is unreliable, and the Rust shell is not the half that
-could need Python. And "no Python installed" is approximated by a scrubbed
-environment rather than by an uninstalled Python, which
-`test_the_scrubbed_environment_really_has_no_python` exists to keep honest: a
-scrub that silently failed would make everything below it vacuous.
+§5 Phase 9's criterion names a second Windows machine that does not exist,
+so this installs the produced installer and launches the *installed* sidecar
+with Python scrubbed from its environment; on a fresh `windows-latest` runner
+that is a genuinely different machine. It installs software, so it runs only
+under `--install-smoke` (`just verify-installed`), never in `just test`. It
+does not launch the GUI, and the scrub is asserted to be real before anything
+launches, since a scrub that failed would make everything below it vacuous.
 """
 
 from __future__ import annotations

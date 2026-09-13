@@ -1,33 +1,13 @@
-"""The OpenAPI schema, and the TypeScript types generated from it.
+"""The OpenAPI schema, and the TypeScript types generated from it (§5 Phase 7).
 
-§5 Phase 7: "Generate TS types from the FastAPI OpenAPI schema; never
-hand-write the API types."
+Both outputs are committed so the frontend typechecks without a Python
+environment and drift shows in a diff; `test_openapi_snapshot.py` keeps them
+current. The emitter lives here because `openapi-typescript` caps its
+TypeScript peer below this tree's version and the input is a small closed set
+of keywords. It raises on a keyword it does not understand rather than
+emitting `unknown`, which would typecheck and protect nothing.
 
-**Why the schema and the types are committed rather than built on demand.** A
-build step that starts the sidecar to read `/openapi.json` makes the frontend's
-typecheck depend on a working Python environment, which breaks `just check` on a
-clean clone and turns a type error into a startup error. Committing both keeps
-`packages/schemas` an ordinary source dependency, and makes drift visible in a
-diff: changing a response model shows up as a change to these files in the same
-commit. `test_openapi_snapshot.py` is what stops them going stale.
-
-**Why the emitter is here and not `openapi-typescript`.** That is the canonical
-tool and it caps its TypeScript peer at `^5.x`, while this tree is on 6.0.3, so
-it cannot be installed without `--legacy-peer-deps` on every `npm install` -
-which would weaken peer checking for the whole dependency tree to satisfy one
-dev tool. This is the same conflict Phase 0 hit with `eslint-plugin-import`
-against ESLint 10; there the answer was a maintained fork, and here there is
-none. The input is 17 schemas over a closed set of keywords, so generating them
-here costs less than the flag does.
-
-**The emitter raises on a keyword it does not understand.** A generator that
-fell back to `unknown` would quietly stop protecting anything the first time a
-later phase added a model with `oneOf` or `allOf` in it, and nothing would fail.
-:class:`UnsupportedSchemaError` makes that a build failure instead.
-
-Deliberately importable and side-effect free: the functions here are what both
-`just schemas` and the drift test call, so the two cannot disagree about what
-"the schema" means.
+Side-effect free: `just schemas` and the drift test call the same functions.
 """
 
 from __future__ import annotations
@@ -49,8 +29,7 @@ __all__ = [
     "write_typescript",
 ]
 
-#: Schema keywords the emitter reads. Anything else raises, rather than being
-#: silently dropped; see the module docstring.
+#: Schema keywords the emitter reads. Anything else raises.
 _KNOWN_KEYWORDS: Final[frozenset[str]] = frozenset(
     {
         # Structural: these decide the emitted type.
@@ -64,9 +43,7 @@ _KNOWN_KEYWORDS: Final[frozenset[str]] = frozenset(
         "required",
         "type",
         # Documentation and validation: read for comments, or ignored on
-        # purpose. A constraint like `minimum` has no TypeScript equivalent, and
-        # pretending otherwise with a branded type would make the generated
-        # types harder to consume than the API they describe.
+        # purpose (`minimum` has no TypeScript equivalent worth a branded type).
         "default",
         "description",
         "examples",
@@ -91,14 +68,9 @@ _HEADER: Final[str] = """\
 /**
  * Generated from the sidecar's OpenAPI schema. Do not edit.
  *
- * Regenerate with `just schemas`. BUILD_SPEC §5 Phase 7 requires the API types
- * to be generated rather than hand-written, and
- * `test_openapi_snapshot.py` fails if this file drifts from the FastAPI app.
- *
- * A field is optional here exactly when the schema does not list it as
- * required, which for a response model means it has a default. That is the
- * schema's reading rather than a judgement about what the server sends, because
- * a generator that second-guessed its input would be a second source of truth.
+ * Regenerate with `just schemas`; `test_openapi_snapshot.py` fails if this
+ * file drifts from the FastAPI app. A field is optional here exactly when the
+ * schema does not list it as required.
  */
 
 """
@@ -107,10 +79,7 @@ _HEADER: Final[str] = """\
 class UnsupportedSchemaError(Exception):
     """A schema construct the emitter does not handle.
 
-    Raised rather than degraded to `unknown`: the point of generated types is
-    that they are checked, and a silent `unknown` is an unchecked field that
-    still typechecks. The message names the path so the offending model is
-    obvious.
+    Names the path so the model is obvious.
     """
 
     def __init__(self, path: str, detail: str) -> None:
@@ -126,10 +95,8 @@ class UnsupportedSchemaError(Exception):
 def schema() -> dict[str, Any]:
     """The live OpenAPI document for the sidecar.
 
-    Built from an app with explicit, throwaway paths. `create_app()` opens no
-    database (that happens in the lifespan), but it *does* resolve the data
-    directory, and resolving it in a code generator is how a generated artefact
-    ends up depending on which machine ran the generator.
+    Built with throwaway paths: `create_app()` opens no database but does
+    resolve the data directory, and a generator must not depend on the machine.
     """
     placeholder = Path("/nonexistent")
     app = create_app(
@@ -146,11 +113,7 @@ def schema() -> dict[str, Any]:
 
 
 def serialise(document: dict[str, Any]) -> str:
-    """Render the schema exactly as the committed file holds it.
-
-    Sorted keys and a trailing newline, so a regeneration produces a diff of
-    what actually changed rather than a reordering of the whole file.
-    """
+    """Render the schema as the committed file holds it: sorted keys, trailing newline."""
     return json.dumps(document, indent=2, sort_keys=True) + "\n"
 
 
@@ -192,15 +155,13 @@ def _type_of(node: dict[str, Any], path: str, indent: str = "") -> str:
             _type_of(member, f"{path}.anyOf[{index}]", indent)
             for index, member in enumerate(node["anyOf"])
         ]
-        # Deduplicated because `str | None` and `Optional[str]` can both reach
-        # here, and `string | null | null` is noise rather than information.
+        # Deduplicated: `str | None` can otherwise render as `string | null | null`.
         return _union(list(dict.fromkeys(members)), indent)
 
     if "enum" in node:
         return _union([_literal(value, path) for value in node["enum"]], indent)
 
-    # A `Literal` with one member. Pydantic writes it as `const`, not as a
-    # one-element `enum`, and the type is the same: that one literal.
+    # A one-member `Literal`: Pydantic writes it as `const`, not `enum`.
     if "const" in node:
         return _literal(node["const"], path)
 
@@ -232,8 +193,7 @@ def _type_of(node: dict[str, Any], path: str, indent: str = "") -> str:
         raise UnsupportedSchemaError(path, f"unknown JSON Schema type {declared!r}")
 
     if not node or set(node) <= {"title", "description"}:
-        # A genuinely unconstrained value: Pydantic's bare `Any`. `unknown` is
-        # the honest rendering: the schema really does say nothing.
+        # Pydantic's bare `Any`: the schema really does say nothing.
         return "unknown"
 
     raise UnsupportedSchemaError(
@@ -241,9 +201,7 @@ def _type_of(node: dict[str, Any], path: str, indent: str = "") -> str:
     )
 
 
-#: Beyond this, a union is rendered one member per line. `EventType` has 26
-#: members and would otherwise be a single 900-character line: technically
-#: correct and unreadable in a diff, which is where these types get reviewed.
+#: Beyond this, a union is rendered one member per line (`EventType` has 26).
 _UNION_WRAP_AT: Final[int] = 88
 
 
@@ -299,12 +257,7 @@ def _property_key(name: str) -> str:
 
 
 def _doc_comment(node: dict[str, Any], indent: str) -> list[str]:
-    """Render a schema `description` as a JSDoc comment.
-
-    Kept because these descriptions are where the payload contracts and the
-    warnings live: "do not render `run.completed.summary` as fact" is worth
-    having on hover in the editor, not only in CLAUDE.md.
-    """
+    """Render a schema `description` as a JSDoc comment, so contracts show on hover."""
     description = node.get("description")
     if not description:
         return []
@@ -333,12 +286,8 @@ def _declaration(name: str, node: dict[str, Any]) -> str:
 def emit_typescript(document: dict[str, Any] | None = None) -> str:
     """Render every component schema as a TypeScript declaration.
 
-    Only `components.schemas` is emitted. Route and operation types are what
-    `openapi-typescript` spends most of its output on and they are painful to
-    consume (`paths["/runs"]["get"]["responses"][200]["content"]...`), while
-    the thing the dashboard actually needs is the model types. The paths
-    themselves are asserted to exist by
-    `test_the_schema_covers_every_route_the_dashboard_calls`.
+    Only `components.schemas`: the model types are what the dashboard needs,
+    and the routes are asserted to exist by a test instead.
     """
     doc = document if document is not None else schema()
     schemas: dict[str, Any] = doc["components"]["schemas"]
@@ -347,10 +296,8 @@ def emit_typescript(document: dict[str, Any] | None = None) -> str:
     parts.extend(_declaration(name, node) for name, node in sorted(schemas.items()))
     body = "\n".join(parts)
 
-    # A wrapped union leaves `export type X = ` with a trailing space before the
-    # newline. Stripping here rather than at each construction site means one
-    # rule (no trailing whitespace, anywhere) instead of a rule every future
-    # branch has to remember.
+    # A wrapped union leaves a trailing space after `=`; one rule here, not
+    # one at every construction site.
     return "\n".join(line.rstrip() for line in body.splitlines()) + "\n"
 
 
@@ -358,13 +305,7 @@ def emit_typescript(document: dict[str, Any] | None = None) -> str:
 
 
 def _write_text(destination: Path, text: str) -> None:
-    """Write ``text`` with LF endings, whatever the platform.
-
-    `Path.write_text` on Windows translates every `\\n` to `\\r\\n`, which
-    contradicts `.gitattributes`' `* text=auto eol=lf` and is invisible to
-    `ruff check`, `mypy` and `pytest`, a mistake this project has already made
-    once (CLAUDE.md, Phase 4).
-    """
+    """Write ``text`` with LF endings: `Path.write_text` on Windows would write CRLF."""
     destination.parent.mkdir(parents=True, exist_ok=True)
     with destination.open("w", encoding="utf-8", newline="\n") as handle:
         handle.write(text)

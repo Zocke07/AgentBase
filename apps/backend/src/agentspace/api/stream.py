@@ -1,23 +1,12 @@
 """`GET /runs/{id}/events`: the SSE projection of the event log.
 
-**The guarantee.** A client that reconnects with `Last-Event-ID` receives every
-event after that id, exactly once, in sequence order. That has to hold across a
-reconnect, a slow consumer, and two events committing concurrently.
-
-**How it is achieved.** Not by making the bus reliable: by never trusting it.
-The stream keeps its own cursor and treats the database as the only authority:
-
-1. Subscribe to the bus *before* reading the backlog. Subscribing second would
-   drop anything appended between the read and the subscribe, which is the
-   classic form of this bug and is invisible until the log is under load.
-2. Replay the backlog from the cursor.
-3. Stream live, and on *any* anomaly (a sequence gap, a repeat, a dropped
-   buffer) re-read the range from SQLite instead of reasoning about it.
-
-Collapsing every anomaly into one authoritative re-read is what keeps this
-correct. Out-of-order publication is possible (appends commit inside worker
-threads and can resume in either order), so a design that assumed bus ordering
-would be subtly wrong under exactly the concurrency the app is built to create.
+A client that reconnects with `Last-Event-ID` receives every event after that
+id, exactly once, in order, across reconnects, slow consumers and concurrent
+commits. The bus is never trusted for that: the stream subscribes *before*
+reading the backlog (the reverse order drops anything appended in between),
+keeps its own cursor, and on any anomaly (a gap, a repeat, a dropped buffer)
+re-reads the range from SQLite rather than reasoning about it. Out-of-order
+publication is real, since appends commit on worker threads.
 """
 
 from __future__ import annotations
@@ -46,12 +35,10 @@ __all__ = [
 
 logger = logging.getLogger("agentspace.api")
 
-#: How long to wait for an event before emitting a keepalive comment. Idle SSE
-#: connections are dropped by intermediaries; a comment costs 15 bytes.
+#: How long to wait for an event before emitting a keepalive comment.
 KEEPALIVE_SECONDS: Final[float] = 15.0
 
-#: Told to the browser's EventSource, which otherwise waits 3 seconds before
-#: reconnecting. The server is on loopback, so retry promptly.
+#: EventSource's reconnect delay; loopback can afford a prompt one.
 RETRY_MILLISECONDS: Final[int] = 1000
 
 SSE_HEADERS: Final[dict[str, str]] = {
@@ -65,24 +52,11 @@ SSE_HEADERS: Final[dict[str, str]] = {
 def format_sse(event: Event) -> str:
     """Render one event as an SSE frame.
 
-    ``id`` is the per-run ``seq``, never the global rowid: the client hands it
-    back as ``Last-Event-ID`` scoped to this run, and a global id would make a
-    resume skip every event another run happened to interleave.
-
-    **There is deliberately no ``event:`` field.** Writing ``event: llm.token``
-    would be the more idiomatic-looking SSE, and it is a trap here. A named SSE
-    event does not fire ``EventSource.onmessage`` at all (the client must call
-    ``addEventListener`` for that exact name), so any type the client has not
-    registered is dropped silently, with no error anywhere. With 26 event types
-    (§4) and more arriving each phase, that turns "someone forgot to update the
-    client" into invisible data loss in a UI whose whole contract is being a
-    faithful projection of the event log (§2).
-
-    Unnamed frames all arrive on one ``onmessage``, and the type is already in
-    the JSON body, so nothing is lost: an unrecognised type reaches the reducer
-    and can be logged loudly instead of vanishing. This was not reasoned out in
-    the abstract: a webview probe written against `onmessage` received zero of
-    twenty events while `fetch` against the same endpoint received all of them.
+    ``id`` is the per-run ``seq``, which is what ``Last-Event-ID`` hands back.
+    There is deliberately no ``event:`` field: a named SSE event never fires
+    ``EventSource.onmessage``, so any type the client had not registered would
+    be dropped silently. The type travels in the JSON body instead, and an
+    unrecognised one reaches the reducer where it can be logged.
     """
     data = json.dumps(
         {
@@ -100,11 +74,9 @@ def format_sse(event: Event) -> str:
 
 
 def parse_last_event_id(raw: str | None) -> int:
-    """Turn a ``Last-Event-ID`` header into a cursor, tolerating nonsense.
+    """Turn a ``Last-Event-ID`` header into a cursor.
 
-    A malformed value means replay from the beginning. Refusing the request
-    would leave a reconnecting client permanently unable to attach, which is a
-    far worse failure than re-sending events it may already have.
+    A malformed value replays from the start.
     """
     if raw is None:
         return 0
@@ -129,11 +101,7 @@ class _RunStream:
         self._finished = False
 
     async def _catch_up(self) -> AsyncIterator[Event]:
-        """Emit everything the database holds beyond the cursor.
-
-        The single authoritative path. Every anomaly routes here rather than
-        being handled on its own terms.
-        """
+        """Emit everything the database holds beyond the cursor: the one authoritative path."""
         for event in await self._store.read(self._run_id, after_seq=self._last_seq):
             self._last_seq = event.seq
             if event.type in TERMINAL_RUN_EVENTS:
@@ -141,20 +109,12 @@ class _RunStream:
             yield event
 
     async def _run_is_over(self) -> bool:
-        """Whether the run reached a terminal status.
+        """Whether the run reached a terminal status, or no longer exists.
 
-        Needed because a stream cannot always learn it is finished by *seeing*
-        a terminal event. A client resuming a completed run with a cursor at or
-        beyond the head receives no events at all, and would otherwise hold the
-        connection open forever waiting for a run that ended some time ago.
-
-        Safe against the obvious race: `_play_script` sets the status only
-        after appending its last event, so a terminal status implies every
-        event is already committed and one more catch-up drains them.
-
-        A run that no longer exists is over. `DELETE /runs/{id}` refuses an
-        unfinished run, so a stream should never be open on one that goes -
-        but if it ever is, ending is right and waiting forever is not.
+        A client resuming a finished run past its head sees no terminal event
+        and would otherwise wait forever. The status is set after the last
+        event is appended, so a terminal status means one more catch-up
+        drains everything.
         """
         run = await self._store.get_run(self._run_id)
         return run is None or run.status in TERMINAL_RUN_STATUSES
@@ -162,11 +122,7 @@ class _RunStream:
     async def stream(self) -> AsyncIterator[Event | None]:
         """Yield this run's events in order; ``None`` is an idle tick.
 
-        The idle tick is what lets a consumer act on a quiet connection without
-        this class knowing what that action is. The SSE renderer turns it into a
-        keepalive comment; the Phase 8 channel adapters ignore it. Neither
-        concern belongs in the cursor logic, which is the part that must stay
-        easy to reason about.
+        The SSE renderer turns the tick into a keepalive comment.
         """
         # Subscribe first, then read the backlog. The reverse order silently
         # drops anything appended in between.
@@ -184,10 +140,8 @@ class _RunStream:
                     yield None
                     continue
 
-                # Anomalous, or simply the next event: in either case the
-                # database is consulted rather than the delivered object
-                # trusted. `_catch_up` re-reads from the cursor, so an event
-                # already emitted yields nothing and no duplicate is possible.
+                # Any anomaly re-reads from the cursor; an event already
+                # emitted yields nothing, so no duplicate is possible.
                 if event is None or subscription.stale or event.seq != self._last_seq + 1:
                     async for caught in self._catch_up():
                         yield caught
@@ -207,19 +161,10 @@ class _RunStream:
 def run_events(
     store: EventStore, bus: EventBus, run_id: str, after_seq: int = 0
 ) -> AsyncIterator[Event | None]:
-    """This run's events, gap-free and in order, until it ends.
+    """This run's events, gap-free and in order, until it ends; ``None`` is an idle tick.
 
-    The same cursor and anomaly handling `GET /runs/{id}/events` uses, one layer
-    below the framing. Phase 8's channel adapters consume this: a chat message
-    is another projection of the log (§2), and it needs exactly the guarantee
-    the dashboard needs (every event, once, in sequence) while needing none of
-    the SSE wire format.
-
-    Growing a second stream implementation for the channels would have meant two
-    answers to "did this consumer miss an event", and the three properties this
-    one is careful about (subscribe before backlog, re-read on any anomaly,
-    consult the run's status as well as its events) are exactly the three a
-    second implementation would get subtly wrong. ``None`` is an idle tick.
+    The cursor `GET /runs/{id}/events` uses, one layer below the framing, so
+    the channel adapters get the same guarantee without a second implementation.
     """
     return _RunStream(store, bus, run_id, after_seq).stream()
 
@@ -227,9 +172,7 @@ def run_events(
 async def run_stream(
     store: EventStore, bus: EventBus, run_id: str, after_seq: int
 ) -> AsyncIterator[str]:
-    """Build the SSE body for one client attaching to ``run_id``.
-
-    One rendering of :func:`run_events`, and the only place the wire format
+    """Build the SSE body for one client attaching to ``run_id``: the only place the wire format
     lives.
     """
     yield f"retry: {RETRY_MILLISECONDS}\n\n"

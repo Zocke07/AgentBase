@@ -129,12 +129,8 @@ class OpenAIProvider:
     ) -> AsyncIterator[StreamEvent]:
         """Stream `POST /v1/chat/completions` with `stream: true`.
 
-        **`stream_options.include_usage` is not optional here.** A streamed
-        OpenAI response reports no token counts at all unless it is asked to;
-        the `usage` field is simply absent from every chunk. Without it the
-        budget ledger would record every streamed call as costing nothing and
-        the monthly cap would never bind: a silent failure, because the run
-        itself works perfectly. That is the whole reason this line exists.
+        `stream_options.include_usage` is required: without it no chunk
+        carries token counts and every streamed call would record as free.
         """
         payload = self._payload(messages, tools, system, max_tokens)
         payload["stream"] = True
@@ -204,12 +200,8 @@ def _to_openai_messages(
 
 
 def _decode_arguments(encoded: str) -> dict[str, Any]:
-    """Decode a tool call's JSON-encoded `arguments` string.
-
-    A model can emit arguments that are not valid JSON, and a streamed call
-    that was cut off mid-argument leaves a fragment that never closes. Both are
-    bad tool calls rather than crashed runs, so they degrade to empty arguments
-    and let the approval gate and the tool itself reject them legibly.
+    """Decode a tool call's JSON-encoded `arguments` string; invalid JSON degrades to empty
+    arguments.
     """
     if not encoded.strip():
         return {}
@@ -223,12 +215,7 @@ def _decode_arguments(encoded: str) -> dict[str, Any]:
 
 
 def _tool_calls(raw: Any) -> list[ToolCall]:
-    """Parse `tool_calls`, whose `arguments` is a JSON *string*.
-
-    A model can emit arguments that are not valid JSON. That is a bad tool
-    call, not a crashed run, so it degrades to empty arguments and lets the
-    approval gate and the tool itself reject it with a legible message.
-    """
+    """Parse `tool_calls`, whose `arguments` is a JSON *string*."""
     if not isinstance(raw, list):
         return []
 

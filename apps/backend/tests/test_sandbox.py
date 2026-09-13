@@ -1,23 +1,10 @@
 """The sandbox: what a tool call may reach, decided before anyone is asked.
 
-§6 says to write the test before the feature for the event store, the budget
-ledger and the sandbox. This file is that test, and it exists before
-`tools/sandbox.py` does.
-
-**What is actually being asserted.** §5 Phase 6 requires that "path traversal
-outside [the workspace root] is rejected before the approval prompt is even
-shown", and its acceptance criterion is that an agent told to write outside the
-root is "blocked at the sandbox layer". So the property under test is not that
-a write fails: it is that the *decision* is reachable without executing
-anything and without asking anyone. Every test here calls the sandbox directly,
-with no tool, no agent and no approval in sight, because that is the layer the
-guarantee lives at.
-
-The escape attempts below are the ones that actually work against a naive
-implementation, not a list of scary-looking strings: a `..` segment, an
-absolute path, a symlink whose target is elsewhere, and (on Windows) a drive
-letter and an alternate data stream. An implementation that string-matches
-`".."` passes a third of them.
+Written before `tools/sandbox.py` (§6). Every test calls the sandbox
+directly, with no tool, agent or approval in sight, because that is the layer
+the guarantee lives at. The escapes below are the ones that work against a
+naive implementation: a `..` segment, an absolute path, a symlink elsewhere,
+and on Windows a drive letter and an alternate data stream.
 """
 
 from __future__ import annotations

@@ -1,12 +1,7 @@
 /**
- * Rendering helpers shared by the dashboard.
- *
- * Everything here is a pure function of its argument. That is not a style
- * preference: BUILD_SPEC §5 Phase 7 asks that replaying a run produce
- * "pixel-identical UI state to what was shown live", and a single relative
- * timestamp ("3 seconds ago") would make the same event render differently on
- * every fold. Times are therefore absolute and derived from the event's own
- * `ts`, which travels in the log and never changes.
+ * Rendering helpers shared by the dashboard. All pure functions of their
+ * argument: a relative timestamp would make the same event render differently
+ * on every fold, so times are absolute and come from the event's own `ts`.
  */
 
 /** `12:00:05`: the event's own clock time, in the viewer's timezone. */
@@ -42,14 +37,7 @@ export function formatDuration(milliseconds: number): string {
   return `${String(seconds)}s`;
 }
 
-/**
- * Integer micros as money.
- *
- * Mirrors `pricing.format_micros` on the backend, which rounds to nearest
- * because a display should be the closest true reading. The backend also sends
- * a pre-formatted string for the budget meter; this exists for the figures that
- * arrive inside event payloads, where only the integer travels.
- */
+/** Integer micros as money, mirroring the backend's `format_micros`, for figures inside payloads. */
 export function formatMicros(micros: number): string {
   return `$${(Math.round(micros) / 1_000_000).toFixed(4)}`;
 }
@@ -65,12 +53,7 @@ export function ellipsise(value: string, limit: number): string {
   return collapsed.length <= limit ? collapsed : `${collapsed.slice(0, limit - 1)}…`;
 }
 
-/**
- * `JSON.stringify`, typed as it behaves: it returns `undefined` for a value it
- * cannot serialise: a function, a symbol, `undefined` itself. The lib types
- * say `string`. Nothing off the wire is one of those values, and a log panel
- * that threw on the first one would take the whole run view down with it.
- */
+/** `JSON.stringify`, typed as it behaves: `undefined` for a value it cannot serialise. */
 const stringify = (value: unknown): string | undefined => JSON.stringify(value);
 
 /** A one-line rendering of a tool call's arguments, for the log. */

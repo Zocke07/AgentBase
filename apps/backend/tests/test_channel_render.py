@@ -1,17 +1,6 @@
-"""The chat message is a fold of the event log, and these pin what it says.
-
-§2 makes the dashboard a pure projection of the event log. A chat reply is a
-*second* projection of the same log, and the reason to write it as a fold rather
-than as "append a line whenever something happens" is the same reason Phase 7
-gave: an accumulating renderer and a rebuilding one agree right up until one of
-them gains a feature. Here the fold is the only thing there is: the adapter
-re-renders from scratch on every edit, so what the user sees after a reconnect,
-a resume, or a restart is what the log says, not what this process happened to
-observe.
-
-The interesting tests are the ones carrying a Phase 7 decision across: a
-terminal summary is a *claim* rendered beside a count of what executed, a denial
-says which boundary stopped it, and `llm.token` is not a liveness signal.
+"""The chat message is a fold of the event log, and these pin what it says:
+a terminal summary is a claim rendered beside a count of what executed, a
+denial says which boundary stopped it, and `llm.token` is not a liveness signal.
 """
 
 from __future__ import annotations

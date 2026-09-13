@@ -1,18 +1,7 @@
-"""CORS on the SSE endpoint.
-
-This file exists because of the Phase 1 bug recorded in CLAUDE.md: the sidecar
-answered a webview `fetch` perfectly, and the browser threw the response away
-because no `Access-Control-Allow-Origin` header came back. A terminal client
-proved nothing, because **curl and `Invoke-WebRequest` do not enforce CORS; a
-webview does.** The `curl` run that satisfies §5 Phase 2's acceptance criterion
-has exactly that blind spot, so the headers are asserted here instead.
-
-`EventSource` adds a second trap that plain `fetch` does not have. The initial
-connection is a simple GET and is not preflighted, but on reconnect the
-browser adds `Last-Event-ID`, which is not a CORS-safelisted request header, so
-the resume request *is* preflighted. A configuration that allows the origin but
-not that header yields a stream which works once and then dies silently at the
-first reconnect: the exact case Phase 2 is built to handle.
+"""CORS on the SSE endpoint. curl and `Invoke-WebRequest` do not enforce CORS; a
+webview does, and the packaged app once threw every response away. The
+reconnect is preflighted where the initial connection is not, because
+`Last-Event-ID` is not a safelisted header, so that is asserted too.
 """
 
 from __future__ import annotations

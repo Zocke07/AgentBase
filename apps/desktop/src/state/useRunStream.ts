@@ -7,30 +7,11 @@ import { isTerminal, streamRun } from "../lib/events";
 import { useRunStore } from "./runStore";
 
 /**
- * Attach the run store to one run's SSE stream.
- *
- * The whole hook is a pipe: events go from the stream into `appendEvents` and
- * nowhere else. Nothing here interprets an event, and nothing here writes run
- * state directly: that is the reducer's job, and a second writer would be the
- * ad-hoc message §2 forbids.
- *
- * **History is fetched first, then the stream attaches after it.** A finished
- * run renders immediately instead of after a round trip that ends in an instant
- * close, and the stream is asked for what the history did not have: it used
- * to replay the whole log a second time, every frame parsed and dropped.
- *
- * **The store is not touched until the history is in.** Opening the run first
- * and filling it later showed an empty run (0 / 0, no agents, no rows) for
- * the length of the fetch on every switch, and the whole panel re-laid itself
- * out twice. The previous run stays on screen, and `RunsView` reads the
- * store's `runId` against its own to know it is looking at the old one.
- *
- * **Frames are handed over once per animation frame, not once each.** Every
- * `llm.token` is its own SSE frame and its own task, and every store update is
- * a render: the summary, the graph and a full pass over the log. A model that
- * streams a few hundred tokens a second was a few hundred renders a second.
- * Buffering to the next paint makes a burst one update, and changes nothing
- * about the fold: `appendEvents` is `appendEvent` called less.
+ * Attach the run store to one run's SSE stream: a pipe from the stream into
+ * `appendEvents` and nowhere else. History is fetched first and the stream
+ * asked only for what came after it; the store is not touched until the
+ * history is in, so the previous run stays on screen; and frames are handed
+ * over once per animation frame, so a burst of tokens is one render.
  */
 export function useRunStream(runId: string | null): void {
   const open = useRunStore((state) => state.open);
@@ -97,10 +78,7 @@ export function useRunStream(runId: string | null): void {
           if (!cancelled) setConnection({ kind: "error", message });
         },
         onBadFrame: (raw) => {
-          // Loud, but not on the connection indicator: the stream is fine and
-          // the next frame will be read. The reducer's `unrecognised` list is
-          // for a *type* this build does not know; this is a frame that is not
-          // an event at all, which nothing downstream can render.
+          // Loud, but not on the connection indicator: the stream is fine.
           console.warn("agentspace: dropped a frame that was not an event", raw);
         },
       }, { afterSeq });

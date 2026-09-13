@@ -1,14 +1,6 @@
-"""`GET /runs`: the list the replay picker reads.
-
-§5 Phase 7 requires "Replay: scrub any past run from the event log". A user
-cannot scrub a run they cannot find, and every other way of listing runs would
-mean the UI holding its own idea of what exists, which is the drift §2 rules
-out. So the list comes from the `runs` table, newest first, and carries only
-what a picker renders: the goal, the status, and when it happened.
-
-**Newest first is asserted, not incidental.** A picker showing the run you just
-started at the bottom of a long list is a picker nobody scrolls. Ordering is a
-property of the query, so it belongs in a test rather than in a comment.
+"""`GET /runs`: the list the run picker reads, from the `runs` table, newest
+first. Ordering is asserted, since a picker showing the newest run at the
+bottom is one nobody scrolls.
 """
 
 from __future__ import annotations

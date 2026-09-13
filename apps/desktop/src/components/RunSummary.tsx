@@ -3,18 +3,9 @@ import { STATUS_LABEL } from "../state/describe";
 import type { RunView } from "../state/reducer";
 
 /**
- * The run's header and outcome.
- *
- * The one thing this component exists to get right: **a terminal event's
- * `summary` is a model's claim, not a record of what happened.** CLAUDE.md
- * records three separate live runs whose `run.completed` announced work the log
- * shows never occurred: a file "saved to notes.txt" by a run containing three
- * control calls and no file tool at all.
- *
- * So the summary is labelled as the supervisor's account and rendered beside a
- * count of what the log actually contains. A user reading "saved to notes.txt"
- * learns nothing; a user seeing that sentence next to "2 tool calls, 1 denied"
- * has everything they need to notice the disagreement.
+ * The run's header and outcome. A terminal `summary` is a model's claim, not a
+ * record of what happened, so it is labelled as the supervisor's account and
+ * rendered beside a count of what the log actually contains.
  */
 
 export interface RunSummaryProps {
@@ -39,10 +30,7 @@ export function RunSummary({ view }: RunSummaryProps) {
         </span>
         <h2 className="run-summary__goal">{view.goal ?? "No goal recorded yet"}</h2>
         {view.origin !== null && (
-          // §5 Phase 8: a run started from Discord appears here with no
-          // special-casing anywhere below this line: it is the same fold of
-          // the same log. What a viewer does need is to know they are watching
-          // something they did not start, and who did.
+          // A run started from Discord is the same fold; the viewer needs to know who started it.
           <p className="run-summary__origin" data-testid="run-origin">
             Started from {view.origin.channel} by {view.origin.identity ?? "an unknown identity"}
             {view.origin.displayName !== null && ` (${view.origin.displayName})`}

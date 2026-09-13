@@ -1,17 +1,9 @@
 """Process-wide configuration.
 
-Two BUILD_SPEC constraints are enforced here rather than documented elsewhere:
-
-* **§1 constraint 3**: the bind address is a module constant. There is no
-  setting, no environment variable and no CLI flag that moves it off the
-  loopback interface. :func:`assert_loopback_only` exists so a test can assert
-  that fact rather than trusting a comment.
-* **§5 Phase 0**: every path is a :class:`pathlib.Path`. There is no string
-  concatenation of paths anywhere in this package; ruff's ``PTH`` rules are on
-  to keep it that way.
-
-API keys are deliberately absent from this module. They live in the OS keychain
-and reach the sidecar over stdin at spawn time (§1 constraint 4, §5 Phase 3).
+The bind address is a module constant with no setting, variable or flag that
+moves it (§1 constraint 3); :func:`assert_loopback_only` lets a test assert
+that. Every path is a :class:`pathlib.Path`. API keys are absent by design:
+they live in the OS keychain and arrive over stdin (§1 constraint 4).
 """
 
 from __future__ import annotations
@@ -36,28 +28,14 @@ __all__ = [
 
 APP_NAME: Final[str] = "AgentSpace"
 
-#: The Tauri bundle identifier, from ``tauri.conf.json``. Keep the two in step.
+#: The Tauri bundle identifier, from ``tauri.conf.json``; a test keeps them in step.
 #:
-#: This (not :data:`APP_NAME`) is what the data directory is derived from, and
-#: the reason is a collision that has already happened once. Tauri's per-user
-#: NSIS installer installs into ``%LOCALAPPDATA%\\<productName>``, which is
-#: ``%LOCALAPPDATA%\\AgentSpace``: byte for byte the path an ``APP_NAME``-based
-#: data directory resolves to. The SQLite event log would then live *inside* the
-#: installation, where an uninstall deletes it and an upgrade may overwrite it.
-#:
-#: Deriving from the identifier instead puts the data in
-#: ``%LOCALAPPDATA%\\dev.agentspace.desktop``, matching what the Tauri shell
-#: injects at spawn time, so the injected value and this fallback name the same
-#: directory rather than quietly differing.
-#:
-#: The shell calls ``app_local_data_dir()`` for that, *not* ``app_data_dir()``.
-#: On Windows the latter is ``%APPDATA%``, the roaming profile, which a domain
-#: environment copies to and from a server on every logon. Roaming a live SQLite
-#: database (with its ``-wal`` and ``-shm`` sidecars, an agent workspace and
-#: logs) invites corruption and bloats every logon. Not a theoretical
-#: distinction: the first packaged build of Phase 2 used ``app_data_dir()`` and
-#: put the database in ``%APPDATA%``, which was caught only by installing the
-#: app and looking at where the file landed.
+#: The data directory derives from this, not :data:`APP_NAME`: the NSIS
+#: installer installs into ``%LOCALAPPDATA%\\AgentSpace``, which is exactly
+#: where an ``APP_NAME``-based data directory would land, inside the
+#: installation. ``%LOCALAPPDATA%\\dev.agentspace.desktop`` is also what the
+#: shell's ``app_local_data_dir()`` gives (not ``app_data_dir()``, which on
+#: Windows is the roaming profile), so the two name the same place.
 APP_IDENTIFIER: Final[str] = "dev.agentspace.desktop"
 
 #: The only interface this application ever binds. Hardcoded on purpose; see
@@ -68,21 +46,13 @@ BIND_HOST: Final[str] = "127.0.0.1"
 #: the host may not.
 DEFAULT_BIND_PORT: Final[int] = 8787
 
-#: Environment variable the Tauri shell uses to hand the sidecar its data
-#: directory, resolved there through Tauri's own path API (§5 Phase 2).
+#: Environment variable the Tauri shell uses to hand the sidecar its data directory.
 DATA_DIR_ENV_VAR: Final[str] = "AGENTSPACE_DATA_DIR"
 
-#: Page origins allowed to read responses from the sidecar.
-#:
-#: The webview does not share an origin with the sidecar (Tauri serves the app
-#: from ``http://tauri.localhost`` on Windows and ``tauri://localhost``
-#: elsewhere), so every request from the UI is cross-origin and the browser
-#: withholds the response without these headers. Binding loopback stops other
-#: *machines* reaching the sidecar; it does nothing about which page origins a
-#: browser will hand the body to.
-#:
-#: This is an explicit allowlist and must stay one. A wildcard would let any
-#: web page the user happens to have open read from their agent workspace.
+#: Page origins allowed to read responses from the sidecar. The webview does
+#: not share the sidecar's origin, so without these headers the browser
+#: withholds every response. An explicit allowlist, never a wildcard: that
+#: would let any page the user has open read from their agent workspace.
 ALLOWED_ORIGINS: Final[tuple[str, ...]] = (
     "http://tauri.localhost",  # Tauri v2 on Windows
     "https://tauri.localhost",
@@ -99,32 +69,24 @@ class AppPaths:
     data_dir: Path
     db_path: Path
     logs_dir: Path
-    #: One folder per space under here, named by the space's id: the sandbox
-    #: root for every tool call in that space's runs (§5 Phase 11). The folder
-    #: for a given space is :meth:`agentspace.store.spaces.SpaceStore.folder_for`.
+    #: One folder per space under here, named by id: the sandbox root for that
+    #: space's runs (:meth:`~agentspace.store.spaces.SpaceStore.folder_for`).
     spaces_dir: Path
-    #: Where the single workspace lived before spaces. Only read by
-    #: :func:`adopt_legacy_workspace`, which moves it under `spaces_dir`.
+    #: Where the single workspace lived before spaces; :func:`adopt_legacy_workspace` moves it.
     legacy_workspace: Path
 
     def ensure_exists(self) -> None:
-        """Create the directories this application owns.
-
-        Not called at import time: a module import must never touch the disk.
-        """
+        """Create the directories this application owns. Never called at import time."""
         for directory in (self.data_dir, self.logs_dir, self.spaces_dir):
             directory.mkdir(parents=True, exist_ok=True)
 
 
 def adopt_legacy_workspace(paths: AppPaths, default_space_folder: Path) -> bool:
-    """Make the old single workspace the default space's folder.
+    """Make the old single workspace the default space's folder, once.
 
-    §5 Phase 11's migration "moves the existing workspace folder to become its
-    folder". The SQL half of that migration cannot touch the disk, so this
-    runs beside it at startup, once: the move happens only while the old
-    folder exists and the new one does not, so a second launch (or a data
-    directory that never had a workspace) does nothing. Returns whether a
-    move happened.
+    Migration 006's SQL cannot touch the disk, so this runs beside it at
+    startup, only while the old folder exists and the new one does not.
+    Returns whether a move happened.
     """
     if not paths.legacy_workspace.is_dir() or default_space_folder.exists():
         return False
@@ -136,14 +98,8 @@ def adopt_legacy_workspace(paths: AppPaths, default_space_folder: Path) -> bool:
 def default_data_dir(platform_name: str = sys.platform) -> Path:
     """Return the per-user application data directory for the host OS.
 
-    Windows is the primary target (§1 constraint 7); macOS is kept correct so it
-    builds in CI from day one. Linux is here because CI runs there.
-
-    ``platform_name`` is a parameter rather than a direct :data:`sys.platform`
-    read for two reasons: mypy narrows a literal ``sys.platform`` comparison to
-    the host it is running on, so ``warn_unreachable`` would flag the other two
-    branches as dead code; and every branch stays reachable from a test on any
-    one machine, which is the only way this gets exercised before CI.
+    ``platform_name`` is a parameter so mypy does not prune the other
+    platforms' branches as unreachable, and so a test can reach every branch.
     """
     if platform_name == "win32":
         local_app_data = os.environ.get("LOCALAPPDATA")
@@ -179,12 +135,7 @@ def resolve_app_paths(data_dir: Path | None = None) -> AppPaths:
 
 
 def assert_loopback_only(host: str) -> None:
-    """Raise unless ``host`` is the hardcoded loopback address.
-
-    Called at every point a socket is bound, so that a future refactor which
-    threads a host through from configuration fails loudly instead of quietly
-    exposing the sidecar to the network.
-    """
+    """Raise unless ``host`` is the hardcoded loopback address. Called at every bind."""
     if host != BIND_HOST:
         msg = (
             f"refusing to bind {host!r}: this application binds {BIND_HOST!r} only "

@@ -17,20 +17,10 @@ import type { RunView } from "../state/reducer";
 import "@xyflow/react/dist/style.css";
 
 /**
- * The live agent graph: §5 Phase 7's "React Flow canvas: supervisor and
- * workers as nodes, handoffs as edges, live status colour".
- *
- * Every node and edge is derived from `view`, which is the fold of the event
- * log and nothing else. The component holds no state of its own and fetches
- * nothing, which is what lets replay and live share it: given the same
- * `RunView` it renders the same DOM, so a replayed run at cursor N is
- * indistinguishable from the live run when event N arrived.
- *
- * **Layout is computed, not solved.** Positions come from each agent's index in
- * `agentOrder`, so they are a deterministic function of the log. An
- * auto-layout pass that iterated to a solution would move nodes between two
- * renders of the same run, which is the acceptance criterion failing for a
- * reason that has nothing to do with the events.
+ * The agent graph: nodes, edges and camera derived from `view` and nothing
+ * else, so live and replay render the same DOM. Layout is computed, not
+ * solved: an iterative auto-layout would move nodes between two renders of
+ * the same run.
  */
 
 export interface RunGraphProps {
@@ -51,11 +41,7 @@ function AgentCard({ data }: { data: AgentNodeData }) {
       className={`agent-node agent-node--${agent.activity}${flags}`}
       data-testid={`agent-node-${agent.name}`}
     >
-      {/* Without these, React Flow silently refuses to draw any edge touching
-          this node: it logs a warning and renders nothing, so the graph looks
-          finished while every handoff is missing. Found by running a real run
-          and reading the browser console; no unit test noticed, because they
-          all asserted node content. */}
+      {/* Without handles React Flow silently draws no edge touching this node. */}
       <Handle type="target" position={Position.Top} />
       <Handle type="source" position={Position.Bottom} />
       <div className="agent-node__name">{agent.name}</div>
@@ -86,18 +72,9 @@ function AgentCard({ data }: { data: AgentNodeData }) {
 const nodeTypes = { agent: AgentCard };
 
 /**
- * Put the camera where {@link viewportFor} says.
- *
- * Deliberately not React Flow's `fitView`: that frames what it has *measured*,
- * so the result depends on when it ran. See `viewportFor` for the measurements
- * that made this necessary.
- *
- * Recomputed on pane resize as well as on the node set, and the resize half is
- * not defensive. The run summary above the canvas grows when the terminal event
- * adds its claim block, which shortens the pane, so a run watched live
- * computed its camera against a *taller* pane than the same run replayed, and
- * the two framed the graph differently for a reason that had nothing to do with
- * either the nodes or the log.
+ * Put the camera where {@link viewportFor} says, recomputed on pane resize as
+ * well as on the node set: the summary above the canvas grows when the run
+ * ends, and without the resize half live and replay framed the graph differently.
  */
 function Camera({ nodes, userMoved }: { nodes: Node<AgentNodeData>[]; userMoved: boolean }) {
   const flow = useReactFlow();

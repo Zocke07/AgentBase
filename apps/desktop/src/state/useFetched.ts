@@ -1,25 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 
 /**
- * Load something from the sidecar on mount, and again on demand.
- *
- * Three panels need the same thing (a list that is fetched when the view opens
- * and refetched after something changes it), and writing it out each time meant
- * three copies of the same in-flight and error handling.
- *
- * The state is set from inside the promise's callback rather than from the
- * effect body. That is what React's `set-state-in-effect` rule asks for, and the
- * reason behind the rule is real here: a synchronous setState in an effect
- * renders twice for every mount.
- *
- * `load` must be stable (wrap it in `useCallback`) or the effect refetches on
- * every render. The `token` is what makes an explicit `reload()` refetch without
- * changing `load` itself.
- *
- * `loading` is derived rather than stored: a request is in flight from the
- * moment a `token` is issued until the response for *that* token lands. Storing
- * it separately would mean a render where the token had moved on and the flag
- * had not, which is exactly the render where a list reads "No runs yet."
+ * Load something from the sidecar on mount, and again on demand. `load` must
+ * be stable (`useCallback`) or the effect refetches every render; `token` is
+ * what makes `reload()` refetch. `loading` is derived from the token rather
+ * than stored, so no render sees a moved-on token with a stale flag.
  */
 export function useFetched<T>(
   load: () => Promise<T>,

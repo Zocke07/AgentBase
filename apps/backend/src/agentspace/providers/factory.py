@@ -1,14 +1,4 @@
-"""Construct a provider from settings.
-
-This module is the Phase 3 acceptance criterion in one function: "switching
-provider is a settings change with no code change". Everything above it asks
-for *a provider* and receives one; the decision of which class to instantiate
-happens here and nowhere else.
-
-The registry is a dict rather than a chain of ``if`` statements so that adding
-a provider is a single entry, and so a test can assert the set of supported
-names without importing each implementation.
-"""
+"""Construct a provider from settings: the one place that decides which class to instantiate."""
 
 from __future__ import annotations
 
@@ -34,8 +24,6 @@ __all__ = [
 ]
 
 #: Provider name to the secret it needs, or ``None`` for one that needs none.
-#: Ollama's ``None`` is load-bearing: it is what proves the abstraction does
-#: not assume cloud (§5 Phase 3, §7).
 SUPPORTED_PROVIDERS: Final[dict[str, str | None]] = {
     "anthropic": "anthropic_api_key",
     "openai": "openai_api_key",
@@ -55,24 +43,11 @@ class UnknownProviderError(LookupError):
 
 
 def qualified_model(provider: str, model: str) -> str:
-    """The model id as the *ledger* will see it, not as the user typed it.
+    """The model id as the ledger will see it, not as the user typed it.
 
-    A provider may namespace the model it was given: Ollama prefixes `ollama/`
-    so `pricing` can recognise a local model as free without enumerating every
-    model a user might have pulled. Everything that asks a question about a
-    model's price has to ask it about this string, because this is the one
-    `BudgetedProvider` records spend against.
-
-    Found the hard way. `GET /settings` used to call `is_priced(settings.model)`
-    on the raw value, so every Ollama configuration reported
-    `model_is_priced: false` (a field whose own docstring promises "every run
-    will be refused") while runs worked perfectly and cost nothing. Meanwhile
-    `POST /settings/verify` was correct, because it builds the provider first
-    and asks about `provider.model`. Two endpoints, one configuration, opposite
-    answers.
-
-    Kept here rather than in `pricing` because it is a fact about how a provider
-    names things, and `build_provider` is where that knowledge already lives.
+    Ollama prefixes `ollama/`, and every question about a model's price has
+    to be asked about this string. Asking about the raw value once told every
+    Ollama user their runs would be refused.
     """
     if provider == "ollama" and not model.startswith(OLLAMA_MODEL_PREFIX):
         return OLLAMA_MODEL_PREFIX + model
@@ -87,10 +62,8 @@ def build_provider(
     """Build the provider named in ``settings``.
 
     :raises UnknownProviderError: for an unrecognised provider name.
-    :raises ProviderAuthError: when the provider needs a key and none arrived
-        over the stdin handshake. Raised here, before a request is built, so
-        the message names the missing credential rather than surfacing later as
-        an opaque 401 from the vendor.
+    :raises ProviderAuthError: when the provider needs a key and none arrived,
+        raised here so the message names the credential rather than a 401 later.
     """
     name = settings.provider
 

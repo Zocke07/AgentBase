@@ -6,31 +6,15 @@ import { display, flag, int, record, text, type Payload } from "../lib/payload";
 import { pendingApprovals, type AgentNode, type RunStatus, type RunView } from "./reducer";
 
 /**
- * The plain-language layer: BUILD_SPEC §5 Phase 11, "plain language first,
- * raw types second".
+ * The plain-language layer: a sentence for every event, a label for every
+ * agent state, and the "Now" line about the whole run at this cursor.
  *
- * Every event gets a sentence a person can read without knowing the event
- * vocabulary: *researcher wants to write notes.txt (waiting for you)*, and
- * the raw `tool.requested` stays beside it as a chip, because the raw type is
- * what a bug report needs and the sentence is what a person reads. The agent
- * cards and the run's status get the same treatment, and the "Now" line above
- * the graph is one sentence about the whole run at this cursor.
- *
- * All of it is a pure function of the event or the fold. That is not a style
- * preference: these sentences render inside `run-projection`, so
- * `replayIdentity.test.tsx` compares them live against replay at every
- * position, and a sentence that read a clock or remembered a previous event
- * would fail it. It also means the sentences live here, beside the reducer,
- * rather than in the components that show them: the reducer decides what an
- * event *means*, and the wording of that meaning belongs with it.
- *
- * **What the sentences must not do is improve on the log.** A terminal
- * `summary` is a model's claim (CLAUDE.md records four live runs whose summary
- * described work that never happened), so its sentence says "the supervisor
- * says", never "the run did". An approval's `prompt` is the sidecar's wording
- * of the *resolved* call and is quoted, never paraphrased from the raw
- * arguments: §2 makes the log the authority, and a client that built its own
- * wording could describe a different call from the one that ran.
+ * All of it is a pure function of the event or the fold, because it renders
+ * inside `run-projection` and is compared live against replay at every
+ * position. The sentences must not improve on the log: a terminal `summary`
+ * is a model's claim and reads "the supervisor says", and an approval's
+ * `prompt` is the sidecar's wording of the resolved call, quoted, never
+ * rebuilt from the raw arguments.
  */
 
 /** A tool call in three tenses, for the three events a call passes through. */
@@ -44,14 +28,9 @@ interface CallPhrase {
 }
 
 /**
- * How a call reads, from the tool's name and its arguments.
- *
- * Only the five built-ins and the three control calls get a verb of their own;
- * anything else (a tool this build has never heard of) is rendered as the
- * raw call, which is honest about what is known. The sandbox resolves paths
- * before it compares them, and this does not: the path shown is what the
- * model *asked for*, which for a `tool.denied` with `blocked_by: "sandbox"` is
- * exactly the thing worth seeing.
+ * How a call reads, from the tool's name and its arguments. Unknown tools are
+ * rendered as the raw call. The path shown is what the model asked for, not
+ * the resolved one, which for a sandbox denial is the thing worth seeing.
  */
 export function callPhrase(tool: string, args: Payload): CallPhrase {
   const arg = (key: string): string => ellipsise(display(args, key, "?"), 60);
@@ -96,14 +75,7 @@ function completionPhrase(reason: string | null): string {
   }
 }
 
-/**
- * One sentence for one event.
- *
- * The subject is the agent the event belongs to, or "the run" when it has
- * none. Text a model or a person wrote (a message, a streamed token, a
- * summary) is quoted and truncated, so a row stays a row; the payload is one
- * click away for the whole of it.
- */
+/** One sentence for one event. Text a model or a person wrote is quoted and truncated. */
 export function sentenceFor(event: Event): string {
   const payload = event.payload ?? {};
   const who = event.agent_id ?? "the run";
@@ -120,7 +92,7 @@ export function sentenceFor(event: Event): string {
     }
     case "run.completed": {
       const summary = read("summary");
-      // A claim, and worded as one. What the run *did* is the tool events.
+      // A claim, and worded as one.
       return summary === null
         ? "The run completed."
         : `The run completed. The supervisor says: ${quote(summary, 160)}`;
@@ -161,11 +133,7 @@ export function sentenceFor(event: Event): string {
     case "llm.response": {
       const tool = read("stop_reason") === "tool_use" ? ", with a tool call" : "";
       const tokens = `${shown("input_tokens")} tokens in, ${shown("output_tokens")} out${tool}`;
-      // A response with no text and no tool call is a model that said
-      // nothing, and the log can now say whether it reasoned first. Phase
-      // 5 watched a local model do that five times running with the whole
-      // response in a separate thinking field; before `thinking` travelled
-      // in this event, the two were the same row.
+      // No text and no tool call: the model said nothing, reasoned or not.
       if ((read("text") ?? "") === "" && tool === "") {
         const thinking = read("thinking") ?? "";
         return thinking === ""
@@ -181,13 +149,10 @@ export function sentenceFor(event: Event): string {
     case "tool.requested":
       return `${who} wants to ${phrase.infinitive}.`;
     case "tool.approved":
-      // Carries the sidecar's `summary` of the resolved call, like the
-      // approval events do; the arguments are not repeated on this one.
+      // Carries the sidecar's `summary`; the arguments are not repeated here.
       return `${who} may ${read("summary") ?? phrase.infinitive}: ${flag(payload, "automatic") ? "allowed by policy" : "you allowed it"}.`;
     case "tool.denied": {
-      // Three refusals share this event and are very different things to
-      // see in a run: CLAUDE.md is explicit that a log which collapsed them
-      // would render a traversal attempt and a declined dialog identically.
+      // Three refusals share this event: the sandbox, a person, the allowlist.
       const reason = ellipsise(read("reason") ?? "", 140);
       if (read("blocked_by") === "sandbox") {
         return `The sandbox stopped ${who} from ${phrase.progressive}: ${reason}`;
@@ -200,8 +165,7 @@ export function sentenceFor(event: Event): string {
     case "tool.called":
       return `${who} is ${phrase.progressive}.`;
     case "tool.result": {
-      // No arguments travel on the result, so the call is named by its tool;
-      // the result text usually says what it touched.
+      // No arguments travel on the result, so the call is named by its tool.
       const tool = read("tool") ?? "tool";
       const result = read("result");
       if (tool === "spawn_agent") {
@@ -215,11 +179,9 @@ export function sentenceFor(event: Event): string {
 
     // --- approvals ----------------------------------------------------------
     case "approval.requested": {
-      // `summary` is the sidecar's rendering of the *resolved* call (the
-      // same words the approval panel shows), never rebuilt from `args`.
+      // `summary` is the sidecar's rendering of the resolved call.
       const summary = read("summary") ?? phrase.infinitive;
-      // `precedent` names an earlier denial in this run that settles this
-      // one: the question came up again and was not asked again.
+      // `precedent` names an earlier denial in this run that settles this one.
       if (read("precedent") !== null) {
         return `${who} wants to ${summary}: already denied earlier in this run.`;
       }
@@ -265,17 +227,15 @@ export function sentenceFor(event: Event): string {
       return `The reply in ${read("channel") ?? "chat"} was updated ${shown("edits")} times.`;
 
     default:
-      // A type this build does not know. The raw name is the whole sentence,
-      // because inventing one would claim knowledge the reducer does not have.
+      // A type this build does not know: the raw name is the whole sentence.
       return event.type;
   }
 }
 
 /**
- * The calls that touch nothing: `orchestrator/control.py`'s vocabulary. An
- * agent "executing" one of these is delegating or finishing, not running a
- * tool, and the supervisor spends most of a run in exactly that state: its
- * `spawn_agent` call stays open for as long as the worker works.
+ * The calls that touch nothing. An agent "executing" one is delegating or
+ * finishing, not running a tool; a supervisor's `spawn_agent` stays open for
+ * as long as its worker works.
  */
 const CONTROL_CALLS: ReadonlySet<string> = new Set(["spawn_agent", "handoff", "finish"]);
 
@@ -333,16 +293,10 @@ function plural(count: number, noun: string): string {
 }
 
 /**
- * One sentence about the whole run at this cursor: the "Now" line.
- *
- * Derived from the fold and nothing else, so it is identical live and on
- * replay. The order of the cases is the order a person cares about: a question
- * waiting on them beats everything; then what is executing, because a shell
- * command can take half a minute; then who is talking to the model; then who
- * is between steps. A run with nothing happening says so rather than saying
- * nothing: CLAUDE.md records a local model that returned empty content five
- * times running, and "the model said nothing" has to be distinguishable from
- * "the page is broken".
+ * One sentence about the whole run at this cursor: the "Now" line. The cases
+ * are in the order a person cares about: a question waiting on them, then
+ * what is executing, then who is asking the model, then who is between steps.
+ * A run with nothing happening says so rather than saying nothing.
  */
 export function nowLine(view: RunView): string {
   const agents = view.agentOrder.map((name) => view.agents[name]).filter((agent) => agent !== undefined);
@@ -383,8 +337,7 @@ export function nowLine(view: RunView): string {
         const done = finished.length === 0 ? "" : `${plural(finished.length, "agent")} finished; `;
         return `${done}${list(thinking.map((agent) => agent.name))} ${thinking.length === 1 ? "is" : "are"} deciding what to do next.`;
       }
-      // Only delegating agents left: the supervisor's `spawn_agent` is open
-      // and the worker has not yet produced an event of its own.
+      // Only delegating agents left: a worker has not yet produced an event.
       const delegating = agents.filter((agent) => agent.activity === "executing");
       if (delegating.length > 0) {
         const [first] = delegating;

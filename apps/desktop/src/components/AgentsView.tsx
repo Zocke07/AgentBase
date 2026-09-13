@@ -18,16 +18,8 @@ import { AgentList } from "./AgentList";
 
 
 /**
- * The agent tab: the roster, and the editor beside it.
- *
- * Together with `RunsView` this is the second half of §5 Phase 7's acceptance
- * criterion: "a new agent can be created, edited, and run without leaving the
- * app". Creating and editing happen here; running happens next door, because a
- * definition the supervisor can draw on is one that is simply *enabled*.
- *
- * An `ApiError` thrown by a save is deliberately re-thrown to `AgentEditor`,
- * which is what puts the message on the offending input. Catching it here would
- * be the toast §5 Phase 7 explicitly rules out.
+ * The agents section: the roster, and the editor beside it. An `ApiError`
+ * from a save is re-thrown to `AgentEditor`, which puts it on the offending input.
  */
 
 const NO_TOOLS: ToolResponse[] = [];

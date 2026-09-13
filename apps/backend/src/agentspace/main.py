@@ -1,32 +1,16 @@
 """FastAPI sidecar entry point.
 
-Phase 1 is the packaging spike, so the HTTP surface here is deliberately tiny:
-enough to prove a PyInstaller ``--onefile`` binary launched by Tauri as an
-``externalBin`` actually serves requests to the webview. The orchestrator
-arrives in Phase 4.
+Shutdown never relies on signals. With PyInstaller's ``--onefile`` the PID the
+shell holds is the bootloader's, not the server's, so killing it orphans the
+server on port 8787. Instead the shell holds stdin open for the life of the
+app: EOF (a close or a kill) and the line ``shutdown`` (a clean quit) both make
+the reader thread stop the server from inside the process that is the server.
 
-The part of this module that is *not* trivial is shutdown. With ``--onefile``,
-PyInstaller's bootloader unpacks to a temp directory and execs the real Python
-process as a child. Tauri only ever learns the bootloader's PID, so killing that
-PID leaves the actual server running and holding port 8787: the orphan-process
-trap called out in BUILD_SPEC §5 Phase 1.
-
-The fix is to not rely on signals at all. The shell holds the sidecar's stdin
-open for the lifetime of the app. When the app quits (cleanly or by being
-killed) that pipe closes, the reader thread sees EOF, and the server stops
-itself from the inside. Writing the line ``shutdown`` does the same thing
-deliberately, which is the path used on a clean quit.
-
-**Phase 3 gives stdin a second job.** The shell writes one line of JSON holding
-the API keys it read from the OS keychain, immediately after spawn, before
-anything else. Keys must not travel as command-line arguments: `argv` is
-readable by any process on the machine (§1 constraint 4), and stdin is already
-a private pipe between exactly these two processes.
-
-The two uses share one stream without ambiguity: the handshake is the first
-line and is JSON, the shutdown sentinel is the bare word ``shutdown``. Both are
-consumed by the same reader thread, so a launch that never sends a secrets line
-(``python -m agentspace`` by hand) still starts and still shuts down cleanly.
+stdin also carries the API keys, as one JSON line written right after spawn.
+`argv` is readable by any process (§1 constraint 4); stdin is a private pipe.
+The handshake is the first line and is JSON, the sentinel is a bare word, and
+one reader thread consumes both, so a launch that sends no handshake still
+starts and still stops.
 """
 
 from __future__ import annotations
@@ -87,8 +71,7 @@ SHUTDOWN_COMMAND: Final[str] = "shutdown"
 PORT_ENV_VAR: Final[str] = "AGENTSPACE_PORT"
 
 #: Environment variable carrying the shell's tag for this launch, echoed by
-#: `/health`. Not a secret: a label, so the shell can tell the sidecar it
-#: spawned from whatever else is listening on the fixed port.
+#: `/health` so the shell can tell its own sidecar from a stranger on the port.
 INSTANCE_ENV_VAR: Final[str] = "AGENTSPACE_INSTANCE"
 
 
@@ -97,11 +80,8 @@ class HealthResponse(BaseModel):
 
     ok: bool
     #: The tag the shell launched this process with, or ``None`` for a sidecar
-    #: run by hand. The port is fixed, so the process answering `/health` is
-    #: whatever holds it (a previous copy of the app still shutting down, a
-    #: dev sidecar in a terminal) and this is how the shell tells its own
-    #: apart. The packaged app once attached to the dev sidecar and showed the
-    #: dev data directory's runs with nothing anywhere saying so.
+    #: run by hand. Whatever holds the fixed port answers `/health`; this is
+    #: how the shell tells its own from a leftover dev sidecar.
     instance: str | None
 
 
@@ -112,15 +92,14 @@ def create_app(
 ) -> FastAPI:
     """Build the ASGI application.
 
-    A factory rather than a module-level singleton so tests can build an
-    isolated instance, and so importing this module never starts anything.
+    A factory so tests can build an isolated instance and importing this
+    module starts nothing.
 
-    :param paths: explicit data locations, as a test supplies. When omitted the
-        directory is resolved the way the shipped app resolves it: the Tauri
-        shell's ``AGENTSPACE_DATA_DIR``, then the OS app-data dir.
-    :param secrets: the API keys delivered over stdin. Passed in rather than
-        constructed here because the stdin reader thread (which owns the other
-        end of the handshake) must write into the same instance.
+    :param paths: explicit data locations. Omitted, the directory is resolved
+        the way the shipped app resolves it: ``AGENTSPACE_DATA_DIR``, then the
+        OS app-data dir.
+    :param secrets: the API keys delivered over stdin; the reader thread
+        writes into the same instance.
     :param instance: the shell's tag for this launch, echoed by `/health`.
     """
     resolved = paths if paths is not None else resolve_app_paths()
@@ -130,9 +109,8 @@ def create_app(
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         """Own the database handle for the process's lifetime.
 
-        Opened here rather than at import so that importing this module still
-        touches nothing, and closed on the way out so the SQLite file is not
-        left locked, which on Windows blocks the installer from replacing it.
+        Closed on the way out so the SQLite file is not left locked, which on
+        Windows blocks the installer from replacing it.
         """
         resolved.ensure_exists()
 
@@ -153,21 +131,18 @@ def create_app(
         approval_store = ApprovalStore(database)
         app.state.approvals = ApprovalService(approval_store, app.state.store)
         app.state.spaces = SpaceStore(database, resolved.spaces_dir)
-        # The single workspace from before spaces becomes the default space's
-        # folder, once. The SQL half of migration 006 cannot move a directory.
+        # The pre-spaces workspace folder becomes the default space's, once;
+        # migration 006's SQL cannot move a directory.
         default_folder = app.state.spaces.folder_for(DEFAULT_SPACE_ID)
         if adopt_legacy_workspace(resolved, default_folder):
             logger.info("moved the workspace folder to %s", default_folder)
         default_folder.mkdir(parents=True, exist_ok=True)
-        # Built once over the default space's folder; the launcher rebinds the
-        # sandbox to the run's own space per run. The tools and the gate are
-        # process-wide, the root is not.
+        # The tools and the gate are process-wide; the launcher rebinds the
+        # sandbox root to the run's own space per run.
         app.state.tool_runtime = ToolRuntime.build(Sandbox(default_folder), app.state.approvals)
 
-        # One object knows how to start a run, and every caller uses it: the
-        # HTTP endpoint and both chat channels. See `orchestrator/launcher.py`
-        # for why three copies of `execute_run`'s argument list would have been
-        # the eighth instance of this project's recurring bug.
+        # One object knows how to start a run; the HTTP endpoint and the
+        # channels all use it.
         app.state.launcher = RunLauncher(
             store=app.state.store,
             settings=app.state.settings,
@@ -179,20 +154,15 @@ def create_app(
             tasks=app.state.background_tasks,
         )
 
-        # A pending approval's waiter was an `asyncio.Future` in whichever
-        # process created it, so nothing survives a restart to answer these.
-        # Left alone they would show up in the Phase 7 dialog as live questions
-        # about runs that ended when the app last closed.
+        # A pending approval's waiter died with the process that created it;
+        # left alone it would show as a live question about a dead run.
         orphaned = await approval_store.expire_orphaned_pending()
         if orphaned:
             logger.info("expired %d approval(s) left pending by a previous run", orphaned)
 
-        # And the runs those approvals belonged to, along with every other run
-        # the last process left unfinished. Their orchestrators were tasks in
-        # that process; nothing will ever append their terminal event, so the
-        # dashboard said "live" about runs dead since the app last closed.
-        # After the approval sweep, so the log reads: question expired, run
-        # failed: the order it happened in.
+        # Likewise every run the last process left unfinished: nothing will
+        # ever append its terminal event. After the approval sweep, so the log
+        # reads in the order it happened: question expired, run failed.
         interrupted = await app.state.store.fail_orphaned_runs(
             "The app closed while this run was in progress, so it did not finish."
         )
@@ -201,8 +171,7 @@ def create_app(
                 "failed %d run(s) left unfinished by a previous process", len(interrupted)
             )
 
-        # Started after the approval sweep above, so a channel cannot surface a
-        # question left over from the last process as though it were live.
+        # After the sweep, so a channel cannot surface a stale question as live.
         app.state.channels = ChannelService(
             ChannelDeps(
                 store=app.state.store,
@@ -218,8 +187,8 @@ def create_app(
         try:
             yield
         finally:
-            # Channels first: an adapter torn down after the database is closed
-            # would try to report a run against a handle that is gone.
+            # Channels first: an adapter outliving the database would report
+            # against a closed handle.
             await app.state.channels.aclose()
             for task in tuple(app.state.background_tasks):
                 task.cancel()
@@ -235,8 +204,8 @@ def create_app(
         lifespan=lifespan,
     )
 
-    # Without this the webview's fetch succeeds at the socket level and is then
-    # discarded by the browser, which looks identical to the sidecar being down.
+    # Without CORS the webview's fetch succeeds and the browser discards the
+    # body, which looks identical to the sidecar being down.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(ALLOWED_ORIGINS),
@@ -261,13 +230,7 @@ def create_app(
 
 
 def resolve_port(raw: str | None = None) -> int:
-    """Resolve the port to bind, falling back to the default when unusable.
-
-    The shell picks a free port and passes it in. A malformed or out-of-range
-    value falls back rather than crashing: failing to start is a worse outcome
-    than using the default port, and the shell discovers the real port by
-    polling ``/health`` regardless.
-    """
+    """Resolve the port to bind. A malformed or out-of-range value falls back to the default."""
     if raw is None:
         raw = os.environ.get(PORT_ENV_VAR)
     if raw is None:
@@ -293,17 +256,9 @@ def _read_stdin(
 ) -> None:
     """Consume the secrets handshake, then watch for shutdown.
 
-    The first line is the API-key handshake (§1 constraint 4). Every line after
-    it is watched for the shutdown sentinel, and EOF ends the process either
-    way.
-
-    Both endings matter. EOF is the app being closed or killed; the explicit
-    command is a clean quit. Either way the decision to stop is made inside this
-    process, which is the only process that reliably knows it is the real server.
-
-    Running on this thread rather than blocking startup is deliberate: a launch
-    that sends no handshake at all must still bind its port. See the module
-    docstring.
+    The first line is the key handshake; every later line is watched for the
+    sentinel, and EOF stops the process either way. On a thread rather than
+    at startup so a launch that sends no handshake still binds its port.
     """
     handshake_consumed = False
 
@@ -315,9 +270,8 @@ def _read_stdin(
 
             if not handshake_consumed:
                 handshake_consumed = True
-                # `parse_secrets_line` never raises and never logs the line;
-                # a malformed handshake yields nothing rather than crashing the
-                # only thread that can stop this process.
+                # Never raises and never logs the line: a malformed handshake
+                # must not crash the only thread that can stop this process.
                 secrets.load(parse_secrets_line(line))
                 continue
     except (OSError, ValueError):
@@ -332,8 +286,7 @@ def _read_stdin(
 def resolve_instance() -> str | None:
     """The shell's tag for this launch, or ``None`` when there is no shell.
 
-    Empty is ``None``: a variable exported with nothing in it must not make
-    every ``/health`` match an empty expectation.
+    Empty is ``None``.
     """
     return os.environ.get(INSTANCE_ENV_VAR) or None
 

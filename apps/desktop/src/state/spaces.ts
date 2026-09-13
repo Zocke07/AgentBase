@@ -4,18 +4,10 @@ import { create } from "zustand";
 import * as api from "../lib/api";
 
 /**
- * The spaces, and which one the window is looking at.
- *
- * A space is the container a run happens in (BUILD_SPEC §5 Phase 11), and
- * the *current* space is what the Home screen, the run picker, the roster and
- * the space settings page are all about. It is a fact about this window,
- * remembered in this browser like the theme, and never a workspace setting:
- * two windows may look at two spaces.
- *
- * The remembered id is checked against the list every time the list loads.
- * A space deleted from another window, or a stored id from a data directory
- * this build has never seen, falls back to the default space rather than to
- * a screen about nothing.
+ * The spaces, and which one the window is looking at: a fact about this
+ * window, remembered in this browser, never a workspace setting. The
+ * remembered id is checked against the list on every load and falls back to
+ * the default space.
  */
 export interface SpacesState {
   readonly spaces: readonly SpaceResponse[];

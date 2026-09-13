@@ -8,25 +8,11 @@ import { unfinished, useRunList } from "../state/runList";
 import { RunCard } from "./RunCard";
 
 /**
- * The Home screen: BUILD_SPEC §5 Phase 11, what a person sees when nothing
- * is open.
- *
- * Top to bottom: what stands in the way of a run, if anything; the goal box;
- * **Now**: runs in progress and approvals waiting, each a card that opens
- * the run; **Recent runs** as cards; and the roster, with the toggle that
- * decides whether the supervisor may put an agent to work. A fresh install
- * with no runs gets the goal box as the whole screen, with one sentence about
- * the agents that are ready.
- *
- * Nothing here is about a *particular* run. Starting one hands its id to the
- * shell, which opens it in the Runs section where the fold renders it; the
- * cards are rows of the `runs` table, and the one run whose row the table has
- * not caught up with is told its status by the caller.
- *
- * The pre-flight ("why a run started now would be refused") is the
- * sidecar's own answer, passed down from the shell. It disables Start rather
- * than letting the click add a dead `failed` row to the list, and offers the
- * two ways out: the settings, or the scripted demo run that needs no key.
+ * The Home screen: what a person sees when nothing is open. Top to bottom:
+ * the pre-flight (why a run would be refused, if it would), the goal box,
+ * "Now" (runs in progress and approvals waiting), recent runs as cards, and
+ * the roster with its enable toggles. A fresh install gets the goal box as
+ * the whole screen. Nothing here is about a particular run.
  */
 
 export interface HomeViewProps {
@@ -87,9 +73,7 @@ export function HomeView({
   const statusOf = (run: Run): Run["status"] =>
     liveStatus !== null && liveStatus.runId === run.id ? liveStatus.status : run.status;
 
-  // "Now": anything the table says is still going, plus anything a person is
-  // being asked about. A run that ended while its approval row is still
-  // pending would be a sidecar bug; it is listed rather than hidden.
+  // "Now": anything still going, plus anything a person is being asked about.
   const now = runs.filter((run) => unfinished({ ...run, status: statusOf(run) }) || waitingOn.has(run.id));
   const recent = runs.filter((run) => !now.includes(run)).slice(0, RECENT);
   const firstLaunch = runsLoaded && runs.length === 0;
@@ -112,8 +96,7 @@ export function HomeView({
     }
   };
 
-  // The scripted run: twenty events, no model, no key. It is what the graph
-  // can show before any provider is configured.
+  // The scripted run: twenty events, no model, no key.
   const demo = async () => {
     setDemoError(null);
     try {
@@ -125,8 +108,7 @@ export function HomeView({
     }
   };
 
-  // An empty roster gets the three built-in roles on request: what a space
-  // created with "no agents" is offered once its owner changes their mind.
+  // An empty roster gets the three built-in roles on request.
   const seed = async () => {
     if (space === null) return;
     setRosterError(null);

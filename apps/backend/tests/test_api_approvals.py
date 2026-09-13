@@ -1,10 +1,7 @@
-"""`POST /approvals/{id}` and the endpoints the Phase 7 dialog needs.
+"""`POST /approvals/{id}` and the endpoints the approval panel needs.
 
-§3's layout names `api/approvals.py` for one endpoint, and it is the one that
-matters: an agent inside a run is suspended on an `asyncio.Future`, and this is
-the request that sets it. The two halves live in different requests, which is
-why the service is application state rather than something a run owns: a test
-here therefore also checks the *wiring*, not only the handler.
+The request that sets the future an agent is suspended on lives in a
+different request from the agent, so these tests check the wiring too.
 """
 
 from __future__ import annotations

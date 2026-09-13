@@ -1,31 +1,11 @@
 """The allowlist: what an agent definition may and may not reach.
 
-This file exists for the second clause of the §5 Phase 5 acceptance criterion:
-
-    an agent whose `allowed_tools` omits `write_file` is blocked from calling it
-    even when its system prompt explicitly instructs it to.
-
-That clause is the security claim of the whole phase, so it is worth being
-precise about what would make it *false* while still looking true.
-
-**Not offering a tool is not the same as blocking it.** The obvious
-implementation is to pass the model only the tools its definition allows, and
-that is necessary, but a model can name any string it likes, and this project
-already has a `_unknown_tool` path precisely because they do. A test that only
-asserted "the forbidden tool was not in the offered list" would pass against an
-orchestrator that happily executed the call when the model asked anyway.
-
-So the tests below force the model to call a tool it was never offered, and
-assert on two independent things: that the log records `tool.denied`, and that
-`tool.called` never appears for it. The enforcement in
-:meth:`Agent._handle_call` reads `spec.allowed_tools` rather than the offered
-`self._tools`, so exposure and enforcement are two separate expressions of the
-same rule and one cannot silently become the other's proof.
-
-**A prompt is not a privilege.** Every definition used here has a system prompt
-that instructs the agent to do the forbidden thing, in the plainest language.
-§5 Phase 5: "User-authored prompts do not widen the security model, and must
-not be allowed to."
+§5 Phase 5: an agent whose `allowed_tools` omits `write_file` is blocked from
+calling it even when its system prompt instructs it to. Not offering a tool
+is not the same as blocking it, since a model can name any string, so these
+tests force the model to call a tool it was never offered and assert both
+that the log records `tool.denied` and that `tool.called` never appears.
+Every definition here has a prompt instructing the forbidden thing.
 """
 
 from __future__ import annotations

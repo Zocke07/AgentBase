@@ -1,34 +1,16 @@
-"""The human-in-the-loop gate: the one thing standing between an agent and the disk.
+"""The human-in-the-loop gate between an agent and the disk (§1 constraint 5).
 
-§1 constraint 5: "Every filesystem/shell/network tool call passes an approval
-gate before execution. No exceptions, no privileged paths for any channel", is
-the constraint this module exists to make structural. §5 Phase 6 sets the
-policy: "any `medium`/`high` risk call emits `approval.requested` and blocks
-until resolved. `low` risk (read within workspace) may be auto-approved by
-policy", with a default of manual-approve-everything.
+:meth:`ApprovalService.request` writes a row, emits `approval.requested`, and
+suspends the calling agent on an `asyncio.Future` until somebody resolves it
+over HTTP. Nothing polls and the agent never sees a "pending" reply it could
+reason around: one code path from "the agent asked" to "the tool ran", with a
+decision in the middle.
 
-**What "blocks" means.** :meth:`ApprovalService.request` writes a row, emits
-`approval.requested`, and then genuinely suspends the calling agent on an
-`asyncio.Future` until somebody resolves it over HTTP. Nothing polls, nothing
-times out on a private clock, and, importantly, the agent does not get a
-"pending" reply it might reason its way around. There is one code path from
-"the agent asked" to "the tool ran", and a decision sits in the middle of it.
-
-**Three states, and a fourth that is about the process rather than the user.**
-Approved and denied come from a person. Auto-approved comes from policy and is
-recorded as `approval.resolved` all the same, because a projection of the event
-log must be able to say why a call proceeded without a dialog: a silent
-auto-approval would make the log claim the user agreed to something they never
-saw. Expired is the fourth: a pending approval's waiter is an in-process
-future, so a sidecar restart makes every outstanding row permanently
-unresolvable, and a run outliving its wall-clock deadline while waiting has to
-stop waiting.
-
-**The policy can only narrow.** :func:`~agentspace.tools.catalogue.effective_auto_approve`
-intersects a definition's `auto_approve` with the workspace's, which is §5
-Phase 5's security note in one line: "may only *narrow* what the global policy
-already permits; it can never grant a risk level the workspace policy has not
-enabled". Written in Phase 5, consumed here for the first time.
+Approved and denied come from a person. An auto-approval from policy is
+recorded all the same, so the log can say why a call proceeded without a
+dialog. Expired covers a run that outlived its deadline while waiting, and a
+restart, after which no waiter exists to be woken. A definition's
+`auto_approve` can only narrow the workspace policy, never widen it.
 """
 
 from __future__ import annotations
@@ -72,12 +54,7 @@ class ApprovalStatus(StrEnum):
 
 
 class ApprovalNotPendingError(Exception):
-    """An attempt to resolve an approval that is already settled or unknown.
-
-    A 409 rather than a 404 at the API layer when the row exists: resolving the
-    same approval twice is a conflict with state, most often two clicks on a
-    dialog that two windows are both showing.
-    """
+    """Resolving an approval that is already settled or unknown: a 409 on a row that exists."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,12 +73,7 @@ class ApprovalRecord:
 
 @dataclass(frozen=True, slots=True)
 class ApprovalDecision:
-    """What the gate concluded, and why.
-
-    ``automatic`` separates "the user said yes" from "policy said yes without
-    asking". Both allow the call; only one of them is a person, and an audit of
-    what a run did needs to tell them apart.
-    """
+    """What the gate concluded, and why. ``automatic`` marks a policy's yes, not a person's."""
 
     allowed: bool
     status: ApprovalStatus
@@ -113,26 +85,15 @@ class ApprovalDecision:
 def approval_prompt(agent: str, prepared: Prepared) -> str:
     """The sentence a human is asked to judge.
 
-    §5 Phase 6: "Approval prompts must be **human-legible**, not raw JSON:
-    `Agent "researcher" wants to delete report.docx: Allow / Deny`." The
-    Allow/Deny half is the UI's; the sentence is this function's, and it is
-    built from :attr:`agentspace.tools.base.Prepared.summary` (the *resolved*
-    call) rather than the arguments the model sent. Rendering the raw arguments
-    would describe a different call from the one that would run, which is
-    precisely the gap a traversal attempt lives in.
+    Built from :attr:`~agentspace.tools.base.Prepared.summary`, the resolved
+    call, so it describes the call that would run rather than the arguments
+    the model typed.
     """
     return f'Agent "{agent}" wants to {prepared.summary}'
 
 
 class ApprovalStore:
-    """The `approvals` table.
-
-    Current state, not history: the history is `approval.requested` and
-    `approval.resolved` in the event log, which §2 makes the authority. This
-    exists because "what is outstanding right now" is a question about state,
-    and answering it by folding the whole event log would be the wrong shape for
-    a dialog that has to appear immediately.
-    """
+    """The `approvals` table: current state. The history is in the event log."""
 
     def __init__(self, db: Database) -> None:
         self._db = db
@@ -188,10 +149,8 @@ class ApprovalStore:
     ) -> ApprovalRecord | None:
         """The earliest denial in this run of exactly this call, if any.
 
-        "Exactly" is the tool and the arguments as the model sent them: the
-        same question, not a similar one. Different content in the same file
-        is a different question and is asked. Compared as parsed objects, so
-        key order in the stored JSON does not decide it.
+        Matched on the tool and the arguments as the model sent them, compared
+        as parsed objects so JSON key order does not decide it.
         """
         return await asyncio.to_thread(self._find_denied_sync, run_id, tool, args)
 
@@ -229,9 +188,7 @@ class ApprovalStore:
         """Move a pending approval to a terminal status.
 
         Conditional on the row still being pending, in one statement, so two
-        concurrent resolutions cannot both succeed, the second finds nothing
-        to update and raises. Two dialogs open on the same approval is an
-        ordinary thing, not a race worth ignoring.
+        concurrent resolutions cannot both succeed.
 
         :raises ApprovalNotPendingError: unknown, or already settled.
         """
@@ -265,11 +222,8 @@ class ApprovalStore:
     async def expire_orphaned_pending(self) -> int:
         """Settle every pending approval left over from a previous process.
 
-        Called once at startup. A pending row's waiter is an `asyncio.Future`
-        in the process that created it, so after a restart nobody is listening:
-        resolving one would update a row and unblock nothing, and the Phase 7
-        dialog would show approvals for runs that ended days ago. Returns how
-        many were closed, so the caller can log a number rather than a guess.
+        Called once at startup: a pending row's waiter died with the process
+        that created it, so nothing can answer it now. Returns how many closed.
         """
         return await asyncio.to_thread(self._expire_orphaned_sync)
 
@@ -306,19 +260,15 @@ def _record(row: Any) -> ApprovalRecord:
 class ApprovalService:
     """Creates approvals, blocks on them, and resolves them.
 
-    One instance per application, held on `app.state`, because the two halves
-    live in different requests: an agent inside a run creates and awaits the
-    future, and `POST /approvals/{id}` (a completely separate HTTP request)
-    is what sets it. A per-run service would have nowhere to put the waiter that
-    the API handler could reach.
+    One instance per application: the agent awaits the future inside a run
+    and a separate HTTP request (`POST /approvals/{id}`) sets it.
     """
 
     def __init__(self, store: ApprovalStore, events: EventStore) -> None:
         self._store = store
         self._events = events
         self._waiters: dict[str, asyncio.Future[ApprovalStatus]] = {}
-        #: Runs whose pending questions were released by a cancel, so the
-        #: denial that follows can say why rather than blaming the clock.
+        #: Runs whose pending questions a cancel released, so the denial can say so.
         self._released: set[str] = set()
 
     @property
@@ -331,14 +281,7 @@ class ApprovalService:
         return len(self._waiters)
 
     def waiting_on(self) -> tuple[str, ...]:
-        """The ids this process is currently suspended on.
-
-        Distinct from :meth:`ApprovalStore.list_pending`, which reads the
-        table: this is what *this process* can actually still answer. After a
-        restart the table can hold pending rows that no future backs, and the
-        difference between the two is exactly what
-        :meth:`ApprovalStore.expire_orphaned_pending` cleans up.
-        """
+        """The ids this process is currently suspended on (what it can still answer)."""
         return tuple(self._waiters)
 
     async def request(
@@ -353,22 +296,18 @@ class ApprovalService:
     ) -> ApprovalDecision:
         """Obtain a decision for one prepared call, blocking if a human is needed.
 
-        :param auto_approve: the *already-intersected* policy; see
-            :func:`agentspace.tools.catalogue.effective_auto_approve`. This
-            method does not intersect anything itself, so that the narrowing
-            rule has exactly one implementation.
+        :param auto_approve: the already-intersected policy (see
+            :func:`~agentspace.tools.catalogue.effective_auto_approve`); the
+            narrowing rule has one implementation and it is not here.
         :param deadline: seconds this may block before expiring, normally the
             run's remaining wall-clock budget. ``None`` waits indefinitely.
         """
         if risk in frozenset(auto_approve):
             return await self._auto_approve(run_id, agent, prepared, risk)
 
-        # A denial sticks for the run. Phase 6 watched a worker give up after
-        # a "no", the supervisor spawn a second copy of it, and the copy ask
-        # for the same overwrite: a person could be asked the same question
-        # for as long as the step limit and the agent cap allowed. The same
-        # call, from any agent in this run, is now denied by the earlier
-        # answer without asking again.
+        # A denial sticks for the run: the same call from any agent is denied
+        # by the earlier answer, so a person is not asked the same question
+        # for as long as the step limit and the agent cap allow.
         precedent = await self._store.find_denied(
             run_id, prepared.tool_name, prepared.raw_arguments
         )
@@ -387,10 +326,7 @@ class ApprovalService:
                 "tool": prepared.tool_name,
                 "args": prepared.raw_arguments,
                 "risk": str(risk),
-                # The rendered sentence, in the payload rather than composed by
-                # the client. §2 makes the UI a projection of the log, and a
-                # client that built its own wording could show one thing while
-                # the log recorded another.
+                # The sentence travels in the log so no client composes its own.
                 "prompt": approval_prompt(agent, prepared),
                 "summary": prepared.summary,
             },
@@ -451,11 +387,8 @@ class ApprovalService:
     ) -> ApprovalDecision:
         """Allow a call the policy pre-authorized, and say so in the log.
 
-        A row is still written and both events are still emitted. The temptation
-        is to skip all of it (nobody was asked, so what is there to record),
-        and that is exactly backwards: the question a user asks afterwards is
-        "what did this run do without asking me", and it is only answerable if
-        the automatic decisions are in the log beside the manual ones.
+        A row is still written and both events still emitted: "what did this
+        run do without asking me" is answered from exactly these rows.
         """
         record = await self._store.create(
             run_id, prepared.tool_name, prepared.raw_arguments, risk
@@ -507,10 +440,8 @@ class ApprovalService:
     ) -> ApprovalDecision:
         """Deny a call the user already denied in this run, and say so.
 
-        Written and emitted like an automatic approval, for the same reason:
-        the history has to show that the question came up again and how it
-        was settled, and the dialog must never show a question nobody is
-        being asked. ``precedent`` names the decision this one rests on.
+        Recorded like an automatic approval, marked with the ``precedent`` it
+        rests on, so the history shows the question came up again.
         """
         record = await self._store.create(
             run_id, prepared.tool_name, prepared.raw_arguments, risk
@@ -559,13 +490,10 @@ class ApprovalService:
     async def release_run(self, run_id: str) -> int:
         """Settle every pending question of a cancelled run as expired.
 
-        The gate borrows the run's wall clock, so an agent blocked on it would
-        otherwise notice a cancel only when the approval expired, ten minutes
-        by default. The rows are settled as `expired` (§4's `approvals.status`
-        has no `cancelled`, and a fifth value would be a migration for no
-        reader) and the waiters are woken with that answer; the denial that
-        follows says the run was cancelled rather than blaming the clock.
-        Tolerates the race where a person answered in the last instant.
+        Otherwise an agent blocked on the gate notices a cancel only when the
+        approval expires. `expired` because §4 has no `cancelled` status; the
+        denial that follows says the run was cancelled. Tolerates a person
+        answering in the last instant.
         """
         self._released.add(run_id)
         released = 0
@@ -590,23 +518,14 @@ class ApprovalService:
             if deadline is None:
                 return await future
 
-            # One wait, not a poll loop. `deadline` is the run's remaining
-            # budget measured once by the caller, so slicing it into intervals
-            # would wake the loop hundreds of times to arrive at the same
-            # instant. Nothing is being watched for in between: the future is
-            # set by `resolve`, from an HTTP handler, not by a clock.
-            #
-            # `shield` so that the timeout cancels *this* wait and not the
-            # future itself: `resolve` may be setting a result at the very
-            # moment the deadline lands, and a cancelled future would turn that
-            # into a `CancelledError` instead of the decision a person made.
+            # `shield` so the timeout cancels this wait and not the future:
+            # `resolve` may set a result at the instant the deadline lands.
             try:
                 return await asyncio.wait_for(asyncio.shield(future), timeout=deadline)
             except TimeoutError:
                 pass
 
-            # Out of time. Settle the row so it does not sit pending forever,
-            # tolerating the race where a human resolved it in the last instant.
+            # Out of time. Settle the row, tolerating a last-instant answer.
             try:
                 await self._store.settle(approval_id, ApprovalStatus.EXPIRED)
             except ApprovalNotPendingError:
@@ -622,10 +541,8 @@ class ApprovalService:
     async def resolve(self, approval_id: str, *, approved: bool) -> ApprovalRecord:
         """Settle an approval and wake whatever is waiting on it.
 
-        The row is updated first. If the write fails because somebody already
-        resolved it, no future is woken and the caller gets the conflict, which
-        is the right order: the durable state decides, and the in-memory waiter
-        follows it.
+        The row is updated first; the durable state decides and the in-memory
+        waiter follows it.
 
         :raises ApprovalNotPendingError: unknown, or already settled.
         """

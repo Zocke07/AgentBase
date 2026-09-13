@@ -1,10 +1,7 @@
-"""Spaces: migration 006, the store, and the layering of rules.
-
-Written before the store existed, per §6: the migration rebuilds two tables
-other tables reference, over a user's whole history, and there is no
-down-migration. The first test builds a *populated* v5 database (runs,
-events, definitions, approvals, spend, with the foreign keys that tie them
-together) and asserts every row survives the upgrade with a space.
+"""Spaces: migration 006, the store, and the layering of rules. Written before
+the store existed (§6): the migration rebuilds two referenced tables over a
+user's whole history, so the first test upgrades a populated v5 database and
+asserts every row survives with a space.
 """
 
 from __future__ import annotations

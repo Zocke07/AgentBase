@@ -1,16 +1,8 @@
 """Approval endpoints: the other half of the gate.
 
-§3's layout names this module `POST /approvals/{id}`, and that is the endpoint
-that matters: an agent inside a run is suspended on an `asyncio.Future`, and
-this is what sets it. The two halves live in different requests, which is why
-:class:`~agentspace.tools.approval.ApprovalService` is application state rather
-than something a run owns.
-
-`GET /approvals` exists for the Phase 7 dialog, which has to render what is
-outstanding when it opens: including approvals raised before it connected. A
-UI relying only on the `approval.requested` event would show nothing to a user
-who opened the window a second too late, and the whole point of the gate is
-that somebody is there to answer it.
+`POST /approvals/{id}` sets the future an agent is suspended on.
+`GET /approvals` lists what is outstanding, including questions raised
+before the window connected.
 """
 
 from __future__ import annotations
@@ -31,14 +23,7 @@ router = APIRouter()
 
 
 class ResolveApprovalRequest(BaseModel):
-    """A decision on one approval.
-
-    ``extra="forbid"`` for the reason every request model in this project has
-    it: Pydantic's default is to drop an unknown field, which turned a
-    misspelled setting into a `200 OK` that changed nothing once already
-    (CLAUDE.md, Phase 4). Here the stakes are higher: a client that sent
-    ``{"approve": true}`` would have the typo silently read as a denial.
-    """
+    """A decision on one approval. A misspelled field must not be read as a denial."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -97,11 +82,8 @@ async def resolve_approval(
 ) -> ApprovalResponse:
     """Allow or deny a pending call, and release the agent waiting on it.
 
-    A 404 for an id that does not exist, and a **409** for one that is already
-    settled. The distinction is not pedantry: two windows showing the same
-    dialog is ordinary, and the second click has to fail in a way the UI can
-    explain as "somebody already answered this" rather than as "that approval
-    is gone".
+    404 for an unknown id; 409 for one already settled, so a second window's
+    click reads as "already answered" rather than "gone".
     """
     service = _service(request)
 

@@ -1,15 +1,6 @@
-"""The allowlist that decides whose message this workspace will act on.
-
-Written before :mod:`agentspace.channels.identity` exists, per §6's rule about
-the security-critical modules. This one earns that treatment for a reason worth
-stating plainly: a Discord bot invited to a server can be invoked by *anybody in
-that server*. Without an allowlist, a stranger's slash command spends the
-owner's monthly API budget, raises approval dialogs on the owner's desktop, and
-does it all through the perfectly legitimate "explicit command" trigger that §1
-constraint 6 requires. The constraint stops the bot reading ambient chatter; it
-says nothing about who may address it deliberately.
-
-So the tests here are mostly about the ways an allowlist can be accidentally
+"""The allowlist that decides whose message this workspace will act on, written
+before the module existed (§6). A bot in a server can be invoked by anybody in
+it, so these tests are mostly about the ways an allowlist can be accidentally
 widened.
 """
 

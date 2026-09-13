@@ -1,15 +1,6 @@
-"""The TypeScript emitter behind `packages/schemas`.
-
-§5 Phase 7: "Generate TS types from the FastAPI OpenAPI schema; never
-hand-write the API types." These tests are about the *generator*; the drift
-between what it produces and what is committed is `test_openapi_snapshot.py`.
-
-The property that matters most is the one in
-:class:`~agentspace.openapi.UnsupportedSchemaError`: a construct the emitter
-does not understand must raise, not become `unknown`. A generator that degrades
-silently produces a file that typechecks and protects nothing, and (like every
-other silent-success bug this project has hit) the test suite stays green while
-it happens.
+"""The TypeScript emitter behind `packages/schemas`. The property that matters
+most: a construct the emitter does not understand must raise, never become
+`unknown`.
 """
 
 from __future__ import annotations

@@ -4,17 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import * as api from "../lib/api";
 
 /**
- * The space switcher at the top of the rail: BUILD_SPEC §5 Phase 11.
- *
- * The current space's name, a list to switch, and "New space…", which opens
- * a small form in place: a name and how the roster starts. Archived spaces
- * sit in a collapsed group under the live ones, still reachable, because
- * an archived space's runs are still viewable and its settings page is
- * where it is unarchived, but out of the way.
- *
- * Creating a space is the one write this component does, and it hands the
- * result up rather than selecting it itself: the shell owns which space the
- * window is looking at, and switching to the new one is its call.
+ * The space switcher at the top of the rail: the current space, a list to
+ * switch, and "New space…" (a name and how the roster starts). Archived
+ * spaces sit in a collapsed group, still reachable. Creating one hands the
+ * result up; the shell owns which space the window is looking at.
  */
 
 export interface SpaceSwitcherProps {

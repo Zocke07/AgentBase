@@ -1,13 +1,8 @@
 """Settings and budget endpoints.
 
-This is the HTTP face of the Phase 3 acceptance criterion: switching provider
-happens here, as data, and nothing downstream changes.
-
-**No endpoint ever returns a key.** :meth:`SecretStore.names` reports *which*
-credentials arrived over the stdin handshake so the UI can render "key
-configured": reading one back out is not a capability this API has, because a
-read-back endpoint is a key exfiltration endpoint for anything that reaches
-loopback.
+No endpoint ever returns a key. `configured_secrets` reports *which* names
+arrived over stdin; a read-back endpoint would be an exfiltration endpoint for
+anything that reaches loopback.
 """
 
 from __future__ import annotations
@@ -44,9 +39,7 @@ __all__ = ["router"]
 router = APIRouter()
 
 #: Settings that change which adapters should be connected. Derived from the
-#: model rather than hand-listed, so a channel setting added later is covered
-#: without anybody remembering this line: the Phase 6 lesson about two lists
-#: that drift, applied before it has a chance to.
+#: model rather than hand-listed, so a later channel setting cannot be missed.
 _CHANNEL_SETTINGS: frozenset[str] = frozenset(
     name for name in WorkspaceSettings.model_fields if name.startswith("discord_")
 )
@@ -58,34 +51,21 @@ class SettingsResponse(BaseModel):
     settings: WorkspaceSettings
     #: Which API keys are present. Names only, never values.
     configured_secrets: list[str]
-    #: Every secret name the sidecar would accept, present or not, so the
-    #: settings screen can offer a row for each without keeping its own list.
+    #: Every secret name the sidecar accepts, present or not, one row each.
     known_secrets: list[str]
     supported_providers: list[str]
-    #: Whether the selected model has a registered price. A false here means
-    #: every run will be refused, so the UI can say so before the user tries.
+    #: False means every run will be refused; the UI says so before Start.
     model_is_priced: bool
 
 
 class UpdateSettingsRequest(BaseModel):
     """A partial update. Every field optional; omitted fields are untouched.
 
-    **Unknown fields are rejected rather than ignored.** Pydantic's default is
-    to drop them, which turns a misspelled or not-yet-supported setting into a
-    `200 OK` that changed nothing: the caller is told it worked and it did
-    not. That is exactly how the Phase 4 run limits appeared configurable
-    through this endpoint for a while without being so.
-
-    **This model must list every field of
-    :class:`~agentspace.store.settings.WorkspaceSettings`.** It duplicates that
-    list because the two differ in bounds and optionality, and a duplicated
-    list is a list that drifts: Phase 6 added `auto_approve` to the settings
-    model and not to this one, so `GET /settings` reported a policy that
-    `PATCH /settings` refused to set: the workspace's entire approval policy
-    was unsettable through the API. `extra="forbid"` made that loud rather than
-    silent, which is the Phase 4 fix working, and
-    `test_every_workspace_setting_can_be_patched` is what stops the next field
-    repeating it.
+    Unknown fields are rejected, not dropped: Pydantic's default turns a
+    misspelled setting into a `200 OK` that changed nothing. This model must
+    list every field of :class:`~agentspace.store.settings.WorkspaceSettings`
+    (they differ in bounds and optionality, so it cannot be the same class),
+    and `test_every_workspace_setting_can_be_patched` keeps the two in step.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -95,28 +75,22 @@ class UpdateSettingsRequest(BaseModel):
     monthly_cap_micros: int | None = Field(default=None, ge=0)
     ollama_base_url: str | None = Field(default=None, min_length=1)
 
-    # §5 Phase 4: "All configurable". Bounds mirror `WorkspaceSettings`, where
-    # a limit of zero is a run that cannot do anything rather than a stricter
-    # setting.
+    # Bounds mirror `WorkspaceSettings`: a limit of zero is not a stricter setting.
     max_steps_per_agent: int | None = Field(default=None, ge=1)
     max_agents_per_run: int | None = Field(default=None, ge=1)
     max_run_seconds: int | None = Field(default=None, ge=1)
 
-    # §5 Phase 6's policy for unattended operation. An empty list is meaningful
-    # here (it is how a user turns pre-authorization back off), and
+    # An empty list is meaningful (it turns pre-authorization off), and
     # `exclude_none` keeps it distinguishable from "not sent".
     auto_approve: list[RiskLevel] | None = None
 
-    # §5 Phase 8's channels. `channel_identities` has the same empty-list-is-
-    # meaningful property as `auto_approve`: sending `[]` is how an owner
-    # revokes everyone's access, and it must not be read as "not sent".
+    # `channel_identities: []` revokes everyone and must not read as "not sent".
     discord_enabled: bool | None = None
     channel_identities: list[ChannelIdentity] | None = None
     channel_approvals: ChannelApprovalPolicy | None = None
 
-    # §5 Phase 11: the space a chat-started run happens in. `exclude_none`
-    # means null cannot be *sent*; an empty string is how a caller says "the
-    # default space", and is stored as null.
+    # Where a chat-started run happens. `exclude_none` means null cannot be
+    # sent, so an empty string means "the default space" and is stored as null.
     channel_space_id: str | None = None
 
 
@@ -127,8 +101,7 @@ class BudgetResponse(BaseModel):
     percent_used: int
     spent_display: str
     cap_display: str
-    #: This space's share of the period's spend, when a space was asked
-    #: about. The cap is app-wide (one wallet), so there is no per-space cap.
+    #: This space's share of the period's spend. The cap is app-wide; there is no per-space cap.
     space_spent_micros: int | None = None
     space_spent_display: str | None = None
 
@@ -159,10 +132,8 @@ async def _response(request: Request, settings: WorkspaceSettings) -> SettingsRe
         configured_secrets=list(_secrets(request).names),
         known_secrets=sorted(SECRET_KEYS),
         supported_providers=sorted(SUPPORTED_PROVIDERS),
-        # `qualified_model`, not `settings.model`: a provider may namespace
-        # what it was given, and the price is looked up under the namespaced
-        # id. Asking about the raw value told every Ollama user their runs
-        # would be refused when they would in fact have cost nothing.
+        # `qualified_model`, not `settings.model`: the price is looked up
+        # under the id the provider namespaces to (`ollama/<name>`).
         model_is_priced=is_priced(qualified_model(settings.provider, settings.model)),
     )
 
@@ -173,13 +144,7 @@ async def get_settings(request: Request) -> SettingsResponse:
 
 
 def _reject(message: str, field: str | None) -> HTTPException:
-    """A 400 that says which field, in the shape the agents API uses.
-
-    The form puts the message on the input the server named and only falls
-    back to a form-level message when `field` is None, which it can only do
-    if the body says. The endpoint's docstring promised this for a phase
-    before the body did.
-    """
+    """A 400 carrying `{message, field}`, so the form can put it on the right input."""
     return HTTPException(status_code=400, detail={"message": message, "field": field})
 
 
@@ -197,9 +162,7 @@ def _reject_validation(exc: ValidationError) -> HTTPException:
 async def update_settings(request: Request, body: UpdateSettingsRequest) -> SettingsResponse:
     """Apply a partial settings update.
 
-    Validation failures are 400s carrying `{message, field}` rather than 500s
-    or bare strings: this endpoint backs a form, and the form surfaces the
-    message inline on the offending field.
+    Validation failures are 400s carrying `{message, field}`.
     """
     changes: dict[str, Any] = body.model_dump(exclude_none=True)
 
@@ -233,10 +196,7 @@ async def update_settings(request: Request, body: UpdateSettingsRequest) -> Sett
     except ValueError as exc:
         raise _reject(str(exc), None) from exc
 
-    # A channel that was just enabled has to connect now, not at the next
-    # restart, and this product has no restart button. Reconciling here is
-    # what stops `discord_enabled` being another setting that reports success
-    # and changes nothing; see `ChannelService.reconcile`.
+    # A channel just enabled has to connect now; this product has no restart button.
     if changes.keys() & _CHANNEL_SETTINGS:
         channels: ChannelService | None = getattr(request.app.state, "channels", None)
         if channels is not None:
@@ -250,9 +210,7 @@ class ProviderEntry(BaseModel):
 
     name: str
     requires_key: bool
-    #: True when the provider serves whatever the user has installed and the
-    #: model name is typed rather than picked: Ollama. False when the models
-    #: are the priced ones in ``models``.
+    #: True when the model name is typed rather than picked (Ollama).
     free_text_model: bool
 
 
@@ -260,20 +218,15 @@ class ProviderCatalogueResponse(BaseModel):
     """What can be selected, and which models are priced, per provider."""
 
     providers: list[ProviderEntry]
-    #: Priced models grouped by provider name. A free-text provider's list is
-    #: empty on purpose: there is nothing to enumerate.
+    #: Priced models by provider. A free-text provider's list is empty.
     models: dict[str, list[str]]
 
 
 @router.get("/settings/providers")
 async def list_providers() -> ProviderCatalogueResponse:
-    """What can be selected, and which models are priced.
+    """What can be selected, and which models are priced, grouped per provider.
 
-    Phase 7's dropdowns read this instead of hardcoding a list that would drift
-    from `pricing.py` the first time a model is added. Grouped per provider
-    because a flat list let the editor offer every Anthropic model under
-    provider ``openai``, and offered no Ollama model at all, since the wildcard
-    price row is not a model.
+    The dropdowns read this rather than a list that would drift from `pricing.py`.
     """
     return ProviderCatalogueResponse(
         providers=[
@@ -290,12 +243,7 @@ async def list_providers() -> ProviderCatalogueResponse:
 
 @router.get("/budget")
 async def get_budget(request: Request, space_id: str | None = None) -> BudgetResponse:
-    """Month-to-date spend against the cap. Phase 7's budget meter reads this.
-
-    ``space_id`` adds that space's share of the period beside the app-wide
-    figures. The cap stays app-wide: §5 Phase 11 keeps one wallet, so a run
-    is refused over the cap whichever space it is in.
-    """
+    """Month-to-date spend against the cap; ``space_id`` adds that space's share beside it."""
     ledger = _ledger(request)
     spent = await ledger.spent_micros()
     cap = await ledger.cap_micros()
@@ -326,15 +274,10 @@ class VerifyResponse(BaseModel):
 
 @router.post("/settings/verify")
 async def verify_provider(request: Request, space_id: str | None = None) -> VerifyResponse:
-    """Check the current settings can actually build a provider.
+    """Check the current settings can build a provider, without calling the model.
 
-    Deliberately does *not* call the model: that would spend money to answer a
-    configuration question, and the budget check exists precisely to stop
-    unbudgeted calls. It reports whether the credentials and the provider name
-    are sufficient to construct one. It is also the dashboard's pre-flight -
-    the same refusal a run would get, shown beside the goal box before Start.
-    With ``space_id``, it is that space's *effective* settings that are
-    checked: a space may pin a provider the app-wide default does not use.
+    The dashboard's pre-flight: the refusal a run would get, shown before
+    Start. With ``space_id`` the space's effective settings are checked.
     """
     settings = await _settings_store(request).get()
     if space_id is not None:

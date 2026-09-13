@@ -1,25 +1,13 @@
 """SQLite connection management and the migration runner.
 
-**Concurrency model.** One connection, guarded by a :class:`threading.Lock`.
-The alternative (a connection per thread via ``threading.local``) scales
-better and is wrong for this application in two ways: connections owned by
-pool threads are never deterministically closed, which on Windows keeps the
-database file locked and makes both test teardown and app shutdown flaky; and
-a single-user desktop app has no concurrency to scale to. Operations here are
-sub-millisecond, and every async caller reaches them through
-``asyncio.to_thread``, so the event loop is never blocked on the lock.
+One connection behind a :class:`threading.Lock`, not one per thread: pool
+threads never deterministically close theirs, which on Windows keeps the file
+locked through test teardown and app shutdown. The lock only keeps one
+connection off two threads at once; `seq` atomicity comes from
+``BEGIN IMMEDIATE`` and ``UNIQUE(run_id, seq)`` and holds without it.
 
-**Why the lock is not the correctness argument.** Sequence assignment in
-:mod:`agentspace.events.store` is atomic because it runs as one statement
-inside a ``BEGIN IMMEDIATE`` transaction with ``UNIQUE(run_id, seq)`` behind
-it. That holds whether or not this lock exists. The lock is here to keep a
-single ``sqlite3.Connection`` from being used by two threads at once, which is
-a different problem; a later refactor that removes it must not silently remove
-the atomicity guarantee with it.
-
-**Migrations** step one version at a time via ``PRAGMA user_version``, each in
-its own transaction. A migration that raises leaves the version untouched, so
-the next launch retries it rather than skipping it forever.
+Migrations step one version at a time via ``PRAGMA user_version``, each in
+its own transaction, so a failed one is retried at the next launch.
 """
 
 from __future__ import annotations
@@ -49,41 +37,26 @@ logger = logging.getLogger("agentspace.store")
 
 @dataclass(frozen=True, slots=True)
 class Migration:
-    """One forward schema step. There is no down-migration by design.
-
-    Rolling a schema backwards on a user's machine loses their event log, and
-    the event log is the product (§2). Recovery is a fresh database, not a
-    reverse migration.
-    """
+    """One forward schema step. No down-migrations: rolling back loses the event log."""
 
     version: int
     sql: str
 
-    #: Bundled filename this SQL came from, or ``None`` for a migration built
-    #: in a test. Recorded so a test can assert the packaging glob in the
-    #: justfile actually carries every file: a missing one is invisible until
-    #: the frozen binary runs.
+    #: Bundled filename this SQL came from (``None`` in a test), so a test can
+    #: check the packaging glob carries every file.
     source: str | None = None
 
-    #: Run with ``PRAGMA foreign_keys`` off, and verify the result with
-    #: ``PRAGMA foreign_key_check`` before committing.
-    #:
-    #: A table rebuild (create, copy, drop, rename) is the only way SQLite
-    #: adds a ``NOT NULL REFERENCES`` column, and ``DROP TABLE`` on a table
-    #: other tables point at is refused while the check is on. The pragma
-    #: cannot change inside a transaction, so this is a property of the
-    #: migration rather than a statement in it, and the runner is what turns
-    #: the check off, runs the check by hand, and turns it back on.
+    #: Run with ``PRAGMA foreign_keys`` off and verify with
+    #: ``PRAGMA foreign_key_check`` before committing. A table rebuild is the
+    #: only way SQLite adds a ``NOT NULL REFERENCES`` column, and the pragma
+    #: cannot change inside a transaction, so the runner handles it.
     defer_foreign_keys: bool = False
 
 
 def _load_sql(filename: str) -> str:
-    """Read a bundled ``.sql`` file.
+    """Read a bundled ``.sql`` file through ``importlib.resources``.
 
-    ``importlib.resources`` rather than ``Path(__file__).parent`` because the
-    shipped sidecar is a PyInstaller ``--onefile`` binary: at runtime the
-    package lives inside an unpacked temp directory, and the justfile's
-    ``--add-data`` places these files alongside the module there.
+    ``Path(__file__)`` would not work inside the frozen binary.
     """
     return (resources.files("agentspace.store") / filename).read_text(encoding="utf-8")
 
@@ -136,26 +109,18 @@ class Database:
 
         connection = sqlite3.connect(
             self._path,
-            # The lock above provides the mutual exclusion sqlite3's own
-            # same-thread check is a proxy for; `asyncio.to_thread` hands work
-            # to arbitrary pool threads, so the check would fire spuriously.
+            # The lock provides what the same-thread check is a proxy for.
             check_same_thread=False,
-            # Transactions are opened explicitly in `write()`. Without this the
-            # sqlite3 module inserts its own BEGIN at times of its choosing,
-            # which defeats `BEGIN IMMEDIATE`.
+            # Transactions are opened explicitly in `write()`.
             isolation_level=None,
         )
         connection.row_factory = sqlite3.Row
 
-        # WAL: a reader (an SSE backlog fetch) does not block the writer (a run
-        # appending events), which is the exact overlap this application has.
+        # WAL: an SSE backlog read does not block a run appending events.
         connection.execute("PRAGMA journal_mode = WAL")
-        # Off by default, and silently so: §4 declares a foreign key on
-        # events.run_id and it is worthless unless this is on.
+        # Off by default; §4's foreign keys are worthless without it.
         connection.execute("PRAGMA foreign_keys = ON")
         connection.execute("PRAGMA synchronous = NORMAL")
-        # Wait rather than raising immediately if another connection (a second
-        # app instance) holds the write lock.
         connection.execute("PRAGMA busy_timeout = 5000")
 
         self._connection = connection
@@ -183,11 +148,10 @@ class Database:
 
     @contextmanager
     def write(self) -> Iterator[sqlite3.Connection]:
-        """Borrow the connection inside a write transaction.
+        """Borrow the connection inside a ``BEGIN IMMEDIATE`` transaction.
 
-        ``BEGIN IMMEDIATE`` takes the write lock up front rather than on first
-        write, so a read-then-write sequence inside the block cannot interleave
-        with another writer. Commits on clean exit, rolls back on any exception.
+        The write lock is taken up front, so a read-then-write inside the
+        block cannot interleave with another writer.
         """
         with self._lock:
             connection = self._require_connection()
@@ -221,25 +185,12 @@ class Database:
     def _apply(self, migration: Migration) -> None:
         """Run one migration and bump ``user_version``, atomically.
 
-        The transaction control lives *inside* the script rather than around
-        it. ``executescript`` issues an implicit COMMIT for any transaction
-        already open before it runs, so a surrounding ``BEGIN IMMEDIATE``
-        would be committed away and each statement of the migration would then
-        autocommit individually: leaving a failed migration half applied with
-        no way to roll it back.
-
-        ``user_version`` is set in the same script, so the version advances if
-        and only if every statement succeeded. A failure leaves it untouched
-        and the next launch retries. It takes no parameter binding, hence the
-        f-string; the value is an int from a module constant, never user input.
-
-        A migration that rebuilds a referenced table runs with the foreign-key
-        check off (the pragma is a no-op inside a transaction, so it is set
-        before the script and restored after), and the rebuilt schema is
-        checked by hand with ``PRAGMA foreign_key_check`` before the version
-        is bumped. A violation rolls the whole migration back: a rebuild that
-        lost a row's parent must not be committed and then discovered by the
-        first query that joins across it.
+        The BEGIN lives inside the script: ``executescript`` commits any open
+        transaction before it runs, so a surrounding one would be committed
+        away and a failed migration left half applied. ``user_version`` is set
+        in the same script (an f-string, since a pragma takes no binding), so
+        it advances only if every statement succeeded. A rebuild runs with
+        the foreign-key check off and is checked by hand before the commit.
         """
         script = (
             "BEGIN IMMEDIATE;\n"

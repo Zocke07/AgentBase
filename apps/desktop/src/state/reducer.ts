@@ -3,45 +3,19 @@ import type { Event, EventType } from "@agentspace/schemas";
 import { flag, int, record, strings, text, type Payload } from "../lib/payload";
 
 /**
- * The run reducer: the UI's half of BUILD_SPEC §2.
+ * The run reducer: the UI's half of BUILD_SPEC §2. Everything the dashboard
+ * renders about a run comes from this fold and nowhere else.
  *
- * "Every agent action is an append-only event row, and the UI is a pure
- * projection of the event log." This is that projection. Everything the
- * dashboard renders comes from here, and nothing the dashboard renders about a
- * run comes from anywhere else: no side fetch, no local bookkeeping, no
- * remembered value from a previous render.
- *
- * Three properties are load-bearing, and each has tests that fail without it:
- *
- * **It is a pure fold.** `reduce(state, event)` returns a new state and touches
- * nothing. That is what makes replay and live the *same* rendering path rather
- * than two paths that happen to agree: §5 Phase 7's acceptance criterion asks
- * for replay to be pixel-identical to live, and the only way to be sure is for
- * there to be one function and one input.
- *
- * **It has no clock.** Nothing here reads `Date.now()`. A single relative
- * timestamp ("3 seconds ago") would make the same log render differently on
- * every fold and quietly break the criterion above. Times come from the
- * events' own `ts`.
- *
- * **It separates what an agent claimed from what it did.** `claim` holds the
- * terminal `summary` or `reason`; `toolCalls` holds the calls that actually
- * executed. CLAUDE.md records three live runs where a run completed claiming
- * work that the log shows never happened: a file "saved" by a run containing
- * no file tool call at all. Keeping them in one field would make the dashboard
- * repeat the confabulation instead of exposing it.
+ * It is pure (one function, one input, so live and replay are the same
+ * rendering path), it has no clock (a relative timestamp would make the same
+ * log render differently on every fold), and it keeps what an agent claimed
+ * (`claim`) apart from what it did (`toolCalls`), because live runs have
+ * completed claiming work the log shows never happened.
  */
 
 /**
- * What an agent is doing right now, as far as the log says.
- *
- * Every event an agent emits leaves it in exactly one of these, and the
- * transition table is pinned by a test that walks a whole tool call. The
- * original machine had four transitions and left every other event's label
- * where it was, so an agent running a thirty-second shell command read
- * "calling the model" and one whose approval had just been granted read
- * "waiting for approval" until its next thinking event. §5 Phase 7's "live
- * status colour" is only live if the colour follows the log.
+ * What an agent is doing right now, as far as the log says. Every event an
+ * agent emits leaves it in exactly one of these; a test walks a whole tool call.
  */
 export type Activity = "spawned" | "thinking" | "calling" | "waiting" | "executing" | "completed";
 
@@ -59,11 +33,7 @@ export interface AgentNode {
   readonly activity: Activity;
   /** The tool being executed while `activity` is `"executing"`; null otherwise. */
   readonly currentTool: string | null;
-  /**
-   * The message of an `llm.error`/`tool.error` this agent has not yet acted
-   * past. The node is tinted while it is set: an agent thinking about an
-   * error looked exactly like one that was merely thinking.
-   */
+  /** The message of an `llm.error`/`tool.error` this agent has not yet acted past. */
   readonly lastError: string | null;
   readonly steps: number;
   readonly finishedReason: string | null;
@@ -136,18 +106,9 @@ export interface RunClaim {
 }
 
 /**
- * Where a run came from, when it did not come from this window.
- *
- * §5 Phase 8 requires a Discord-originated run to "appear live in the
- * dashboard, and vice versa. Same event log, no special-casing." The
- * no-special-casing half is already true (the SSE endpoint has no idea a
- * channel exists), but a user watching a run they did not start still needs to
- * know who did, and the log is the only place that says so.
- *
- * `identity` is the *internal* name the sender's external id resolved to, not
- * anything the sender typed. `displayName` is theirs and is shown beside it,
- * never instead of it: a chat user controls their own display name, so a UI
- * that showed only that could be made to read like anyone.
+ * Where a run came from, when it did not come from this window. `identity`
+ * is the internal name the sender resolved to; `displayName` is theirs and is
+ * shown beside it, never instead of it, since a chat user controls their own.
  */
 export interface RunOrigin {
   readonly channel: string;
@@ -241,12 +202,9 @@ const newAgent = (name: string, seq: number): AgentNode => ({
 });
 
 /**
- * Create a node for `name` if the run has not seen it before.
- *
- * Applied to *every* event carrying an `agent_id`, not only `agent.spawned`. A
- * stream resumed mid-run legitimately starts after the spawn event, and an
- * agent whose spawn was missed would otherwise vanish from the graph while the
- * rest of its events rendered: a graph that looks complete and is not.
+ * Create a node for `name` if the run has not seen it before. Applied to every
+ * event carrying an `agent_id`, so a stream resumed after the spawn still
+ * shows the agent.
  */
 function ensureAgent(state: RunView, name: string, seq: number): RunView {
   if (state.agents[name] !== undefined) return state;
@@ -286,14 +244,12 @@ export function reduce(state: RunView, event: Event): RunView {
     runId: state.runId ?? event.run_id,
     lastSeq: Math.max(state.lastSeq, seq),
     eventCount: state.eventCount + 1,
-    // The first event's stamp stands in for `run.started` if a resumed
-    // stream began after it; the latest is always the latest.
+    // The first event seen stands in for `run.started` on a resumed stream.
     startedTs: state.startedTs ?? event.ts,
     latestTs: event.ts,
   };
 
-  // One place where an agent becomes known to the run, so no case below has to
-  // remember to do it.
+  // One place where an agent becomes known to the run.
   const next = agent === null ? counted : ensureAgent(counted, agent, seq);
 
   switch (event.type) {
@@ -375,8 +331,7 @@ export function reduce(state: RunView, event: Event): RunView {
 
     case "llm.request":
       if (agent === null) return next;
-      // A new call starts a new stream. Keeping the previous call's text would
-      // render step 4's answer glued to the end of step 1's.
+      // A new call starts a new stream; the previous call's text does not carry over.
       return withAgent(next, agent, seq, (node) => ({
         ...node,
         activity: "calling",
@@ -385,9 +340,7 @@ export function reduce(state: RunView, event: Event): RunView {
       }));
 
     case "llm.token":
-      // Deliberately does *not* change `activity`. CLAUDE.md: deltas arrive
-      // 1-10 at a time from Anthropic and a whole live Ollama run emitted zero
-      // of them, so an agent that streams nothing is not an idle agent.
+      // Deliberately does not change `activity`: an agent that streams nothing is not idle.
       if (agent === null) return next;
       return withAgent(next, agent, seq, (node) => ({
         ...node,
@@ -436,8 +389,7 @@ export function reduce(state: RunView, event: Event): RunView {
     }
 
     case "tool.called": {
-      // The event that means something *happened*. `tool.requested` is what an
-      // agent tried; this is what executed.
+      // `tool.requested` is what an agent tried; this is what executed.
       const call = toolCallOf(agent, payload, seq);
       const executing: RunView = { ...next, toolCalls: [...next.toolCalls, call] };
       return agent === null
@@ -479,11 +431,8 @@ export function reduce(state: RunView, event: Event): RunView {
         automatic: flag(payload, "automatic"),
         seq,
       };
-      // A policy's yes is not a question. The gate emits the request and its
-      // resolution as two events, and between them nobody is waiting on
-      // anything, so the agent is not "waiting", and `pendingApprovals` below
-      // does not count it. The record still goes in, because "what did this
-      // run do without asking me" is answered from exactly these rows.
+      // A policy's yes is not a question: nobody waits on an automatic one,
+      // but the record stays so "what ran without asking me" is answerable.
       const waiting =
         agent === null || requestedApproval.automatic
           ? next
@@ -509,9 +458,7 @@ export function reduce(state: RunView, event: Event): RunView {
     // --- channels ------------------------------------------------------------
 
     case "channel.inbound":
-      // The first event of a channel-originated run, by construction: the
-      // launcher appends it before the orchestrator task exists, so it cannot
-      // race `run.started`.
+      // The first event of a channel-originated run, by construction.
       return {
         ...next,
         origin: {
@@ -524,16 +471,11 @@ export function reduce(state: RunView, event: Event): RunView {
       };
 
     case "channel.outbound":
-      // Deliberately changes nothing. It records that the run was *reported*
-      // to a conversation, which is a fact about delivery rather than about
-      // what the agents did, and the graph is a projection of the latter. It
-      // is rendered in the log panel, where a reader asking "did this reach
-      // Discord?" is asking the question it answers.
+      // A fact about delivery, not about what the agents did; the log panel renders it.
       return next;
 
     default:
-      // Not a `never` check by accident: the server can emit a type this build
-      // has never heard of, and Phase 2's bug was exactly that being silent.
+      // Not a `never` check: the server can emit a type this build has never heard of.
       return { ...next, unrecognised: [...next.unrecognised, event.type] };
   }
 }
@@ -545,11 +487,7 @@ export function reduceAll(events: readonly Event[], from: RunView = EMPTY_RUN): 
 
 // --- small helpers ----------------------------------------------------------
 
-/**
- * Back to deciding what to do next: the state between one thing finishing -
- * a model call, a tool, an approval, and the next event saying what follows.
- * A completed agent stays completed; a late event for it does not revive it.
- */
+/** Back to deciding what to do next. A completed agent stays completed. */
 function thinkingAgain(node: AgentNode): AgentNode {
   if (node.activity === "completed") return node;
   return { ...node, activity: "thinking", currentTool: null };
@@ -571,23 +509,15 @@ function toolCallOf(agent: string | null, payload: Payload, seq: number): ToolCa
   };
 }
 
-/**
- * Attach a `tool.result` to the call it belongs to.
- *
- * Matched on `call_id` when there is one, because a single agent step can carry
- * several calls to the same tool and pairing them by name would attach a result
- * to the wrong one.
- */
+/** Attach a `tool.result` to the call it belongs to. */
 function attachResult(calls: readonly ToolCall[], payload: Payload): ToolCall[] {
   const callId = text(payload, "call_id");
   const tool = text(payload, "tool");
   const result = text(payload, "result") ?? "";
   const updated = [...calls];
 
-  // Walked backwards so the newest unanswered call wins, and matched on
-  // `call_id` when there is one: a single agent step can carry several calls to
-  // the same tool, and pairing them by name would attach a result to the wrong
-  // one.
+  // Newest unanswered call first, matched on `call_id` when there is one: a
+  // step can carry several calls to the same tool.
   for (let index = updated.length - 1; index >= 0; index -= 1) {
     const call = updated[index];
     if (call?.result !== null) continue;
@@ -638,12 +568,9 @@ function isApprovalStatus(value: string | null): value is ApprovalStatus {
 // --- derived views the components need --------------------------------------
 
 /**
- * Whether an approval is a question a *person* still has to answer.
- *
- * An automatic one never is, even while its `approval.resolved` has not yet
- * arrived: the policy answered it before the question was written. One rule,
- * used by the fold's derived views and by the panel that renders them, so the
- * two cannot disagree about what "pending" means.
+ * Whether an approval is a question a person still has to answer. An automatic
+ * one never is, even before its `approval.resolved` arrives. The one rule for
+ * "pending", shared by the fold and the panel.
  */
 export function awaitingPerson(approval: ApprovalRecord): boolean {
   return approval.status === "pending" && !approval.automatic;

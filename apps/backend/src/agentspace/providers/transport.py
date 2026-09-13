@@ -1,19 +1,9 @@
 """Shared HTTP plumbing for the provider implementations.
 
-Every provider talks to a JSON-over-HTTP endpoint, and the parts that are the
-same for all of them (client lifetime, timeouts, and turning transport and
-status failures into the :mod:`agentspace.providers.base` error taxonomy) live
-here so the three implementations differ only where the *vendors* differ.
-
-**Why raw HTTP rather than the vendor SDKs.** Normalizing token usage and tool
-calls is required either way (§5 Phase 3 asks for a single protocol), so the
-SDKs would save little; they would add two large dependency trees to a
-PyInstaller `--onefile` binary that has to stay startable, and each brings its
-own hidden-import problems at freeze time. One client, three thin adapters.
-
-**Nothing here logs a request body or a header.** Bodies carry prompts and
-headers carry the API key, and the Tauri shell pipes the sidecar's stderr
-straight to its own console (§1 constraint 4).
+Raw HTTP rather than the vendor SDKs: normalizing usage and tool calls is
+required either way, and two SDK dependency trees in a `--onefile` binary buy
+hidden-import problems at freeze time. Nothing here logs a body or a header:
+bodies carry prompts and headers carry the key.
 """
 
 from __future__ import annotations
@@ -40,18 +30,14 @@ __all__ = [
     "stream_sse",
 ]
 
-#: Generous, because a large completion legitimately takes minutes, but not
-#: unbounded, because a hung request with no ceiling wedges the run forever and
-#: the user has no way to see why.
+#: Generous, since a large completion takes minutes; bounded, since a hung
+#: request with no ceiling wedges the run with nothing to see.
 DEFAULT_TIMEOUT_SECONDS: Final[float] = 120.0
 
 
 def _raise_for_status(response: httpx2.Response, provider: str) -> None:
-    """Map an HTTP status onto the provider error taxonomy.
-
-    The mapping is deliberately coarse: callers above this layer branch on
-    retryable versus not, and nothing above it should be reading vendor error
-    codes: that would be a code change on switching provider.
+    """Map an HTTP status onto the provider error taxonomy: retryable or not, nothing vendor-
+    specific.
     """
     status = response.status_code
     if status < 400:
@@ -85,9 +71,7 @@ def _raise_for_status(response: httpx2.Response, provider: str) -> None:
 def _error_detail(response: httpx2.Response) -> str:
     """Best-effort human-readable reason from an error body.
 
-    Every provider nests its message somewhere different, and a provider that
-    returns HTML or nothing at all must not turn into a `KeyError` that hides
-    the real status code.
+    Every provider nests it somewhere different.
     """
     try:
         body: Any = response.json()
@@ -118,9 +102,7 @@ async def post_json(
 ) -> dict[str, Any]:
     """POST ``payload`` and return the decoded JSON object.
 
-    Transport failures become :class:`ProviderUnavailableError` rather than leaking
-    an ``httpx2`` exception: a caller that had to catch those would be coupled
-    to this module's choice of HTTP client.
+    Transport failures become :class:`ProviderUnavailableError`.
     """
     try:
         response = await client.post(url, json=dict(payload), headers=dict(headers))
@@ -155,11 +137,8 @@ async def _stream_lines(
 ) -> AsyncIterator[str]:
     """POST and yield response lines as they arrive.
 
-    The error mapping is the same as :func:`post_json`, with one wrinkle that
-    is easy to get wrong: on a streamed response the body has not been read
-    when the status arrives, so ``response.json()`` inside ``_error_detail``
-    would raise instead of explaining the failure. ``aread()`` first, and a 401
-    reports the vendor's reason rather than an empty string.
+    On a streamed error the body is unread when the status arrives, so it is
+    ``aread()`` first or the 401 reports an empty reason.
     """
     try:
         async with client.stream(
@@ -188,15 +167,9 @@ async def stream_sse(
 ) -> AsyncIterator[dict[str, Any]]:
     """Yield the decoded ``data:`` objects of a Server-Sent Events response.
 
-    The ``event:`` line is deliberately ignored and the discriminator is read
-    from the JSON body instead: the same decision, for the same reason, that
-    this project's own SSE stream makes (see CLAUDE.md, Phase 2): a reader
-    keyed on the event *name* silently drops any type it was not written to
-    expect, and both vendors add new chunk types without warning.
-
-    Non-JSON lines are skipped rather than raised on. SSE comments (`: ping`),
-    blank separators and OpenAI's ``[DONE]`` sentinel are all framing, not
-    content, and a stream must not die because a keep-alive arrived.
+    The ``event:`` line is ignored and the discriminator read from the body,
+    so a chunk type this adapter was not written for is not silently dropped.
+    Non-JSON lines (comments, separators, ``[DONE]``) are framing and skipped.
     """
     async for line in _stream_lines(client, url, payload, headers, provider):
         if not line.startswith("data:"):
@@ -224,10 +197,8 @@ async def stream_ndjson(
 ) -> AsyncIterator[dict[str, Any]]:
     """Yield the decoded objects of a newline-delimited JSON response.
 
-    Unlike :func:`stream_sse` a malformed line is an error here. NDJSON has no
-    framing lines to skip, so anything unparseable is the vendor sending
-    something this adapter does not understand, and silently dropping it would
-    lose response content rather than a keep-alive.
+    A malformed line is an error here: NDJSON has no framing to skip, so
+    dropping one would lose content rather than a keep-alive.
     """
     async for line in _stream_lines(client, url, payload, headers, provider):
         stripped = line.strip()

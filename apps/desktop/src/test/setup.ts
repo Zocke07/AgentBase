@@ -2,31 +2,17 @@ import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 
 /**
- * Unmount every rendered tree between tests.
- *
- * Testing Library does this automatically when Vitest's globals are injected,
- * and this project runs with `globals: false`, so without it the first test's
- * DOM is still mounted during the second, and a query that should match one
- * node matches two. That failure reads as a component bug, which is the worst
- * kind of test-harness defect.
+ * Unmount every rendered tree between tests. Testing Library only does this
+ * itself with Vitest globals on, and this project runs with `globals: false`.
  */
 afterEach(() => {
   cleanup();
 });
 
 /**
- * Browser APIs jsdom does not implement, which React Flow uses on mount.
- *
- * These are stubs for genuinely missing platform features, not for anything
- * this project wrote. jsdom has no layout engine at all: every element measures
- * zero, and `ResizeObserver` does not exist.
- *
- * The sizes below are not decoration. React Flow refuses to position an edge
- * between nodes it has not measured, so with zero-sized nodes it renders the
- * graph with every edge silently missing, which is exactly the bug a real run
- * exposed, and exactly the bug a test cannot see unless measurement reports
- * something. Reporting a fixed, plausible size is what lets
- * `RunGraph.test.tsx` assert that a handoff actually draws.
+ * Browser APIs jsdom lacks, which React Flow uses on mount. The sizes matter:
+ * React Flow draws no edge between nodes it has not measured, and a fixed,
+ * plausible size is what lets a test assert a handoff actually draws.
  */
 
 const NODE_WIDTH = 200;
@@ -41,12 +27,7 @@ function sizeOf(element: Element): { width: number; height: number } {
   return { width: PANE_WIDTH, height: PANE_HEIGHT };
 }
 
-/**
- * Reports a size once, synchronously, then stays quiet.
- *
- * A real one fires on layout changes; there are none here, and the single
- * initial report is what React Flow needs to mark a node measured.
- */
+/** Reports a size once, synchronously, then stays quiet. */
 class StubResizeObserver implements ResizeObserver {
   constructor(private readonly callback: ResizeObserverCallback) {}
 

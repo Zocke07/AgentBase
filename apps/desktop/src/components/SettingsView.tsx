@@ -18,28 +18,14 @@ import { THEMES, useThemeStore, type Theme } from "../lib/theme";
 import { useFetched } from "../state/useFetched";
 
 /**
- * The settings screen.
+ * The settings screen: every workspace setting, plus keys.
  *
- * Until this existed the user guide sent people to Swagger UI at `/docs` for
- * every setting and to Windows Credential Manager for keys, for a product
- * whose stated success criterion is "no terminal, no config files". Every
- * workspace setting is here, and so is the one thing the sidecar cannot do:
- * putting a key where the shell will find it.
- *
- * **Keys go to the OS keychain, not to the sidecar.** §1 constraint 4. The
- * webview writes an entry under the service name the shell reads at spawn and
- * the account name the sidecar publishes; the running sidecar never sees the
- * value, and every row says "restart to apply" for exactly that reason. Which
- * keys are *set* comes from `configured_secrets`: names only, never a value,
- * and only ever what reached the sidecar at its last start.
- *
- * **Save is a PATCH of what changed**, diffed against what the screen loaded,
- * so a setting touched from elsewhere meanwhile is not overwritten with a
- * stale copy. A refusal lands on the field the server named: `PATCH
- * /settings` answers `{message, field}` like the agents API does.
- *
- * **Money is dollars here and integer micros on the wire** (§5 Phase 3). The
- * conversion rounds to whole micros; no float is ever sent.
+ * Keys go to the OS keychain, not to the sidecar (§1 constraint 4): the
+ * webview writes an entry the shell reads at the next spawn, so every key row
+ * says "restart to apply", and which keys are set comes from
+ * `configured_secrets` by name only. Save is a PATCH of what changed, diffed
+ * against what the screen loaded, and a refusal lands on the field the
+ * server named. Money is dollars here and integer micros on the wire.
  */
 
 export interface SettingsViewProps {
@@ -123,8 +109,7 @@ function diff(opened: Form, form: Form): UpdateSettingsRequest {
     patch.channel_identities = form.channel_identities;
   }
   if (form.channel_approvals !== opened.channel_approvals) patch.channel_approvals = form.channel_approvals;
-  // An empty string is how the default space is chosen again: the sidecar
-  // stores it as null, and null cannot be sent through a PATCH that drops it.
+  // An empty string means the default space; null cannot travel in this PATCH.
   if (form.channel_space_id !== opened.channel_space_id) patch.channel_space_id = form.channel_space_id;
   return patch;
 }
@@ -136,9 +121,7 @@ export function SettingsView({ onSaved, spaces = [] }: SettingsViewProps) {
   const current = useFetched<SettingsResponse | null>(loadSettings, null);
   const catalogue = useFetched(loadCatalogue, EMPTY_CATALOGUE);
   const channels = useFetched(loadChannels, NO_CHANNELS);
-  // The reply to a save is the whole settings document, so it becomes what the
-  // form starts from next: no second fetch, and no remount that would lose
-  // the "saved" note before it was read.
+  // The reply to a save is the whole settings document; the form starts from it next.
   const [replied, setReplied] = useState<SettingsResponse | null>(null);
   const [saved, setSaved] = useState(false);
   const loaded = replied ?? current.data;
@@ -590,11 +573,7 @@ function SettingsForm({
   );
 }
 
-/**
- * Light or dark. Not part of the form and not saved with it: the theme is a
- * fact about this window, kept in this browser, and applies the moment it is
- * chosen; see `lib/theme.ts`.
- */
+/** Light or dark: a fact about this window, kept in this browser, applied at once. */
 function AppearanceSection() {
   const theme = useThemeStore((state) => state.theme);
   const setTheme = useThemeStore((state) => state.setTheme);
@@ -666,16 +645,10 @@ function NumberField({
   );
 }
 
-/**
- * One row per secret the sidecar accepts. "Set" means the sidecar received it
- * at its last start; a key written from here is "set: restart to apply"
- * until then, and the running sidecar never learns the value.
- */
+/** One row per secret the sidecar accepts. "Set" means it arrived at the last start. */
 function KeyRows({ loaded }: { loaded: SettingsResponse }) {
   const available = keychainAvailable();
-  // The generated type says the field is there, and a sidecar from before it
-  // was answers without it, the browser can outlive the sidecar it was built
-  // with, and did, in a live check. The rows then fall back to what is set.
+  // An older sidecar answers without `known_secrets`; fall back to what is set.
   const names: readonly string[] = maybeAbsent(loaded.known_secrets) ?? loaded.configured_secrets;
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -811,7 +784,7 @@ function KeyRows({ loaded }: { loaded: SettingsResponse }) {
   );
 }
 
-/** The chat allowlist. An empty list admits nobody; see the Phase 8 notes. */
+/** The chat allowlist. An empty list admits nobody. */
 function IdentityList({
   identities,
   error,

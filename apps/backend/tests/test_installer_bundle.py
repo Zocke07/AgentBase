@@ -1,21 +1,9 @@
 """Verify the sidecar *inside* the produced installer is the freshly built one.
 
-BUILD_SPEC §5 Phase 1 flags this specifically: Tauri caches the resolved
-sidecar under `target/release/`, and the NSIS installer has a known issue where
-a stale cached binary is reused on reinstall or upgrade even after a clean
-rebuild. The build log will happily say it succeeded either way.
-
-So this does not trust the log. It opens the installer, pulls the sidecar back
-out, and compares its SHA-256 against the binary that was just built. A
-mismatch means the installer would ship a different server than the one that
-was tested: the failure mode that makes a release quietly wrong rather than
-obviously broken.
-
-Skipped unless the installer, the sidecar and 7-Zip all exist, so it does not
-force a full bundle on every `just test`. Pass `--require-build-checks` (as
-`just verify-build` does) to make a missing one of those a failure instead: on
-the release path, "the check did not run" and "the check passed" must not look
-alike.
+The NSIS installer can reuse a stale cached sidecar and the build log says it
+succeeded either way, so this unpacks the installer and compares SHA-256s.
+Skipped unless the installer, the sidecar and 7-Zip exist; `--require-build-checks`
+makes a missing one a failure on the release path.
 """
 
 from __future__ import annotations

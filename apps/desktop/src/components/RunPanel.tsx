@@ -9,31 +9,13 @@ import { RunGraph } from "./RunGraph";
 import { RunSummary } from "./RunSummary";
 
 /**
- * Everything the dashboard shows about a run.
- *
- * The panel has two halves and the split is the whole point.
- *
- * **The projection** (`run-projection`) is a pure function of the log: the
- * summary, the graph, the agent detail and the event rows. Its entire input is
- * `view` and `events.slice(0, cursor)`. It fetches nothing, reads no clock and
- * keeps no state about the run, so given the same log and the same cursor it
- * renders byte-identical DOM. That is BUILD_SPEC §5 Phase 7's acceptance
- * criterion ("replaying a completed run produces pixel-identical UI state to
- * what was shown live") and `replayIdentity.test.tsx` checks it directly.
- *
- * **The transport** (the scrubber) is deliberately *outside* that boundary,
- * because it honestly differs. Watching live at event 12, the log has 12 events
- * in it. Replaying the same run at event 12, the log has 28 and you are
- * standing at 12 of them. The projection is identical in both cases; the
- * control that says where you are standing cannot be, and pretending otherwise
- * would mean hiding the length of the run being replayed.
- *
- * **The approval panel straddles the line, on purpose.** Its question and
- * history are a projection of the log and are compared live against replay
- * like everything in `run-projection`. Whether it can be *answered* is a fact
- * about where the viewer stands (live at the head, yes; scrubbed back, no),
- * so its action row is transport, and `readOnly` is decided by the caller from
- * the store's `following`, never from the folded view.
+ * Everything the dashboard shows about a run, in two halves. The projection
+ * (`run-projection`) is a pure function of `view` and `events.slice(0,
+ * cursor)`: given the same log and cursor it renders byte-identical DOM, which
+ * `replayIdentity.test.tsx` checks at every position. The transport (the
+ * scrubber) sits outside it, because at event 12 of a finished run you are
+ * standing somewhere and live you were at the end. The approval panel's
+ * question is projection; its action row is transport.
  */
 
 export interface RunPanelProps {
@@ -46,12 +28,7 @@ export interface RunPanelProps {
   /** See {@link ApprovalPanelProps.readOnly}. */
   approvalReadOnly: ApprovalPanelProps["readOnly"];
   onResolveApproval: ApprovalPanelProps["onResolve"];
-  /**
-   * The run on screen is the previous one while the next one's history is
-   * fetched. The projection stays (dimmed, its controls disabled) rather than
-   * collapsing to an empty run and back, which read as a flash on every
-   * switch. Transport, like the scrubber: replay never sets it.
-   */
+  /** The previous run stays on screen, dimmed, while the next one's history is fetched. */
   loading?: boolean;
 }
 

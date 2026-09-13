@@ -1,17 +1,8 @@
 """The event type contract (BUILD_SPEC §4).
 
-This enum is the closed list from §4. Adding a member means updating the
-generated TS types and the `RunGraph` reducer in the same commit: both arrive
-in Phase 7, at which point this docstring becomes a three-way obligation.
-
-**On payload models.** §3's layout comment for this module reads "event type
-enum + payload models". The enum is complete here because §4 presents it as a
-contract. The payloads are not: a `tool.requested` payload is defined by the
-Tool protocol in Phase 6 and a `llm.response` payload by the Provider protocol
-in Phase 3, and inventing their shapes now would be building ahead (§5) and
-would bake in guesses that those phases then have to unpick. Phase 2 therefore
-carries a typed envelope with an opaque JSON-object payload; each phase adds
-the model for the events it introduces.
+Adding a member means updating the generated TS types, the TypeScript reducer
+and the chat fold in the same commit. Payloads are opaque JSON objects; the
+emitters define their shapes.
 """
 
 from __future__ import annotations
@@ -58,8 +49,7 @@ class EventType(StrEnum):
     AGENT_COMPLETED = "agent.completed"
 
     LLM_REQUEST = "llm.request"
-    # S105: flake8-bandit reads "token" as a credential. This is a streamed
-    # LLM output token: the event emitted per chunk of a model response.
+    # S105: bandit reads "token" as a credential; this is a streamed output token.
     LLM_TOKEN = "llm.token"  # noqa: S105
     LLM_RESPONSE = "llm.response"
     LLM_ERROR = "llm.error"
@@ -81,8 +71,7 @@ class EventType(StrEnum):
     CHANNEL_OUTBOUND = "channel.outbound"
 
 
-#: Events after which no further event can appear for that run. The SSE stream
-#: uses these to close cleanly instead of holding a connection open forever.
+#: Events after which no further event can appear for that run; the SSE stream closes on them.
 TERMINAL_RUN_EVENTS: frozenset[EventType] = frozenset(
     {
         EventType.RUN_COMPLETED,
@@ -95,10 +84,8 @@ TERMINAL_RUN_EVENTS: frozenset[EventType] = frozenset(
 class Event(BaseModel):
     """One append-only row of the log.
 
-    ``seq`` is per-run and 1-based; it is the id the SSE stream publishes and
-    the cursor ``Last-Event-ID`` carries. ``id`` is the global rowid and exists
-    for ordering across runs: never use it as a resume cursor, since a client
-    resuming one run would then skip every event another run interleaved.
+    ``seq`` is per-run and 1-based: the SSE id and the ``Last-Event-ID``
+    cursor. ``id`` is the global rowid and is never a resume cursor.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -118,8 +105,7 @@ class Run(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     id: str
-    #: The space this run happened in (§5 Phase 11). Never NULL: a run whose
-    #: space was not named landed in the default space.
+    #: The space this run happened in. Never NULL: an unnamed space is the default one.
     space_id: str
     goal: str
     status: RunStatus

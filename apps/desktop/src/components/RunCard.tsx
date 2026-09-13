@@ -4,17 +4,9 @@ import { clockDate, formatDuration } from "../lib/format";
 import { STATUS_LABEL } from "../state/describe";
 
 /**
- * One run, as something to pick: BUILD_SPEC §5 Phase 11, "cards for runs,
- * rows for events".
- *
- * A card is a snapshot of the `runs` table: status, goal, when it started, how
- * long it took. For the run that is *open*, the table lags the log (a row
- * says "pending" for the whole of a live run), so the caller may hand in the
- * status the fold knows, and that wins. Nothing else about a run is decided
- * here; the card is a door to the run panel, which is the fold.
- *
- * Duration comes from the row's own two timestamps, never from a clock: a
- * running run shows none rather than a figure that changes on every render.
+ * One run, as something to pick: a snapshot of the `runs` table. For the open
+ * run the caller may hand in the status the fold knows, which wins over the
+ * lagging row. Duration comes from the row's timestamps, never from a clock.
  */
 export interface RunCardProps {
   run: Run;

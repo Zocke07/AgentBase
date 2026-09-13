@@ -1,22 +1,9 @@
 """The CI workflow's structure, asserted rather than trusted to a review.
 
-BUILD_SPEC §5 Phase 9's first requirement is an ordering: "Test job runs before
-the build job and gates it... A red test blocks the build job entirely." That
-ordering lives in one line of YAML, `needs: test`, and deleting it breaks nothing
-visible: the workflow still parses, both jobs still run, every tick is still
-green, and installers start being built from code no test has looked at.
-
-The second ordering is inside the build job and fails even more quietly.
-`just verify-build` can only say anything once a bundle exists: it launches the
-frozen binary and compares the sidecar inside the produced installer against the
-freshly built one. Run *before* the build it has nothing to inspect, and its
-underlying tests are written to skip when there is nothing built, so moving it
-earlier turns a real check into a green no-op. `--require-build-checks` is what
-stops that being silent, and this pins the step order that makes it unnecessary.
-
-Both are the shape this project keeps meeting: correct everywhere except where it
-is actually consumed, and invisible to an otherwise green suite. So they are
-compared here instead of remembered.
+`needs: test` is one line whose deletion breaks nothing visible, and
+`verify-build` before `build-installer` turns a real check into a green
+no-op, because its tests skip when nothing is built. Both are compared here
+instead of remembered.
 """
 
 from __future__ import annotations

@@ -1,10 +1,8 @@
 """Tests for the settings and budget endpoints.
 
-The Phase 3 acceptance criterion says switching provider is "a settings change
-with no code change". The strongest form of that claim is a test that never
-imports a provider class at all: it changes a stored value over HTTP and
-observes the selection change. That is
-`test_switching_provider_is_an_http_call_and_nothing_else`.
+`test_switching_provider_is_an_http_call_and_nothing_else` never imports a
+provider class: it changes a stored value over HTTP and watches the selection
+change, which is the strongest form of "a settings change with no code change".
 """
 
 from __future__ import annotations

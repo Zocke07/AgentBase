@@ -1,16 +1,9 @@
 """The orchestration loop, hand-written (§1 constraint 1).
 
-:func:`execute_run` is the entry point: it resolves the run's limits, roster and
-providers, drives the supervisor, and guarantees a terminal event whatever
-happens. Assembling those pieces here rather than in `run.py` keeps `run.py`
-ignorant of agents: a `Run` owns lifecycle and the event sequence, and does
-not need to know what a supervisor is.
-
-**Every exit writes a terminal event.** A run that stops without `run.completed`
-or `run.failed` is unreadable from the log, and the log is the only thing the UI
-gets (§2). The stream also relies on it: a client resuming past the head of a
-finished run waits for a terminal event that never comes, which is the hang
-`pytest-timeout` caught during Phase 2.
+:func:`execute_run` resolves the run's limits, roster and providers, drives
+the supervisor, and guarantees a terminal event whatever happens: a run that
+stops without one is unreadable from the log, and a stream waiting on it
+never ends.
 """
 
 from __future__ import annotations
@@ -85,27 +78,17 @@ async def execute_run(
 ) -> None:
     """Drive one run from `run.started` to a terminal event.
 
-    :param agents: the agent definitions. Read once, here, into a frozen
-        registry: §5 Phase 5 requires that editing a definition mid-run leaves
-        the in-flight run alone.
-    :param provider: overrides the configured provider, for every agent. Tests
-        pass a scripted one; nothing in the shipped app does. It is still
-        wrapped by :class:`~agentspace.budget.ledger.BudgetedProvider`, so a
-        test cannot accidentally prove the cap holds on a path that bypasses it.
-    :param runtime: the tools, sandbox and approval gate workers execute
-        through. ``None`` gives a run in which no catalogue tool can be called,
-        which is what every test that only exercises orchestration wants, and
-        is never what the application passes.
-    :param clock: monotonic time source, injected so the wall-clock limit can
-        be tested without a test that actually waits.
-    :param live: where the :class:`Run` is registered for the duration of the
-        run, so that `POST /runs/{id}/cancel` can reach it. Removed on the way
-        out, whatever the outcome.
-    :param space: the space the run happens in. Its rules are laid over the
-        app-wide settings before anything reads them (the limits, the
-        provider pool, the gate's policy), and its roster is the one the
-        supervisor is offered. ``None`` runs under the app-wide rules with the
-        default space's roster, which is what every orchestration test wants.
+    :param agents: the definitions, read once into a frozen registry.
+    :param provider: overrides the configured provider for every agent (tests
+        pass a scripted one); still wrapped in the budget guard.
+    :param runtime: the tools, sandbox and gate. ``None`` means no catalogue
+        tool can be called, which is what orchestration tests want.
+    :param clock: monotonic time source, injected so the wall-clock limit is testable.
+    :param live: where the :class:`Run` is registered for its duration, so a
+        cancel can reach it.
+    :param space: the space the run happens in; its rules are laid over the
+        app-wide settings before anything reads them. ``None`` runs under the
+        app-wide rules with the default space's roster.
     """
     workspace = await settings.get()
     if space is not None:
@@ -162,10 +145,8 @@ async def _execute(
     try:
         guarded = providers.default()
     except (UnknownProviderError, ProviderError) as exc:
-        # A missing key or an unknown provider name is a configuration problem,
-        # not a crash: it has to reach the user as a readable run failure.
-        # A *definition's* own provider failing is different and is handled by
-        # the supervisor, because one bad row should not end a working run.
+        # A configuration problem, reported as a readable run failure. A
+        # definition's own provider failing is the supervisor's to handle.
         await run.fail(str(exc))
         return
 
@@ -198,8 +179,7 @@ async def _execute(
     except RunDeadlineExceededError as exc:
         await run.fail(exc.reason)
     except BudgetExceededError as exc:
-        # `budget.exceeded` was already appended by the ledger; this is the
-        # run's own terminal event, not a duplicate of it.
+        # The ledger already appended `budget.exceeded`; this is the terminal event.
         await run.fail(exc.reason)
     except ProviderError as exc:
         await run.fail(str(exc))
@@ -213,18 +193,10 @@ async def _execute(
 def _with_workspace_policy(
     runtime: ToolRuntime | None, workspace: WorkspaceSettings
 ) -> ToolRuntime | None:
-    """Freeze the workspace approval policy onto the run's tool runtime.
+    """Snapshot the workspace approval policy onto the run's tool runtime.
 
-    The runtime is built once, at application start, and the policy is a
-    setting the user can change at any moment, including in the middle of a
-    run. Reading it live would hold a run to different rules at step 1 and step
-    12, exactly as a live roster or a live `max_steps` would, so it is
-    snapshotted here alongside :class:`~agentspace.orchestrator.limits.RunLimits`
-    and the roster.
-
-    The direction of the mistake matters: a policy *widened* mid-run would
-    auto-approve a call the user had not pre-authorized when the run started,
-    which is the gate silently loosening while work is in flight.
+    Like the limits and the roster: a policy widened mid-run would loosen the
+    gate while work is in flight.
     """
     if runtime is None:
         return None
@@ -234,20 +206,9 @@ def _with_workspace_policy(
 async def _finish(run: Run, outcome: StepOutcome) -> None:
     """Write the run's terminal event from how the supervisor actually stopped.
 
-    **A supervisor that ran out of steps did not complete the run.** §4 has no
-    `agent.failed`, so an agent out of steps *completes* with a reason, but
-    that is a fact about the agent, not about the run. Treating the two as the
-    same thing marks the run `completed` and hands the user a summary reading
-    "supervisor stopped after 4 steps with no result": a terminal event that
-    says the run worked when it did not, which is precisely the drift between
-    the log and reality that §2 exists to prevent.
-
-    A worker running out of steps is different and stays a completion: the
-    supervisor still sees its partial result and can finish the goal around it.
-    Only the supervisor giving up means the run gave up.
-
-    Found by watching a local model hit the agent cap twice and then exhaust
-    its steps: invisible against a scripted provider, which always finished.
+    A supervisor out of steps *completes* as an agent (§4 has no
+    `agent.failed`) but did not answer the goal, so the run fails. A worker
+    out of steps is different: the supervisor can finish around it.
     """
     if outcome.reason == "finished":
         await run.complete(outcome.result)

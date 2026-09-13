@@ -3,39 +3,15 @@ import type { Event, EventType } from "@agentspace/schemas";
 /**
  * The SSE client: one run's event stream, resumable.
  *
- * Three things about this endpoint are load-bearing and each has cost this
- * project time before:
- *
- * **Frames carry no `event:` name.** They arrive on `onmessage` and the type is
- * inside the JSON body. That is deliberate on the server (see
- * `api/stream.py`): a *named* SSE event never fires `onmessage` at all, and a
- * client that had not called `addEventListener` for that exact name would drop
- * it silently. Phase 2 shipped that bug and a webview probe received 0 of 20
- * events while every terminal test was green.
- *
- * **`Last-Event-ID` is the browser's job, not ours.** `EventSource` records the
- * `id:` of the last frame and sends it back on reconnect by itself, which is why
- * the server publishes the per-run `seq` as the frame id. There is no way to set
- * it on the *initial* connection, so a subscription opened after the history
- * was loaded says where it stands in the URL instead (`after_seq`); the server
- * takes whichever of the two is further along, and the store's duplicate
- * handling covers whatever overlap remains.
- *
- * **The server closes the stream when the run ends, and `EventSource` treats a
- * closed stream as a disconnect.** Left alone it would reconnect a second later,
- * receive the same finished log, and do it again forever. So this client closes
- * itself the moment a terminal event arrives. That is the one piece of
- * protocol knowledge the client cannot get from the frames alone.
+ * Frames carry no `event:` name (a named event never fires `onmessage`); the
+ * type is in the JSON body. `Last-Event-ID` is the browser's job on a
+ * reconnect, and `after_seq` in the URL covers the initial connection, which
+ * cannot carry the header. The server closes the stream when the run ends
+ * and `EventSource` treats that as a disconnect, so this client closes itself
+ * on a terminal event rather than reconnecting to a finished run forever.
  */
 
-/**
- * `EventSource.CLOSED`, as a number rather than a read of the global.
- *
- * The value is fixed by the HTML specification, and reading it off the global
- * constructor would mean this module only works where that global exists -
- * which rules out injecting a different implementation, and made the error path
- * below untestable until it was written this way.
- */
+/** `EventSource.CLOSED`, as a number so the module works without the global. */
 const READY_STATE_CLOSED = 2;
 
 /** Events after which no further event can appear for a run (§4). */
@@ -57,12 +33,7 @@ export interface RunStreamHandlers {
   onClosed?: (reason: "run-finished" | "cancelled") => void;
   /** The *connection* is in trouble: reconnecting, or gone for good. */
   onError?: (message: string) => void;
-  /**
-   * One frame could not be read. Deliberately not `onError`: that is rendered
-   * as the connection's state and nothing resets it until a reconnect, so a
-   * single bad frame used to label a perfectly live stream as failed for the
-   * rest of the run.
-   */
+  /** One frame could not be read. Not `onError`: a bad frame is not a broken connection. */
   onBadFrame?: (raw: string) => void;
 }
 
@@ -70,10 +41,7 @@ export interface RunStreamHandle {
   close: () => void;
 }
 
-/**
- * `EventSource` is not in jsdom, and injecting the constructor is how the tests
- * drive this without a browser. Production passes nothing and gets the real one.
- */
+/** Injectable so tests can drive this without a browser; production gets the real one. */
 export type EventSourceFactory = (url: string) => EventSource;
 
 const defaultFactory: EventSourceFactory = (url) => new EventSource(url);
@@ -99,12 +67,7 @@ export function parseFrame(data: string): Event | null {
   }
 }
 
-/**
- * Subscribe to a run's events.
- *
- * Returns a handle whose `close()` is idempotent: React effects call it on
- * unmount, and it also runs when the run finishes.
- */
+/** Subscribe to a run's events. The handle's `close()` is idempotent. */
 export function streamRun(
   baseUrl: string,
   runId: string,
@@ -140,9 +103,7 @@ export function streamRun(
     handlers.onEvent(event);
 
     if (TERMINAL.has(event.type)) {
-      // The run is over and the server has already ended the response. Closing
-      // here is what stops `EventSource` reconnecting to a finished run once a
-      // second for as long as the window is open.
+      // The server has ended the response; without this `EventSource` would reconnect forever.
       shutdown("run-finished");
     }
   };
@@ -150,11 +111,8 @@ export function streamRun(
   source.onerror = () => {
     if (closed) return;
 
-    // `EventSource` reports a dropped connection and a permanent failure through
-    // the same handler; `readyState` is the only thing that separates them.
-    // CONNECTING means it is already retrying with the last id, which is the
-    // resume path Phase 2 built the server side of: there is nothing to do but
-    // say so.
+    // A dropped connection and a permanent failure share this handler;
+    // `readyState` separates them. CONNECTING means it is already retrying.
     if (source.readyState === READY_STATE_CLOSED) {
       closed = true;
       handlers.onError?.("the event stream closed and will not reconnect");

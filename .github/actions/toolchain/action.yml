@@ -1,46 +1,22 @@
-# The toolchain both CI jobs need, in one place.
-#
-# GitHub Actions has no YAML anchors, so the alternative is the same six steps
-# copied into `test` and `build`. This repository has been bitten four times by
-# two lists that were supposed to stay identical and did not (Phase 6's
-# settings models, Phase 8's `SECRET_NAMES`, and twice more besides), so the
-# shared half is factored out rather than duplicated and hoped over.
-#
-# Every action below is pinned to a ref that was confirmed to resolve through
-# GitHub's `git/ref` API on 2026-09-11, not written from memory and not inferred
-# from a tag listing. Both of those failed here: the first draft pinned five
-# actions two to five majors behind, and the correction then pinned
-# `setup-uv@v10`: a major tag that does not exist, which failed run #1 at the
-# first step on both runners.
-#
-# `setup-uv` is therefore an exact version. astral-sh publishes bare major tags
-# only through v7 while shipping v10.1.0, so there is no `v10` to follow; an
-# exact pin is also the more reproducible choice. The others do publish bare
-# majors, and those were each checked rather than assumed.
+# The toolchain both CI jobs need, in one place: GitHub Actions has no YAML
+# anchors, and two copies of six steps drift. Every action ref below was
+# confirmed to exist through GitHub's `git/ref` API on 2026-09-11; `setup-uv`
+# is an exact version because astral-sh publishes no bare `v10` tag.
 name: Toolchain
 description: Install just, uv and Node, and restore this repository's redirected package caches.
 
 runs:
   using: composite
   steps:
-    # Every dev task in this repository goes through `just` (§5 Phase 0), so CI
-    # runs the same recipes a developer does rather than reimplementing them in
-    # YAML. A workflow that inlines its own build commands is a second build
-    # system that drifts from the first.
+    # CI runs the same `just` recipes a developer does.
     - name: Install just
       uses: extractions/setup-just@v4
 
-    # No `actions/setup-python`: `apps/backend/pyproject.toml` pins
-    # `requires-python = "==3.12.*"` and uv fetches the interpreter itself, which
-    # is exactly what the README tells a human to rely on.
+    # No `actions/setup-python`: uv fetches the pinned interpreter itself.
     - name: Install uv
       uses: astral-sh/setup-uv@v10.1.0
       with:
-        # Its default is "auto", which caches uv's *own* default directory -
-        # a directory these recipes never write to, because the justfile
-        # redirects UV_CACHE_DIR into `.dev/cache/uv`. Left on, it would upload
-        # an empty cache entry every run. The `actions/cache` step below covers
-        # the real one.
+        # The justfile redirects UV_CACHE_DIR; `actions/cache` below covers it.
         enable-cache: false
 
     - name: Install Node
@@ -48,17 +24,9 @@ runs:
       with:
         node-version-file: .nvmrc
 
-    # The justfile redirects the cargo, uv, npm and PyInstaller caches into
-    # `.dev/cache` (see `just paths`), so that is the directory worth caching -
-    # each tool's own default location is empty here by construction, which is
-    # why `setup-uv`'s and `setup-node`'s built-in caching is deliberately not
-    # used: it would cache directories these recipes never write to.
-    #
-    # Deliberately NOT cached: `apps/desktop/src-tauri/target`. Restoring a Rust
-    # target directory across runs is how a stale `externalBin` gets bundled -
-    # the precise trap §5 Phase 1 flags and that `just verify-build` exists to
-    # catch. A cache that can reintroduce the bug the guards are there to find is
-    # a bad trade for build minutes on a public repository, where they are free.
+    # The justfile redirects every package cache into `.dev/cache`, so that is
+    # the directory worth caching. `src-tauri/target` is deliberately not:
+    # restoring it across runs is how a stale `externalBin` gets bundled.
     - name: Restore the redirected package caches
       uses: actions/cache@v6
       with:

@@ -1,16 +1,8 @@
-"""Tests for per-model pricing.
+"""Tests for per-model pricing, written before `pricing.py` (§6).
 
-Written before `pricing.py` (BUILD_SPEC §6: money and the budget ledger are
-where silent bugs get expensive).
-
-Two properties matter more than the specific numbers:
-
-* **No float ever touches money.** A price that round-trips through a float is
-  wrong by an amount nobody notices until a month of it accumulates. §4 says
-  integer micros; these tests assert the *type*, not just the value.
-* **An unknown model is an error, not free.** The tempting default
-  (`PRICES.get(model, 0)`) makes the budget cap silently stop working the day
-  a new model id appears. That is the failure this suite is really guarding.
+Two properties matter more than the numbers: no float ever touches money
+(the type is asserted, not just the value), and an unknown model is an error,
+not free.
 """
 
 from __future__ import annotations

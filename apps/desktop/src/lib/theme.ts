@@ -2,22 +2,10 @@ import { useEffect } from "react";
 import { create } from "zustand";
 
 /**
- * Light or dark: BUILD_SPEC §5 Phase 11, "following the OS with an override
- * in Settings".
- *
- * The stylesheet defines both palettes as tokens: the light one on `:root`,
- * the dark one under `prefers-color-scheme: dark` for the default and under
- * `[data-theme="dark"]` for the override, with `[data-theme="light"]` winning
- * the other way. So "system" is the absence of the attribute, and the two
- * overrides are the attribute set. Nothing else on the page knows which
- * theme it is in.
- *
- * The choice is a fact about this window, not about the workspace: it lives
- * in this browser's storage rather than in the sidecar's settings table,
- * where it would follow the data directory to another machine and mean
- * nothing there. The read and the write are wrapped, because storage can be
- * unavailable (a private window, a webview with site data blocked), and a
- * theme preference is not worth a blank page.
+ * Light or dark, following the OS with an override. "System" is the absence
+ * of the `data-theme` attribute; the stylesheet's tokens do the rest. The
+ * choice is a fact about this window, kept in this browser's storage, with
+ * the read and write wrapped because storage can be unavailable.
  */
 
 export type Theme = "system" | "light" | "dark";

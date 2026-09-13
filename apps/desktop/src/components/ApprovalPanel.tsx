@@ -3,38 +3,16 @@ import { useEffect, useRef, useState } from "react";
 import { awaitingPerson, type ApprovalRecord } from "../state/reducer";
 
 /**
- * The approval gate's other half (§5 Phase 7's "Approval dialogs surfaced
- * modally with the human-legible text from Phase 6") as a docked panel.
+ * The approval gate's other half, as a docked panel rather than the modal
+ * §5 Phase 7 names (a recorded deviation): a person needs the log and the
+ * graph behind the question to answer it, and a modal trapped the scrubber.
  *
- * **Docked, not modal, and that is a recorded deviation from the spec.** The
- * first version was a full-window modal, and it had the problem a modal
- * always has here: the question is "may this agent overwrite notes.txt?", and
- * the thing a person needs in order to answer is the log and the graph
- * *behind* the backdrop. It also trapped the user: the backdrop covered the
- * scrubber and the tabs, so dragging the replay slider into an approval span
- * of a finished run left no way to drag it back out. This panel sits above
- * the log, is impossible to miss, and hides nothing.
- *
- * **The sentence is the backend's; only the buttons are ours.** The prompt
- * rendered here is `approval.requested.prompt`, composed by the sidecar from
- * the *resolved* call and written into the event log. A panel that built its
- * own wording from the raw arguments could describe a different call from the
- * one about to run, which is where a confused-deputy bug lives, and it would
- * put the UI's account of the run at odds with the log's, which §2 rules out.
- *
- * **It shows the history, not just what is outstanding.** Watched live in Phase
- * 6: a user denied a write, the worker gave up, the supervisor spawned a second
- * copy of the same agent, and it asked for the identical write again. A panel
- * that only ever renders the current question makes those look like one event
- * and gives the user no way to see they are being asked twice.
- *
- * **Two halves, on the two sides of the identity boundary.** The question and
- * its history are a pure function of the log and render byte-identically live
- * and replayed: `replayIdentity.test.tsx` compares them at every position.
- * Whether it can be *answered* is a fact about where the viewer is standing:
- * live at the head, yes; scrubbed back on the same run, no. So the action row
- * is transport, like the scrubber, and is excluded from the comparison for the
- * same honest reason.
+ * The sentence is the backend's (`approval.requested.prompt`, from the
+ * resolved call); only the buttons are ours. The run's decision history is
+ * shown too, because a supervisor will ask the same question twice. The
+ * question and history are a projection of the log; whether it can be
+ * answered depends on where the viewer stands, so the action row is
+ * transport and sits outside the identity comparison.
  */
 
 export interface ApprovalPanelProps {
@@ -42,12 +20,7 @@ export interface ApprovalPanelProps {
   approvals: readonly ApprovalRecord[];
   /** Resolve one. Rejects if somebody else already answered it (a 409). */
   onResolve: (id: string, approved: boolean) => Promise<void>;
-  /**
-   * Why an answer cannot be given here, or null when it can.
-   *
-   * `"finished"`: the run is over. `"replay"`: the viewer has scrubbed back
-   * from the head: the question was, or will be, answered at the head.
-   */
+  /** Why an answer cannot be given here (`"finished"`, `"replay"`), or null when it can. */
   readOnly: "finished" | "replay" | "loading" | null;
 }
 

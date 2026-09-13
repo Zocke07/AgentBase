@@ -1,10 +1,8 @@
 """Run endpoints, and the scripted debug run.
 
-`POST /runs` creates the row and hands it to the orchestrator. The debug
-endpoint below predates the orchestrator and still earns its place: it exercises
-the whole event spine and SSE path with no provider, no API key and no spend,
-which is what makes it usable from a test, from `curl`, and from the Phase 7 UI
-before a key has been configured.
+The debug run exercises the whole event spine and SSE path with no provider,
+no key and no spend, so it works from a test, from `curl`, and from the
+window before a key is configured.
 """
 
 from __future__ import annotations
@@ -40,15 +38,9 @@ logger = logging.getLogger("agentspace.api")
 
 router = APIRouter()
 
-#: The scripted debug sequence: 20 events, which at the default 500 ms step
-#: is the "~20 events over 10 seconds" §5 Phase 2 asks for. Shaped like a real
-#: run (spawn, think, call a tool, get it approved, hand off, finish) so the
-#: Phase 7 graph has something meaningful to render before an orchestrator
-#: exists to produce it, and, since it is what the dashboard shows before any
-#: key is configured, shaped *exactly* like one: each payload carries the keys
-#: the real emitters write and the reducer reads. It once said ``decision``
-#: where the reducer reads ``status`` and ``bytes`` where it reads ``result``,
-#: and the demo run rendered an expired approval with an empty result.
+#: The scripted debug sequence: 20 events over 10 seconds at the default step
+#: (§5 Phase 2), shaped exactly like a real run so the dashboard renders it
+#: the same way. Each payload carries the keys the real emitters write.
 _FAKE_RUN_SCRIPT: Final[tuple[tuple[EventType, str | None, dict[str, Any]], ...]] = (
     (EventType.RUN_STARTED, None, {"goal": "Summarise the quarterly report"}),
     (
@@ -151,9 +143,7 @@ DEFAULT_STEP_MS: Final[int] = 500
 
 class CreateRunRequest(BaseModel):
     goal: str = Field(min_length=1, max_length=10_000)
-    #: Where the run happens. Omitted means the default space, which is what
-    #: keeps `POST /debug/fake_run` and a chat command with no space configured
-    #: working unchanged.
+    #: Where the run happens. Omitted means the default space.
     space_id: str | None = None
     origin: RunOrigin = "ui"
     origin_ref: str | None = None
@@ -183,17 +173,9 @@ async def _require_run(request: Request, run_id: str) -> Run:
 async def create_run(request: Request, body: CreateRunRequest) -> Run:
     """Create a run and start the orchestrator on it.
 
-    Returns as soon as the row exists rather than waiting for the run to
-    finish. A run takes minutes and the client watches it over SSE: holding
-    the request open would make the event stream a second way to learn the same
-    thing, and would put a proxy's idle timeout in charge of when a run ends.
-
-    **The work of starting a run is not done here.** Phase 8 gave the chat
-    channels the same job, and assembling `execute_run`'s arguments at three
-    call sites would be the eighth instance of this project's recurring bug: one
-    list duplicated, correct everywhere on the day it was written, silently
-    divergent afterwards. :class:`~agentspace.orchestrator.launcher.RunLauncher`
-    is the single copy.
+    Returns as soon as the row exists; the client watches the run over SSE.
+    Starting it is :class:`~agentspace.orchestrator.launcher.RunLauncher`'s
+    job, shared with the chat channels.
     """
     try:
         return await _launcher(request).launch(
@@ -213,10 +195,8 @@ def _launcher(request: Request) -> RunLauncher:
 def _spawn(request: Request, coroutine: Coroutine[Any, Any, None]) -> None:
     """Run a coroutine in the background, keeping a strong reference to it.
 
-    `asyncio` holds only a weak reference to a bare task, so without this the
-    loop may garbage-collect work that is still going. The set is drained by
-    the lifespan handler on shutdown. Only the debug script uses this now; a
-    real run goes through the launcher, which keeps the same references.
+    `asyncio` holds only a weak reference to a bare task. The set is drained
+    by the lifespan handler on shutdown.
     """
     task = asyncio.create_task(coroutine)
     tasks: set[asyncio.Task[None]] = request.app.state.background_tasks
@@ -230,14 +210,7 @@ async def list_runs(
     limit: Annotated[int, Query(ge=1, le=MAX_RUN_LIST_LIMIT)] = DEFAULT_RUN_LIST_LIMIT,
     space_id: str | None = None,
 ) -> list[Run]:
-    """Recent runs, newest first: what the Phase 7 replay picker reads.
-
-    §5 Phase 7 requires "Replay: scrub any past run from the event log", and a
-    user cannot scrub a run they cannot find. The alternative (a UI keeping
-    its own list of the runs it happens to have seen) would make the client an
-    authority on something the database already knows, which is the drift §2
-    exists to prevent.
-    """
+    """Recent runs, newest first: what the run picker reads."""
     return await _store(request).list_runs(limit, space_id)
 
 
@@ -250,11 +223,9 @@ async def get_run(request: Request, run_id: str) -> Run:
 async def cancel_run(request: Request, run_id: str) -> Run:
     """Ask a run to stop.
 
-    202, not 200: the run stops at its next check, before its next model
-    call, and writes `run.cancelled` itself: the stream is where that is
-    seen, and the row returned here may still say `running`. A finished run
-    is a 409 naming its status; one this process is not driving (the
-    scripted debug run, or a row from before a restart) is a 409 too.
+    202: the run stops at its next deadline check and writes `run.cancelled`
+    itself, so the row returned here may still say `running`. A finished run,
+    or one this process is not driving, is a 409.
     """
     run = await _require_run(request, run_id)
     if run.status in _TERMINAL:
@@ -273,18 +244,11 @@ async def cancel_run(request: Request, run_id: str) -> Run:
 async def delete_run(request: Request, run_id: str) -> Response:
     """Remove a finished run, its events and its approvals. Its spend stays.
 
-    204 with nothing to say: the run is gone from `GET /runs` and every route
-    under it is a 404. A run that has not ended is a 409 telling the caller to
-    cancel it first: deleting the log from under an orchestrator that is
-    still appending to it is the one thing this must never do, and the row's
-    status is checked inside the store's transaction so a terminal event
-    landing at the same moment cannot slip past it. A run this process is
-    still driving is refused on the same grounds even if its row has just
-    turned terminal: the orchestrator lets go of it a moment after writing
-    the status, and that moment is not worth racing.
-
-    Why spend survives, and why files in the space's folder are not touched,
-    is :meth:`~agentspace.events.store.EventStore.delete_run`'s to explain.
+    A run that has not ended is a 409: the log must never be deleted from
+    under an orchestrator still appending to it. A run this process is still
+    driving is refused even if its row just turned terminal, since the
+    orchestrator lets go a moment after writing the status. See
+    :meth:`~agentspace.events.store.EventStore.delete_run` for what is kept.
     """
     launcher: RunLauncher = request.app.state.launcher
     if run_id in launcher.live:
@@ -306,11 +270,7 @@ async def delete_run(request: Request, run_id: str) -> Response:
 
 @router.get("/runs/{run_id}/events/history")
 async def get_run_events(request: Request, run_id: str, after_seq: int = 0) -> list[Event]:
-    """The event log as a plain array.
-
-    Replay in Phase 7 goes through the SSE path so that live and replay share
-    one renderer (§5 Phase 7). This exists for tests and for `curl` inspection.
-    """
+    """The event log as a plain array, for the dashboard's history load, tests and `curl`."""
     await _require_run(request, run_id)
     return await _store(request).read(run_id, after_seq=after_seq)
 
@@ -326,12 +286,8 @@ async def stream_run_events(
 ) -> StreamingResponse:
     """Server-sent events for one run, resumable via `Last-Event-ID`.
 
-    ``after_seq`` is the same cursor by another route. A browser's
-    ``EventSource`` cannot send ``Last-Event-ID`` on its *first* connection,
-    so a client that had already loaded the history had no way to say so and
-    received the whole log a second time. When both are present the header
-    wins if it is further along: a browser reconnecting keeps the original
-    URL, query included, and adds the header for the last frame it saw.
+    ``after_seq`` is the same cursor for a first connection, which cannot
+    carry the header. On a reconnect the header wins if it is further along.
     """
     await _require_run(request, run_id)
 
@@ -372,11 +328,7 @@ async def fake_run(
     request: Request,
     step_ms: Annotated[int, Query(ge=0, le=5000)] = DEFAULT_STEP_MS,
 ) -> Run:
-    """Start a scripted run so the event spine can be exercised without an LLM.
-
-    ``step_ms`` exists so tests do not have to wait ten seconds; the default is
-    the pace §5 Phase 2 specifies.
-    """
+    """Start a scripted run so the event spine can be exercised without a model."""
     store = _store(request)
     run = await store.create_run(goal="Debug run: scripted event sequence", origin="ui")
 

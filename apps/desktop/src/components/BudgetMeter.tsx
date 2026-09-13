@@ -1,18 +1,10 @@
 import type { BudgetResponse } from "@agentspace/schemas";
 
 /**
- * Month-to-date spend against the cap: §5 Phase 7's budget meter.
- *
- * This is the one panel that is *not* a projection of a run's event log, and
- * deliberately so: the cap is a workspace fact spanning every run in the month,
- * so it comes from `GET /budget`. It sits outside the run view for that reason,
- * and the replay-identity test excludes it: a replayed run must render like the
- * live one did, and the month's spend has legitimately moved on since.
- *
- * The display strings come from the backend (`format_micros`), so the rounding
- * rule lives in one place. §5 Phase 3 is explicit that money is integer micros
- * and never a float; formatting it here in JavaScript would put a second,
- * floating-point opinion on the screen.
+ * Month-to-date spend against the cap. The one panel that is not a projection
+ * of a run's log: the cap spans every run, so it comes from `GET /budget` and
+ * sits outside the identity comparison. The display strings come from the
+ * backend, so the rounding rule lives in one place.
  */
 
 export interface BudgetMeterProps {

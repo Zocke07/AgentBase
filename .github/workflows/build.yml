@@ -1,19 +1,7 @@
-# BUILD_SPEC §5 Phase 9: CI and release.
-#
-# The shape that matters is the gate: `build` declares `needs: test`, so nothing
-# is bundled until every leg of the test matrix is green. §5 Phase 9 puts it
-# plainly: "CI that only builds and never tests is not CI, it's a compiler check
-# with extra steps", and a red test therefore blocks the build job entirely
-# rather than producing an installer nobody should download.
-#
-# Both jobs run on windows-latest and macos-latest. Windows is what ships (§1
-# constraint 7). macOS builds from day one so cross-platform breakage surfaces
-# continuously and the eventual Mac release is a flag flip rather than a port;
-# it is built and deliberately not published (§7).
-#
-# The repository is public on purpose: private-repo Actions minutes bill at a 2x
-# multiplier on Windows runners and 10x on macOS, and the macOS build-only job is
-# the expensive one.
+# BUILD_SPEC §5 Phase 9: CI and release. `build` declares `needs: test`, so
+# nothing is bundled until every leg of the test matrix is green. Both jobs
+# run on windows-latest and macos-latest. The repository is public on purpose:
+# private-repo minutes bill at 2x on Windows and 10x on macOS.
 
 name: build
 
@@ -39,9 +27,7 @@ jobs:
     name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
-      # When a change breaks one platform, the other platform's result is the
-      # most useful thing on the page. Especially here: nothing in this project
-      # has ever run on macOS, so the first red run needs to show both answers.
+      # When one platform breaks, the other's result is the useful thing on the page.
       fail-fast: false
       matrix:
         os: [windows-latest, macos-latest]
@@ -51,14 +37,8 @@ jobs:
 
       - uses: ./.github/actions/toolchain
 
-      # `just ci` is `check` + `test`: ruff, ruff format --check, mypy --strict,
-      # eslint, tsc --noEmit, pytest and vitest. §5 Phase 9 asks for the event
-      # store, budget ledger, sandbox and registry validation at minimum on the
-      # backend and the reducers on the frontend; this runs all of it.
-      #
-      # The two build-dependent guards (the frozen sidecar and the installer's
-      # contents) skip here, because nothing is built yet. That is correct, and it
-      # is why the build job runs them again afterwards.
+      # `just ci` is `check` + `test`. The two build-dependent guards skip
+      # here, since nothing is built yet; the build job runs them afterwards.
       - name: Lint, typecheck and test
         run: just ci
 
@@ -82,40 +62,24 @@ jobs:
         with:
           components: clippy
 
-      # Freezes the sidecar with PyInstaller and then bundles it: NSIS on
-      # Windows, a `.app` on macOS. PyInstaller does not cross-compile, which is
-      # why this is a matrix job and not one runner producing both.
+      # PyInstaller does not cross-compile, hence a matrix job.
       - name: Build the sidecar and the bundle
         run: just build-installer
 
-      # Re-runs the two guards that skipped in the test job, with
-      # `--require-build-checks` so a missing artefact fails instead of skipping.
-      #
-      # The ordering is the whole point and it is easy to get backwards: these
-      # tests can only say anything once a build exists. They unpack the produced
-      # installer and compare the sidecar inside it against the freshly built one
-      # by SHA-256, which is how a stale cached binary gets caught. In Phase 8
-      # they fired for real the moment the sidecar was rebuilt without the
-      # installer.
+      # The guards that skipped in the test job, after the build so they have
+      # something to inspect, with `--require-build-checks` so a missing
+      # artefact fails instead of skipping.
       - name: Verify the built artefacts
         run: just verify-build
 
-      # `cargo clippy --all-targets -- -D warnings` on the Tauri shell: the one
-      # lint in this repository that nothing else runs.
-      #
-      # It comes *after* the build, which looks backwards for a lint and is not
-      # negotiable: `tauri-build`'s build script validates `externalBin` and runs
-      # for every cargo invocation, clippy included, so with no frozen sidecar in
-      # `binaries/` it fails with "resource path ... doesn't exist" before clippy
-      # lints a single line. Run #3 failed on exactly that, on both platforms,
-      # while passing locally, because a dev tree already has a sidecar sitting
-      # there from the last build.
+      # After the build, which looks backwards for a lint and is pinned by a
+      # test: `tauri-build` validates `externalBin` on every cargo invocation,
+      # clippy included, so it needs the frozen sidecar to exist.
       - name: Lint the Rust shell
         run: just check-tauri
 
-      # Windows only, per §5 Phase 9: macOS is built to catch breakage, not
-      # published. `if-no-files-found: error` so a bundle that silently failed to
-      # appear fails the job rather than uploading nothing under a green tick.
+      # `if-no-files-found: error` so a bundle that silently failed to appear
+      # fails the job rather than uploading nothing under a green tick.
       - name: Upload the Windows installer
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v7
@@ -126,18 +90,10 @@ jobs:
 
   smoke:
     name: install and run with no Python on the path
-    # §5 Phase 9's acceptance criterion says the installer "runs on a second
-    # Windows machine with no Python installed". There is no second Windows
-    # machine and there will not be one (CLAUDE.md, "The machine reality"), so
-    # this is the nearest thing that can be stated: a fresh windows-latest runner
-    # is a different machine (no .venv, no node_modules, no toolchain state)
-    # and the installed sidecar is launched with Python scrubbed from PATH. It
-    # runs against the artefact the build job uploaded, not a rebuild: the bytes
-    # a user would download are the bytes that have to work.
-    #
-    # The runner does ship Python system-wide, which is why the scrub is
-    # asserted before anything is launched: a scrub that quietly failed would
-    # make the whole job a green no-op.
+    # §5 Phase 9's "second Windows machine with no Python installed", as near
+    # as CI can state it: a fresh runner, the artefact the build job uploaded,
+    # and the installed sidecar launched with Python scrubbed from PATH. The
+    # scrub is asserted before anything launches.
     needs: build
     runs-on: windows-latest
 
@@ -159,11 +115,9 @@ jobs:
 
   release:
     name: publish the Windows installer
-    # Only for a version tag. Every other green run still leaves the installer
-    # downloadable as a workflow artefact from its own run page.
-    #
-    # Needs `smoke` as well as `build`: an installer that built but did not run
-    # on a clean machine is exactly the one that must not become a release.
+    # Only for a version tag; every green run still leaves the installer as a
+    # workflow artefact. Needs `smoke` too: an installer that did not run on a
+    # clean machine must not become a release.
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [build, smoke]
     runs-on: ubuntu-latest
@@ -177,10 +131,7 @@ jobs:
           name: AgentSpace-windows-installer
           path: dist
 
-      # Shipped unsigned, per §5 Phase 9. Windows does not hard-block an
-      # unsigned app the way macOS does (SmartScreen shows one prompt and the
-      # user clicks through once), so the release notes say so rather than
-      # leaving it to read as a broken download.
+      # Shipped unsigned; the release notes say so.
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}

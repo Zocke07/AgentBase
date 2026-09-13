@@ -1,15 +1,6 @@
-"""The committed OpenAPI schema must match the app that is actually running.
-
-§5 Phase 7: "Generate TS types from the FastAPI OpenAPI schema; never
-hand-write the API types." Generation only helps if the generated artefact is
-current: a stale `packages/schemas/openapi.json` produces a frontend that
-typechecks perfectly against an API that no longer exists, which is worse than
-hand-written types because it *looks* verified.
-
-This is the same shape as `test_every_migration_file_is_bundled_by_the_packaging_glob`
-and `test_every_workspace_setting_can_be_patched`: two things that must agree,
-compared directly, so that forgetting one of them fails a test instead of
-shipping.
+"""The committed OpenAPI schema and generated types must match the running app.
+A stale artefact produces a frontend that typechecks against an API that no
+longer exists, which looks verified and is not.
 """
 
 from __future__ import annotations

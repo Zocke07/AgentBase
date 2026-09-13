@@ -1,25 +1,11 @@
 """Per-model token pricing, in integer micros.
 
-**Money is never a float here.** §4 stores `cost_micros` as an INTEGER and this
-module is why: a price expressed in dollars as a float (`0.05`) cannot be
-represented exactly, and the error compounds across every call in a month until
-the monthly cap is wrong by an amount nobody can explain.
-
-**The unit is micros per *million* tokens**, not micros per token. Real prices
-include $2.50 and $0.05 per million, which are 2.5 and 0.05 micros per token -
-not integers. Storing the per-million figure keeps every published price exact,
-and the division happens once, at the point of charging, with an explicit
-rounding rule.
-
-**An unpriced model raises.** The obvious `PRICES.get(model, 0)` would make the
-budget cap silently stop binding the day a provider ships a model id this table
-does not know, with no error anywhere. :class:`UnknownModelError` makes that a
-loud failure before the API call instead of a quiet one after it.
-
-Prices below are list prices per million tokens, recorded with the date they
-were checked. They are data, not truth: a stale row over-or-under-charges the
-user's own cap, which is annoying but local: it never affects what a provider
-actually bills.
+Money never touches a float. Prices are stored per *million* tokens because
+$0.05 per million is 0.05 micros per token, not an integer; the one division
+happens at the point of charging, rounding up. An unpriced model raises rather
+than costing zero, since a zero default would let the cap stop binding
+silently. The rows are list prices recorded on a date, and only affect the
+user's own cap, never what a provider bills.
 """
 
 from __future__ import annotations
@@ -52,10 +38,7 @@ LOCAL_MODEL_PREFIX: Final[str] = "ollama/"
 
 
 class UnknownModelError(LookupError):
-    """Raised when a model has no price.
-
-    Deliberately not a soft failure. See the module docstring.
-    """
+    """Raised when a model has no price. Deliberately not a soft failure."""
 
     def __init__(self, model: str) -> None:
         super().__init__(
@@ -81,12 +64,9 @@ class ModelPrice:
 
 
 def _usd(dollars_per_million_input: str, dollars_per_million_output: str) -> ModelPrice:
-    """Build a price from the dollar figures as published.
+    """Build a price from the published dollar figures, as strings.
 
-    Takes strings and parses them as integer cents-of-a-micro rather than
-    calling `float()`: `float("0.05") * 1_000_000` is 50000.00000000001 on this
-    machine, and rounding it back is the exact class of bug this module exists
-    to prevent.
+    `float("0.05") * 1_000_000` is not 50000.
     """
     return ModelPrice(
         input_micros_per_million=_dollars_to_micros(dollars_per_million_input),
@@ -101,15 +81,10 @@ def _dollars_to_micros(dollars: str) -> int:
     return int(whole) * MICROS_PER_DOLLAR + int(fraction)
 
 
-#: List prices per million tokens, one table per provider.
-#:
-#: Anthropic rows checked 2026-06-24 against the bundled `claude-api` reference;
-#: OpenAI rows checked 2026-09-09 against developers.openai.com/api/docs/pricing.
-#: Both are standard-tier, short-context, non-batch rates.
-#:
-#: Kept per provider so the settings API can say which models belong to which
-#: provider without a second table that would drift from this one. ``PRICES``
-#: and ``MODELS_BY_PROVIDER`` below are two views of these.
+#: List prices per million tokens, one table per provider, so the settings API
+#: can say which models belong to which. Anthropic rows checked 2026-06-24
+#: against the bundled `claude-api` reference; OpenAI rows checked 2026-09-09
+#: against developers.openai.com. Standard-tier, short-context, non-batch.
 _ANTHROPIC: Final[dict[str, ModelPrice]] = {
     "claude-fable-5-1": _usd("10.00", "50.00"),
     "claude-fable-5": _usd("10.00", "50.00"),
@@ -145,21 +120,16 @@ _OPENAI: Final[dict[str, ModelPrice]] = {
     "o3-mini": _usd("1.10", "4.40"),
 }
 
-#: Inference on the user's own hardware. Registered explicitly at zero so that
-#: "free" and "we do not know the price" stay different answers; the wildcard
-#: is documentation, `_lookup` matches any `ollama/` model. Ollama serves
-#: whatever the user has pulled, so there is no list of models to offer: the
-#: model name is free text, and ``MODELS_BY_PROVIDER`` says so with an empty
-#: list.
+#: Inference on the user's own hardware, registered explicitly at zero so
+#: "free" and "unpriced" stay different answers. `_lookup` matches any
+#: `ollama/` model; the name is free text, so ``MODELS_BY_PROVIDER`` lists none.
 _LOCAL: Final[dict[str, ModelPrice]] = {
     "ollama/*": ModelPrice(input_micros_per_million=0, output_micros_per_million=0),
 }
 
 PRICES: Final[dict[str, ModelPrice]] = {**_ANTHROPIC, **_OPENAI, **_LOCAL}
 
-#: The selectable models of each provider, for a dropdown. Derived from the
-#: same tables as ``PRICES`` so the two cannot disagree; the wildcard row is an
-#: implementation detail and is not a model anyone can pick.
+#: The selectable models of each provider, derived from the same tables as ``PRICES``.
 MODELS_BY_PROVIDER: Final[dict[str, list[str]]] = {
     "anthropic": sorted(_ANTHROPIC),
     "openai": sorted(_OPENAI),
@@ -168,34 +138,21 @@ MODELS_BY_PROVIDER: Final[dict[str, list[str]]] = {
 
 
 def _lookup(model: str) -> ModelPrice | None:
-    """Resolve a price, or ``None``. Local models match by prefix.
-
-    Ollama serves whatever the user has pulled, so the set of valid names is
-    open-ended and cannot be enumerated. Charging them at zero is correct
-    rather than a guess: the tokens never leave the machine.
-    """
+    """Resolve a price, or ``None``. Local models match by prefix."""
     if model.startswith(LOCAL_MODEL_PREFIX):
         return PRICES["ollama/*"]
     return PRICES.get(model)
 
 
 def is_priced(model: str) -> bool:
-    """Whether :func:`cost_micros` will succeed for ``model``.
-
-    The budget pre-flight uses this to refuse a run *before* any API call,
-    which is the Phase 3 acceptance criterion.
-    """
+    """Whether :func:`cost_micros` will succeed for ``model``; the pre-flight refuses if not."""
     return _lookup(model) is not None
 
 
 def cost_micros(model: str, usage: TokenUsage) -> int:
     """What ``usage`` on ``model`` costs, in whole micros.
 
-    Rounds **up**. The alternative directions are both worse for a spending
-    cap: truncation lets sub-micro charges accumulate as free, and
-    round-to-nearest is unbiased across many calls but still under-counts about
-    half of them. A cap that errs must err towards refusing too early, never
-    towards letting a run through.
+    Rounded up: a cap must never under-count.
 
     :raises UnknownModelError: if ``model`` has no registered price.
     """
@@ -213,22 +170,14 @@ def cost_micros(model: str, usage: TokenUsage) -> int:
 
 
 def format_micros(micros: int) -> str:
-    """Render micros as a dollar string, for a human-legible refusal message.
+    """Render micros as a dollar string: four places, integer arithmetic only.
 
-    Four decimal places, rounded to nearest, with integer arithmetic only:
-    `micros / 1_000_000` would reintroduce exactly the float this module exists
-    to keep out of money.
-
-    Rounding here is to *nearest*, unlike :func:`cost_micros`, which rounds up.
-    They are answering different questions: charging must never under-count,
-    while a displayed figure should be the closest true reading. Rounding a
-    display up would render a single micro as ``$0.0001``: a hundredfold
-    overstatement of a real, and very common, amount.
+    Rounded to nearest, unlike :func:`cost_micros`: a display should be the closest
+    true reading, and rounding one micro up would show ``$0.0001``.
     """
     sign = "-" if micros < 0 else ""
 
-    # Work in hundredths of a micro-dollar, i.e. units of $0.0001, so the
-    # carry from .9999 -> the next dollar falls out of the division.
+    # In units of $0.0001, so the carry from .9999 falls out of the division.
     ten_thousandths = (abs(micros) + 50) // 100
     dollars, remainder = divmod(ten_thousandths, 10_000)
     return f"{sign}${dollars}.{remainder:04d}"

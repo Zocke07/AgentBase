@@ -13,25 +13,11 @@ import { revealFolder, revealAvailable } from "../lib/folder";
 import { useFetched } from "../state/useFetched";
 
 /**
- * One space's settings: BUILD_SPEC §5 Phase 11, "space settings are one
- * page; app settings are another".
- *
- * Name and description; the folder its runs read and write, shown as a
- * path with a button that opens it; then the rules (model, approval
- * policy, run limits) each with **Inherit** as the first choice, because
- * a rule a space has not set is the app-wide default and the page has to say
- * so rather than show the default as if the space had chosen it. And a
- * danger zone: archive, and delete when the sidecar allows it.
- *
- * **Save is a PATCH of what changed**, and a rule set back to Inherit is
- * sent as `null`: that is how the sidecar tells "inherit again" from "not
- * sent", so this cannot drop nulls the way the app settings form does. A
- * refusal lands on the field the server named.
- *
- * The approval policy here can only *narrow* the app-wide one (the sidecar
- * intersects the two), and the page says so beside the checkboxes rather
- * than letting a tick the app-wide policy does not include look like it did
- * something.
+ * One space's settings: name, description, the folder (shown and opened,
+ * never changed), the rules with Inherit as the first choice of each, and a
+ * danger zone. Save is a PATCH of what changed, with a rule set back to
+ * Inherit sent as `null`. The approval policy can only narrow the app-wide
+ * one, and the page says so beside any tick the app-wide policy lacks.
  */
 
 export interface SpaceSettingsViewProps {

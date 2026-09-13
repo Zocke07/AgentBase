@@ -1,16 +1,7 @@
 /**
- * Talking to the FastAPI sidecar.
- *
- * The base URL comes from the Rust shell rather than being hardcoded here, so
- * there is exactly one place that decides which port the sidecar listens on.
- * When the page is opened in a plain browser (`just dev-desktop` with no Tauri
- * around it), there is no shell to ask, so it falls back to the documented
- * default. The host is never configurable: BUILD_SPEC §1 constraint 3 pins
- * everything to 127.0.0.1.
- *
- * The connection loop lives here rather than in the component so that the
- * retry policy is testable on its own, and so the component's effect does
- * nothing but start and cancel it.
+ * Finding and connecting to the sidecar. The base URL and the launch tag come
+ * from the Rust shell; a plain browser tab gets the default origin and no tag.
+ * The retry loop lives here so it is testable on its own.
  */
 
 import type { HealthResponse } from "@agentspace/schemas";
@@ -21,19 +12,10 @@ const DEFAULT_BASE_URL = "http://127.0.0.1:8787";
 /** How long to keep retrying before calling it a failure. */
 const STARTUP_ATTEMPTS = 40;
 const RETRY_DELAY_MS = 250;
-/**
- * How long one `/health` request may take. A sidecar that accepts the
- * connection and never answers would otherwise hold an attempt for the
- * browser's own timeout (minutes) and "connecting (attempt 1)" with it.
- */
+/** How long one `/health` request may take before the attempt counts as failed. */
 const HEALTH_TIMEOUT_MS = 2_000;
 
-/**
- * What `/health` says. `instance` is the shell's tag for the launch that
- * started the sidecar answering, or null for one run by hand. The port is
- * fixed, so whatever holds it answers `/health`; the tag is how the webview
- * tells the shell's own sidecar from a stranger: see `fetchHealth`.
- */
+/** What `/health` says. `instance` is the launch tag, or null for a sidecar run by hand. */
 export type Health = HealthResponse;
 
 /** Where the sidecar should be, and which launch it should say it is. */
@@ -55,12 +37,7 @@ function insideTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
-/**
- * Ask the Rust shell where the sidecar is, falling back to the default.
- *
- * The import is dynamic so that a plain `vite dev` page never loads the Tauri
- * API at all.
- */
+/** Ask the shell where the sidecar is, falling back to the default. Dynamic import: no Tauri in a plain tab. */
 export async function resolveSidecarBaseUrl(): Promise<string> {
   if (!insideTauri()) {
     return DEFAULT_BASE_URL;
@@ -74,14 +51,7 @@ export async function resolveSidecarBaseUrl(): Promise<string> {
   }
 }
 
-/**
- * Ask the shell where the sidecar is and which launch it should answer as.
- *
- * Both come from the shell, so there is one place that decides the port and
- * one that mints the tag. A plain browser tab gets the default origin and no
- * tag, and `fetchHealth` then accepts whoever answers: there is nothing to
- * compare with.
- */
+/** Ask the shell where the sidecar is and which launch it should answer as. */
 export async function resolveSidecarIdentity(): Promise<SidecarIdentity> {
   if (!insideTauri()) {
     return { baseUrl: DEFAULT_BASE_URL, instance: null };
@@ -100,15 +70,9 @@ export async function resolveSidecarIdentity(): Promise<SidecarIdentity> {
 }
 
 /**
- * Fetch `/health`, rejecting on anything that is not a well-formed 200, or,
- * when `expected` is given, on a healthy answer from the wrong process.
- *
- * The port is fixed. When something else already holds it, the sidecar this
- * shell spawned cannot bind and exits, and `/health` still answers: from the
- * stranger. The packaged app once did exactly this against a dev sidecar left
- * in a terminal: it rendered the dev data directory's runs, its "Open folder"
- * sent the dev path, and nothing anywhere said the process on the other end
- * was not its own. The tag is what says so.
+ * Fetch `/health`, rejecting on anything but a well-formed 200, or, when
+ * `expected` is given, on a healthy answer from the wrong process: the port is
+ * fixed, so a stranger holding it answers too, and the tag is what tells them apart.
  */
 export async function fetchHealth(
   baseUrl: string,
@@ -143,12 +107,9 @@ export async function fetchHealth(
 }
 
 /**
- * Poll `/health` until it answers as the sidecar the shell launched, reporting
- * progress through `onStatus`.
- *
- * Retrying is not defensiveness: the webview is reliably ready before the
- * frozen sidecar has finished unpacking itself and binding its port, so the
- * first request legitimately fails on almost every cold start.
+ * Poll `/health` until it answers as the sidecar the shell launched. The
+ * webview is ready before the frozen sidecar has unpacked and bound its port,
+ * so the first attempts fail on almost every cold start.
  */
 export async function connectWithRetry(
   onStatus: (status: SidecarStatus) => void,
@@ -156,15 +117,11 @@ export async function connectWithRetry(
 ): Promise<void> {
   const { baseUrl, instance } = await resolveSidecarIdentity();
 
-  // Read through a function: `signal.aborted` changes underneath us, and a
-  // direct comparison lets TypeScript narrow it to a constant after the first
-  // check.
+  // A function, so TypeScript does not narrow `signal.aborted` to a constant.
   const aborted = () => signal?.aborted ?? false;
 
-  // A wrong instance is retried like a refused connection rather than failed
-  // at once: a copy of this app closed a second ago answers for a moment
-  // more, and then the new sidecar binds. A stranger that stays is reported
-  // when the attempts run out, by name.
+  // A wrong instance is retried, not failed at once: a copy of this app closed
+  // a second ago answers for a moment more. A stranger that stays is reported.
   for (let attempt = 1; attempt <= STARTUP_ATTEMPTS; attempt += 1) {
     if (aborted()) {
       return;

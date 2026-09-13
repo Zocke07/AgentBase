@@ -1,32 +1,20 @@
 """Where a tool call may reach, decided before anything runs or anyone is asked.
 
-§5 Phase 6: "a configured workspace root. Path traversal outside it is rejected
-**before the approval prompt is even shown**." That ordering is the whole
-design. An approval dialog reading *Agent "researcher" wants to write to
-`../../../Windows/System32/drivers/etc/hosts`: Allow / Deny* puts the user one
-misclick from the thing the sandbox exists to prevent, and asks them to make a
-judgement they have no way to make well. A path outside the root is not a risky
-call awaiting a decision; it is not a call at all.
+A path outside the workspace root is refused before an approval prompt is
+composed (§5 Phase 6): a dialog asking whether an agent may write to
+`../../etc/hosts` puts the user one misclick from the thing the sandbox exists
+to prevent. This module answers one question, *is this reachable?*, with no
+reference to risk, policy or who is asking.
 
-So this module answers one question (*is this reachable?*) and answers it with
-no reference to risk levels, policy, or who is asking. Those are the approval
-gate's business, and it only ever sees calls that already passed here.
+Every check compares fully resolved paths. A string search for `".."` rejects
+the legitimate `reports/../notes.txt` and misses a symlink, which is the escape
+that works; :meth:`Path.resolve` covers traversal, symlinks, drive letters and
+UNC paths in one comparison.
 
-**Resolution, not inspection.** Every check below compares fully resolved paths.
-A string search for `".."` rejects the legitimate `reports/../notes.txt` and
-misses a symlink that contains neither dots nor slashes, which is the escape
-that actually works. :meth:`Path.resolve` collapses traversal *and* follows
-symlinks, so one comparison covers both, plus the drive-letter and UNC cases
-that a POSIX-shaped implementation treats as ordinary relative segments.
-
-**On URLs.** `http_get` is the one tool that reaches off the filesystem, and the
-containment idea has a direct analogue: the machine's own services are inside
-the boundary and must stay unreachable. Without :meth:`Sandbox.check_url`, an
-agent can fetch `http://127.0.0.1:8787/settings` and read this application's own
-API from inside a run: §1 constraint 3 keeps other *machines* out and does
-nothing about that. :meth:`Sandbox.resolve_url` also hands back the address it
-checked, so `http_get` connects to that one rather than resolving the name a
-second time; see the method for why that matters.
+For `http_get`, the machine's own services are inside the boundary: without
+:meth:`Sandbox.check_url` an agent can read this application's API from inside
+a run. :meth:`Sandbox.resolve_url` also hands back the address it checked so
+the tool connects to that one rather than resolving the name again.
 """
 
 from __future__ import annotations
@@ -46,46 +34,36 @@ __all__ = [
     "UrlNotAllowedError",
 ]
 
-#: How long `run_shell` may run before it is killed (§5 Phase 6: "a hard
-#: timeout"). Long enough for a build or a test run, short enough that a
-#: command waiting on input the agent cannot supply does not hold the run's
-#: whole wall-clock budget.
+#: How long `run_shell` may run before it is killed: long enough for a build,
+#: short enough that a command waiting on input does not eat the run's budget.
 SHELL_TIMEOUT_SECONDS: Final[float] = 60.0
 
-#: Schemes `http_get` will fetch. An allowlist rather than a denylist of the
-#: obviously-bad ones, because the interesting schemes are the ones nobody
-#: thinks to deny: `file:` is a filesystem read that bypasses the path sandbox
-#: entirely, and `data:` makes the tool a laundering step for content the model
-#: wrote itself.
+#: Schemes `http_get` will fetch. An allowlist: `file:` is a filesystem read
+#: that bypasses the path sandbox, and `data:` launders the model's own text.
 _ALLOWED_SCHEMES: Final[frozenset[str]] = frozenset({"http", "https"})
 
 
 class SandboxViolationError(Exception):
     """A path that resolves outside the workspace root.
 
-    Carries a message written for the user, because it reaches them: §5 Phase 6
-    requires this refusal to be visible in the event log as `tool.denied`, and
-    that payload is what the Phase 7 dialog renders.
+    The message reaches the user via `tool.denied`.
     """
 
 
 class UrlNotAllowedError(Exception):
-    """A URL `http_get` will not fetch. Same contract as its sibling above."""
+    """A URL `http_get` will not fetch. Same contract as :class:`SandboxViolationError`."""
 
 
 @dataclass(frozen=True, slots=True)
 class CheckedUrl:
     """A URL `http_get` may fetch, and the address that was checked.
 
-    ``address`` is what the connection must be made to. The check resolved
-    the name and looked at every answer; connecting by name again would ask
-    the resolver a second time, and a second answer is the whole of the
-    rebinding attack.
+    The connection must be made to ``address``: resolving the name again
+    would give a second answer, which is the whole of a rebinding attack.
     """
 
     url: str
-    #: The hostname as written: what the `Host` header and the TLS handshake
-    #: carry, so the server sees the name the agent asked for.
+    #: The hostname as written, for the `Host` header and the TLS handshake.
     host: str
     #: The address the check saw, and the one to connect to.
     address: ipaddress.IPv4Address | ipaddress.IPv6Address
@@ -95,18 +73,14 @@ class CheckedUrl:
 class Sandbox:
     """The workspace root, and the questions that can be asked about it.
 
-    Frozen, and the root is resolved once in :meth:`__post_init__`. Both matter:
-    a root that can be reassigned is a boundary a later refactor can move, and
-    an *unresolved* root silently rejects everything on macOS, where `/var` is a
-    symlink to `/private/var`: every candidate resolves to a path that is not
-    relative to the root as written.
+    The root is resolved once, in :meth:`__post_init__`: an unresolved root
+    rejects everything on macOS, where `/var` is a symlink to `/private/var`.
     """
 
     root: Path
 
     def __post_init__(self) -> None:
-        # `object.__setattr__` because the dataclass is frozen; normalising an
-        # input in `__post_init__` is the one legitimate use of it.
+        # `object.__setattr__` because the dataclass is frozen.
         object.__setattr__(self, "root", Path(self.root).expanduser().resolve())
 
     # --- paths -------------------------------------------------------------
@@ -114,10 +88,8 @@ class Sandbox:
     def resolve_path(self, candidate: str) -> Path:
         """Resolve ``candidate`` against the root, or refuse it.
 
-        The returned path is absolute and guaranteed to be inside the root. It
-        may not exist: `write_file` names its target before creating it, so
-        requiring existence here would make the sandbox unusable by the one
-        tool whose containment matters most.
+        The result is absolute and inside the root. It need not exist:
+        `write_file` names its target before creating it.
 
         :raises SandboxViolationError: when the path resolves outside the root,
             is empty, or names an alternate data stream.
@@ -130,23 +102,12 @@ class Sandbox:
             )
             raise SandboxViolationError(msg)
 
-        # A colon in a *relative* path is refused on every platform, and the
-        # reason is Windows-specific: `notes.txt:hidden` writes an NTFS
-        # alternate data stream. It stays inside the root, so containment does
-        # not catch it, and almost no tool displays it: a tool reporting that
-        # it wrote `notes.txt` would be lying to the user. It has to be checked
-        # before joining, because `Path` drops the stream suffix on some
-        # operations and it would vanish before the comparison.
-        #
-        # **Applied on POSIX too, where a colon is a legal filename character.**
-        # That over-rejects `notes:2026.txt` on macOS, and the alternative is
-        # worse: the workspace would accept a path on one platform and refuse it
-        # on the other, so an agent definition that worked on the maintainer's
-        # macOS build would fail on the Windows one it actually ships to (§1
-        # constraint 7). One rule, stated in terms of what is portable.
-        #
-        # A drive letter is the legitimate colon and is absolute, so it falls
-        # through to the containment check rather than being caught here.
+        # A colon in a relative path is refused on every platform: on Windows
+        # `notes.txt:hidden` writes an NTFS alternate data stream, inside the
+        # root and invisible to most tools. Checked before joining, because
+        # `Path` drops the suffix on some operations. Applied on POSIX too, so
+        # a definition that works on one platform does not fail on the other.
+        # A drive letter is absolute and falls through to the containment check.
         if ":" in text and not Path(text).is_absolute():
             msg = (
                 f"{candidate!r} is not a valid workspace path: ':' is not "
@@ -156,16 +117,14 @@ class Sandbox:
             )
             raise SandboxViolationError(msg)
 
-        # An absolute candidate replaces the root under `/`, which is what we
-        # want: it is then judged by where it actually points, not rejected for
-        # being absolute. A path inside the root written absolutely is fine.
+        # An absolute candidate replaces the root under `/`: it is judged by
+        # where it points, not rejected for being absolute.
         joined = self.root / text
 
         try:
             resolved = joined.resolve()
         except (OSError, RuntimeError) as exc:
-            # A resolution loop, or a path the OS refuses outright. Both are
-            # refusals rather than crashes.
+            # A resolution loop, or a path the OS refuses: a refusal, not a crash.
             msg = f"{candidate!r} is not a usable workspace path: {exc}"
             raise SandboxViolationError(msg) from exc
 
@@ -180,12 +139,7 @@ class Sandbox:
         return resolved
 
     def relative(self, path: Path) -> str:
-        """Render a resolved path the way a user should see it.
-
-        The absolute path leaks the account name and the install location into
-        approval prompts and event payloads. What a user needs is which file
-        inside their workspace is about to be touched.
-        """
+        """Render a resolved path relative to the root, for prompts and payloads."""
         try:
             relative = path.resolve().relative_to(self.root)
         except (OSError, ValueError):
@@ -197,27 +151,19 @@ class Sandbox:
     def check_url(self, candidate: str) -> str:
         """Return ``candidate`` if `http_get` may fetch it, else refuse.
 
-        :meth:`resolve_url` without the address. Kept for callers that only
-        need the yes or no.
+        :meth:`resolve_url` without the address.
         """
         return self.resolve_url(candidate).url
 
     def resolve_url(self, candidate: str) -> CheckedUrl:
         """Check ``candidate`` and say which address was checked.
 
-        A literal address in a private, loopback, link-local or otherwise
-        reserved range is refused, and so is a hostname any of whose addresses
-        is one. The address handed back is the first the resolver gave (the
-        operating system's preference), and every one of them passed.
-
-        **Why the address travels with the answer.** A name can resolve to a
-        public address when checked and a private one when the request is
-        made (DNS rebinding), and a check that answered yes and then let the
-        client resolve the name again had only raised the cost of reaching the
-        LAN, not closed the way in. `http_get` therefore connects to
-        ``address`` and carries ``host`` in the `Host` header and the TLS
-        handshake, so the resolver is asked once, here, and the answer it gave
-        is the connection that is made.
+        A private, loopback, link-local or reserved address is refused, and
+        so is a hostname any of whose addresses is one. The address handed
+        back is the resolver's first, and every one of them passed. It
+        travels with the answer because a name can resolve public when checked
+        and private when connected (DNS rebinding); `http_get` connects to it
+        and carries ``host`` in the `Host` header and the TLS handshake.
 
         :raises UrlNotAllowedError: for a bad scheme, a missing host, or a host
             that is or resolves to a non-public address.
@@ -267,12 +213,8 @@ class Sandbox:
     def _addresses_for(
         self, hostname: str, candidate: str
     ) -> list[ipaddress.IPv4Address | ipaddress.IPv6Address]:
-        """Every address ``hostname`` currently stands for.
-
-        A literal is used as given. A name is resolved, and *all* of its
-        addresses are checked rather than the first: a host answering with one
-        public and one private address would otherwise pass on a coin flip.
-        """
+        """Every address ``hostname`` stands for: all of them, so a host with one
+        public and one private address does not pass on a coin flip."""
         try:
             return [ipaddress.ip_address(hostname)]
         except ValueError:

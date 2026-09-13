@@ -1,10 +1,7 @@
-"""Space endpoints (BUILD_SPEC §5 Phase 11).
+"""Space endpoints: CRUD over `spaces`, plus what a new space starts with.
 
-CRUD over `spaces`, plus what a new space starts with. The rules (what a
-space may be called, what it may override, when it may be deleted) live in
-:mod:`agentspace.store.spaces`; this module maps each refusal to a status
-code and a `{message, field}` body the settings pages put on the input the
-server named, the way the agents and settings APIs already do.
+The rules live in :mod:`agentspace.store.spaces`; this maps each refusal to a
+status code and a `{message, field}` body.
 """
 
 from __future__ import annotations
@@ -49,12 +46,7 @@ class CreateSpaceRequest(BaseModel):
 
 
 class UpdateSpaceRequest(BaseModel):
-    """A partial update.
-
-    ``None`` is meaningful for every rule (it is how a space goes back to
-    inheriting the app-wide default), so this uses `model_fields_set` rather
-    than `exclude_none` to tell "not sent" from "sent as null".
-    """
+    """A partial update. ``None`` means "inherit", so `model_fields_set` tells it from "not sent"."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -72,11 +64,9 @@ class UpdateSpaceRequest(BaseModel):
 class SpaceResponse(Space):
     """A space, plus where its runs read and write."""
 
-    #: The folder the sandbox is rooted at for this space's runs. Shown, and
-    #: opened, by the space's settings page; never written by it.
+    #: The sandbox root for this space's runs; shown and opened, never written, by its page.
     folder: str
-    #: The one that cannot be archived or deleted, and that a run with no
-    #: space named lands in. The window needs to know without knowing the id.
+    #: The space that cannot be archived or deleted.
     is_default: bool
 
 
@@ -104,8 +94,7 @@ def _respond(store: SpaceStore, space: Space) -> SpaceResponse:
 
 @router.get("/spaces")
 async def list_spaces(request: Request) -> list[SpaceResponse]:
-    """Every space, archived ones included: an archived space's runs are
-    still viewable, and their cards need its name."""
+    """Every space, archived ones included: their runs are still viewable."""
     store = _spaces(request)
     return [_respond(store, space) for space in await store.list_all()]
 
@@ -123,9 +112,8 @@ async def get_space(request: Request, space_id: str) -> SpaceResponse:
 async def create_space(request: Request, body: CreateSpaceRequest) -> SpaceResponse:
     """Create a space and seed its roster.
 
-    The seed runs after the row exists, as its own write: a copy that fails
-    half-way leaves a space with a partial roster the user can see and fix,
-    rather than no space and a message about one.
+    The seed is its own write after the row exists, so a partial copy leaves
+    a space the user can see and fix.
     """
     store = _spaces(request)
     try:
@@ -178,11 +166,7 @@ async def delete_space(request: Request, space_id: str) -> Response:
 
 @router.post("/spaces/{space_id}/seed", status_code=201)
 async def seed_space(request: Request, space_id: str) -> list[AgentDef]:
-    """Add fresh copies of the three seeded roles to an existing space's roster.
-
-    What the Home screen offers an empty space. Roles already on the roster
-    by name are skipped, so it is safe to press twice.
-    """
+    """Add the seeded roles an existing roster lacks. Safe to press twice."""
     try:
         return await _agents(request).seed_builtins(space_id)
     except SpaceNotFoundError as exc:

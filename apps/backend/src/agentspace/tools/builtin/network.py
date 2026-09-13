@@ -1,21 +1,10 @@
 """`http_get`: the one tool that leaves the machine.
 
-Medium risk rather than low despite being a read, and the catalogue already
-says why: it is the tool that can carry the contents of the workspace off the
-machine, so a prompt-injected agent calling it is an exfiltration path rather
-than a page view. The URL goes through
-:meth:`agentspace.tools.sandbox.Sandbox.check_url` in `prepare`, which refuses
-`file:`, `data:`, and every address that is not on the public internet -
-including this application's own API on loopback.
-
-**The connection is made to the address that was checked.** `prepare` keeps
-the address `resolve_url` saw, and `execute` puts it in the URL it connects
-to, with the name the agent wrote carried in the `Host` header and, over
-TLS, as the SNI, so the certificate is still verified against the name. The
-resolver is asked once, at the check; a name that would answer differently
-the second time is never asked a second time. That is the DNS-rebinding gap
-`check_url` used to concede, closed where the docstring said it had to be:
-in the client.
+The URL goes through :meth:`~agentspace.tools.sandbox.Sandbox.resolve_url` in
+`prepare`, which refuses `file:`, `data:` and every non-public address. The
+connection is then made to the address that was checked, with the name in
+the `Host` header and the SNI, so the resolver is asked once and DNS
+rebinding has nothing to rebind.
 """
 
 from __future__ import annotations
@@ -32,12 +21,10 @@ if TYPE_CHECKING:
 
 __all__ = ["MAX_BODY_CHARS", "HttpGetTool"]
 
-#: How much of a response body reaches the model and the event log. Same
-#: reasoning as `read_file`: the transcript is repeated on every later turn.
+#: How much of a response body reaches the model and the event log.
 MAX_BODY_CHARS: Final[int] = 20_000
 
-#: Shorter than the provider timeout: a page that will not answer in half a
-#: minute is not worth a run's wall-clock budget.
+#: A page that will not answer in half a minute is not worth a run's budget.
 REQUEST_TIMEOUT_SECONDS: Final[float] = 30.0
 
 
@@ -47,8 +34,7 @@ class HttpGetTool:
     name = "http_get"
 
     def __init__(self, client: httpx2.AsyncClient | None = None) -> None:
-        #: Injected by tests through a `MockTransport`, exactly as the provider
-        #: adapters take one. Nothing in the shipped app passes it.
+        #: Injected by tests through a `MockTransport`.
         self._client = client
 
     @property
@@ -111,10 +97,8 @@ class HttpGetTool:
         if client is None:
             client = httpx2.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS)
 
-        # Connect to the checked address; present the name. A literal address
-        # rewrites to itself. `httpx2` brackets an IPv6 literal for us, and it
-        # would otherwise set `Host` from the URL (the address), so the header
-        # is given explicitly, port included when one was written.
+        # Connect to the checked address; present the name. `httpx2` would set
+        # `Host` from the URL (the address), so the header is given explicitly.
         parsed = httpx2.URL(url)
         pinned = parsed.copy_with(host=address)
         headers = {"host": host if parsed.port is None else f"{host}:{parsed.port}"}
@@ -135,12 +119,9 @@ class HttpGetTool:
             msg = f"{url} returned HTTP {response.status_code}."
             raise ToolExecutionError(msg)
 
-        # Redirects are reported rather than followed. A redirect is how a
-        # checked public URL becomes an unchecked private one: the sandbox
-        # validated the address the agent named, and following a `Location`
-        # header would fetch an address nothing validated. Handing the target
-        # back lets the agent ask for it explicitly, which puts it through
-        # `check_url` and the gate again.
+        # Reported rather than followed: a `Location` header is how a checked
+        # public URL becomes an unchecked private one. Asking again puts the
+        # target through the check and the gate.
         if 300 <= response.status_code < 400:
             location = response.headers.get("location", "(no Location header)")
             return (

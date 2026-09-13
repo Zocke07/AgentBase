@@ -6,42 +6,12 @@ import { sentenceFor } from "../state/describe";
 
 
 /**
- * The event log panel: §5 Phase 7's "Event log panel, filterable by agent and
- * event type".
- *
- * This renders the raw log rather than the reduced view, because its job is to
- * be the thing you check the reduced view *against*. When a run claims it saved
- * a file, this is where you look to see that no `tool.called` for a file tool
- * ever happened.
- *
- * The filters are component state, not run state. That is deliberate and it is
- * the one place this file departs from "everything comes from the log": which
- * rows a person is looking at is a fact about the person, not about the run, and
- * putting it in `RunView` would make the same log fold to different states.
- * The same goes for which rows are opened and where the list is scrolled.
- *
- * **Tokens are hidden by default.** 232 of a real run's 288 events were
- * `llm.token`; they are what the agent detail shows as text, and in the log
- * they buried everything else. The toggle says how many there are.
- *
- * **Every row is a sentence, with the raw type beside it.** The sentence is
- * `sentenceFor(event)` from the reducer's module (a pure function of the
- * event, so it is identical live and on replay), and the raw `tool.denied`
- * stays as a chip because it is what a bug report, and the type filter, need.
- *
- * **A row opens to its whole payload.** A one-liner cannot show a tool result
- * or the message list an `llm.request` carried, and those are precisely what
- * a person checking the reduced view against the log needs to read.
- *
- * **Only the rows in view are in the DOM.** A long run is thousands of
- * events, and rendering every one (then re-rendering every one on each
- * arriving token) is what made the frontend pass leave windowing as the
- * one thing it did not measure. Rows are a fixed height, so where a row sits
- * is arithmetic; an opened payload is the one variable, measured once it
- * renders and added to everything below it. The windowing is a fact about
- * the viewport, not about the log: the same rows are rendered for the same
- * scroll position live and on replay, which is what keeps the identity test
- * honest about the part of the log that is on screen.
+ * The event log panel: the raw log, which is what you check the reduced view
+ * against. Filters, opened rows and scroll position are component state
+ * (facts about the person, not the run). Tokens are hidden by default; every
+ * row is a sentence with the raw type as a chip beside it; a row opens to its
+ * whole payload. Only the rows in view are in the DOM: rows are a fixed
+ * height, and an opened payload is measured once it renders.
  */
 
 /** A collapsed row's height, in CSS pixels. Matches `.log__row` in the stylesheet. */
@@ -86,10 +56,7 @@ export function EventLog({ events, cursor, agents, selectedAgent, onSelectAgent 
     return { families: familyNames, types: sorted, tokenCount: tokens };
   }, [applied]);
 
-  // The filter outlives the log it was chosen against: switch to a run with no
-  // `channel.*` rows, or scrub to before the first `tool.*`, and a filter on
-  // that type hides every row behind a select showing nothing. A value the
-  // current rows do not contain is not a filter, it is "all".
+  // A filter value the current rows do not contain is "all", not a filter that hides everything.
   const type =
     chosenType === "all" || types.includes(chosenType) || families.includes(chosenType)
       ? chosenType
@@ -153,21 +120,16 @@ export function EventLog({ events, cursor, agents, selectedAgent, onSelectAgent 
   const onScroll = () => {
     const element = scroller.current;
     if (element === null) return;
-    // Measured against the spacer's own height rather than `scrollHeight`, so
-    // the answer is the same one the row arithmetic below is working from -
-    // and against the element's live height rather than the remembered one,
-    // which can lag it by a render on the first scroll and read "not at the
-    // end" of a list that is.
+    // Against the spacer's height and the element's live height, so "at the
+    // end" agrees with the row arithmetic and does not lag by a render.
     const height = element.clientHeight || viewport.height;
     const remaining = total - element.scrollTop - height;
     setAtEnd(remaining < 4);
     setViewport({ scrollTop: element.scrollTop, height });
   };
 
-  // The rows whose extent overlaps the viewport, plus the overscan. While
-  // following the tail the position *is* the end, whatever the last scroll
-  // event said; otherwise a filter that shortened the list can leave the
-  // remembered position past its end, so it is clamped before it is used.
+  // The rows overlapping the viewport, plus overscan. Following the tail, the
+  // position is the end; otherwise it is clamped, since a filter can shorten the list.
   const scrollTop = atEnd
     ? Math.max(0, total - viewport.height)
     : Math.max(0, Math.min(viewport.scrollTop, total - viewport.height));

@@ -1,16 +1,8 @@
 """Ollama, normalized to the provider protocol.
 
-This implementation exists to keep the abstraction honest. §7 lists local model
-support as optional and untested in v1, but §5 Phase 3 requires that the
-protocol "must not assume cloud", and the only way to know whether it does is
-to put a provider behind it that has **no API key**, **no cost**, and **no
-remote host**. Anything in the protocol that quietly assumed an `Authorization`
-header or a positive price would fail to compile here.
-
-It is deliberately not wired into the default settings, and nothing in the test
-suite starts an Ollama daemon: these tests use a mock transport like the other
-two. Whether a real daemon behaves as documented is untested (§6: say what was
-not verified).
+The provider with no API key, no cost and no remote host, which is what keeps
+the protocol from quietly assuming cloud. Tests use a mock transport; the real
+daemon has been run against it since (see CLAUDE.md).
 """
 
 from __future__ import annotations
@@ -40,12 +32,10 @@ if TYPE_CHECKING:
 
 __all__ = ["DEFAULT_BASE_URL", "MODEL_PREFIX", "OllamaProvider"]
 
-#: The daemon's default address. Loopback, consistent with §1 constraint 3 -
-#: though note this is an *outbound* address, not a bind.
+#: The daemon's default address: an outbound address, not a bind.
 DEFAULT_BASE_URL: Final[str] = "http://127.0.0.1:11434"
 
-#: Model ids are namespaced so pricing can recognise them as free without
-#: enumerating every model a user might have pulled.
+#: Model ids are namespaced so pricing recognises them as free without a list.
 MODEL_PREFIX: Final[str] = "ollama/"
 
 
@@ -104,8 +94,7 @@ class OllamaProvider:
             ]
         return payload
 
-    # No auth header anywhere below: there is no key, and inventing one would
-    # be the cloud assumption this provider exists to rule out.
+    # No auth header: there is no key.
     _HEADERS: Final[dict[str, str]] = {"content-type": "application/json"}
 
     async def complete(
@@ -134,16 +123,11 @@ class OllamaProvider:
         system: str | None = None,
         max_tokens: int = 4096,
     ) -> AsyncIterator[StreamEvent]:
-        """Stream `POST /api/chat`.
+        """Stream `POST /api/chat`: newline-delimited JSON, not SSE.
 
-        Ollama streams **newline-delimited JSON, not SSE**: no `data:` prefix,
-        no blank-line framing. Every line is a whole response object of the same
-        shape the blocking call returns, with `done: false` until the last one,
-        which carries the token counts and no content.
-
-        That shape is why the final object is assembled by folding each line
-        through the same `_to_completion` the blocking path uses: the last line
-        alone has the usage but none of the text.
+        Every line is a whole response object; the last carries the usage and
+        no content, so the lines are folded into one object and parsed by the
+        same `_to_completion` the blocking path uses.
         """
         final: dict[str, Any] = {}
 
@@ -247,11 +231,7 @@ def _frame_text(frame: dict[str, Any]) -> str:
 def _merge_frame(accumulated: dict[str, Any], frame: dict[str, Any]) -> dict[str, Any]:
     """Fold one streamed line into a response object shaped like a blocking one.
 
-    Later fields win, except `message.content` and `message.thinking`, which
-    concatenate: that is the whole point of a stream. Doing it this way
-    rather than with a bespoke accumulator means the streamed and blocking
-    paths converge on one parser, so a field added to `_to_completion` cannot
-    be read on only one of them.
+    Later fields win, except `message.content` and `message.thinking`, which concatenate.
     """
     merged = dict(accumulated)
     merged.update(frame)

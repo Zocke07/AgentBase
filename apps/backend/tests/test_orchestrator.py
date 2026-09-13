@@ -1,25 +1,11 @@
 """Tests for the orchestration loop.
 
-The §5 Phase 4 acceptance criterion has two clauses, and the second is the one
-that is easy to fake:
-
-1. "a two-worker run completes end to end"
-2. "the full event log alone is sufficient to reconstruct exactly what happened
-   without reading any other state"
-
-A test that asserted only "some events were written" would pass against a log
-that had lost half the run. So `reconstruct` in `tests/support.py` reads
-**nothing but the event rows** (no run row, no orchestrator, no provider, and
-since Phase 5, no `agent_defs` table either). Every assertion about a run is
-made against that reconstruction rather than against live state, and
-`test_dropping_*` proves each one actually depends on the events it claims to.
-
-**Phase 5 changed the shape of a run without changing this contract.** Workers
-are no longer invented by the supervisor; they are rows of `agent_defs` that
-the supervisor selects by name, so `spawn_agent` takes an `agent` rather than a
-name and a role. The scripts below therefore spawn `researcher` and `writer`
-(the built-in definitions migration 003 seeds), and the roles asserted are the
-ones those rows carry rather than strings a model produced.
+§5 Phase 4's second clause, "the full event log alone is sufficient to
+reconstruct exactly what happened", is the one that is easy to fake, so every
+assertion goes through `reconstruct` in `tests/support.py`, which reads only
+event rows, and `test_dropping_*` proves each assertion depends on the events
+it claims to. Workers are rows of `agent_defs` selected by name; the scripts
+spawn the seeded `researcher` and `writer`.
 """
 
 from __future__ import annotations

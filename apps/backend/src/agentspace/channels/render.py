@@ -1,28 +1,14 @@
-"""The chat reply, as a pure fold of the event log.
+"""The chat reply, as a pure fold of the event log: events in, a string out.
 
-§2: "the UI is a pure projection of the event log". A chat message is a second
-projection of the same log, and this module is that projection: no I/O, no
-platform, no clock, nothing but events in and a string out. The adapter
-re-renders from scratch on every edit rather than appending, for the reason
-Phase 7 gave about live versus replay: an accumulating renderer and a rebuilding
-one agree until one of them gains a feature. Here there is only the rebuilding
-one, so a reconnect, a resume or a restart shows what the log says rather than
-what this process happened to witness.
+No I/O, no platform, no clock. The adapter re-renders from scratch on every
+edit rather than appending, so a reconnect or a restart shows what the log
+says rather than what this process happened to witness.
 
-**Plain text, no markdown.** Agent output is arbitrary text (file contents,
-shell output, model prose), and Discord's markdown turns a stray `*`, `_` or
-backtick in it into formatting, or swallows it. The decision was originally
-forced by Telegram's MarkdownV2, where an unescaped character is a 400 that
-discards the whole message; Telegram is gone and the reasoning survives it.
-One renderer, no escaping, nothing to get wrong.
-
-**The terminal summary is a claim, and it is rendered beside a count of what
-executed.** This is Phase 7's decision carried across unchanged, and it matters
-more here than there. Four live runs in this project have ended `completed`
-with a summary describing work the log shows never happened: `finish` called by
-an agent that never called `write_file` at all. A dashboard user can look at the
-event log and see the disagreement. A chat user cannot see anything except this
-message, so the message has to carry the check itself.
+Plain text, no markdown: agent output is arbitrary text, and a stray `*` or
+backtick would become formatting. The terminal summary is rendered as a
+claim beside a count of what executed, because a chat reader sees nothing but
+this message and live runs have ended `completed` describing work the log
+shows never happened.
 """
 
 from __future__ import annotations
@@ -50,8 +36,7 @@ __all__ = [
 #: Discord rejects a message body over this outright, rather than truncating.
 DISCORD_MESSAGE_LIMIT: Final[int] = 2000
 
-#: How many activity lines to keep before clamping starts trimming them. A
-#: chat message is a status board, not a log dump; the log is in the dashboard.
+#: How many activity lines to keep: a status board, not a log dump.
 MAX_ACTIVITY_LINES: Final[int] = 12
 
 ChatStatus = Literal["pending", "running", "completed", "failed", "cancelled"]
@@ -91,12 +76,8 @@ class PendingApproval:
 
 @dataclass(frozen=True, slots=True)
 class RunClaim:
-    """A terminal event's own account of itself.
-
-    ``kind`` separates the two, because only one of them is a claim about work
-    that may not have happened: a `run.failed` reason is written by this
-    application and a `run.completed` summary is written by a model.
-    """
+    """A terminal event's own account of itself. A `run.failed` reason is
+    written by this application; a `run.completed` summary by a model."""
 
     kind: Literal["summary", "failure"]
     text: str
@@ -161,10 +142,7 @@ class _Accumulator:
 def fold(events: Iterable[Event]) -> ChatView:
     """Reduce an event log into everything the chat reply needs.
 
-    Deliberately one function with one `match`, mirroring the TypeScript
-    reducer's single `switch`. §4's note that adding an event type means
-    updating the reducer applies to this one too, and a reader checking whether
-    that was done should have exactly one place to look per projection.
+    One `match`, like the TypeScript reducer's one `switch`.
     """
     state = _Accumulator()
     for event in events:
@@ -228,10 +206,8 @@ def _apply(state: _Accumulator, event: Event) -> None:
                 steps=steps if isinstance(steps, int) else state.agent(agent).steps,
             )
 
-        # `llm.token` changes no state at all, and that is the point. Anthropic
-        # coalesces 1-10 deltas unpredictably and a pure tool-call response
-        # emits none, so a UI treating tokens as liveness reads a working agent
-        # as idle. `agent.thinking` and `llm.request` are the liveness signals.
+        # `llm.token` changes no state: deltas arrive unpredictably and a pure
+        # tool-call response emits none, so tokens are not a liveness signal.
         case EventType.LLM_TOKEN | EventType.LLM_REQUEST | EventType.LLM_RESPONSE:
             pass
 
@@ -277,21 +253,11 @@ def _apply(state: _Accumulator, event: Event) -> None:
             state.errors.append(_text(payload, "reason", "Monthly budget exceeded."))
 
         case _:
-            # Unreachable, and that is the point. `assert_never` makes
-            # `mypy --strict` prove this match covers every member of
-            # `EventType`, so adding an event type without teaching this fold
-            # about it is a **build failure** rather than a chat reply that
-            # quietly says less than the log does.
-            #
-            # This is deliberately stronger than the TypeScript reducer's
-            # `default` branch, which records the type in `unrecognised` and
-            # renders it. The asymmetry is real: the browser is a separately
-            # built artefact that can lag the server it is talking to, so it has
-            # to handle a type it has never heard of at runtime. This fold is
-            # compiled from the same enum it is folding, so the question can be
-            # settled before the process starts. `Event.type` is a validated
-            # `EventType` (a row with an unknown type string fails in
-            # `EventStore._row_to_event`), so nothing reaches this at runtime.
+            # `assert_never` makes `mypy --strict` prove this match covers every
+            # `EventType`, so a new type is a build failure here. Stronger than
+            # the TypeScript reducer's `default` on purpose: the browser can lag
+            # the server and must cope at runtime; this fold is compiled from
+            # the enum it folds.
             assert_never(event.type)
 
 
@@ -386,13 +352,9 @@ def _claim_block(view: ChatView) -> list[str]:
 def render(view: ChatView, *, limit: int) -> str:
     """Render ``view`` as plain text that fits inside ``limit`` characters.
 
-    **What gets dropped first is the activity tail**, because it is the only
-    part of the message a reader can recover elsewhere: the whole log is in the
-    dashboard. The goal and the terminal claim exist nowhere else in the
-    conversation, so they are the last things to go, and the hard truncation
-    at the end exists only so that this function cannot return something the
-    platform will reject outright, which for Discord is a 400 rather than a
-    truncation.
+    The activity tail is dropped first (the dashboard has the whole log); the
+    goal and the terminal claim exist nowhere else and go last. The final
+    truncation only stops Discord rejecting the body with a 400.
     """
     blocks = _sections(view)
     activity_index = _index_of_activity(blocks)
@@ -403,8 +365,7 @@ def render(view: ChatView, *, limit: int) -> str:
             blocks.pop(activity_index)
             activity_index = None
         else:
-            # Drop the oldest line, not the newest: what an agent is doing now
-            # is worth more than what it did four steps ago.
+            # Oldest line first: what an agent is doing now is worth more.
             del activity[1]
 
     text = _join(blocks)

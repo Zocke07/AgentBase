@@ -20,30 +20,14 @@ import type {
 import { resolveSidecarBaseUrl } from "./sidecar";
 
 /**
- * Typed calls to the sidecar.
- *
- * Every request and response type here is imported from `@agentspace/schemas`,
- * which is generated from the FastAPI OpenAPI document; BUILD_SPEC §5 Phase 7:
- * "never hand-write the API types". Nothing in this file declares the shape of
- * a payload; it only says which endpoint returns which generated type, so a
- * model that changes on the backend breaks the frontend's typecheck rather than
- * its runtime.
- *
- * This module deliberately does **not** touch the run store. Events reach the UI
- * through the SSE stream and the reducer (§2); an API call that wrote run state
- * directly would be the second source of truth that architecture exists to
- * prevent. The only run-shaped thing fetched here is history, and that is fed
- * through the same reducer as live events.
+ * Typed calls to the sidecar. Every type comes from `@agentspace/schemas`,
+ * generated from the OpenAPI document, so a backend model change breaks the
+ * typecheck rather than the runtime. Nothing here touches the run store:
+ * events reach the UI through the stream and the reducer, and history fetched
+ * here goes through the same reducer.
  */
 
-/**
- * A 4xx from the sidecar, carrying the field it blames when it named one.
- *
- * §5 Phase 5 made validation failures return `{message, field}` specifically so
- * §5 Phase 7 could "surface the API's validation errors inline on the offending
- * field, never a toast that loses which field was wrong". Losing `field` here
- * would waste that.
- */
+/** A 4xx from the sidecar, carrying the field it blames when it named one. */
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -69,12 +53,8 @@ export function resetBaseUrl(): void {
 }
 
 /**
- * Turn a FastAPI error body into an {@link ApiError}.
- *
- * Three shapes reach here and all three carry a field name somewhere different:
- * Phase 5's `{message, field}`, a plain string `detail`, and Pydantic's 422
- * `detail: [{loc, msg}]`. Reading only the first would drop the field on exactly
- * the errors a form most needs it for.
+ * Turn a FastAPI error body into an {@link ApiError}. Three shapes reach here:
+ * `{message, field}`, a plain string `detail`, and Pydantic's `[{loc, msg}]`.
  */
 function toApiError(status: number, body: unknown): ApiError {
   const detail = (body as { detail?: unknown } | null)?.detail;
@@ -108,11 +88,8 @@ type TransportListener = () => void;
 const transportListeners = new Set<TransportListener>();
 
 /**
- * Be told when a request could not reach the sidecar at all, not a 4xx or
- * 5xx, which is the sidecar answering, but a connection that failed. The
- * shell uses it to go back to its reconnect loop: `/health` was checked once
- * at launch, and a sidecar that died afterwards left every panel failing on
- * its own with "Failed to fetch" while nothing tried again.
+ * Be told when a request could not reach the sidecar at all (a failed
+ * connection, not a 4xx or 5xx). The shell uses it to re-enter its reconnect loop.
  */
 export function onTransportFailure(listener: TransportListener): () => void {
   transportListeners.add(listener);
@@ -218,14 +195,7 @@ export const cancelRun = (runId: string): Promise<Run> =>
 export const deleteRun = (runId: string): Promise<void> =>
   requestNoContent(`/runs/${runId}`, { method: "DELETE" });
 
-/**
- * A finished run's event log as an array.
- *
- * Replay uses the SSE endpoint like live does, so this is not the replay path.
- * It exists for the one case SSE handles badly: a run that ended before the
- * dashboard opened, where the stream would deliver the backlog and immediately
- * close, and where a plain array is simply the honest request.
- */
+/** A run's event log as an array, for opening one and then resuming its stream from the end. */
 export const getRunHistory = (runId: string): Promise<Event[]> =>
   request<Event[]>(`/runs/${runId}/events/history`);
 
@@ -255,13 +225,7 @@ export const listTools = (): Promise<ToolResponse[]> => request<ToolResponse[]>(
 
 // --- approvals --------------------------------------------------------------
 
-/**
- * Approvals still awaiting an answer.
- *
- * The dialog needs this as well as the `approval.requested` event: a user who
- * opens the window a second after the question was asked would otherwise see
- * nothing, and the entire point of the gate is that somebody is there to answer.
- */
+/** Approvals still awaiting an answer, including ones raised before this window connected. */
 export const listApprovals = (runId?: string): Promise<ApprovalResponse[]> =>
   request<ApprovalResponse[]>(runId === undefined ? "/approvals" : `/approvals?run_id=${runId}`);
 
@@ -284,12 +248,7 @@ export const getSettings = (): Promise<SettingsResponse> => request<SettingsResp
 export const updateSettings = (patch: UpdateSettingsRequest): Promise<SettingsResponse> =>
   request<SettingsResponse>("/settings", { method: "PATCH", ...asJson(patch) });
 
-/**
- * Whether each chat adapter is actually connected: a question `GET /settings`
- * structurally cannot answer. A token that never reached the keychain, a
- * library that failed to load and a gateway refusing to connect all present
- * as a bot that says nothing; this says which.
- */
+/** Whether each chat adapter is actually connected, and why not if not. */
 export const getChannels = (): Promise<ChannelStatusResponse[]> =>
   request<ChannelStatusResponse[]>("/channels");
 

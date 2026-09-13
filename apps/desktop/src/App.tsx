@@ -24,24 +24,13 @@ import { currentSpace, useSpaces } from "./state/spaces";
 
 /**
  * The shell: a rail of sections on the left, the section on the right, and a
- * header carrying what is true of the whole workspace rather than of one run:
- * the month's spend, the provider and model in use, and any approval
- * waiting anywhere.
+ * header for what is true of the whole workspace (the month's spend, the
+ * provider and model in use, any approval waiting anywhere).
  *
- * Its job is to establish that the sidecar is reachable, then hand over.
- * Nothing about a run is decided here: that is `RunsView` and, below it, the
- * reducer. What the shell does own is which space the window is looking at
- * (BUILD_SPEC §5 Phase 11) and the lists that follow from it (the space's
- * runs and its roster, in shared stores), and the moments they are re-read:
- * a light poll while any listed run is unfinished, the window becoming
- * visible again, and a run being started or finished. Switching spaces
- * re-keys both stores and closes the open run; the header's approval badge
- * opens the run it names in whatever space that run is in.
- *
- * The retry loop is inherited from the Phase 1 spike and still earns its place:
- * the webview is reliably ready before the frozen sidecar has finished unpacking
- * itself and binding a port, so the first request legitimately fails on almost
- * every cold start.
+ * It establishes that the sidecar is reachable, then hands over. It owns
+ * which space the window is looking at, the lists that follow from it, and
+ * when they are re-read: a light poll while any listed run is unfinished, the
+ * window becoming visible again, and a run starting or finishing.
  */
 
 /** How often to re-read the run list and the meter while some run is unfinished. */
@@ -54,13 +43,11 @@ export function App() {
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
   const [verified, setVerified] = useState<VerifyResponse | null>(null);
   const [pendingApprovals, setPendingApprovals] = useState<ApprovalResponse[]>([]);
-  // Which run is open. Held here rather than in the runs section so that it
-  // survives a section switch, and so the header's "approval waiting" badge
-  // and the Home screen's cards can open a run from anywhere.
+  // Which run is open: held here so it survives a section switch and can be
+  // opened from the header badge or the Home cards.
   const [runId, setRunId] = useState<string | null>(null);
-  // Set when a request failed to reach the sidecar after startup; cleared when
-  // the reconnect loop gets an answer again. The window stays where it was
-  // underneath: a run being watched is still worth watching.
+  // Set when a request failed to reach the sidecar after startup; the window
+  // stays where it was underneath.
   const [lost, setLost] = useState<Exclude<SidecarStatus, { kind: "ready" }> | null>(null);
   const inFlight = useRef<AbortController | null>(null);
 
@@ -91,10 +78,8 @@ export function App() {
     };
   }, [connect]);
 
-  // Losing the sidecar after startup. Any request that fails to connect puts
-  // the shell back into its reconnect loop, reported in a banner rather than
-  // by replacing the window; when `/health` answers again everything is
-  // re-read.
+  // A failed connection after startup re-enters the reconnect loop, reported
+  // in a banner; when `/health` answers again everything is re-read.
   const reconnecting = useRef(false);
   useEffect(
     () =>
@@ -118,16 +103,11 @@ export function App() {
   );
 
   const refreshWorkspace = useCallback(() => {
-    // The meter and the pre-flight are about the space on screen: its share
-    // of the month, and whether *its* effective settings can build a provider.
+    // The meter and the pre-flight are about the space on screen.
     void api.getBudget(spaceId ?? undefined).then(setBudget).catch(() => undefined);
     void api.getSettings().then(setSettings).catch(() => undefined);
-    // The sidecar's own answer to "would a run be refused right now": the
-    // same check a run fails on, without a model call.
     void api.verifySettings(spaceId ?? undefined).then(setVerified).catch(() => undefined);
-    // Every question waiting anywhere. The run panel shows the selected
-    // run's own; this is for the ones on runs the user is not looking at,
-    // which used to sit unanswered until the deadline.
+    // Every question waiting anywhere, including on runs not being looked at.
     void api
       .listApprovals()
       .then((all) => {
@@ -151,11 +131,9 @@ export function App() {
     setRosterSpace(spaceId);
   }, [spaceId, setRunListSpace, setRosterSpace]);
 
-  // Runs that happen elsewhere. The stream covers the open run; a run started
-  // from Discord, or left going in the background, only reaches the list -
-  // and only moves the meter, if something re-reads the table. A light poll
-  // while any listed run is unfinished, and nothing at all once they all are:
-  // an idle window makes no requests.
+  // A run started from Discord or left going in the background only reaches
+  // the list if something re-reads the table: a light poll while any listed
+  // run is unfinished, and nothing once they all are.
   const runs = useRunList((state) => state.runs);
   const reloadRuns = useRunList((state) => state.load);
   const anyUnfinished = runs.some(unfinished);
@@ -170,8 +148,7 @@ export function App() {
     };
   }, [status.kind, anyUnfinished, reloadRuns, refreshWorkspace]);
 
-  // And when the window comes back into view: a setting changed from a browser
-  // tab, or a run that ended while this window was behind something.
+  // And when the window comes back into view.
   useEffect(() => {
     if (status.kind !== "ready") return;
     const onVisible = () => {
@@ -186,8 +163,7 @@ export function App() {
     };
   }, [status.kind, reloadRuns, refreshWorkspace]);
 
-  // The open run's status as its log reports it, for the cards: the table's
-  // row says "pending" for the whole of a live run.
+  // The open run's status as its log reports it; the table's row lags.
   const loadedRunId = useRunStore((state) => state.runId);
   const headView = useRunStore((state) => state.headView);
   const liveStatus =
@@ -200,10 +176,8 @@ export function App() {
     setSection("runs");
   }, []);
 
-  // A run named from outside the space on screen (the header's approval
-  // badge) is opened in its own space: the picker lists one space's runs,
-  // and a panel showing a run the picker does not list would be a run with
-  // no way back to it.
+  // A run named from outside the space on screen is opened in its own space,
+  // since the picker lists one space's runs.
   const openRunWherever = useCallback(
     (id: string) => {
       const listed = useRunList.getState().runs.find((run) => run.id === id);
@@ -228,21 +202,17 @@ export function App() {
     (id: string) => {
       if (id === spaceId) return;
       selectSpace(id);
-      // The open run belongs to the space it was started in; a switch
-      // closes it rather than leaving a panel about somewhere else.
+      // The open run belongs to the space it was started in.
       setRunId(null);
     },
     [spaceId, selectSpace],
   );
 
-  // The provider and model a run in this space would use: the space's own
-  // choice where it made one, else the app-wide default.
+  // The provider and model a run in this space would use.
   const effectiveProvider = space?.provider ?? settings?.settings.provider ?? null;
   const effectiveModel = space?.model ?? settings?.settings.model ?? null;
 
-  // Why a run started now would be refused, or null. Shown on the Home screen
-  // and disabling Start, the header already said "runs will be refused"
-  // while the button stayed live, and every click added a dead `failed` row.
+  // Why a run started now would be refused, or null. Shown on Home and disables Start.
   const blocker =
     verified !== null && !verified.ok
       ? (verified.reason ?? "The current settings cannot build a provider.")
@@ -358,13 +328,9 @@ export function App() {
         </header>
 
         <div className="app__body">
-          {/* Every section stays mounted. Unmounting the runs section closed
-              its stream and forgot which run was open, so a visit to another
-              meant re-picking the run and re-downloading its whole log, and
-              any approval that arrived meanwhile went unseen until it
-              expired. Each has its own boundary, because all four are
-              mounted at once and one failing to render used to take the rest
-              down. */}
+          {/* Every section stays mounted, so the runs section keeps its stream
+              across a visit elsewhere; each has its own boundary so one failing
+              to render does not take the rest down. */}
           <div className="app__view" hidden={section !== "home"}>
             <ErrorBoundary label="the Home screen">
               <HomeView
@@ -431,8 +397,7 @@ export function App() {
               <SettingsView
                 spaces={spaces}
                 onSaved={(reply) => {
-                  // The reply is the whole settings document; the header and the
-                  // pre-flight follow it without waiting for the next poll.
+                  // The reply is the whole settings document.
                   setSettings(reply);
                   refreshWorkspace();
                 }}

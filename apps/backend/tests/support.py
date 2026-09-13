@@ -1,22 +1,10 @@
 """Shared test doubles and the event-log reducer every orchestration test reads.
 
-**Why the reducer lives in `tests/` and not in `src/`.** §5 Phase 7 owns the
-real one, in TypeScript, in `RunGraph`. A Python reducer shipped in the product
-would be building ahead and a second implementation to keep in sync forever.
-
-**Why it lives here and not inside one test module.** Phase 4 introduced it in
-`test_orchestrator.py`; Phase 5 needs the same reconstruction to assert that a
-denied tool call, and the definition an agent was built from, are recoverable
-from the log alone. Two copies of a reducer is two answers to "what does the
-log say", which is the drift §2 exists to prevent: in the tests as much as in
-the product.
-
-:func:`reconstruct` reads **nothing but the event rows**: no `runs` row, no
-orchestrator object, no provider, no `agent_defs` table. If something a test
-wants to assert is not derivable here, the log does not contain it, which is
-exactly the failure the §5 Phase 4 acceptance criterion is about, and the one
-§5 Phase 5 extends by making an agent's definition part of what a replay has to
-be able to see.
+The reducer lives in `tests/` because the real one is the TypeScript reducer,
+and in one module because two copies would be two answers to "what does the
+log say". :func:`reconstruct` reads nothing but the event rows: no `runs`
+row, no orchestrator, no provider, no `agent_defs` table. If a test wants to
+assert something not derivable here, the log does not contain it.
 """
 
 from __future__ import annotations

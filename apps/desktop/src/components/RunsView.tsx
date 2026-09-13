@@ -13,13 +13,9 @@ import { RunCard } from "./RunCard";
 import { RunPanel } from "./RunPanel";
 
 /**
- * The Runs section: pick a run, watch or replay it.
- *
- * Everything about the *run* comes from `RunPanel`, which is a pure projection
- * of the event log. What lives here is the chrome around it (the picker, the
- * connection indicator, the cancel and delete buttons) plus the one genuinely
- * two-way piece of the dashboard: answering an approval. Starting a run moved
- * to the Home screen with the redesign; the picker offers the way there.
+ * The Runs section: pick a run, watch or replay it. Everything about the run
+ * is `RunPanel`'s; this is the chrome around it (picker, connection indicator,
+ * cancel and delete) plus the one two-way piece: answering an approval.
  */
 
 export interface RunsViewProps {
@@ -27,11 +23,7 @@ export interface RunsViewProps {
   onRunChanged: () => void;
   /** Every approval waiting anywhere, so a card can say its run is stuck on one. */
   pendingApprovals: readonly ApprovalResponse[];
-  /**
-   * Which run is open. Owned by the shell so that it survives a section
-   * switch and so the header's "approval waiting" badge can open the run it
-   * names.
-   */
+  /** Which run is open. Owned by the shell so it survives a section switch. */
   runId: string | null;
   onSelectRun: (runId: string | null) => void;
   /** Take the user to the Home screen, where a run is started. */
@@ -102,11 +94,9 @@ export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, o
 
   useRunStream(runId);
 
-  // The store holds the previous run until the next one's history arrives, so
-  // that a switch never passes through an empty panel. While the two disagree,
-  // everything on screen that is *about* the run (the head status, the
-  // approval buttons, the cancel button, the scrubber) is about the old one
-  // and is withheld; the projection stays, dimmed, as the loading state.
+  // The store holds the previous run until the next one's history arrives.
+  // While the two disagree, everything about the run is withheld and the
+  // projection stays, dimmed, as the loading state.
   const loading = runId !== null && loadedRunId !== runId;
 
   const runs = useRunList((state) => state.runs);
@@ -125,18 +115,13 @@ export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, o
   const finished =
     view.status === "completed" || view.status === "failed" || view.status === "cancelled";
 
-  // Whether an approval can be answered is about where the viewer stands, not
-  // about the fold. Scrubbed back on a finished run, the fold says "running"
-  // and the approval says "pending": both true of that moment, neither a
-  // reason to offer buttons. `following` is the store's word for "at the head".
+  // Whether an approval can be answered depends on where the viewer stands,
+  // not on the fold: scrubbed back, "pending" is true of that moment only.
   const approvalReadOnly = loading ? "loading" : finished ? "finished" : following ? null : "replay";
 
-  // The picker's row for the selected run is a snapshot of the `runs` table;
-  // the log knows more the moment an event arrives. When the two disagree the
-  // row is stale, and so, if the run just ended, is the month's spend. Keyed
-  // on the *head's* status, not the scrubbed view's: opening a finished run or
-  // dragging the slider across its terminal event changes nothing about the
-  // run, and used to refetch three endpoints anyway.
+  // When the log's status disagrees with the picker's row, the row is stale
+  // and so may be the month's spend. Keyed on the head's status, not the
+  // scrubbed view's, so scrubbing across the terminal event refetches nothing.
   const waitingRuns = new Set(pendingApprovals.map((approval) => approval.run_id));
 
   const selectedRow = runs.find((run) => run.id === runId);
@@ -164,11 +149,9 @@ export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, o
     setCancelError(null);
     try {
       await api.cancelRun(runId);
-      // Deliberately no change to the run's state: it writes `run.cancelled`
-      // itself and that arrives over the stream (§2). Until then it is still
-      // running, and the badge should say so, but the button has to say the
-      // cancel was accepted, because a cooperative stop lands before the
-      // *next* model call and the one in flight can take half a minute.
+      // No change to the run's state: `run.cancelled` arrives over the stream.
+      // The button says the cancel was accepted, since a cooperative stop can
+      // take as long as the model call in flight.
       setStopping(runId);
     } catch (failure) {
       setCancelError(failure instanceof Error ? failure.message : String(failure));
@@ -177,10 +160,7 @@ export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, o
     }
   };
 
-  // Whether the selected run is one that can be deleted: it has ended. The
-  // log's word when it has one; the row's for a run with no events yet. Only
-  // the complement of `cancellable` in the common case: a run that has not
-  // loaded is neither.
+  // Deletable means ended: the log's word when it has one, else the row's.
   const settledStatus = headStatus ?? (loading ? null : (selectedRow?.status ?? null));
   const deletable = runId !== null && settledStatus !== null && !unfinished({ status: settledStatus });
 
@@ -191,9 +171,7 @@ export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, o
     try {
       await api.deleteRun(runId);
       // The run is gone: close it, and tell the picker and the meter. The
-      // store still holds its fold until the next run is opened, which the
-      // placeholder hides, clearing it here would be a second way for the
-      // panel to empty, and the switch is built to never pass through one.
+      // store keeps its fold until the next run opens; the placeholder hides it.
       onSelectRun(null);
       onRunChanged();
       void reloadRuns();
@@ -207,10 +185,7 @@ export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, o
 
   const resolveApproval = useCallback(async (id: string, approved: boolean) => {
     await api.resolveApproval(id, approved);
-    // Deliberately no local state change: the answer produces `approval.resolved`
-    // and `tool.approved`/`tool.denied` in the log, and those arrive over the
-    // stream like everything else. Updating the UI here would be the UI telling
-    // itself what happened instead of reading it (§2).
+    // No local state change: the answer arrives over the stream as events (§2).
   }, []);
 
   return (

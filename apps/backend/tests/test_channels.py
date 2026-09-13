@@ -1,19 +1,7 @@
-"""The two §5 Phase 8 acceptance criteria, and the properties they rest on.
-
-The criteria are:
-
-1. "the same run is observable simultaneously from the dashboard and the
-   originating chat channel";
-2. "a channel-originated tool call still hits the approval gate".
-
-Both are asserted here against the production objects: the real event store,
-the real SSE cursor, the real `ToolRuntime`, the real `ApprovalService`. The
-only double is the chat platform itself: :class:`FakeReply` stands in for
-Discord's `edit_original_response`, which is exactly
-the seam :class:`~agentspace.channels.base.ChannelReply` exists to create. A
-test that faked more than that (a fake gate, a fake launcher) would prove the
-criteria on a path the product does not take, which is the failure mode CLAUDE.md
-records repeatedly.
+"""The two §5 Phase 8 acceptance criteria: the same run observable from the
+dashboard and the chat channel at once, and a channel-originated tool call
+still hitting the approval gate. Asserted against the production objects; the
+only double is :class:`FakeReply`, standing in for the chat platform's edit.
 """
 
 from __future__ import annotations

@@ -1,20 +1,8 @@
-"""Smoke tests for the frozen PyInstaller sidecar.
-
-This is the BUILD_SPEC §5 Phase 1 acceptance criterion expressed as a test:
-the built binary serves, and closing its stdin leaves *zero* surviving
-processes.
-
-Why this needs testing at the binary level rather than in-process: with
-``--onefile`` the bootloader unpacks to a temp directory and execs the real
-interpreter as a child. Two processes exist. Anything that kills only the
-bootloader (which is the only PID the Tauri shell knows) leaves the server
-alive and holding the port. The in-process tests in ``test_main.py`` cannot
-observe that, because in-process there is only ever one process.
-
-Skipped when the binary has not been built, so `just test` stays fast and does
-not silently depend on build order. Pass `--require-build-checks` (as
-`just verify-build` does after a freeze) to turn that skip into a failure, so a
-release cannot go out green on a binary nothing ever launched.
+"""Smoke tests for the frozen PyInstaller sidecar: it serves, and closing its
+stdin leaves zero surviving processes. With `--onefile` there are two
+processes and killing only the bootloader orphans the server, which no
+in-process test can observe. Skipped when the binary has not been built;
+`--require-build-checks` turns that skip into a failure.
 """
 
 from __future__ import annotations

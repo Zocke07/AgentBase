@@ -1,32 +1,11 @@
 """Discord, over `discord.py`.
 
-§5 Phase 8 in full: "Slash commands and @mentions only. Do **not** request the
-`MessageContent` privileged intent: the non-privileged baseline is sufficient
-and keeps the review requirement and the attack surface off the table. Defer the
-interaction immediately (3s ack limit) and edit the deferred reply as events
-stream. Throttle outbound through the adapter."
-
-Each of those is load-bearing, so each is implemented literally.
-
-**No `MessageContent` intent.** :data:`INTENTS` is `discord.Intents.none()` plus
-`guilds`, and nothing else. That is not merely declining a checkbox: without
-that intent Discord sends this bot the text of a message *only* when the bot is
-mentioned in it, which makes §1 constraint 6: "never ingest ambient channel
-messages into agent context", a property of what the gateway will send rather
-than a rule this code has to keep. The strongest version of a rule about not
-reading something is not being given it.
-
-**Defer within three seconds.** Discord closes an interaction that is not
-acknowledged in three seconds, and starting a run means reading settings,
-resolving an identity and writing to SQLite before the orchestrator is even
-spawned. :meth:`_on_agent` defers first and does everything else afterwards, so
-a slow disk cannot turn a working run into "the application did not respond".
-
-**The mention path takes the text after the mention, and nothing else.** A
-mention arrives as an ordinary message with the bot's id in it. Everything
-before and including the mention is stripped, and if what remains is empty the
-bot asks for a goal rather than guessing one. There is no branch in which the
-surrounding conversation becomes agent context.
+Slash commands and @mentions only, and no `MessageContent` intent (§5 Phase
+8): :data:`INTENTS` is `guilds` and nothing else, so the gateway does not
+deliver the text of messages this bot was not addressed in, and §1 constraint
+6 holds because the data never arrives. The interaction is deferred before any
+slow work, since Discord closes one not acknowledged within three seconds. The
+mention path takes the text after the mention and nothing else.
 """
 
 from __future__ import annotations
@@ -53,16 +32,12 @@ __all__ = ["INTENTS", "DiscordAdapter"]
 
 logger = logging.getLogger("agentspace.channels.discord")
 
-#: The non-privileged baseline, and deliberately nothing more. `guilds` is what
-#: lets the client know which servers it is in so slash commands can sync;
-#: `message_content` is absent, so the gateway simply does not deliver the text
-#: of messages this bot was not addressed in.
+#: `guilds` only: enough to know which servers to sync commands into.
 INTENTS: Final[discord.Intents] = discord.Intents.none()
 INTENTS.guilds = True
 
-#: How long an Allow/Deny button stays live. The approval itself is bounded by
-#: the run's own wall-clock budget (Phase 6's borrowed deadline), so this is
-#: only about not leaving dead buttons in a channel forever.
+#: How long an Allow/Deny button stays live; the approval itself is bounded by
+#: the run's own deadline.
 _BUTTON_TIMEOUT_SECONDS: Final[float] = 900.0
 
 _MENTION = re.compile(r"<@!?(\d+)>")
@@ -88,10 +63,7 @@ class DiscordAdapter:
     async def run(self) -> None:
         """Connect and serve until cancelled.
 
-        `start` rather than `run`: `discord.Client.run` creates and owns an
-        event loop, which would be wrong inside a sidecar that already has one.
-        This is the whole of the "needs its own process" argument, and it is
-        answered by one method name.
+        `start`, not `run`: `run` would own the event loop.
         """
         await self._client.start(self._token)
 
@@ -108,8 +80,7 @@ class DiscordAdapter:
 
         @self._client.event
         async def on_guild_join(guild: discord.Guild) -> None:
-            # A guild joined after startup would otherwise have no commands
-            # until the next restart.
+            # Otherwise a guild joined after startup has no commands until a restart.
             await self._sync_one(guild)
 
         @self._tree.command(name="agent", description="Give the agent workspace a task.")
@@ -124,24 +95,12 @@ class DiscordAdapter:
     async def _sync_commands(self) -> None:
         """Register `/agent` in every guild this bot is in, not globally.
 
-        **Global commands are cached by Discord for up to an hour.** `sync()`
-        with no guild is what the documentation and most examples show, and for
-        this product it means a bot that connects, reports itself healthy, and
-        does nothing at all for the rest of the afternoon, which is exactly
-        what happened the first time this was run against a real server: the
-        gateway connected, `GET /channels` said `running: true`, and typing the
-        command produced no interaction, no event and no log line, because the
-        command did not yet exist in the client.
-
-        Guild-scoped commands appear immediately. This is a local-first
-        personal application whose bot lives in one or two servers, so syncing
-        per guild is not a development shortcut here: it is the correct
-        registration for the deployment. The global path is what a public bot
-        with thousands of installs needs, and this is not that.
-
-        The guild count is logged because "connected but in no servers" and
-        "connected and synced" are otherwise indistinguishable from outside,
-        and the fix for each is completely different.
+        Global commands are cached by Discord for up to an hour, which here
+        means a bot that connects, reports healthy and answers nothing all
+        afternoon. Guild-scoped commands appear immediately, and a bot that
+        lives in one or two servers is exactly what they are for. The guild
+        count is logged because "in no servers" and "synced" are otherwise
+        indistinguishable from outside.
         """
         guilds = list(self._client.guilds)
         logger.info("discord connected as %s, in %d guild(s)", self._client.user, len(guilds))
@@ -182,13 +141,7 @@ class DiscordAdapter:
         await self._converse(inbound, _InteractionReply(self._deps, interaction))
 
     async def _on_mention(self, message: discord.Message) -> None:
-        """The @mention trigger.
-
-        Without `MessageContent`, `message.content` is empty unless this bot was
-        mentioned, so the guard below is belt and braces over a gateway that is
-        already not sending us anything else. Bots are ignored so two instances
-        of this application cannot talk each other into a loop.
-        """
+        """The @mention trigger. Bots are ignored so two instances cannot loop each other."""
         user = self._client.user
         if user is None or message.author.bot or user not in message.mentions:
             return
@@ -213,10 +166,8 @@ class DiscordAdapter:
     async def _converse(self, inbound: InboundMessage, reply: Any) -> None:
         """Hand one conversation to the shared driver, in the background.
 
-        Not awaited inline: a run takes minutes and `discord.py` dispatches
-        events on the same task that called us, so blocking here would stop the
-        client answering anything else, including the very approval button this
-        run is about to be waiting on.
+        Not awaited inline: `discord.py` dispatches events on this task, and a
+        run blocked here could not receive its own approval button.
         """
         self._deps.launcher.spawn(self._guarded(inbound, reply))
 
@@ -226,9 +177,7 @@ class DiscordAdapter:
         except asyncio.CancelledError:
             raise
         except Exception:
-            # One conversation failing must not take the gateway down with it -
-            # the client is shared by every other conversation and by the
-            # approval buttons a run in flight is waiting on.
+            # One conversation failing must not take the shared gateway down.
             logger.exception("discord conversation failed")
 
 
@@ -262,9 +211,8 @@ class _InteractionReply:
 class _MessageReply:
     """Edits the placeholder message posted in reply to a mention.
 
-    ``owner_id`` is passed in rather than read back off the placeholder, whose
-    author is this bot. Deriving it from the message would have been the
-    plausible-looking mistake that lets anyone approve anyone's tool call.
+    ``owner_id`` is passed in rather than read off the placeholder, whose
+    author is this bot; deriving it there would let anyone approve anyone's call.
     """
 
     def __init__(self, deps: ChannelDeps, message: discord.Message, owner_id: int) -> None:
@@ -299,18 +247,11 @@ async def _send_approval(
 class _ApprovalView(discord.ui.View):
     """Allow / Deny buttons for one pending approval.
 
-    **This is not a privileged path** (§1 constraint 5). The buttons call
-    :meth:`~agentspace.tools.approval.ApprovalService.resolve` (the identical
-    method `POST /approvals/{id}` calls), including its 409 on an already-settled
-    row, which is what a second click or a race with the dashboard produces.
-    There is no channel-specific approval code inside the gate, because the gate
-    never learns a channel exists.
-
-    **Only the person who started the run may press them.** Discord renders
-    buttons to everyone who can see the message, so without this check any
-    guild member could approve a shell command on the owner's machine. The
-    check is on the interaction's user id, which Discord asserts, rather than on
-    anything carried in the message.
+    Not a privileged path (§1 constraint 5): the buttons call the same
+    :meth:`~agentspace.tools.approval.ApprovalService.resolve` as
+    `POST /approvals/{id}`, 409 included. Only the person who started the run
+    may press them, checked on the user id Discord asserts, because the
+    buttons render for everyone who can see the message.
     """
 
     def __init__(self, deps: ChannelDeps, approval_id: str, owner_id: int) -> None:
@@ -343,10 +284,7 @@ class _ApprovalView(discord.ui.View):
         try:
             await self._deps.approvals.resolve(self._approval_id, approved=approved)
         except ApprovalNotPendingError:
-            # Somebody answered from the dashboard first, or the run's own
-            # wall-clock budget expired it. Both are ordinary (this is the
-            # same 409 two browser windows produce), and the honest thing is to
-            # say so rather than to pretend the click did something.
+            # Answered from the dashboard first, or expired by the run's deadline.
             await interaction.response.edit_message(
                 content="Already answered elsewhere.", view=None
             )

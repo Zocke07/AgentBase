@@ -12,41 +12,15 @@ import { ApiError } from "../lib/api";
 
 
 /**
- * Create or edit one agent definition: §5 Phase 7's `AgentEditor.tsx`.
+ * Create or edit one agent definition.
  *
- * Two requirements from the spec shape this whole component.
- *
- * **"Surface the API's validation errors inline on the offending field, never a
- * toast that loses which field was wrong."** Phase 5 built the backend half of
- * this: every rejection is a 4xx carrying `{message, field}`, and Phase 6 kept
- * it that way. So a failure here is rendered against the input named by the
- * server, and only falls back to a form-level message when the server did not
- * name one. Nothing guesses which field is at fault from the message text.
- *
- * **"Tool checkboxes show each tool's risk level next to it, so the consequence
- * of ticking `run_shell` is visible at the moment of ticking it."** The risk
- * comes from `GET /tools`, which reads the same catalogue the approval gate
- * enforces against: a hardcoded list here would drift from the thing that
- * actually decides.
- *
- * Note what an allowlist does *not* do: ticking `run_shell` grants permission
- * from the definition, never from the user. Every call still stops at the
- * approval gate (§1 constraint 5), which is why the hint below says so.
- *
- * **The model field follows the provider.** The catalogue arrives grouped per
- * provider, and the model dropdown shows the chosen provider's models, or the
- * workspace provider's, when the provider is inherited. A flat list once let a
- * definition pin an Anthropic model under provider `openai`, refused only when
- * a run tried to use it. A provider with no fixed list (Ollama serves whatever
- * the user has pulled) gets a text box instead of an empty dropdown.
- *
- * **An edit sends what the user changed, not the whole form.** The roster's
- * enable toggle and this editor can be open on the same row at once. Sending
- * the whole form on save meant sending the `enabled` the form was opened with,
- * so toggling in the roster and then saving an unrelated edit undid the
- * toggle without a word. `UpdateAgentRequest` is a PATCH (omitted fields are
- * untouched), and the diff is against the snapshot this form started from,
- * which is the only thing that knows what the user did and did not touch.
+ * A refusal is rendered against the input the server named (`{message,
+ * field}`), never guessed from the message. Tool checkboxes show each tool's
+ * risk from `GET /tools`, the same catalogue the gate enforces; ticking one
+ * is permission from the definition, never from the user. The model field
+ * follows the provider, and a provider with no fixed list gets a text box.
+ * An edit sends what the user changed, diffed against the snapshot the form
+ * opened with, so a toggle made elsewhere meanwhile is not undone.
  */
 
 export interface AgentEditorProps {

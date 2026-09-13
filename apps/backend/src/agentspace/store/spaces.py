@@ -1,32 +1,12 @@
-"""Spaces: the container a run happens in (BUILD_SPEC §5 Phase 11).
+"""Spaces: the container a run happens in (§5 Phase 11).
 
-A space owns three things: a **roster** (agent definitions belong to exactly
-one), a **folder** (the sandbox root for every tool call in its runs) and
-**rules** (model, approval policy, run limits, each either inherited from the
-app-wide default or set here). Runs belong to the space they were started in.
-Everything that is the *user's* rather than a space's stays app-wide: keys,
-the monthly cap, the Discord connection and its allowlist.
-
-**The folder is derived, never stored.** It is ``<data dir>/spaces/<id>/`` -
-:attr:`~agentspace.config.AppPaths.spaces_dir` joined with the id by
-:meth:`SpaceStore.folder_for`, so no row can name a path outside the place
-the application owns: the blast radius of an approval misclick is
-this folder, and in v1 it is always one this application created. Renaming a
-space does not move files.
-
-**Rules resolve in layers, and the approval layer only narrows.** A space's
-``auto_approve`` is intersected with the app-wide policy, extending §5 Phase
-5's rule that a definition "can never grant a risk level the workspace policy
-has not enabled"; now neither can a space. Model and limits are overrides,
-not narrowings: a space wanting longer runs than the default is a legitimate
-thing, and the wall clock is a cost control that the app-wide budget cap still
-bounds. The Phase 6 reading holds at every layer: NULL means *inherit*, not
-*none*. :meth:`Space.apply_to` is the one implementation of the layering.
-
-**The default space cannot be archived or deleted.** Something has to receive
-a run whose space was not named: `POST /debug/fake_run`, and a Discord
-command with no `channel_space_id` set. **A space with runs cannot be deleted;
-it can be archived.** Runs are history and history is the product (§2).
+A space owns a roster, a folder and rules; keys, the monthly cap and the
+Discord connection stay app-wide. The folder is derived from the id, never
+stored, so no row can name a path outside what the application owns. Rules
+resolve in layers through :meth:`Space.apply_to`: model and limits override,
+``auto_approve`` only narrows, and NULL means inherit. The default space
+cannot be archived or deleted (a run whose space was not named lands there),
+and a space with runs can be archived but not deleted.
 """
 
 from __future__ import annotations
@@ -63,8 +43,7 @@ __all__ = [
     "SpaceValidationError",
 ]
 
-#: The space migration 006 creates and backfills every existing run and
-#: definition into. Fixed, so this module and the migration agree by literal.
+#: The space migration 006 creates and backfills into; a literal the migration shares.
 DEFAULT_SPACE_ID: Final[str] = "5c1e5a2e-0d4b-4c93-9a7f-3b2e8d1c6f00"
 DEFAULT_SPACE_NAME: Final[str] = "Main"
 
@@ -140,16 +119,11 @@ class Space(BaseModel):
     updated_at: datetime
 
     def apply_to(self, workspace: WorkspaceSettings) -> WorkspaceSettings:
-        """The rules a run in this space is held to: the app-wide settings with
-        this space's overrides laid over them.
+        """The app-wide settings with this space's overrides laid over them.
 
-        Model and limits replace; ``auto_approve`` intersects, through the
-        same :func:`~agentspace.tools.catalogue.effective_auto_approve` that
-        narrows a definition against the workspace, so a space, like a
-        definition, can never grant a level the app-wide policy has not
-        enabled. The result is a :class:`WorkspaceSettings`, because
-        everything downstream (:class:`~agentspace.orchestrator.limits.RunLimits`,
-        the provider pool, the gate's policy snapshot) already reads one.
+        Model and limits replace; ``auto_approve`` intersects through
+        :func:`~agentspace.tools.catalogue.effective_auto_approve`, so a
+        space can never grant a level the app-wide policy has not enabled.
         """
         changes: dict[str, Any] = {}
         if self.provider is not None:
@@ -210,10 +184,8 @@ def _row_to_space(row: sqlite3.Row) -> Space:
 class SpaceStore:
     """Reads and writes `spaces`, refusing to write an invalid row.
 
-    Holds the directory every space's folder lives under (`AppPaths.spaces_dir`,
-    the one definition of where that is), so it can say where a space's folder
-    is. The folder is created on first use rather than on insert, so listing
-    spaces touches no disk.
+    Holds `AppPaths.spaces_dir` so it can say where a space's folder is; the
+    folder is created on first use, not on insert.
     """
 
     def __init__(self, db: Database, spaces_dir: Path) -> None:
@@ -235,8 +207,7 @@ class SpaceStore:
         clause = "" if include_archived else " WHERE archived = 0"
         with self._db.read() as connection:
             rows = connection.execute(
-                # The default space first, then by name, so a switcher reads
-                # the same on every machine.
+                # The default space first, then by name.
                 f"{_SELECT}{clause} ORDER BY (id = ?) DESC, name COLLATE NOCASE",
                 (DEFAULT_SPACE_ID,),
             ).fetchall()

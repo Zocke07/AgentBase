@@ -8,19 +8,11 @@ set windows-shell := ["powershell.exe", "-NoLogo", "-NoProfile", "-Command"]
 set dotenv-load := false
 
 # ---------------------------------------------------------------------------
-# Everything that grows lives inside the repository.
-#
-# Tool *installations* stay where their installers put them (rustup toolchains,
-# VS Build Tools, uv's Python builds, Node). What is redirected here is the data
-# those tools generate (package caches and this application's own runtime state),
-# so that a clone on a roomy drive does not quietly fill the system drive.
-#
-# These are `just` exports, so they apply to this repository's recipes only and
-# need no shell profile edits. Your other projects keep using the shared
-# machine-wide caches.
-#
-# `target/`, `node_modules/` and `.venv/` are already inside the repo by virtue
-# of where they are created, so they need no redirection.
+# Everything that grows lives inside the repository: package caches and this
+# application's dev runtime state are redirected into `.dev/`, so a clone on
+# a roomy drive does not fill the system drive. Tool installations stay where
+# their installers put them. These are `just` exports, so they apply to this
+# repository's recipes only.
 # ---------------------------------------------------------------------------
 
 dev_dir := justfile_directory() / ".dev"
@@ -29,29 +21,17 @@ export CARGO_HOME := dev_dir / "cache" / "cargo"
 export UV_CACHE_DIR := dev_dir / "cache" / "uv"
 export npm_config_cache := dev_dir / "cache" / "npm"
 
-# Dev-only override of the sidecar's data directory. The shipped application
-# still resolves the OS app-data dir (BUILD_SPEC §5 Phase 2); see
-# `agentspace.config.default_data_dir`. This only affects `just` recipes, so a
-# dev run's SQLite file, logs and agent workspace stay in the working tree where
-# they can be inspected and deleted, instead of in %LOCALAPPDATA%.
+# Dev-only override of the sidecar's data directory; the shipped application
+# still resolves the OS app-data dir (`agentspace.config.default_data_dir`).
 export AGENTSPACE_DATA_DIR := dev_dir / "data"
 
-# PyInstaller caches its prebuilt bootloader here; without this it writes to
-# %APPDATA%/pyinstaller on the system drive.
+# PyInstaller's bootloader cache, which would otherwise land on the system drive.
 export PYINSTALLER_CONFIG_DIR := dev_dir / "cache" / "pyinstaller"
 
 # ---------------------------------------------------------------------------
-# Sidecar naming.
-#
-# Tauri resolves an `externalBin` entry by appending the *target triple* to the
-# configured name: `binaries/agentspace-sidecar` is looked up on disk as
-# `binaries/agentspace-sidecar-x86_64-pc-windows-msvc.exe`. A binary named
-# anything else, including a plain `.exe`, is silently not found at bundle time.
-# BUILD_SPEC §5 Phase 1 calls this out as a trap; it is encoded here rather than
-# left to a human to remember.
-#
-# v1 ships x86_64 Windows only. macOS is computed so the CI build job works from
-# day one (§1 constraint 7), not because a Mac artifact is published.
+# Sidecar naming. Tauri resolves an `externalBin` entry by appending the
+# target triple to the configured name; a binary named anything else is
+# silently not found at bundle time (BUILD_SPEC §5 Phase 1).
 # ---------------------------------------------------------------------------
 
 target_triple := if os() == "windows" {
@@ -62,57 +42,35 @@ target_triple := if os() == "windows" {
     arch() + "-unknown-linux-gnu"
 }
 
-# The name Tauri is configured with, plus the triple. PyInstaller appends the
-# platform's executable extension itself, so `sidecar_file` is what exists on
-# disk while `sidecar_binary` is what the build is asked to produce.
+# `sidecar_binary` is what the build is asked to produce; `sidecar_file` is
+# what exists on disk, since PyInstaller appends the extension itself.
 sidecar_binary := "agentspace-sidecar-" + target_triple
 exe_suffix := if os() == "windows" { ".exe" } else { "" }
 sidecar_file := sidecar_binary + exe_suffix
 sidecar_dir := justfile_directory() / "apps" / "desktop" / "src-tauri" / "binaries"
 
-# PyInstaller's --add-data separator is platform-specific: ";" on Windows,
-# ":" elsewhere. Getting it wrong is not an error, it is a silently missing
-# data file that only surfaces when the frozen binary first reads it.
-#
-# The source path must be absolute: --add-data resolves relative paths against
-# --specpath, which points into .dev/cache, not against the recipe's working
-# directory.
+# PyInstaller's --add-data separator is ";" on Windows and ":" elsewhere; the
+# wrong one is a silently missing data file. The source path must be absolute,
+# since relative paths resolve against --specpath.
 data_sep := if os() == "windows" { ";" } else { ":" }
 
-# What `tauri build` is asked to produce, per platform.
-#
-# `tauri.conf.json` cannot express this: its `bundle.targets` is a single list
-# applied to whatever host is building, and `nsis` means nothing on macOS. The
-# alternative, `"targets": "all"`, would additionally build an MSI on Windows:
-# a per-machine installer, which contradicts the per-user NSIS install Phase 1
-# settled on and verified.
-#
-# macOS gets `app` and not `dmg` deliberately. §5 Phase 9 builds macOS to catch
-# cross-platform breakage and explicitly does not publish it; a `.app` is the
-# Tauri bundle, and everything that can break in *our* code (the PyInstaller
-# freeze, the Rust compile, `externalBin` resolution) has already happened by
-# the time it exists. A dmg is hdiutil re-packaging an app that already built,
-# so it adds a CI-flaky step that can only fail for reasons unrelated to this
-# repository, and a red CI nobody trusts is worse than one less artefact.
+# What `tauri build` is asked to produce, per platform. `tauri.conf.json`'s
+# `bundle.targets` is one list for every host, and `nsis` means nothing on
+# macOS; `"all"` would also build a per-machine MSI on Windows. macOS gets
+# `app`, not `dmg`: a dmg is hdiutil re-packaging an app that already built
+# and can only fail for reasons unrelated to this repository.
 bundle_targets := if os() == "windows" { "nsis" } else { "app" }
 
 # The platform `just typecheck` cross-checks: whichever one this host is not.
-# Windows is the primary target (§1 constraint 7), so every non-Windows host
-# checks it; a Windows host checks macOS, which is the one CI builds.
 cross_platform := if os() == "windows" { "darwin" } else { "win32" }
 
-# Every migration, not just the first. A named `schema.sql` was correct while
-# migration 001 was the only one; naming files individually means each new
-# migration needs an edit here, and forgetting it produces a binary that starts
-# and then dies on a missing resource, a failure invisible to `just ci` and to
-# every dev run, because those read the file straight off the source tree.
-# `test_migration_sql_is_bundled` asserts this glob covers every MIGRATIONS
-# entry, so the omission fails a test instead of a release.
+# Every migration, as a glob: a named file would need an edit here per
+# migration, and forgetting it is a binary that dies on a missing resource
+# only when frozen. A test asserts the glob covers every MIGRATIONS entry.
 migrations_sql := justfile_directory() / "apps" / "backend" / "src" / "agentspace" / "store" / "*.sql"
 sidecar_path := sidecar_dir / sidecar_file
 
-# Generated TypeScript API types, per BUILD_SPEC §3's layout. Committed rather
-# than built on demand; see `just schemas`.
+# Generated TypeScript API types, committed rather than built on demand.
 schemas_dir := justfile_directory() / "packages" / "schemas"
 
 # List every available recipe.
@@ -152,15 +110,8 @@ ci: check test
 # Lint
 # ---------------------------------------------------------------------------
 
-# Lint backend and frontend.
-#
-# `lint-backend-format` is in here rather than standing alone because of a real
-# Phase 4 incident: a helper script writing source with `Path.write_text()`
-# converted six LF files to CRLF, and `ruff check`, `mypy` and `pytest` all
-# stayed green; `ruff format --check` was the only thing that noticed, and it
-# was the one check `just check` did not run. Phase 9 owns what the gate runs,
-# so it runs this too. It found ten already-drifted files the moment it was
-# added, all of them Phase 8's.
+# Lint backend and frontend. `ruff format --check` is in the gate because it
+# was once the only check that noticed six files silently converted to CRLF.
 lint: lint-backend lint-backend-format lint-desktop
 
 # ruff check on the Python sidecar.
@@ -185,14 +136,9 @@ lint-desktop:
 # Typecheck
 # ---------------------------------------------------------------------------
 
-# Typecheck backend and frontend.
-#
-# The backend is typechecked twice, once per platform this project targets.
-# `mypy` narrows `sys.platform` to the host it runs on, so a Windows-only run
-# cannot see a branch that is dead on macOS, which is not hypothetical: it is
-# how CI run #2 failed, on a `warn_unreachable` error in a platform branch that
-# was clean on Windows and broken there. The second pass reproduces that
-# locally in twenty seconds instead of a push and a five-minute round trip.
+# Typecheck backend and frontend. The backend is checked twice, once per
+# platform: `mypy` narrows `sys.platform` to the host, so a branch dead on the
+# other platform is invisible without the second pass.
 typecheck: typecheck-backend typecheck-backend-cross typecheck-desktop
 
 # mypy --strict on the Python sidecar.
@@ -201,17 +147,6 @@ typecheck: typecheck-backend typecheck-backend-cross typecheck-desktop
 typecheck-backend:
     uv run mypy
 
-# This named `darwin` unconditionally until the first Mac session, and on
-# Windows that was exactly right: darwin was always "the other one". On a Mac
-# it resolves to the host, so the second pass became a duplicate of the first
-# and a Windows-only `warn_unreachable` branch was invisible here in precisely
-# the way the macOS one was invisible on Windows. The recipe's whole purpose is
-# the platform you cannot run, so it now names that rather than a fixed one.
-#
-# CI's coverage is unchanged in the union (its Windows job already checks
-# win32 as the host), but a Mac developer now gets the same pre-push signal a
-# Windows developer has always had.
-#
 # mypy --strict as if on the platform this host is not.
 [group('typecheck')]
 [working-directory('apps/backend')]
@@ -272,13 +207,8 @@ test-backend-cov:
 # Generated code
 # ---------------------------------------------------------------------------
 
-# Regenerate packages/schemas from the sidecar's OpenAPI schema.
-#
-# BUILD_SPEC §5 Phase 7: "Generate TS types from the FastAPI OpenAPI schema;
-# never hand-write the API types." Both outputs are committed, so `just check`
-# on a clean clone never needs a Python environment to typecheck the frontend,
-# and `test_openapi_snapshot.py` fails if either drifts from the running app,
-# which is what stops a regeneration being forgotten.
+# Regenerate packages/schemas from the sidecar's OpenAPI schema. Both outputs
+# are committed; `test_openapi_snapshot.py` fails if either drifts.
 [group('build')]
 [working-directory('apps/backend')]
 schemas:
@@ -288,13 +218,8 @@ schemas:
 # Run
 # ---------------------------------------------------------------------------
 
-# Freeze the sidecar into a single self-contained executable.
-#
-# --add-data carries the migration SQL, which `--onefile` would otherwise omit:
-# bytecode is collected automatically, data files are not. The failure mode is
-# a binary that starts and then cannot create its database.
-#
-# The source is a glob so that adding a migration needs no edit here.
+# Freeze the sidecar into a single self-contained executable. --add-data
+# carries the migration SQL, which `--onefile` would otherwise omit.
 [group('build')]
 [working-directory('apps/backend')]
 build-sidecar:
@@ -315,8 +240,7 @@ _hash path:
 _hash path:
     @echo "{{ path }}" ; echo "  $(wc -c < '{{ path }}') bytes" ; echo "  sha256 $(shasum -a 256 '{{ path }}' | cut -d' ' -f1)"
 
-# Vite's own dev port. `tauri dev` runs `beforeDevCommand` (`npm run dev`)
-# itself, so it needs this free: it does not reuse an already-running server.
+# Vite's dev port. `tauri dev` starts Vite itself and needs this free.
 dev_port := "5173"
 
 # Vite dev server on 127.0.0.1:5173.
@@ -325,13 +249,9 @@ dev_port := "5173"
 dev-desktop:
     npm run --silent dev
 
-# `_check-dev-port` runs before the sidecar rebuild on purpose: a leftover Vite
-# server (a forgotten `dev-desktop`, or a previous `dev-app` whose `tauri dev`
-# died without taking Vite down with it) otherwise fails only once
-# `beforeDevCommand` runs (after ~30s of PyInstaller and cargo output) with a
-# bare "Port 5173 is already in use" naming neither the process nor the cause.
-#
-# Run the desktop app against the dev server. Rebuilds the sidecar first.
+# Run the desktop app against the dev server. Rebuilds the sidecar first;
+# checks the Vite port before that, since a leftover server otherwise fails
+# only after the rebuild, with a message naming neither process nor cause.
 [group('run')]
 dev-app: _check-dev-port build-sidecar _dev-app
 
@@ -350,28 +270,17 @@ _check-dev-port:
 _check-dev-port:
     @pid=$(lsof -ti tcp:{{ dev_port }} -sTCP:LISTEN 2>/dev/null) ; if [ -n "$pid" ]; then echo "Port {{ dev_port }} is already in use by PID $pid ($(ps -o comm= -p "$pid" 2>/dev/null || echo unknown)). tauri dev needs it free: a leftover Vite server (dev-desktop, or a dev-app whose tauri process died without it) is still running. Stop it first: kill $pid" >&2 ; exit 1 ; fi
 
-# Lint the Rust shell without producing a binary.
-#
-# Needs a frozen sidecar in `binaries/` first. `tauri-build`'s build script
-# validates `externalBin` on every cargo invocation, clippy included, so without
-# one this fails on a missing resource path rather than on anything it linted.
-# Run `just build-sidecar` first, or run this after a build.
+# Lint the Rust shell without producing a binary. Needs a frozen sidecar in
+# `binaries/` first: `tauri-build` validates `externalBin` on every cargo
+# invocation, clippy included.
 [group('build')]
 [working-directory('apps/desktop/src-tauri')]
 check-tauri:
     cargo clippy --all-targets -- -D warnings
 
-# Depends on `setup` for the same reason `check` does: it has to work on a clean
-# clone. `tauri build` is resolved with `npx --no-install`, and its
-# `beforeBuildCommand` is `npm run build`, so without `node_modules` it fails on
-# npm's unhelpful "could not determine executable to run". That is how CI run #4
-# failed on both platforms (after freezing the sidecar successfully) while
-# working on every dev machine, where `node_modules` is always already there.
-#
-# The sidecar is rebuilt first so the bundle can never pick up a stale one
-# (BUILD_SPEC §5 Phase 1).
-#
-# Build the installer: NSIS on Windows, a .app on macOS.
+# Build the installer: NSIS on Windows, a .app on macOS. Depends on `setup`
+# so it works on a clean clone, and rebuilds the sidecar first so the bundle
+# can never pick up a stale one.
 [group('build')]
 build-installer: setup build-sidecar _build-installer
 
@@ -380,36 +289,18 @@ build-installer: setup build-sidecar _build-installer
 _build-installer:
     npx --no-install tauri build --bundles {{ bundle_targets }}
 
-# Verify the built artefacts, refusing to skip if one is missing.
-#
-# These tests skip when nothing is built, which is right for `just test` and
-# wrong for a release: a CI job that builds an installer and then skips the
-# staleness check reports the same green tick as one that verified it.
-# `--require-build-checks` turns a missing artefact into a failure that names it.
-#
-# Two of these guards caught a real staleness in Phase 8 the moment the sidecar
-# was rebuilt without the installer, so the ordering is not a formality.
-#
 # Check the built sidecar and installer: run AFTER a build, never before.
+# These tests skip when nothing is built, which is wrong for a release, so
+# `--require-build-checks` turns a missing artefact into a named failure.
 [group('build')]
 [working-directory('apps/backend')]
 verify-build: setup
     uv run pytest tests/test_sidecar_binary.py tests/test_installer_bundle.py --require-build-checks -v
 
-# Install the produced installer on THIS machine and run the installed sidecar
-# with Python scrubbed from its environment.
-#
-# This is §5 Phase 9's "runs on a second Windows machine with no Python
-# installed", as close as one machine can state it; see CLAUDE.md's "The
-# machine reality" for why the literal form is unavailable. In CI it runs on a
-# fresh windows-latest runner against the artefact the build job uploaded, which
-# is a different machine from any developer's and the exact bytes a user gets.
-#
-# It installs software, so it is not part of `just test` and never will be.
-# `AGENTSPACE_INSTALLER_DIR` points it at an installer somewhere other than the
-# local bundle directory.
-#
-# Install the built installer here and run it with no Python on PATH.
+# Install the built installer here and run it with no Python on PATH: §5
+# Phase 9's "second Windows machine", as close as one machine can state it.
+# It installs software, so it is never part of `just test`.
+# `AGENTSPACE_INSTALLER_DIR` points it at an installer elsewhere.
 [group('build')]
 [working-directory('apps/backend')]
 verify-installed: setup

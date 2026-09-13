@@ -1,14 +1,9 @@
 """Agent definitions as data: the registry, its validation, and its API.
 
-The §5 Phase 5 acceptance criterion's first clause is "an agent created
-entirely through the API (never touching Python) can be spawned into a run".
-:func:`test_an_agent_created_over_http_can_be_spawned_into_a_run` is that
-sentence, and it is written to be un-fakeable: the definition is created with
-`client.post`, and the only thing the test asserts against is the event log the
-run produced. No Python object describing the agent is ever constructed by the
-test.
-
-The second clause (the allowlist) lives in `test_agent_allowlist.py`.
+§5 Phase 5's first clause, "an agent created entirely through the API can be
+spawned into a run", is :func:`test_an_agent_created_over_http_can_be_spawned_into_a_run`:
+the definition is created with `client.post` and only the event log is
+asserted against. The allowlist clause lives in `test_agent_allowlist.py`.
 """
 
 from __future__ import annotations

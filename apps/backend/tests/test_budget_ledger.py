@@ -1,16 +1,8 @@
-"""Tests for the monthly budget cap.
+"""Tests for the monthly budget cap, written before `budget/ledger.py` (§6).
 
-Written before `budget/ledger.py` (BUILD_SPEC §6).
-
-The Phase 3 acceptance criterion is precise about ordering: "a run that would
-exceed the monthly cap is refused with a clear reason **before any API call
-fires**." A test that only checks the error message would pass just as happily
-if the request went out first and the refusal came after, the user would be
-billed for a call the app claims it prevented.
-
-So the provider double here raises if it is called at all. Every refusal test
-asserts both that the refusal happened *and* that the double was never
-invoked. That is the only way the ordering is actually pinned.
+The cap must refuse *before any API call fires*, so the provider double here
+raises if it is called at all, and every refusal test asserts both the
+refusal and that the double was never invoked.
 """
 
 from __future__ import annotations

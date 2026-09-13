@@ -1,12 +1,8 @@
 """Tests for the API-key handshake and the store that holds keys.
 
-§1 constraint 4 names five places a key must never appear: `.env`, SQLite, a
-config file, a log line, and `argv`. Four of those are testable from here, and
-each has its own test below rather than being folded into one: a single
-"secrets are safe" test would pass while three of the four channels leaked.
-
-The fifth, `argv`, is structural: nothing in this package ever reads a key from
-`sys.argv`, and `test_no_secret_is_read_from_argv` asserts that stays true.
+§1 constraint 4 names five places a key must never appear; each testable one
+has its own test, since a single "secrets are safe" test would pass while
+three channels leaked. `argv` is structural, and a test asserts it stays so.
 """
 
 from __future__ import annotations

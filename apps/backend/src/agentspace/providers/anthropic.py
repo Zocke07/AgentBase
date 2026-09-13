@@ -1,18 +1,8 @@
 """Anthropic Messages API, normalized to the provider protocol.
 
-Only the vendor-shaped parts live here. Anything a caller above this module
-would have to branch on is translated: `content` blocks become text plus
-:class:`~agentspace.providers.base.ToolCall`s, and `usage.input_tokens` /
-`usage.output_tokens` become :class:`~agentspace.providers.base.TokenUsage`.
-
-Two shape details that are easy to get wrong:
-
-* **The system prompt is a top-level field, not a message.** Anthropic rejects
-  a `system` role inside `messages`; OpenAI requires exactly that. This is the
-  single biggest reason the neutral :class:`Message` carries `Role.SYSTEM` and
-  each adapter decides where it belongs.
-* **`max_tokens` is required.** Omitting it is a 400, unlike OpenAI where it
-  defaults.
+Two shape details that are easy to get wrong: the system prompt is a
+top-level field, not a message (a `system` role inside `messages` is a 400),
+and `max_tokens` is required.
 """
 
 from __future__ import annotations
@@ -47,9 +37,8 @@ __all__ = ["ANTHROPIC_VERSION", "DEFAULT_BASE_URL", "AnthropicProvider"]
 
 DEFAULT_BASE_URL: Final[str] = "https://api.anthropic.com"
 
-#: Pinned rather than tracked. The header selects a frozen request/response
-#: shape, so a new version changing the wire format cannot break a shipped
-#: installer that nobody is going to update.
+#: Pinned: the header selects a frozen wire format, so a new version cannot
+#: break a shipped installer.
 ANTHROPIC_VERSION: Final[str] = "2023-06-01"
 
 
@@ -83,10 +72,7 @@ class AnthropicProvider:
     ) -> dict[str, Any]:
         """The request body, shared by `complete` and `stream`.
 
-        Shared rather than duplicated on purpose: the two paths must send the
-        same request or streaming becomes a behavioural change instead of a
-        transport one, and a tool list that reached only one of them would be a
-        bug nothing above this module could diagnose.
+        Shared so streaming is a transport change only.
         """
         if not self._api_key:
             msg = "no Anthropic API key is configured"
@@ -147,11 +133,8 @@ class AnthropicProvider:
     ) -> AsyncIterator[StreamEvent]:
         """Stream `POST /v1/messages` with `stream: true`.
 
-        Anthropic splits a response across `message_start`,
-        `content_block_delta` and `message_delta` frames, and the token counts
-        arrive in *two* of them: input on `message_start`, output on
-        `message_delta` at the very end. Reading usage from either one alone
-        undercounts, which for a budget ledger means a cap that does not hold.
+        Token counts arrive in two frames: input on `message_start`, output on
+        the final `message_delta`. Reading either alone undercounts.
         """
         payload = self._payload(messages, tools, system, max_tokens)
         payload["stream"] = True
@@ -183,9 +166,7 @@ class AnthropicProvider:
                 if isinstance(value, str):
                     text_parts.append(value)
             elif kind == "thinking":
-                # Extended thinking: its own block type, never part of the
-                # answer. The signature beside it is for round-tripping and
-                # is not kept.
+                # Extended thinking: never part of the answer. Its signature is not kept.
                 value = block.get("thinking")
                 if isinstance(value, str):
                     thinking_parts.append(value)
@@ -219,12 +200,7 @@ class AnthropicProvider:
 def _split_system(
     messages: Iterable[Message], system: str | None
 ) -> tuple[str | None, list[dict[str, str]]]:
-    """Lift `Role.SYSTEM` turns into the top-level `system` field.
-
-    Anthropic returns a 400 for a `system` role inside `messages`, so a caller
-    that used the neutral shape naively would get a vendor error for something
-    the protocol says is legal.
-    """
+    """Lift `Role.SYSTEM` turns into the top-level `system` field."""
     collected = [system] if system else []
     turns: list[dict[str, str]] = []
 
@@ -246,12 +222,7 @@ def _blocks(content: Any) -> list[dict[str, Any]]:
 
 
 def _non_negative_int(value: Any) -> int:
-    """Coerce a reported token count, defaulting to 0 rather than raising.
-
-    A provider that omits usage must not crash a run, but it also must not
-    make the call look free, which is why the budget check happens *before*
-    the call rather than relying on what comes back.
-    """
+    """Coerce a reported token count, defaulting to 0 rather than raising."""
     if isinstance(value, bool) or not isinstance(value, int):
         return 0
     return max(0, value)
@@ -264,10 +235,8 @@ def _optional_str(value: Any) -> str | None:
 class _StreamState:
     """Reassembles Anthropic's streamed frames into one :class:`Completion`.
 
-    The final object must be equivalent to what a non-streamed call would have
-    returned (see :class:`~agentspace.providers.base.Provider`), so everything
-    the blocking path reads off the response body has to be collected from a
-    different frame here:
+    Everything the blocking path reads off the response body is collected
+    from a different frame here:
 
     ============  =====================================================
     field         where it arrives
@@ -320,9 +289,7 @@ class _StreamState:
         usage = message.get("usage")
         if isinstance(usage, dict):
             self._input_tokens = _non_negative_int(usage.get("input_tokens"))
-            # Present but near-zero at this point; the real figure lands on
-            # `message_delta`. Taken anyway so a stream cut short still
-            # reports something rather than nothing.
+            # Near-zero here; the real figure lands on `message_delta`.
             self._output_tokens = _non_negative_int(usage.get("output_tokens"))
 
     def _block_start(self, frame: dict[str, Any]) -> None:
@@ -379,14 +346,7 @@ class _StreamState:
                 self._output_tokens = _non_negative_int(output)
 
     def finish(self, provider: str) -> Completion:
-        """The assembled response.
-
-        An `error` frame is raised rather than returned. Anthropic can send one
-        mid-stream after a `200 OK`, so the status code alone does not decide
-        whether the call succeeded: returning a truncated completion here
-        would charge the user for a response that never finished and hand the
-        orchestrator a silently incomplete answer.
-        """
+        """The assembled response. An `error` frame (possible after a `200 OK`) is raised."""
         if self._error is not None:
             msg = f"{provider} failed mid-stream: {self._error}"
             raise ProviderError(msg)
@@ -420,12 +380,7 @@ def _index_of(frame: dict[str, Any]) -> int:
 
 
 def _parse_arguments(parts: list[str]) -> dict[str, Any]:
-    """Join the `input_json_delta` fragments and decode them.
-
-    A tool call with no arguments streams zero fragments, which is an empty
-    string rather than `{}`: decoding that would raise, so it is handled
-    before `json.loads` sees it.
-    """
+    """Join the `input_json_delta` fragments and decode them; zero fragments means `{}`."""
     joined = "".join(parts).strip()
     if not joined:
         return {}

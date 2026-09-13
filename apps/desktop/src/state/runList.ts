@@ -4,21 +4,9 @@ import { create } from "zustand";
 import * as api from "../lib/api";
 
 /**
- * The run list: the `runs` table, newest first, as many as have been asked
- * for.
- *
- * Read by the Home screen (the "Now" strip and the recent cards) and by the
- * Runs picker, and re-read by whoever learns the table is stale: the shell's
- * poll while any listed run is unfinished, the picker when the open run's log
- * disagrees with its row, the Home screen after it starts one. One store, so
- * they all see the same rows.
- *
- * The rows are a snapshot. The log is the authority on the run that is open
- * (a row says "pending" for the whole of a live run), and the views that
- * show the open run's status read it from the store's fold, not from here.
- *
- * Keyed on a space: switching spaces empties the list and re-reads it, so
- * the previous space's cards never sit under the new space's name.
+ * The run list: the `runs` table, newest first, shared by the Home screen and
+ * the Runs picker and re-read by whoever learns it is stale. The rows are a
+ * snapshot; the open run's status comes from the store's fold. Keyed on a space.
  */
 export interface RunListState {
   readonly runs: readonly Run[];

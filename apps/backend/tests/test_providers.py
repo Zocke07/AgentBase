@@ -1,14 +1,9 @@
 """Tests for the three provider implementations and the factory.
 
-**Nothing here touches the network.** Every request is served by an
-`httpx2.MockTransport`, which also lets each test assert the exact request body
-that *would* have gone out: the vendor shape is the thing most likely to be
-wrong, and it is invisible if you only assert on the parsed response.
-
-The recurring theme is normalization: the same logical response, expressed
-three different ways by three vendors, must produce the same `Completion`. If
-these tests pass but a caller still has to know which provider it holds, the
-Phase 3 acceptance criterion is not met regardless of what the tests say.
+Nothing touches the network: every request is served by an
+`httpx2.MockTransport`, which also lets each test assert the exact request
+body that would have gone out. The theme is normalization: three vendors'
+shapes must produce the same `Completion`.
 """
 
 from __future__ import annotations

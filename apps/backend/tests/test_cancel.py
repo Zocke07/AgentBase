@@ -1,11 +1,5 @@
-"""Cancelling a run.
-
-§4 lists `run.cancelled` and a `cancelled` status and nothing produced them: a
-runaway run could only be stopped by closing the app, and the default wall
-clock is ten minutes. Cancellation is cooperative, at the same point the
-deadline is checked (before each model call, where the run can still write a
-coherent terminal event) and it releases an agent blocked on the approval
-gate, which would otherwise sit waiting for the wall clock.
+"""Cancelling a run: cooperative, at the deadline check before each model call,
+and releasing an agent blocked on the approval gate.
 """
 
 from __future__ import annotations

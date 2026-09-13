@@ -1,30 +1,16 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
 /**
- * The one class component in the tree, because React offers no other way to
- * catch a render error.
- *
- * Without it, one payload the reducer or React Flow did not expect blanked the
- * whole window with nothing to click: for a dashboard whose stated job is to
- * be readable when something has gone wrong. The boundary shows what threw and
- * offers to try again; `key`ing the subtree on `attempt` is what makes "try
- * again" a real remount rather than a re-render of the same broken state.
- *
- * Where it sits matters more than what it renders: one around the run panel,
- * so a bad run leaves the picker and the goal box usable and another run can
- * be opened; one around the whole app, so nothing is ever a blank page.
+ * The one class component in the tree, since React catches render errors no
+ * other way. Shows what threw and offers to try again; `key`ing the subtree
+ * on `attempt` makes that a real remount. One per section and one around the
+ * app, so nothing is ever a blank page.
  */
 
 export interface ErrorBoundaryProps {
   /** Names the region in the fallback: "the run view", "AgentSpace". */
   label: string;
-  /**
-   * When this changes, a boundary showing its fallback tries again. The
-   * children are *not* remounted for it: `key`ing the boundary itself on the
-   * run id did that, and every run switch rebuilt the graph canvas from
-   * nothing. Only a fallback needs a fresh start; a healthy subtree keeps its
-   * DOM and re-renders with the new run.
-   */
+  /** When this changes, a boundary showing its fallback tries again; a healthy subtree keeps its DOM. */
   resetKey?: string | null;
   children: ReactNode;
 }

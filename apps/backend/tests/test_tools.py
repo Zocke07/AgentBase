@@ -1,20 +1,10 @@
 """The five built-in tools: what each one does, and what each one refuses.
 
-The sandbox is tested on its own in `test_sandbox.py` and the gate in
-`test_approval_gate.py`. What is left, and what this file covers, is each
-tool's own behaviour: its arguments, its result, and the difference between
-the two ways a call can fail:
-
-* :class:`~agentspace.tools.base.ToolArgumentError`: a malformed call, which
-  becomes `tool.error` and which the agent can fix by retrying;
-* :class:`~agentspace.tools.base.ToolExecutionError`: a correct call that did
-  not work, which is an ordinary event in a run.
-
-Neither is a refusal. A refusal comes from the sandbox and is
-:class:`~agentspace.tools.sandbox.SandboxViolationError`, so a tool that raised
-`ToolArgumentError` for an out-of-bounds path would quietly downgrade a
-`tool.denied` into a `tool.error`: the log would then say an agent made a bad
-call rather than that it tried to leave the workspace.
+The difference between the two failures matters: `ToolArgumentError` is a
+malformed call the agent can retry (`tool.error`), `ToolExecutionError` a
+correct call that did not work. Neither is a refusal; a tool that raised
+`ToolArgumentError` for an out-of-bounds path would downgrade a `tool.denied`
+into a `tool.error`.
 """
 
 from __future__ import annotations
