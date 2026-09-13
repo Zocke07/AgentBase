@@ -28,6 +28,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from agentspace import __version__
 from agentspace.api.agents import router as agents_router
 from agentspace.api.approvals import router as approvals_router
 from agentspace.api.channels import router as channels_router
@@ -198,7 +199,7 @@ def create_app(
 
     app = FastAPI(
         title="AgentSpace sidecar",
-        version="0.1.0",
+        version=__version__,
         docs_url="/docs",
         openapi_url="/openapi.json",
         lifespan=lifespan,

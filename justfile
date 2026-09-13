@@ -289,13 +289,22 @@ build-installer: setup build-sidecar _build-installer
 _build-installer:
     npx --no-install tauri build --bundles {{ bundle_targets }}
 
+# Archive the built app before upload-artifact can strip its executable modes.
+# Read the version from the bundle so the archive names the bytes it contains.
+[group('build')]
+[macos]
+[working-directory('apps/desktop/src-tauri/target/release/bundle/macos')]
+package-macos:
+    app_version=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' AgentSpace.app/Contents/Info.plist) && ditto -c -k --sequesterRsrc --keepParent AgentSpace.app "AgentSpace_${app_version}_{{ target_triple }}.app.zip"
+
 # Check the built sidecar and installer: run AFTER a build, never before.
 # These tests skip when nothing is built, which is wrong for a release, so
 # `--require-build-checks` turns a missing artefact into a named failure.
+# On macOS, run `just package-macos` first to verify the archive users download.
 [group('build')]
 [working-directory('apps/backend')]
 verify-build: setup
-    uv run pytest tests/test_sidecar_binary.py tests/test_installer_bundle.py --require-build-checks -v
+    uv run pytest tests/test_sidecar_binary.py tests/test_installer_bundle.py tests/test_macos_archive.py --require-build-checks -v
 
 # Install the built installer here and run it with no Python on PATH: §5
 # Phase 9's "second Windows machine", as close as one machine can state it.

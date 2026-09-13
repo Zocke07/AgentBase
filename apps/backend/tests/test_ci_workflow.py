@@ -20,7 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "build.yml"
 TOOLCHAIN = REPO_ROOT / ".github" / "actions" / "toolchain" / "action.yml"
 
-#: §1 constraint 7: Windows ships, macOS builds from day one to catch breakage.
+#: §1 constraint 7: Windows is primary; macOS ships an app archive from 0.2.0.
 EXPECTED_PLATFORMS = ["windows-latest", "macos-latest"]
 
 
@@ -143,20 +143,44 @@ def test_the_rust_shell_is_linted_after_the_sidecar_exists() -> None:
     )
 
 
-def test_only_the_windows_installer_is_published() -> None:
-    """§5 Phase 9 and §7: macOS is built to catch breakage, never published."""
+def test_both_platforms_publish_their_verified_artefact() -> None:
+    """The macOS app must be zipped before uploading to preserve executable modes."""
     uploads = [
         step
         for step in _job("build")["steps"]
         if "upload-artifact" in str(step.get("uses", ""))
     ]
 
-    assert len(uploads) == 1, f"expected exactly one upload step, found {len(uploads)}"
-    assert uploads[0]["if"] == "runner.os == 'Windows'"
+    assert len(uploads) == 2, f"expected two upload steps, found {len(uploads)}"
+    by_platform = {step["if"]: step for step in uploads}
+    for platform, name, suffix in (
+        ("Windows", "AgentSpace-windows-installer", "*-setup.exe"),
+        ("macOS", "AgentSpace-macos-app", "*.app.zip"),
+    ):
+        upload = by_platform[f"runner.os == '{platform}'"]
+        assert upload["with"]["name"] == name
+        assert upload["with"]["path"].endswith(suffix)
+        assert upload["with"]["if-no-files-found"] == "error"
 
-    # A bundle that silently failed to appear must fail the job, not upload
-    # nothing under a green tick.
-    assert uploads[0]["with"]["if-no-files-found"] == "error"
+    build = _job("build")
+    assert (
+        _step_index(build, "just build-installer")
+        < _step_index(build, "just package-macos")
+        < _step_index(build, "just verify-build")
+    )
+    packaged = next(s for s in build["steps"] if s.get("run") == "just package-macos")
+    assert packaged["if"] == "runner.os == 'macOS'"
+    verified = next(s for s in build["steps"] if s.get("run") == "just verify-build")
+    assert all(build["steps"].index(verified) < build["steps"].index(s) for s in uploads)
+
+    release = _job("release")
+    downloads = [s for s in release["steps"] if "download-artifact" in str(s.get("uses", ""))]
+    assert {s["with"]["name"] for s in downloads} == {s["with"]["name"] for s in uploads}
+    assert all(s["with"]["path"] == "dist" for s in downloads)
+    command = next(s["run"] for s in release["steps"] if "gh release" in s.get("run", ""))
+    assert "dist/*-setup.exe" in command
+    assert "dist/*.app.zip" in command
+    assert '--notes-file "docs/releases/${GITHUB_REF_NAME#v}.md"' in command
 
 
 def test_every_recipe_ci_runs_works_on_a_clean_clone() -> None:
@@ -206,9 +230,9 @@ def test_every_recipe_ci_runs_works_on_a_clean_clone() -> None:
     }
     assert invoked, "the workflow runs no `just` recipes, which cannot be right"
 
-    # `check-tauri` is cargo alone (it reads a sidecar an earlier step froze and
-    # installs nothing) so it is exempt by inspection rather than by rule.
-    for recipe in sorted(invoked - {"check-tauri"}):
+    # These read an earlier step's build with Cargo or macOS system tools;
+    # neither installs Python or Node dependencies.
+    for recipe in sorted(invoked - {"check-tauri", "package-macos"}):
         assert recipe in direct, f"{recipe!r} is not a recipe in the justfile"
         assert depends_on_setup(recipe), (
             f"`just {recipe}` never reaches `setup`, so it works only where "
@@ -220,13 +244,13 @@ def test_every_recipe_ci_runs_works_on_a_clean_clone() -> None:
 def test_the_smoke_job_installs_the_artefact_the_build_job_uploaded() -> None:
     """§5 Phase 9's "second Windows machine", as close as this project can get.
 
-    See CLAUDE.md's "The machine reality": there will be no second Windows
-    machine, so a fresh runner stands in for it. Three things make that honest
-    rather than cosmetic, and each is pinned here. It must wait on the build, or
-    there is nothing to install. It must run on Windows, because the artefact is
-    an NSIS installer. And it must install the *downloaded* artefact (the bytes a
-    user would get) rather than rebuilding locally, which is what
-    `AGENTSPACE_INSTALLER_DIR` pointing at the download directory guarantees.
+    There is no second Windows machine available, so a fresh runner stands in
+    for it. Three things make that honest rather than cosmetic, and each is
+    pinned here. It must wait on the build, or there is nothing to install. It
+    must run on Windows, because the artefact is an NSIS installer. And it must
+    install the *downloaded* artefact (the bytes a user would get) rather than
+    rebuilding locally, which is what `AGENTSPACE_INSTALLER_DIR` pointing at
+    the download directory guarantees.
     """
     smoke = _workflow()["jobs"]["smoke"]
 

@@ -1,9 +1,9 @@
-"""agentspace: the local-first FastAPI sidecar for the agent co-working space.
+"""The local FastAPI sidecar for AgentSpace.
 
-Everything this package exposes runs on the user's own machine. The only traffic
-that leaves it is model inference (BUILD_SPEC §2).
+Orchestration and state remain local. Providers, the web tool, and the optional
+Discord adapter make the outbound connections described in the user guide.
 """
 
 __all__ = ["__version__"]
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

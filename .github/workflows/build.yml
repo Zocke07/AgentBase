@@ -66,6 +66,11 @@ jobs:
       - name: Build the sidecar and the bundle
         run: just build-installer
 
+      # Preserve the app's executable modes and bundle root across artifact upload.
+      - name: Archive the macOS app
+        if: runner.os == 'macOS'
+        run: just package-macos
+
       # The guards that skipped in the test job, after the build so they have
       # something to inspect, with `--require-build-checks` so a missing
       # artefact fails instead of skipping.
@@ -86,6 +91,14 @@ jobs:
         with:
           name: AgentSpace-windows-installer
           path: apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+
+      - name: Upload the macOS app archive
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v7
+        with:
+          name: AgentSpace-macos-app
+          path: apps/desktop/src-tauri/target/release/bundle/macos/*.app.zip
           if-no-files-found: error
 
   smoke:
@@ -114,7 +127,7 @@ jobs:
         run: just verify-installed
 
   release:
-    name: publish the Windows installer
+    name: publish the Windows installer and macOS app
     # Only for a version tag; every green run still leaves the installer as a
     # workflow artefact. Needs `smoke` too: an installer that did not run on a
     # clean machine must not become a release.
@@ -125,10 +138,18 @@ jobs:
       contents: write
 
     steps:
+      - uses: actions/checkout@v7
+
       - name: Download the installer built by the Windows job
         uses: actions/download-artifact@v8
         with:
           name: AgentSpace-windows-installer
+          path: dist
+
+      - name: Download the app archive built by the macOS job
+        uses: actions/download-artifact@v8
+        with:
+          name: AgentSpace-macos-app
           path: dist
 
       # Shipped unsigned; the release notes say so.
@@ -136,7 +157,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/*-setup.exe \
+          gh release create "$GITHUB_REF_NAME" dist/*-setup.exe dist/*.app.zip \
             --repo "$GITHUB_REPOSITORY" \
             --title "AgentSpace $GITHUB_REF_NAME" \
-            --notes 'Windows installer, unsigned. It installs per-user and needs no administrator rights. On first run SmartScreen shows "Windows protected your PC": click **More info**, then **Run anyway**. This happens once.'
+            --notes-file "docs/releases/${GITHUB_REF_NAME#v}.md"

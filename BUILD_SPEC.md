@@ -35,7 +35,7 @@ substitute equivalents, do not add the thing they replaced. If you believe one i
 | 4 | **API keys go in the OS keychain.** Never `.env`, never SQLite, never a config file, never logged. | The key sits on a personal laptop. |
 | 5 | **Every filesystem/shell/network tool call passes an approval gate** before execution. No exceptions, no privileged paths for any channel. | This is the exact failure mode that produced dozens of CVEs in comparable projects. |
 | 6 | **Chat channels trigger on explicit commands/mentions only.** Never ingest ambient channel messages into agent context. | Indirect prompt injection. A slash command has a schema; a channel firehose does not. |
-| 7 | **Windows is the primary target.** macOS must build in CI from day one but is not released yet. | Windows-first, Mac later. |
+| 7 | **Windows is the primary target.** macOS builds in CI and, from 0.2.0, ships an unsigned Apple Silicon app archive. | Windows-first; macOS release added at the maintainer's request on 2026-09-13. |
 | 8 | **Python 3.12 backend, TypeScript frontend.** No other languages except the Rust that Tauri requires. | |
 
 > **On constraint #2**: this project is also a portfolio piece, so Phase 10 adds a second,
@@ -376,7 +376,10 @@ calling it even when its system prompt explicitly instructs it to.
 - `Tool` protocol with a declared `risk` level.
 - Built-ins: `read_file`, `write_file`, `list_dir`, `http_get`, `run_shell`.
 - **Sandbox**: a configured workspace root. Path traversal outside it is rejected before
-  the approval prompt is even shown. `run_shell` has no network and a hard timeout.
+  the approval prompt is even shown. `run_shell` has a hard timeout and process-tree
+  termination. **2026-09-10 deviation:** the shared cross-platform build does not claim
+  network or OS filesystem isolation for shell commands; the container addendum below is
+  the optional stronger boundary for the maintainer's own instance.
 - **Approval gate**: any `medium`/`high` risk call emits `approval.requested` and blocks
   until resolved. `low` risk (read within workspace) may be auto-approved by policy.
 - Approval prompts must be **human-legible**, not raw JSON:
@@ -448,20 +451,26 @@ originating chat channel, and a channel-originated tool call still hits the appr
   builds and never tests is not CI, it's a compiler check with extra steps.
 - GitHub Actions matrix: `windows-latest` and `macos-latest`. Build the PyInstaller sidecar
   on each (it does not cross-compile), then the Tauri bundle.
-- Publish the Windows artifact. Build but do not publish macOS: it exists to catch
-  cross-platform breakage continuously, so the eventual Mac release is a flag flip rather
-  than a port.
+- Publish the Windows installer and, from 0.2.0, the macOS Apple Silicon app archive.
+  **2026-09-13 deviation from the original build-only macOS scope**, requested in the
+  maintainer's release handoff: constraint 7 and §7 now permit this archive. macOS remains
+  unsigned and unnotarized; code signing, notarization and an Intel release are deferred.
+  Zip the `.app` with `ditto --keepParent` before upload, because artifact upload strips
+  executable modes from raw files. Verify the extracted archive's bundle version, shell
+  and sidecar hashes, executable modes, database startup and shutdown before publishing.
 - **Keep the repo public.** Private-repo Actions minutes drain at a 2x multiplier on Windows
-  runners and 10x on macOS: the macOS build-only-in-CI job is the expensive one to watch.
+  runners and 10x on macOS: the macOS build job is the expensive one to watch.
 - Ship unsigned for now. Unlike macOS, Windows does not hard-block an unsigned app: the
   installer triggers a SmartScreen "Windows protected your PC" prompt, and the user clicks
   "More info" → "Run anyway" once. No terminal command, no equivalent of `xattr` needed.
   Document this one click in the `README` so it doesn't read as broken. An EV code-signing
   cert, optional and not required to ship, removes the warning entirely if it's ever worth the
   cost.
-- No entitlements file needed on this platform. When macOS moves from build-only to
-  released, that's the point to write its entitlements
-  (`allow-unsigned-executable-memory`, `disable-library-validation`), not before.
+- Document macOS Gatekeeper's **Privacy & Security > Open Anyway** path and the scoped
+  `xattr -dr com.apple.quarantine /Applications/AgentSpace.app` fallback, plus the keychain
+  access prompt after an unsigned app update. The 0.2.0 unsigned release does not enable
+  hardened runtime or add entitlements; revisit those when code signing and notarization
+  are implemented, instead of adding permissions this release does not use.
 
 **Accept when:** a green CI run produces a downloadable installer that runs on a second
 Windows machine with no Python installed.
@@ -717,7 +726,8 @@ Do not build these. Do not scaffold placeholders for these.
 - Any network-exposed surface beyond `127.0.0.1`
 - Vector memory / RAG
 - Agent marketplaces or plugin systems
-- macOS release artifacts (builds in CI, not published yet; see constraint #7)
+- Intel macOS release artifacts (Apple Silicon `.app.zip` added for 0.2.0 on 2026-09-13;
+  see constraint #7 and the Phase 9 deviation)
 - Code signing or notarization
 - Auto-update
 - Mobile
