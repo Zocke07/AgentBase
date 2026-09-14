@@ -61,10 +61,9 @@ right for `just test` and wrong for a release, so this recipe passes
 
 ## Installing
 
-Download `AgentSpace_0.2.0_x64-setup.exe` for Windows x64 or
-`AgentSpace_0.2.0_aarch64-apple-darwin.app.zip` for Apple Silicon macOS from the
-[latest release](https://github.com/Zocke07/AgentBase/releases/latest), once
-0.2.0 is published, or from the artifacts of a green
+Download `AgentSpace_0.2.1_x64-setup.exe` for Windows x64 or
+`AgentSpace_0.2.1_aarch64-apple-darwin.app.zip` for Apple Silicon macOS from the
+[latest release](https://github.com/Zocke07/AgentBase/releases/latest), or from the artifacts of a green
 [build run](https://github.com/Zocke07/AgentBase/actions/workflows/build.yml). See the
 [User Guide](docs/user_guide/1_getting_started.md) for both installation paths.
 
@@ -92,8 +91,8 @@ before the build job and gates it: lint, typecheck and both test suites must
 pass on Windows *and* macOS before any installer is bundled. A red test leaves
 the build job skipped rather than producing an artefact nobody should download.
 
-From 0.2.0, CI uploads and publishes both the Windows installer and an unsigned,
+CI uploads and publishes both the Windows installer and an ad-hoc signed,
 unnotarized Apple Silicon macOS app archive. The macOS archive is made with
-`ditto` before artifact upload and verified after extraction. `just typecheck`
-runs mypy for the host and the other supported platform so platform-specific
-branches are checked before a push.
+`ditto` before artifact upload and verified after extraction, including a
+strict signature check. `just typecheck` runs mypy for the host and the other
+supported platform so platform-specific branches are checked before a push.

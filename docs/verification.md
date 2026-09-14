@@ -4,6 +4,22 @@ Updated 2026-09-14. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
 superseded gaps. A test result below is scoped to what was actually executed.
 
+## 0.2.1 macOS signing correction
+
+The published 0.2.0 Mac archive reproduced the user's **damaged and can't be
+opened** Gatekeeper error. `codesign --verify --deep --strict` showed that the
+archive preserved executable modes but lacked a complete app-bundle signature.
+
+Version 0.2.1 configures Tauri's ad-hoc identity and keeps hardened runtime
+disabled. Enabling the runtime caused the re-signed PyInstaller sidecar to fail
+while loading its extracted Python library because the process and mapped file
+had different code identities. The release test now strips signatures from
+temporary copies before checking sidecar content, verifies the complete bundle
+signature, then launches the archived sidecar. The corrected local archive
+passed all **15 applicable release checks**; four Windows-only checks skipped.
+`AgentSpace_0.2.1_aarch64-apple-darwin.app.zip` is 24,185,918 bytes with local
+SHA-256 `dc255ce360df9f4252180838b6479e666d979967373ceb32dd8d70a30fbbe28e`.
+
 ## 0.2.0 preparation
 
 Documentation and local release preparation were completed before publication.
@@ -72,9 +88,6 @@ cover the behavior. They are not all release blockers.
   of events. Parallel workers are not implemented.
 - A downloaded macOS release passing Gatekeeper's manual-open flow. Earlier
   Mac checks launched a locally built app, which had no download quarantine.
-- A tag exercising the release job with its Windows smoke-test dependency;
-  the original `v0.1.0` release predates that dependency. A new release's CI
-  result must establish this rather than inherit the older green result.
 
 The first Mac session already closed automatic browser SSE reconnect,
 two simultaneous browser streams, clicking run deletion, both-theme replay

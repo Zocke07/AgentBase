@@ -4,16 +4,16 @@
 
 ## Install and open AgentSpace
 
-The 0.2.0 downloads are a Windows x64 installer and a macOS Apple Silicon app
+The 0.2.1 downloads are a Windows x64 installer and a macOS Apple Silicon app
 archive. Python, Node and Rust are bundled or unnecessary for installed users.
-Use the [0.2.0 release](https://github.com/Zocke07/AgentBase/releases/tag/v0.2.0)
-when published, or the matching artifact from a successful
+Use the [0.2.1 release](https://github.com/Zocke07/AgentBase/releases/tag/v0.2.1)
+or the matching artifact from a successful
 [build run](https://github.com/Zocke07/AgentBase/actions/workflows/build.yml).
-See the [release notes](../releases/0.2.0.md) for release status and limitations.
+See the [release notes](../releases/0.2.1.md) for release status and limitations.
 
 ### Windows
 
-1. Download `AgentSpace_0.2.0_x64-setup.exe` for an x64 Windows PC.
+1. Download `AgentSpace_0.2.1_x64-setup.exe` for an x64 Windows PC.
 2. Run the installer. The build is unsigned; if SmartScreen shows **Windows
    protected your PC**, choose **More info → Run anyway** to proceed with the
    downloaded build you trust. A new installer or your machine's security
@@ -24,7 +24,7 @@ See the [release notes](../releases/0.2.0.md) for release status and limitations
 
 ### macOS
 
-1. Download `AgentSpace_0.2.0_aarch64-apple-darwin.app.zip` for an Apple Silicon
+1. Download `AgentSpace_0.2.1_aarch64-apple-darwin.app.zip` for an Apple Silicon
    Mac. This archive is not an Intel or universal build.
 2. Double-click the ZIP to extract **AgentSpace.app**, then move the app into
    **Applications**, or your own `~/Applications` folder.
@@ -42,7 +42,8 @@ xattr -dr com.apple.quarantine /Applications/AgentSpace.app
 ```
 
 Adjust the path if you installed it elsewhere. This removes the quarantine
-attribute from this app and its contents; it does not sign or notarize it.
+attribute from this app and its contents; it does not add a trusted Developer
+ID signature or notarization.
 
 A separate **keychain access** prompt can appear after you have stored a key,
 particularly after an upgrade. It names **AgentSpace** and

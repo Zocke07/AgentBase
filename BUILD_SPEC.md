@@ -35,7 +35,7 @@ substitute equivalents, do not add the thing they replaced. If you believe one i
 | 4 | **API keys go in the OS keychain.** Never `.env`, never SQLite, never a config file, never logged. | The key sits on a personal laptop. |
 | 5 | **Every filesystem/shell/network tool call passes an approval gate** before execution. No exceptions, no privileged paths for any channel. | This is the exact failure mode that produced dozens of CVEs in comparable projects. |
 | 6 | **Chat channels trigger on explicit commands/mentions only.** Never ingest ambient channel messages into agent context. | Indirect prompt injection. A slash command has a schema; a channel firehose does not. |
-| 7 | **Windows is the primary target.** macOS builds in CI and, from 0.2.0, ships an unsigned Apple Silicon app archive. | Windows-first; macOS release added at the maintainer's request on 2026-09-13. |
+| 7 | **Windows is the primary target.** macOS builds in CI and ships an ad-hoc signed, unnotarized Apple Silicon app archive. | Windows-first; macOS release added at the maintainer's request on 2026-09-13. |
 | 8 | **Python 3.12 backend, TypeScript frontend.** No other languages except the Rust that Tauri requires. | |
 
 ---
@@ -446,13 +446,14 @@ originating chat channel, and a channel-originated tool call still hits the appr
 - Publish the Windows installer and, from 0.2.0, the macOS Apple Silicon app archive.
   **2026-09-13 deviation from the original build-only macOS scope**, requested in the
   maintainer's release handoff: constraint 7 and §7 now permit this archive. macOS remains
-  unsigned and unnotarized; code signing, notarization and an Intel release are deferred.
+  without a trusted Developer ID signature and unnotarized; Developer ID signing,
+  notarization and an Intel release are deferred.
   Zip the `.app` with `ditto --keepParent` before upload, because artifact upload strips
   executable modes from raw files. Verify the extracted archive's bundle version, shell
   and sidecar hashes, executable modes, database startup and shutdown before publishing.
 - **Keep the repo public.** Private-repo Actions minutes drain at a 2x multiplier on Windows
   runners and 10x on macOS: the macOS build job is the expensive one to watch.
-- Ship unsigned for now. Unlike macOS, Windows does not hard-block an unsigned app: the
+- Keep the Windows installer unsigned for now. Windows does not hard-block an unsigned app: the
   installer triggers a SmartScreen "Windows protected your PC" prompt, and the user clicks
   "More info" → "Run anyway" once. No terminal command, no equivalent of `xattr` needed.
   Document this one click in the `README` so it doesn't read as broken. An EV code-signing
@@ -460,9 +461,12 @@ originating chat channel, and a channel-originated tool call still hits the appr
   cost.
 - Document macOS Gatekeeper's **Privacy & Security > Open Anyway** path and the scoped
   `xattr -dr com.apple.quarantine /Applications/AgentSpace.app` fallback, plus the keychain
-  access prompt after an unsigned app update. The 0.2.0 unsigned release does not enable
-  hardened runtime or add entitlements; revisit those when code signing and notarization
-  are implemented, instead of adding permissions this release does not use.
+  access prompt after an app update. The first 0.2.0 archive omitted a complete app-bundle
+  signature and Gatekeeper reported it as damaged. Version 0.2.1 corrects that with Tauri's
+  ad-hoc identity and a strict signature check. Hardened runtime stays disabled because
+  re-signing the PyInstaller one-file sidecar with it enabled prevents the extracted Python
+  library from loading. Revisit the runtime and entitlements with Developer ID signing and
+  notarization instead of adding permissions this release does not use.
 
 **Accept when:** a green CI run produces a downloadable installer that runs on a second
 Windows machine with no Python installed.
@@ -694,7 +698,7 @@ Do not build these. Do not scaffold placeholders for these.
 - Agent marketplaces or plugin systems
 - Intel macOS release artifacts (Apple Silicon `.app.zip` added for 0.2.0 on 2026-09-13;
   see constraint #7 and the Phase 9 deviation)
-- Code signing or notarization
+- Developer ID code signing or notarization
 - Auto-update
 - Mobile
 - Headless / server mode (a future option, not now)
