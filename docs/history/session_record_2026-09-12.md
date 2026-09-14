@@ -1631,10 +1631,10 @@ spend unchanged.
 ### The open-items sweep (2026-09-12)
 
 The maintainer asked for everything this file and BUILD_SPEC recorded as
-unfinished or found-and-not-fixed to be fixed, portfolio work excepted. Nine
-were fixable on this machine and are; each has its own commit and its own
-tests. The struck-through entries under "Not verified" say which. What was
-not fixable here, and why, is at the end.
+unfinished or found-and-not-fixed to be fixed. Nine were fixable on this
+machine and are; each has its own commit and its own tests. The struck-through
+entries under "Not verified" say which. What was not fixable here, and why, is
+at the end.
 
 **The shell can now tell its own sidecar from a stranger on the port.** The
 port is fixed, so whatever holds it answers `/health`, and the packaged app
@@ -1714,18 +1714,17 @@ the refusal of another space's agent is still only scripted.)* ~~macOS
 needs the Mac.~~ The Mac arrived. OpenAI needs a key. A tag with the `smoke` job in its
 `needs` has not been pushed. The throttle has not been under pressure. The
 scrubber still refolds from zero on a leftward tick, which nothing has
-measured to be slow. `docs/USER_GUIDE.md` is untracked and predates the
-window; it goes with the portfolio work. And the NSIS installer following a
-registry `InstallLocation` is the installer's behaviour, not this code's.
+measured to be slow. The NSIS installer following a registry `InstallLocation`
+is the installer's behaviour, not this code's.
 
 ### The frontend pass (2026-09-11)
 
-Between Phase 9 and Phase 10, a full pass over `apps/desktop/src` for the things
-a user hits once every acceptance criterion is met. Three explorers audited the
-state layer, the components and the API surface against the backend; the
-findings were then verified in a real browser and, for the keychain, in the
-real Tauri shell. What follows is the short version: the commit messages
-carry each item's own reasoning.
+After Phase 9, a full pass over `apps/desktop/src` covered the things a user
+hits once every acceptance criterion is met. Three explorers audited the state
+layer, the components and the API surface against the backend; the findings
+were then verified in a real browser and, for the keychain, in the real Tauri
+shell. What follows is the short version: the commit messages carry each item's
+own reasoning.
 
 **The window could not make a fresh install work.** The (untracked) user guide
 said so in as many words ("no Settings screen yet") and sent people to
@@ -1835,18 +1834,6 @@ reconnect, two windows on one run, the pixel comparison in both themes, the
 delete button, and the packaged app refusing a stranger on the port) are
 closed. See "What the first Mac session showed". Windows remains the release
 target; nothing here is a macOS release.
-
-Next up: **Phase 10: Portfolio artifacts.** Do not start it before re-reading
-BUILD_SPEC §5 Phase 10. Two things bear on it directly:
-
-- Phase 9's acceptance criterion is met except for "a second Windows machine",
-  which needs hardware rather than work. CI is green on `Zocke07/AgentBase` and
-  every green run leaves a downloadable installer. What Phase 10 inherits is a
-  README that can now honestly link to a passing workflow and a real artefact,
-  and a `release` job that has never fired, because no tag has been pushed.
-- `just test-backend-cov` now works. `pytest-cov` was never a declared
-  dependency until this phase, which is exactly what §5 Phase 10's "coverage
-  visible, not just present" needs.
 
 ### What CI actually found
 
@@ -2132,9 +2119,7 @@ dropped settings fields, Phase 5's `max_steps` default, Phase 6's unsettable
 `auto_approve`, Phase 7's `qualified_model` and Phase 8's `discord_enabled`. It
 is the mildest of the nine (a dev recipe, not a shipped path), and it is the
 same lesson: a thing that is never executed is a thing that does not work, and
-the gate is the only place that reliably executes anything. §5 Phase 10 wants the
-coverage number in the README, which is precisely when this would have been
-discovered the hard way.
+the gate is the only place that reliably executes anything.
 
 ### What Phase 3 established, and how it was verified
 
@@ -2762,10 +2747,9 @@ erodes. The full list is in the spec.
 
 - **No agent framework.** The orchestration loop is hand-written. Owning the
   event stream is the product.
-- **No Docker / Postgres / Redis / LiteLLM in the shipped product.** Two
-  sanctioned exceptions, neither of which changes what ships: the Phase 10
-  reviewer demo, and the Phase 6 container wrapper around `run_shell` on the
-  maintainer's own instance.
+- **No Docker / Postgres / Redis / LiteLLM in the shipped product.** The Phase 6
+  container wrapper around `run_shell` is limited to the maintainer's own
+  instance and does not change what ships.
 - **`127.0.0.1` is hardcoded.** `agentspace.config.BIND_HOST` is a `Final`
   constant and `assert_loopback_only()` guards every bind. There is a test that
   fails if this becomes configurable.

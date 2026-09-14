@@ -13,10 +13,8 @@ and disconnects their stored keys.
 
 ## Current state
 
-- Phases 0 through 9 and Phase 11 are implemented. Phase 11 (spaces and the
-  redesign) was deliberately built before Phase 10.
-- Phase 10, the portfolio presentation and optional Docker reviewer demo,
-  remains open. Do not restart Phase 0 or assume the demo already exists.
+- Phases 0 through 9 and the spaces redesign are implemented. Do not restart
+  Phase 0 or replace completed work from an earlier phase.
 - The current release line is **0.2.0**. It includes rewritten guides, aligned
   versions, the Windows installer and an unsigned Apple Silicon macOS app
   archive. Check the release page and tag workflow for publication status and

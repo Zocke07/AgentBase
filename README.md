@@ -7,14 +7,13 @@ Orchestration, tool execution, and state stay on your machine. Cloud models
 receive prompts and tool results, the web tool can contact public sites, and
 the optional Discord connection sends run updates to Discord.
 
-**Status: Phase 11 of 11 done; Phase 10's portfolio pass remains.** The
-application works end to end: you define a *space* (a roster of agents, a
-folder they may touch, and the rules their runs are held to), a supervisor
-delegates to that roster, every filesystem, shell and network call stops at an
-approval gate, and the whole run is watchable live on a graph, in plain
-language, from the window or from Discord. See [BUILD_SPEC.md](BUILD_SPEC.md)
-for the full design and phase plan, and [CLAUDE.md](CLAUDE.md) for what each
-phase actually verified.
+**Status: the application works end to end.** You define a *space* (a roster
+of agents, a folder they may touch, and the rules their runs are held to), a
+supervisor delegates to that roster, every filesystem, shell and network call
+stops at an approval gate, and the whole run is watchable live on a graph, in
+plain language, from the window or from Discord. See
+[BUILD_SPEC.md](BUILD_SPEC.md) for the full design and [CLAUDE.md](CLAUDE.md)
+for the current implementation context.
 
 ## Development
 
@@ -98,6 +97,3 @@ unnotarized Apple Silicon macOS app archive. The macOS archive is made with
 `ditto` before artifact upload and verified after extraction. `just typecheck`
 runs mypy for the host and the other supported platform so platform-specific
 branches are checked before a push.
-
-A proper README (screenshot, one-command demo, architecture diagram) is
-Phase 10.

@@ -81,9 +81,3 @@ two simultaneous browser streams, clicking run deletion, both-theme replay
 comparison, packaged startup/shutdown and the native keychain round trip.
 See the history for the measured limits, including small graph measurement
 differences in the pixel comparison.
-
-## Remaining product presentation
-
-BUILD_SPEC Phase 10 is still open: the optional Docker reviewer demo,
-screenshots or GIF, architecture presentation and visible coverage summary.
-It is separate from preparing the 0.2.0 application release.

@@ -29,22 +29,14 @@ substitute equivalents, do not add the thing they replaced. If you believe one i
 
 | # | Constraint | Why |
 |---|---|---|
-| 1 | **No agent framework.** No LangChain, LangGraph, CrewAI, AutoGen, OpenAI Agents SDK, OpenClaw. Write the orchestration loop by hand. | The visualization is the product. It only works if we own the event stream. Frameworks emit their own event shapes and we'd adapt anyway. It's also the stronger portfolio signal: wiring up LangGraph is a weekend tutorial; an event-sourced orchestration loop with SSE streaming and a human-in-the-loop gate demonstrates the engineering. |
-| 2 | **No Docker, no Postgres, no Redis, no LiteLLM proxy in the shipped product** (the Tauri app and the headless instance). | Single user, single machine. All of these exist to solve multi-user fleet problems we do not have, and a mismatched-scale stack (Kafka for a single-user desktop app) reads as a portfolio red flag, not a strength. A separate, optional demo path exists in Phase 10 for reviewers; it does not change what actually ships. |
+| 1 | **No agent framework.** No LangChain, LangGraph, CrewAI, AutoGen, OpenAI Agents SDK, OpenClaw. Write the orchestration loop by hand. | The visualization only works if we own the event stream. Frameworks emit their own event shapes and we would have to adapt them anyway. |
+| 2 | **No Docker, no Postgres, no Redis, no LiteLLM proxy in the shipped product** (the Tauri app and the headless instance). | Single user, single machine. These systems solve multi-user fleet problems this application does not have. |
 | 3 | **Everything binds `127.0.0.1` only.** Hardcode it. Do not make the bind address configurable. | Nothing reachable off-machine means nothing to accidentally expose. |
 | 4 | **API keys go in the OS keychain.** Never `.env`, never SQLite, never a config file, never logged. | The key sits on a personal laptop. |
 | 5 | **Every filesystem/shell/network tool call passes an approval gate** before execution. No exceptions, no privileged paths for any channel. | This is the exact failure mode that produced dozens of CVEs in comparable projects. |
 | 6 | **Chat channels trigger on explicit commands/mentions only.** Never ingest ambient channel messages into agent context. | Indirect prompt injection. A slash command has a schema; a channel firehose does not. |
 | 7 | **Windows is the primary target.** macOS builds in CI and, from 0.2.0, ships an unsigned Apple Silicon app archive. | Windows-first; macOS release added at the maintainer's request on 2026-09-13. |
 | 8 | **Python 3.12 backend, TypeScript frontend.** No other languages except the Rust that Tauri requires. | |
-
-> **On constraint #2**: this project is also a portfolio piece, so Phase 10 adds a second,
-> optional way to run it: `docker compose up`, for a reviewer with no Rust/Python/Node
-> toolchain who wants to see it working in one command. That path is scaffolding around the
-> same backend code, not a second implementation, and it is not the "headless / server mode"
-> excluded in §7; it has no auth, no remote-reach story, and isn't meant to run unattended.
-> What actually ships to your friend and what runs on your own machine stay exactly as
-> constraint #2 describes.
 
 ---
 
@@ -255,8 +247,8 @@ Adding an event type means updating: `events/types.py`, the generated TS types, 
 ## 5. Build phases
 
 Work through these **in order**. Do not start a phase before the previous phase's
-acceptance criteria pass. Do not build ahead. *(One exception, decided 2026-09-11: Phase 11
-is built before Phase 10, so the portfolio artefacts show the finished product.)*
+acceptance criteria pass. Do not build ahead. Later additions retain their original
+phase numbers so historical references remain valid.
 
 ### Phase 0: Scaffold and cross-platform hygiene
 
@@ -475,35 +467,9 @@ originating chat channel, and a channel-originated tool call still hits the appr
 **Accept when:** a green CI run produces a downloadable installer that runs on a second
 Windows machine with no Python installed.
 
-### Phase 10: Portfolio artifacts
-
-This phase exists because the project is being evaluated by people who will spend under a
-minute deciding whether to look closer. Optimize for that.
-
-- **`docker compose up` demo path.** A `docker-compose.yml` at repo root running the FastAPI
-  backend (SQLite, same code as the shipped product; no Postgres migration required, that's
-  a real scope increase for a benefit that's mostly cosmetic here) plus the Vite dev server,
-  reachable at `localhost:5173` with zero local Python/Node/Rust install. This is the one-line
-  proof that the project runs, for someone who is not going to install a Windows toolchain to
-  check.
-- **README** with, in this order: a 15-second GIF or screenshot of the live agent graph, the
-  one-command demo instructions above, the architecture diagram from §2, and a short
-  "why no LangChain / why no Kubernetes" note: reviewers who know the ecosystem will ask
-  that question in their head anyway; answer it before they do.
-- **Test coverage visible, not just present.** A coverage badge or a one-line summary in the
-  README (`pytest --cov`): the existence of tests matters less to a reviewer than being able
-  to see the number in five seconds.
-- Link the OpenAPI docs (`/docs`, free from FastAPI) from the README. It costs nothing and is
-  the kind of detail that signals the API was designed, not improvised.
-
-**Accept when:** someone with none of this project's toolchain installed can go from `git
-clone` to a running agent graph in under five minutes using only the README.
-
 ### Phase 11: Spaces, and the redesign around them
 
-*Added 2026-09-11 at the maintainer's request. Built **before** Phase 10, because the
-portfolio artefacts (the GIF, the README screenshots, the demo) should show the product
-this phase produces, not the one it replaces. Design first: this section is reviewed by the
+*Added 2026-09-11 at the maintainer's request. Design first: this section is reviewed by the
 maintainer before any of it is coded (§6, "ask before deviating," and this changes §4).*
 
 *Built 2026-09-12. The maintainer asked for the redesign first, so the order of work below

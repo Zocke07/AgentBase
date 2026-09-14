@@ -91,7 +91,7 @@ def test_the_rust_shell_and_the_sidecar_agree_on_every_shared_constant() -> None
 
 
 def test_openapi_schema_is_served() -> None:
-    """Phase 10 links /docs from the README; it costs nothing to keep it working."""
+    """The generated client contract depends on the served OpenAPI schema."""
     with TestClient(main.create_app()) as client:
         response = client.get("/openapi.json")
 

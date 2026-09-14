@@ -25,10 +25,8 @@ dev = [
     "mypy>=1.18.2",
     "pyinstaller>=6.11.0",
     "pytest>=8.4.2",
-    # `just test-backend-cov` has always named `--cov` and this was never
-    # declared, so that recipe could not run. Phase 10 wants the coverage number
-    # visible in the README; the recipe existing and not working is the same
-    # shape as the settings field that could not be set.
+    # `just test-backend-cov` names `--cov`, so the command must declare the
+    # plugin that implements that option instead of depending on a warm machine.
     "pytest-cov>=6.0.0",
     "pytest-timeout>=2.3.1",
     "ruff>=0.14.0",
