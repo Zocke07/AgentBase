@@ -181,6 +181,10 @@ def test_both_platforms_publish_their_verified_artefact() -> None:
     assert "dist/*-setup.exe" in command
     assert "dist/*.app.zip" in command
     assert '--notes-file "docs/releases/${GITHUB_REF_NAME#v}.md"' in command
+    assert "gh release view" in command
+    assert "gh release edit" in command
+    assert "gh release upload" in command
+    assert "--clobber" in command
 
 
 def test_every_recipe_ci_runs_works_on_a_clean_clone() -> None:

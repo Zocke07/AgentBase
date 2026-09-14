@@ -4,21 +4,21 @@ Updated 2026-09-14. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
 superseded gaps. A test result below is scoped to what was actually executed.
 
-## 0.2.1 macOS signing correction
+## 0.2.0 macOS signing correction
 
 The published 0.2.0 Mac archive reproduced the user's **damaged and can't be
 opened** Gatekeeper error. `codesign --verify --deep --strict` showed that the
 archive preserved executable modes but lacked a complete app-bundle signature.
 
-Version 0.2.1 configures Tauri's ad-hoc identity and keeps hardened runtime
+The corrected 0.2.0 build configures Tauri's ad-hoc identity and keeps hardened runtime
 disabled. Enabling the runtime caused the re-signed PyInstaller sidecar to fail
 while loading its extracted Python library because the process and mapped file
 had different code identities. The release test now strips signatures from
 temporary copies before checking sidecar content, verifies the complete bundle
 signature, then launches the archived sidecar. The corrected local archive
 passed all **15 applicable release checks**; four Windows-only checks skipped.
-`AgentSpace_0.2.1_aarch64-apple-darwin.app.zip` is 24,185,918 bytes with local
-SHA-256 `dc255ce360df9f4252180838b6479e666d979967373ceb32dd8d70a30fbbe28e`.
+`AgentSpace_0.2.0_aarch64-apple-darwin.app.zip` is 24,188,613 bytes with local
+SHA-256 `3d1ebcc69b79cf3ed5dd4691722488c3928e1a7743c3746a2e9992a3e32d4719`.
 
 ## 0.2.0 preparation
 
@@ -27,9 +27,9 @@ The [v0.2.0 release page](https://github.com/Zocke07/AgentBase/releases/tag/v0.2
 is the authority for publication status and downloadable artifacts. The tag
 workflow is the authority for cross-platform CI results.
 
-On Apple Silicon macOS, `just ci` passed with **734 backend tests and 313
+On Apple Silicon macOS, `just ci` passed with **738 backend tests and 313
 frontend tests** after the documentation, version and Discord mention changes.
-Ten backend tests skipped because their current build or platform prerequisite
+Eight backend tests skipped because their current build or platform prerequisite
 was absent. The first run inside the managed command sandbox failed because it
 blocked DNS and PyInstaller's System V semaphore; the same gate passed with
 normal OS facilities.

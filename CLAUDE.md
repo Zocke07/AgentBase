@@ -15,11 +15,11 @@ and disconnects their stored keys.
 
 - Phases 0 through 9 and the spaces redesign are implemented. Do not restart
   Phase 0 or replace completed work from an earlier phase.
-- The current release line is **0.2.1**. It includes the Windows installer and
-  an ad-hoc signed, unnotarized Apple Silicon macOS app archive. Version 0.2.1
-  replaces the Mac archive from 0.2.0, whose incomplete bundle signature made
-  Gatekeeper report that the app was damaged. Check the release page and tag
-  workflow for publication status and cross-platform CI evidence.
+- The current release line is **0.2.0**. It includes the Windows installer and
+  an ad-hoc signed, unnotarized Apple Silicon macOS app archive. An incomplete
+  first Mac archive made Gatekeeper report that the app was damaged; the
+  corrected 0.2.0 bundle has a complete code seal. Check the release page and
+  tag workflow for publication status and cross-platform CI evidence.
 - The UI has a left rail, spaces, Home, Runs, Agents, Space settings, and
   app-wide Settings. Approvals are docked. Discord is the only chat adapter;
   Telegram was removed on 2026-09-11.

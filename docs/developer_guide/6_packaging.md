@@ -18,8 +18,8 @@ Windows, `aarch64-apple-darwin` (Apple Silicon) or `x86_64-apple-darwin`
 |---|---|---|
 | Bundle target | `nsis` | `app` |
 | Bundle location | `apps/desktop/src-tauri/target/release/bundle/nsis/` | `apps/desktop/src-tauri/target/release/bundle/macos/` |
-| Distribution file | `AgentSpace_0.2.1_x64-setup.exe` | `AgentSpace_0.2.1_<target-triple>.app.zip` |
-| Silent install | `AgentSpace_0.2.1_x64-setup.exe /S` | N/A (extract and copy the `.app`) |
+| Distribution file | `AgentSpace_0.2.0_x64-setup.exe` | `AgentSpace_0.2.0_<target-triple>.app.zip` |
+| Silent install | `AgentSpace_0.2.0_x64-setup.exe /S` | N/A (extract and copy the `.app`) |
 | `verify-installed` | Installs the NSIS `.exe` and runs it | Not applicable (no NSIS on macOS) |
 
 Things that will bite:
@@ -47,7 +47,7 @@ Things that will bite:
 `just package-macos` archives the existing release bundle with
 `ditto -c -k --sequesterRsrc --keepParent`. The filename includes the version and
 actual host target triple. A typical Apple Silicon build produces
-`AgentSpace_0.2.1_aarch64-apple-darwin.app.zip` in the macOS bundle directory.
+`AgentSpace_0.2.0_aarch64-apple-darwin.app.zip` in the macOS bundle directory.
 This is a native architecture build, not a universal binary.
 
 Upload the archive as a single file. Uploading an unpacked `.app` through the
@@ -62,7 +62,7 @@ not click through Gatekeeper or exercise the extracted Tauri window.
 
 The app is not Developer ID signed or notarized. A local build has no download
 quarantine attribute, so successfully opening it does not verify the experience
-of a user downloading the release. The [0.2.1 release notes](../releases/0.2.1.md)
+of a user downloading the release. The [0.2.0 release notes](../releases/0.2.0.md)
 document Gatekeeper's **Open Anyway** path, the quarantine-removal command, and
 the separate Keychain access prompt. Developer ID signing and notarization
 remain out of scope for this release.

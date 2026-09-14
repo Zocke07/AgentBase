@@ -462,7 +462,7 @@ originating chat channel, and a channel-originated tool call still hits the appr
 - Document macOS Gatekeeper's **Privacy & Security > Open Anyway** path and the scoped
   `xattr -dr com.apple.quarantine /Applications/AgentSpace.app` fallback, plus the keychain
   access prompt after an app update. The first 0.2.0 archive omitted a complete app-bundle
-  signature and Gatekeeper reported it as damaged. Version 0.2.1 corrects that with Tauri's
+  signature and Gatekeeper reported it as damaged. The corrected 0.2.0 release uses Tauri's
   ad-hoc identity and a strict signature check. Hardened runtime stays disabled because
   re-signing the PyInstaller one-file sidecar with it enabled prevents the extracted Python
   library from loading. Revisit the runtime and entitlements with Developer ID signing and

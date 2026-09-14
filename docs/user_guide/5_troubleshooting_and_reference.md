@@ -12,12 +12,11 @@ server from another launch on that port and refused to attach to it. The
 installed app uses the fixed address `127.0.0.1:8787`.
 
 **macOS blocks the app.**
-Follow the [macOS installation steps](1_getting_started.md#macos). Replace the
-0.2.0 Mac download with 0.2.1: the earlier archive had an incomplete bundle
-signature that Gatekeeper could report as damaged. Version 0.2.1 is ad-hoc
-signed but does not have a trusted Developer ID signature or Apple
-notarization. The Gatekeeper exception and the later keychain access prompt are
-separate.
+Follow the [macOS installation steps](1_getting_started.md#macos). The corrected
+0.2.0 archive is ad-hoc signed but does not have a trusted Developer ID
+signature or Apple notarization. The Gatekeeper exception and the later
+keychain access prompt are separate. If an earlier 0.2.0 download reports that
+the app is damaged, download the current archive again.
 
 **Home says there is no API key, or a run fails with “No API key.”**
 In **Settings → Keys**, set the key for the selected provider, then quit and

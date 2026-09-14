@@ -61,8 +61,8 @@ right for `just test` and wrong for a release, so this recipe passes
 
 ## Installing
 
-Download `AgentSpace_0.2.1_x64-setup.exe` for Windows x64 or
-`AgentSpace_0.2.1_aarch64-apple-darwin.app.zip` for Apple Silicon macOS from the
+Download `AgentSpace_0.2.0_x64-setup.exe` for Windows x64 or
+`AgentSpace_0.2.0_aarch64-apple-darwin.app.zip` for Apple Silicon macOS from the
 [latest release](https://github.com/Zocke07/AgentBase/releases/latest), or from the artifacts of a green
 [build run](https://github.com/Zocke07/AgentBase/actions/workflows/build.yml). See the
 [User Guide](docs/user_guide/1_getting_started.md) for both installation paths.

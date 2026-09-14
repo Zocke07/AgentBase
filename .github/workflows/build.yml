@@ -152,12 +152,23 @@ jobs:
           name: AgentSpace-macos-app
           path: dist
 
-      # Shipped unsigned; the release notes say so.
-      - name: Create the release
+      # A corrected tag may need to replace an existing release's notes and
+      # assets. The macOS app has an ad-hoc signature but is not notarized.
+      - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/*-setup.exe dist/*.app.zip \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "AgentSpace $GITHUB_REF_NAME" \
-            --notes-file "docs/releases/${GITHUB_REF_NAME#v}.md"
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "AgentSpace $GITHUB_REF_NAME" \
+              --notes-file "docs/releases/${GITHUB_REF_NAME#v}.md"
+            gh release upload "$GITHUB_REF_NAME" dist/*-setup.exe dist/*.app.zip \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/*-setup.exe dist/*.app.zip \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "AgentSpace $GITHUB_REF_NAME" \
+              --notes-file "docs/releases/${GITHUB_REF_NAME#v}.md"
+          fi

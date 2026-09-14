@@ -79,7 +79,7 @@ is not coverage of it.
 
 ```
 test (windows, macos)  →  build (windows, macos)  →  smoke (windows)  →  release (tag only)
-     just ci                just build-installer       just verify-installed   gh release create
+     just ci                just build-installer       just verify-installed   gh release create/edit
                             just package-macos (macOS)
                             just verify-build
                             just check-tauri
