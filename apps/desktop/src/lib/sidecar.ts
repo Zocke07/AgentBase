@@ -9,8 +9,12 @@ import type { HealthResponse } from "@agentspace/schemas";
 /** Matches `agentspace.config.DEFAULT_BIND_PORT` and the Rust `SIDECAR_PORT`. */
 const DEFAULT_BASE_URL = "http://127.0.0.1:8787";
 
-/** How long to keep retrying before calling it a failure. */
-const STARTUP_ATTEMPTS = 40;
+/**
+ * How long to keep retrying before calling it a failure. A quarantined app
+ * launched from Downloads can run under macOS App Translocation, where the
+ * frozen sidecar's first extraction has taken close to two minutes.
+ */
+const STARTUP_ATTEMPTS = 480;
 const RETRY_DELAY_MS = 250;
 /** How long one `/health` request may take before the attempt counts as failed. */
 const HEALTH_TIMEOUT_MS = 2_000;

@@ -66,7 +66,7 @@ describe("connectWithRetry", () => {
 
     const last = seen.at(-1);
     expect(last).toMatchObject({ kind: "failed", message: "Failed to fetch" });
-    expect(seen.filter((status) => status.kind === "connecting")).toHaveLength(40);
+    expect(seen.filter((status) => status.kind === "connecting")).toHaveLength(480);
   });
 
   it("keeps retrying while the port answers as something else, and says so when it gives up", async () => {
@@ -89,7 +89,7 @@ describe("connectWithRetry", () => {
       const last = seen.at(-1);
       expect(last?.kind).toBe("failed");
       expect(last?.kind === "failed" ? last.message : "").toMatch(/something else is listening/i);
-      expect(seen.filter((status) => status.kind === "connecting")).toHaveLength(40);
+      expect(seen.filter((status) => status.kind === "connecting")).toHaveLength(480);
     } finally {
       leave();
     }
@@ -134,7 +134,7 @@ describe("connectWithRetry", () => {
     await loop;
 
     expect(seen.some((status) => status.kind === "failed")).toBe(false);
-    expect(seen.length).toBeLessThan(40);
+    expect(seen.length).toBeLessThan(480);
   });
 });
 
