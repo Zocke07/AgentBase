@@ -47,3 +47,12 @@ def test_every_release_version_identifies_the_same_build() -> None:
 
     assert set(versions.values()) == {__version__}, versions
     assert (REPO_ROOT / "docs" / "releases" / f"{__version__}.md").is_file()
+
+
+def test_macos_release_requests_an_ad_hoc_signature() -> None:
+    """Browser downloads need a bundle seal that leaves PyInstaller runnable."""
+    tauri = _json("apps/desktop/src-tauri/tauri.conf.json")
+    macos = tauri["bundle"]["macOS"]
+
+    assert macos["signingIdentity"] == "-"
+    assert macos["hardenedRuntime"] is False

@@ -41,6 +41,10 @@
     "category": "DeveloperTool",
     "shortDescription": "Watch AI agents collaborate on a task, live.",
     "longDescription": "A local-first co-working space where multiple AI agents collaborate on a task and you watch them work in real time on a live graph.",
+    "macOS": {
+      "hardenedRuntime": false,
+      "signingIdentity": "-"
+    },
     "windows": {
       "webviewInstallMode": {
         "type": "embedBootstrapper"

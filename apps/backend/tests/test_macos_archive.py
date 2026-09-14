@@ -11,6 +11,7 @@ import json
 import os
 import platform
 import plistlib
+import shutil
 import socket
 import stat
 import subprocess
@@ -61,7 +62,18 @@ def _sha256(path: Path) -> str:
         return hashlib.file_digest(handle, "sha256").hexdigest()
 
 
-def test_archive_preserves_the_current_app_and_executable_modes(extracted_app: Path) -> None:
+def _sha256_without_signature(source: Path, destination: Path) -> str:
+    """Compare Mach-O content while allowing Tauri to replace its signature."""
+    shutil.copy2(source, destination)
+    subprocess.run(  # noqa: S603
+        ["/usr/bin/codesign", "--remove-signature", str(destination)], check=True
+    )
+    return _sha256(destination)
+
+
+def test_archive_preserves_the_current_app_and_executable_modes(
+    extracted_app: Path, tmp_path: Path
+) -> None:
     with (extracted_app / "Contents" / "Info.plist").open("rb") as handle:
         info = plistlib.load(handle)
     assert info["CFBundleShortVersionString"] == VERSION
@@ -83,7 +95,37 @@ def test_archive_preserves_the_current_app_and_executable_modes(extracted_app: P
             )
             extracted = extracted_app / "Contents" / "MacOS" / name
             assert os.access(extracted, os.X_OK), f"{name} is not executable after extraction"
-            assert _sha256(extracted) == _sha256(source), f"the archive carries stale {name}"
+            assert _sha256_without_signature(
+                extracted, tmp_path / f"{name}-archive"
+            ) == _sha256_without_signature(source, tmp_path / f"{name}-source"), (
+                f"the archive carries stale {name}"
+            )
+
+
+def test_extracted_app_has_a_valid_complete_signature(extracted_app: Path) -> None:
+    """A linker-signed executable is not a valid signature for the app bundle.
+
+    Gatekeeper reports that incomplete shape as a damaged application after a
+    browser adds quarantine. Tauri must ad-hoc sign the complete bundle before
+    it is archived.
+    """
+    verified = subprocess.run(  # noqa: S603
+        [
+            "/usr/bin/codesign",
+            "--verify",
+            "--deep",
+            "--strict",
+            "--verbose=4",
+            str(extracted_app),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    output = "\n".join(part for part in (verified.stdout, verified.stderr) if part)
+    assert verified.returncode == 0, (
+        "the archived app has an invalid or incomplete macOS signature:\n" + output
+    )
 
 
 def _wait_for_port(open_: bool, timeout: float = 20) -> bool:
