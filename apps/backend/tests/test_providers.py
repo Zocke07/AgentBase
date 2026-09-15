@@ -28,6 +28,7 @@ from agentspace.providers.base import (
     TokenUsage,
     ToolSpec,
 )
+from agentspace.providers.chatgpt import ChatGPTAuthStatus, ChatGPTModelResponse
 from agentspace.providers.factory import (
     SUPPORTED_PROVIDERS,
     UnknownProviderError,
@@ -605,6 +606,34 @@ async def test_the_factory_builds_each_supported_provider() -> None:
     ):
         provider = build_provider(WorkspaceSettings(provider=name, model=model), secrets)
         assert provider.name == name
+
+
+class ConnectedChatGPTRuntime:
+    async def status(self) -> ChatGPTAuthStatus:
+        return ChatGPTAuthStatus(state="connected", email="person@example.com", plan="plus")
+
+    async def infer(
+        self,
+        model: str,
+        messages: list[Message],
+        tools: list[ToolSpec] | None,
+        *,
+        system: str | None,
+        max_tokens: int,
+    ) -> ChatGPTModelResponse:
+        return ChatGPTModelResponse(model=model, text="ok", usage=TokenUsage())
+
+
+async def test_factory_keeps_openai_identity_when_access_uses_chatgpt() -> None:
+    provider = build_provider(
+        WorkspaceSettings(provider="openai", model="gpt-5.6-terra", openai_access="chatgpt"),
+        SecretStore(),
+        chatgpt_runtime=ConnectedChatGPTRuntime(),
+    )
+
+    assert provider.name == "openai"
+    assert provider.model == "gpt-5.6-terra"
+    assert isinstance(provider, Provider)
 
 
 async def test_qualified_model_is_what_the_built_provider_reports() -> None:

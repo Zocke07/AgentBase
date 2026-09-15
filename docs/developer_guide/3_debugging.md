@@ -11,6 +11,7 @@ live OpenAPI document. Every route is callable from there. Useful ones:
 |---|---|
 | `GET /settings` | effective settings, **which** secrets arrived, whether the model is priced |
 | `POST /settings/verify?space_id=<id>` | can the space's effective settings and startup secrets build a priced provider; makes no remote API call |
+| `GET /auth/chatgpt` | ChatGPT connection state and safe account metadata, never tokens |
 | `GET /channels` | is Discord connected, `last_error`, who was refused |
 | `GET /spaces/{id}` | the space's stored rule overrides, folder and default-space flag |
 | `GET /runs?space_id=<id>` | runs belonging to that space |
@@ -77,6 +78,9 @@ user. Read it from the history endpoint or the UI before reading code:
 
 - *"No API key for anthropic…"*: the handshake did not carry it. Check
   `configured_secrets` in `GET /settings`.
+- *"ChatGPT is not signed in…"*: inspect `GET /auth/chatgpt`, then connect the
+  account from **Settings > Model**. An `error` state usually names the missing
+  credential-store or runtime problem.
 - *"This call would exceed the monthly budget…"*: the ledger refused before
   the call. `GET /budget`.
 - *"no price is registered for model…"*: follow the

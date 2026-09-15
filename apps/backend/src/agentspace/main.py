@@ -31,6 +31,7 @@ from pydantic import BaseModel
 from agentspace import __version__
 from agentspace.api.agents import router as agents_router
 from agentspace.api.approvals import router as approvals_router
+from agentspace.api.auth import router as auth_router
 from agentspace.api.channels import router as channels_router
 from agentspace.api.runs import router as runs_router
 from agentspace.api.settings import router as settings_router
@@ -49,6 +50,7 @@ from agentspace.config import (
 from agentspace.events.bus import EventBus
 from agentspace.events.store import EventStore
 from agentspace.orchestrator.launcher import RunLauncher
+from agentspace.providers.chatgpt import ChatGPTRuntime, CodexAppServerRuntime
 from agentspace.secrets import SecretStore, parse_secrets_line
 from agentspace.store.agents import AgentDefStore
 from agentspace.store.db import Database
@@ -90,6 +92,7 @@ def create_app(
     paths: AppPaths | None = None,
     secrets: SecretStore | None = None,
     instance: str | None = None,
+    chatgpt_runtime: ChatGPTRuntime | None = None,
 ) -> FastAPI:
     """Build the ASGI application.
 
@@ -128,6 +131,9 @@ def create_app(
         app.state.settings = SettingsStore(database)
         app.state.agents = AgentDefStore(database, app.state.settings)
         app.state.ledger = BudgetLedger(database, app.state.settings, app.state.store)
+        app.state.chatgpt_runtime = chatgpt_runtime or CodexAppServerRuntime(
+            resolved.data_dir / "codex"
+        )
 
         approval_store = ApprovalStore(database)
         app.state.approvals = ApprovalService(approval_store, app.state.store)
@@ -152,6 +158,7 @@ def create_app(
             secrets=secret_store,
             runtime=app.state.tool_runtime,
             spaces=app.state.spaces,
+            chatgpt_runtime=app.state.chatgpt_runtime,
             tasks=app.state.background_tasks,
         )
 
@@ -195,6 +202,7 @@ def create_app(
                 task.cancel()
             if app.state.background_tasks:
                 await asyncio.gather(*app.state.background_tasks, return_exceptions=True)
+            await app.state.chatgpt_runtime.aclose()
             database.close()
 
     app = FastAPI(
@@ -222,6 +230,7 @@ def create_app(
 
     app.include_router(agents_router)
     app.include_router(approvals_router)
+    app.include_router(auth_router)
     app.include_router(channels_router)
     app.include_router(runs_router)
     app.include_router(settings_router)

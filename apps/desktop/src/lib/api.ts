@@ -3,6 +3,8 @@ import type {
   ApprovalResponse,
   BudgetResponse,
   ChannelStatusResponse,
+  ChatGPTAuthResponse,
+  ChatGPTLoginResponse,
   CreateAgentRequest,
   CreateSpaceRequest,
   Event,
@@ -261,3 +263,16 @@ export const listProviders = (): Promise<ProviderCatalogueResponse> =>
  */
 export const verifySettings = (spaceId?: string): Promise<VerifyResponse> =>
   request<VerifyResponse>(`/settings/verify${query({ space_id: spaceId })}`, { method: "POST" });
+
+/** OAuth state only. Tokens stay inside the pinned Codex runtime and OS keychain. */
+export const getChatGPTAuth = (): Promise<ChatGPTAuthResponse> =>
+  request<ChatGPTAuthResponse>("/auth/chatgpt");
+
+export const startChatGPTLogin = (): Promise<ChatGPTLoginResponse> =>
+  request<ChatGPTLoginResponse>("/auth/chatgpt/login", { method: "POST" });
+
+export const cancelChatGPTLogin = (): Promise<void> =>
+  requestNoContent("/auth/chatgpt/login/cancel", { method: "POST" });
+
+export const logoutChatGPT = (): Promise<void> =>
+  requestNoContent("/auth/chatgpt/logout", { method: "POST" });

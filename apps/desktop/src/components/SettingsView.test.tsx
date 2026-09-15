@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
+import * as external from "../lib/external";
 import * as keychain from "../lib/keychain";
 
 import { SettingsView } from "./SettingsView";
@@ -24,6 +25,14 @@ vi.mock("../lib/api", async (importOriginal) => ({
   listProviders: vi.fn(),
   verifySettings: vi.fn(),
   getChannels: vi.fn(),
+  getChatGPTAuth: vi.fn(),
+  startChatGPTLogin: vi.fn(),
+  cancelChatGPTLogin: vi.fn(),
+  logoutChatGPT: vi.fn(),
+}));
+
+vi.mock("../lib/external", () => ({
+  openChatGPTAuthUrl: vi.fn(),
 }));
 
 vi.mock("../lib/keychain", () => ({
@@ -38,6 +47,7 @@ const settings: SettingsResponse = {
   settings: {
     provider: "anthropic",
     model: "claude-opus-5",
+    openai_access: "api_key",
     monthly_cap_micros: 20_000_000,
     ollama_base_url: "http://127.0.0.1:11434",
     auto_approve: [],
@@ -71,6 +81,19 @@ beforeEach(() => {
   mocked.getChannels.mockResolvedValue([
     { channel: "discord", enabled: false, configured: false, running: false, failures: 0, last_error: null, refused: [] },
   ]);
+  mocked.getChatGPTAuth.mockResolvedValue({
+    state: "disconnected",
+    email: null,
+    plan: null,
+    error: null,
+  });
+  mocked.startChatGPTLogin.mockResolvedValue({
+    login_id: "login_123",
+    auth_url: "https://auth.openai.com/oauth/authorize?client_id=test",
+  });
+  mocked.cancelChatGPTLogin.mockResolvedValue(undefined);
+  mocked.logoutChatGPT.mockResolvedValue(undefined);
+  vi.mocked(external.openChatGPTAuthUrl).mockResolvedValue(undefined);
   vi.mocked(keychain.keychainAvailable).mockReturnValue(false);
 });
 
@@ -163,6 +186,60 @@ describe("the model", () => {
     await user.selectOptions(screen.getByTestId("setting-provider"), "ollama");
     expect(screen.getByTestId("setting-model").tagName).toBe("INPUT");
     expect(screen.getByTestId("setting-ollama-url")).toBeDefined();
+  });
+
+  it("keeps ChatGPT subscription access under the OpenAI provider", async () => {
+    const user = userEvent.setup();
+    view();
+    await loaded();
+
+    await user.selectOptions(screen.getByTestId("setting-provider"), "openai");
+    await user.selectOptions(screen.getByTestId("setting-model"), "gpt-4o");
+    await user.click(screen.getByTestId("setting-openai-chatgpt"));
+    await user.click(screen.getByRole("button", { name: "Save settings" }));
+
+    expect(mocked.updateSettings).toHaveBeenCalledWith({
+      provider: "openai",
+      model: "gpt-4o",
+      openai_access: "chatgpt",
+    });
+    expect(screen.getByTestId("openai-access").textContent).toContain("same OpenAI provider");
+  });
+
+  it("starts ChatGPT OAuth and opens only the runtime's browser URL", async () => {
+    const user = userEvent.setup();
+    view();
+    await loaded();
+
+    await user.selectOptions(screen.getByTestId("setting-provider"), "openai");
+    await user.click(screen.getByTestId("setting-openai-chatgpt"));
+    await user.click(screen.getByRole("button", { name: "Sign in with ChatGPT" }));
+
+    expect(mocked.startChatGPTLogin).toHaveBeenCalledOnce();
+    expect(external.openChatGPTAuthUrl).toHaveBeenCalledWith(
+      "https://auth.openai.com/oauth/authorize?client_id=test",
+    );
+  });
+
+  it("shows the connected ChatGPT account and can sign out", async () => {
+    const user = userEvent.setup();
+    mocked.getChatGPTAuth.mockResolvedValue({
+      state: "connected",
+      email: "person@example.com",
+      plan: "plus",
+      error: null,
+    });
+    view();
+    await loaded();
+
+    await user.selectOptions(screen.getByTestId("setting-provider"), "openai");
+    await user.click(screen.getByTestId("setting-openai-chatgpt"));
+
+    expect((await screen.findByTestId("chatgpt-auth")).textContent).toContain(
+      "person@example.com",
+    );
+    await user.click(screen.getByRole("button", { name: "Sign out" }));
+    expect(mocked.logoutChatGPT).toHaveBeenCalledOnce();
   });
 
   it("verifies on demand and shows the sidecar's reason", async () => {

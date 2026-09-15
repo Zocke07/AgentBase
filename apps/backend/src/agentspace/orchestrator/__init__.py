@@ -37,6 +37,7 @@ if TYPE_CHECKING:
     from agentspace.budget.ledger import BudgetLedger
     from agentspace.events.store import EventStore
     from agentspace.providers.base import Provider
+    from agentspace.providers.chatgpt import ChatGPTInferenceRuntime
     from agentspace.secrets import SecretStore
     from agentspace.store.agents import AgentDefStore
     from agentspace.store.settings import SettingsStore, WorkspaceSettings
@@ -72,6 +73,7 @@ async def execute_run(
     runtime: ToolRuntime | None = None,
     client: httpx2.AsyncClient | None = None,
     provider: Provider | None = None,
+    chatgpt_runtime: ChatGPTInferenceRuntime | None = None,
     clock: Callable[[], float] | None = None,
     live: MutableMapping[str, Run] | None = None,
     space: Space | None = None,
@@ -107,7 +109,17 @@ async def execute_run(
     if live is not None:
         live[run_id] = run
     try:
-        await _execute(run, agents, ledger, secrets, workspace, runtime, client, provider)
+        await _execute(
+            run,
+            agents,
+            ledger,
+            secrets,
+            workspace,
+            runtime,
+            client,
+            provider,
+            chatgpt_runtime,
+        )
     finally:
         if live is not None:
             live.pop(run_id, None)
@@ -122,6 +134,7 @@ async def _execute(
     runtime: ToolRuntime | None,
     client: httpx2.AsyncClient | None,
     provider: Provider | None,
+    chatgpt_runtime: ChatGPTInferenceRuntime | None,
 ) -> None:
     """`execute_run` proper, once the run is registered as live."""
     run_id = run.id
@@ -139,6 +152,7 @@ async def _execute(
         ledger,
         run_id,
         client,
+        chatgpt_runtime,
         override=BudgetedProvider(provider, ledger, run_id) if provider is not None else None,
     )
 

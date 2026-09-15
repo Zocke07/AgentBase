@@ -133,6 +133,20 @@ def test_switching_provider_is_an_http_call_and_nothing_else(client: TestClient)
     assert client.get("/settings").json()["settings"]["model"] == "gpt-5.4"
 
 
+def test_openai_access_mode_is_a_persisted_setting(client: TestClient) -> None:
+    response = client.patch("/settings", json={"openai_access": "chatgpt"})
+
+    assert response.status_code == 200
+    assert response.json()["settings"]["openai_access"] == "chatgpt"
+    assert client.get("/settings").json()["settings"]["openai_access"] == "chatgpt"
+
+
+def test_an_unknown_openai_access_mode_is_rejected(client: TestClient) -> None:
+    response = client.patch("/settings", json={"openai_access": "shared-password"})
+
+    assert response.status_code == 422
+
+
 def test_the_switch_survives_a_restart(app_paths: AppPaths, secrets: SecretStore) -> None:
     """A setting that lives only in memory is not a setting."""
     with TestClient(create_app(app_paths, secrets=secrets)) as first:

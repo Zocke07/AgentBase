@@ -79,10 +79,11 @@ from before spaces existed keeps its files: the old `workspace` folder becomes
 the default space's folder on the first launch.
 
 Once it is installed, the **[User Guide](docs/user_guide/README.md)** covers everything
-after the first launch: adding an API key or using a local model, changing
-settings, starting a run, answering approvals, defining agents, and connecting
-Discord. Keys are entered under **Settings > Keys**, written to the operating
-system's credential store, and read the next time the app starts.
+after the first launch: connecting an API key or ChatGPT subscription, using a
+local model, changing settings, starting a run, answering approvals, defining
+agents, and connecting Discord. Credentials stay in the operating system's
+credential store. API keys are entered under **Settings > Keys** and read the
+next time the app starts.
 
 ## CI
 

@@ -26,6 +26,21 @@ leaves the key unavailable: relaunch and allow the named keychain item. Check
 whether the space or an individual agent selects a different provider from
 the app default.
 
+**ChatGPT subscription says disconnected or connecting.**
+In **Settings → Model**, select **openai** and **ChatGPT subscription**, then
+click **Connect ChatGPT**. Complete the OpenAI page in the browser and return
+to the app. If the page did not open, retry and allow the browser window. Use
+**Cancel** to discard a stuck attempt, or **Sign out** and connect again. The
+OS must provide a working credential store; AgentSpace deliberately refuses
+plaintext fallback storage.
+
+**ChatGPT is connected, but the selected OpenAI model fails.**
+ChatGPT plans and API accounts can offer different model entitlements and
+usage allowances. AgentSpace sends the same selected model id in both modes
+and never substitutes a different one. Choose a model available to the plan,
+wait for its usage allowance to reset, or switch **OpenAI access** back to
+**API key**.
+
 **Check says Ready, but a real run fails.**
 **Settings → Model → Check** checks the saved local configuration. It does
 not authenticate with the provider or send a model request. Read the run's
@@ -67,7 +82,9 @@ closed are expired on its next start.
 **The budget cap is reached.**
 Raise **Settings → Monthly budget → Monthly cap (USD)** or wait for the next
 UTC calendar month. The cap spans all spaces, and deleting runs preserves
-the spending already recorded.
+the spending already recorded. ChatGPT subscription calls use the selected
+model's API-equivalent price for this local safety cap; the recorded amount is
+not an API bill.
 
 **A run or agent disappeared after switching spaces.**
 Runs and rosters are shown for the selected space. Switch back, or inspect
@@ -161,6 +178,10 @@ cannot store secrets in the OS keychain.
 | `PATCH /settings` | Change app defaults; unknown fields are refused. |
 | `GET /settings/providers` | Providers and the model names priced by this build. |
 | `POST /settings/verify` | Check local provider configuration without calling a model. |
+| `GET /auth/chatgpt` | Safe ChatGPT connection status; never an OAuth token. |
+| `POST /auth/chatgpt/login` | Start ChatGPT browser sign-in. |
+| `POST /auth/chatgpt/login/cancel` | Cancel the active sign-in attempt. |
+| `POST /auth/chatgpt/logout` | Remove the ChatGPT session from the credential store. |
 | `GET /budget` | Shared monthly spend and cap. |
 | `GET /spaces` | Spaces and their folder paths. |
 | `GET /agents` | Agent definitions; use `space_id` to select a roster. |

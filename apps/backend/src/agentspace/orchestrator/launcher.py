@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from agentspace.events.types import RunOrigin
     from agentspace.orchestrator.run import Run
     from agentspace.providers.base import Provider
+    from agentspace.providers.chatgpt import ChatGPTInferenceRuntime
     from agentspace.secrets import SecretStore
     from agentspace.store.agents import AgentDefStore
     from agentspace.store.settings import SettingsStore
@@ -53,6 +54,9 @@ class RunLauncher:
     #: Overrides the configured provider for every agent; tests pass a scripted
     #: one, and `execute_run` still wraps it in the budget guard.
     provider: Provider | None = None
+    #: Process-wide ChatGPT OAuth/model transport. It remains below the same
+    #: Provider contract as API-key access.
+    chatgpt_runtime: ChatGPTInferenceRuntime | None = None
     #: Strong references to in-flight tasks, since `asyncio` holds only weak ones.
     tasks: set[asyncio.Task[Any]] = field(default_factory=set)
     #: The runs in flight in this process, by id, so a cancel can reach them.
@@ -150,6 +154,7 @@ class RunLauncher:
             goal,
             runtime=self._runtime_for(space),
             provider=self.provider,
+            chatgpt_runtime=self.chatgpt_runtime,
             live=self.live,
             space=space,
         )

@@ -6,6 +6,10 @@ from typing import TYPE_CHECKING, Final
 
 from agentspace.providers.anthropic import AnthropicProvider
 from agentspace.providers.base import Provider, ProviderAuthError
+from agentspace.providers.chatgpt import (
+    ChatGPTInferenceRuntime,
+    ChatGPTSubscriptionProvider,
+)
 from agentspace.providers.ollama import MODEL_PREFIX as OLLAMA_MODEL_PREFIX
 from agentspace.providers.ollama import OllamaProvider
 from agentspace.providers.openai import OpenAIProvider
@@ -58,6 +62,7 @@ def build_provider(
     settings: WorkspaceSettings,
     secrets: SecretStore,
     client: httpx2.AsyncClient | None = None,
+    chatgpt_runtime: ChatGPTInferenceRuntime | None = None,
 ) -> Provider:
     """Build the provider named in ``settings``.
 
@@ -69,6 +74,13 @@ def build_provider(
 
     if name not in SUPPORTED_PROVIDERS:
         raise UnknownProviderError(name)
+
+    if name == "openai" and settings.openai_access == "chatgpt":
+        if chatgpt_runtime is None:
+            raise ProviderAuthError(
+                "ChatGPT subscription access is unavailable in this process."
+            )
+        return ChatGPTSubscriptionProvider(chatgpt_runtime, settings.model)
 
     required_secret = SUPPORTED_PROVIDERS[name]
     api_key = ""

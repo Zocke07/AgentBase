@@ -41,6 +41,12 @@ Things that will bite:
 - The sidecar's `--add-data` uses `;` on Windows and `:` on macOS/Linux; the
   justfile handles it. A wrong separator is not an error: it is a binary that
   starts and then cannot create its database.
+- ChatGPT access depends on the pinned `openai-codex` package and its
+  platform-specific `openai-codex-cli-bin` runtime. PyInstaller must keep the
+  dynamic `codex_cli_bin` import and collect that package's executable and
+  resources. The `/auth/chatgpt` sidecar smoke catches a bundle that starts but
+  omitted the Codex runtime. Expect a materially larger sidecar than releases
+  that contain only the Python backend.
 
 ## The macOS archive
 

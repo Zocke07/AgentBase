@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from agentspace.budget.ledger import current_period
 from agentspace.channels.identity import ChannelIdentity
 from agentspace.providers.base import ProviderAuthError
+from agentspace.providers.chatgpt import ChatGPTRuntime
 from agentspace.providers.factory import (
     SUPPORTED_PROVIDERS,
     UnknownProviderError,
@@ -23,7 +24,7 @@ from agentspace.providers.factory import (
 )
 from agentspace.providers.pricing import MODELS_BY_PROVIDER, PRICES, format_micros, is_priced
 from agentspace.secrets import SECRET_KEYS
-from agentspace.store.settings import ChannelApprovalPolicy, WorkspaceSettings
+from agentspace.store.settings import ChannelApprovalPolicy, OpenAIAccess, WorkspaceSettings
 from agentspace.store.spaces import SpaceArchivedError, SpaceNotFoundError
 from agentspace.tools.catalogue import RiskLevel
 
@@ -72,6 +73,7 @@ class UpdateSettingsRequest(BaseModel):
 
     provider: str | None = None
     model: str | None = Field(default=None, min_length=1)
+    openai_access: OpenAIAccess | None = None
     monthly_cap_micros: int | None = Field(default=None, ge=0)
     ollama_base_url: str | None = Field(default=None, min_length=1)
 
@@ -119,6 +121,11 @@ def _secrets(request: Request) -> SecretStore:
 def _ledger(request: Request) -> BudgetLedger:
     ledger: BudgetLedger = request.app.state.ledger
     return ledger
+
+
+def _chatgpt_runtime(request: Request) -> ChatGPTRuntime:
+    runtime: ChatGPTRuntime = request.app.state.chatgpt_runtime
+    return runtime
 
 
 def _spaces(request: Request) -> SpaceStore:
@@ -289,8 +296,21 @@ async def verify_provider(request: Request, space_id: str | None = None) -> Veri
             return VerifyResponse(ok=False, reason=SpaceArchivedError(space.name).args[0])
         settings = space.apply_to(settings)
 
+    if settings.provider == "openai" and settings.openai_access == "chatgpt":
+        auth = await _chatgpt_runtime(request).status()
+        if auth.state != "connected":
+            detail = f" {auth.error}" if auth.error else ""
+            return VerifyResponse(
+                ok=False,
+                reason=f"ChatGPT is not signed in. Sign in to ChatGPT in settings.{detail}",
+            )
+
     try:
-        provider = build_provider(settings, _secrets(request))
+        provider = build_provider(
+            settings,
+            _secrets(request),
+            chatgpt_runtime=_chatgpt_runtime(request),
+        )
     except UnknownProviderError as exc:
         return VerifyResponse(ok=False, reason=str(exc))
     except ProviderAuthError as exc:

@@ -107,8 +107,10 @@ estimate before a model call, refusing calls that would exceed the remaining
 budget. The accounting month uses UTC.
 
 Spending uses token counts and the prices bundled with this build. Your
-provider's bill is authoritative. Ollama adds no cost. Choosing a different
-space or deleting run history does not reset spending.
+provider's bill is authoritative. For ChatGPT subscription access, this is an
+API-equivalent safety estimate and is not an API charge; it keeps the same
+AgentSpace cap in force for both OpenAI access modes. Ollama adds no cost.
+Choosing a different space or deleting run history does not reset spending.
 
 | Limit | What happens when it is reached |
 |---|---|

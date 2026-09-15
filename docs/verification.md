@@ -1,8 +1,31 @@
 # Verification and remaining work
 
-Updated 2026-09-14. This is the current record; the
+Updated 2026-09-15. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
 superseded gaps. A test result below is scoped to what was actually executed.
+
+## ChatGPT subscription transport
+
+OpenAI API-key and ChatGPT subscription access now construct the same `openai`
+provider contract. The ChatGPT path uses a pinned Codex App Server runtime for
+OAuth and one structured model decision, while AgentSpace retains its own
+orchestrator, tool execution, approvals, events, limits and budget wrapper.
+
+On Apple Silicon macOS, `just check` passed for 102 Python source files on both
+macOS and Windows mypy targets plus desktop lint and typecheck. The full suites
+passed with **750 backend tests** and **319 frontend tests**; 11 backend tests
+skipped for absent platform or release-archive prerequisites. Rust formatting
+and its one auth-URL test passed. The freshly frozen sidecar is **133,046,736
+bytes**, SHA-256
+`097497ae43ab32c3a5d0273d6420bb3d42253d82da1acc6ef5c53ac68ae09b99`.
+All **13 frozen-sidecar tests** passed with normal macOS process facilities,
+including first-launch data, `/auth/chatgpt` runtime startup, event streaming,
+clean shutdown and zero orphan processes. The managed sandbox itself blocked
+the PyInstaller executable's process/semaphore startup, matching the existing
+release-check limitation recorded below. A separate direct launch of that
+frozen binary returned
+`{"state":"disconnected","email":null,"plan":null,"error":null}` from the
+auth endpoint, then stopped cleanly through its stdin shutdown command.
 
 ## 0.2.0 macOS signing correction
 
@@ -73,9 +96,14 @@ this session has not rerun those mutations. Coverage is not a mutation score.
 These remain open in the latest recorded evidence, even where scripted tests
 cover the behavior. They are not all release blockers.
 
-- A real OpenAI request, especially streamed usage accounting, and a run with
-  workers using different providers. Anthropic and Ollama already have live
-  evidence in the history; the old claim that no provider was called is stale.
+- A real OpenAI API-key request, especially streamed usage accounting, and a
+  run with workers using different providers. Anthropic and Ollama already
+  have live evidence in the history; the old claim that no provider was called
+  is stale.
+- Completing ChatGPT browser sign-in with a personal account and running a real
+  subscription-backed task. The isolated Codex runtime has started and reported
+  `disconnected`; automated tests cover auth lifecycle, one-decision transport,
+  normalized usage and tool calls, but no personal OAuth session was used.
 - A real model attempting to spawn another space's agent. Live runs proved
   that only the selected roster is offered; the refusal itself was scripted.
 - Discord starting a run in a non-default space, real mentions, multiple users

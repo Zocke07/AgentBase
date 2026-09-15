@@ -25,6 +25,13 @@ and disconnects their stored keys.
   Telegram was removed on 2026-09-11.
 - The latest recorded database migration is 006. Existing workspace files are
   adopted into the default space once; new spaces get their own folders.
+- OpenAI access can use either an API key or the user's ChatGPT subscription.
+  Both remain the `openai` provider and share the same AgentSpace behavior;
+  Codex App Server is a credential and single-decision inference transport,
+  never the agent orchestrator. Direct Claude subscription login is not
+  supported because Anthropic does not permit third-party Claude.ai login or
+  routing of Free, Pro or Max credentials. Its separate unmodified-Claude-Code
+  embedding exception is not an interchangeable provider credential transport.
 
 See [Verification](docs/verification.md) for executed checks, outstanding live
 checks and release status. Keep that document current instead of growing a
@@ -52,9 +59,11 @@ second chronological log here.
   use one reducer over an event prefix. Adding an event type updates the Python
   contract, generated TypeScript and reducer together. Model summaries are
   claims; executed tool calls are separate evidence.
-- API keys and the Discord token live in the OS keychain and reach the sidecar
-  over stdin at launch. Never put secrets in SQLite, files, logs or argv. The
-  webview can set/delete keys, not read them; changes require an app restart.
+- API keys, ChatGPT OAuth tokens and the Discord token live in the OS keychain.
+  API keys reach the sidecar over stdin at launch; ChatGPT OAuth is owned by the
+  pinned Codex runtime and only safe account status reaches the local API. Never
+  put secrets in SQLite, files, logs or argv. The webview can set/delete keys,
+  not read them; API key changes require an app restart.
 - Spawn-time key reads use the native `keyring` crate directly so a macOS
   access denial remains an error. Do not route these reads through the plugin's
   `get_password`, which discards the error. Ad-hoc builds can prompt again

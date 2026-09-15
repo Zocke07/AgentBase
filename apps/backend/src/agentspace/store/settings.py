@@ -27,6 +27,7 @@ __all__ = [
     "DEFAULT_MAX_RUN_SECONDS",
     "DEFAULT_MAX_STEPS_PER_AGENT",
     "DEFAULT_MONTHLY_CAP_MICROS",
+    "OpenAIAccess",
     "SettingsStore",
     "WorkspaceSettings",
 ]
@@ -39,6 +40,12 @@ DEFAULT_MONTHLY_CAP_MICROS: Final[int] = 20_000_000
 #: Default provider and model for a fresh install.
 DEFAULT_PROVIDER: Final[str] = "anthropic"
 DEFAULT_MODEL: Final[str] = "claude-opus-5"
+
+#: Which credential transport the OpenAI provider uses. It is app-wide like
+#: credentials themselves; spaces and agent definitions still select only a
+#: provider and model.
+OpenAIAccess = Literal["api_key", "chatgpt"]
+DEFAULT_OPENAI_ACCESS: Final[OpenAIAccess] = "api_key"
 
 #: Where a local Ollama daemon listens. Loopback, like everything else.
 DEFAULT_OLLAMA_BASE_URL: Final[str] = "http://127.0.0.1:11434"
@@ -71,6 +78,7 @@ class WorkspaceSettings(BaseModel):
 
     provider: str = DEFAULT_PROVIDER
     model: str = DEFAULT_MODEL
+    openai_access: OpenAIAccess = DEFAULT_OPENAI_ACCESS
     monthly_cap_micros: int = Field(default=DEFAULT_MONTHLY_CAP_MICROS, ge=0)
     ollama_base_url: str = DEFAULT_OLLAMA_BASE_URL
 

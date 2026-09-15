@@ -36,11 +36,7 @@ const KEYCHAIN_SERVICE: &str = "dev.agentspace.desktop";
 
 /// Keychain account names, which double as the JSON field names in the stdin
 /// handshake. Must match `agentspace.secrets.SECRET_KEYS`; a test compares them.
-const SECRET_NAMES: [&str; 3] = [
-    "anthropic_api_key",
-    "openai_api_key",
-    "discord_bot_token",
-];
+const SECRET_NAMES: [&str; 3] = ["anthropic_api_key", "openai_api_key", "discord_bot_token"];
 
 #[derive(Default)]
 struct SidecarState(Mutex<Option<CommandChild>>);
@@ -118,6 +114,29 @@ fn reveal_folder(app: AppHandle, path: String) -> Result<(), String> {
     app.opener()
         .open_path(wanted.to_string_lossy(), None::<&str>)
         .map_err(|error| error.to_string())
+}
+
+/// Open the OAuth page returned by Codex App Server. The webview cannot use
+/// the opener plugin directly, and this command accepts only OpenAI-owned
+/// HTTPS hosts rather than becoming a general URL launcher.
+#[tauri::command]
+fn open_auth_url(app: AppHandle, url: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+
+    if !auth_url_is_allowed(&url) {
+        return Err("refusing an unexpected ChatGPT sign-in URL".to_string());
+    }
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|error| error.to_string())
+}
+
+fn auth_url_is_allowed(url: &str) -> bool {
+    let Ok(parsed) = tauri::Url::parse(url) else {
+        return false;
+    };
+    let allowed_host = matches!(parsed.host_str(), Some("auth.openai.com" | "chatgpt.com"));
+    parsed.scheme() == "https" && allowed_host
 }
 
 /// Start the sidecar and keep its handle for shutdown. The data directory is
@@ -271,7 +290,8 @@ pub fn run() {
             sidecar_base_url,
             sidecar_instance,
             keychain_service,
-            reveal_folder
+            reveal_folder,
+            open_auth_url
         ])
         .setup(|app| {
             spawn_sidecar(app.handle())?;
@@ -285,4 +305,24 @@ pub fn run() {
             shutdown_sidecar(app);
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::auth_url_is_allowed;
+
+    #[test]
+    fn oauth_url_requires_an_exact_openai_https_host() {
+        assert!(auth_url_is_allowed(
+            "https://auth.openai.com/oauth/authorize?client_id=test"
+        ));
+        assert!(auth_url_is_allowed("https://chatgpt.com/auth/callback"));
+        assert!(!auth_url_is_allowed(
+            "http://auth.openai.com/oauth/authorize"
+        ));
+        assert!(!auth_url_is_allowed(
+            "https://auth.openai.com.example.com/phish"
+        ));
+        assert!(!auth_url_is_allowed("not a URL"));
+    }
 }

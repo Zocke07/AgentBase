@@ -17,6 +17,7 @@ dependencies = [
     # Discord is a stateful websocket with a heartbeat and a resume protocol,
     # and reimplementing that is a project, not an adapter.
     "discord-py>=2.4.0",
+    "openai-codex>=0.154.0",
 ]
 
 [dependency-groups]

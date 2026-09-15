@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from agentspace.budget.ledger import BudgetLedger
     from agentspace.orchestrator.limits import RunLimits
     from agentspace.providers.base import Provider, ToolSpec
+    from agentspace.providers.chatgpt import ChatGPTInferenceRuntime
     from agentspace.secrets import SecretStore
     from agentspace.store.agents import AgentDef, AgentDefStore
     from agentspace.store.settings import WorkspaceSettings
@@ -167,6 +168,7 @@ class ProviderPool:
         ledger: BudgetLedger,
         run_id: str,
         client: httpx2.AsyncClient | None = None,
+        chatgpt_runtime: ChatGPTInferenceRuntime | None = None,
         override: Provider | None = None,
     ) -> None:
         self._workspace = workspace
@@ -174,8 +176,9 @@ class ProviderPool:
         self._ledger = ledger
         self._run_id = run_id
         self._client = client
+        self._chatgpt_runtime = chatgpt_runtime
         self._override = override
-        self._cache: dict[tuple[str, str], Provider] = {}
+        self._cache: dict[tuple[str, str, str], Provider] = {}
 
     def default(self) -> Provider:
         """The workspace provider: the supervisor's, and any definition that pins nothing."""
@@ -208,13 +211,18 @@ class ProviderPool:
                 }
             )
 
-        key = (settings.provider, settings.model)
+        key = (settings.provider, settings.model, settings.openai_access)
         cached = self._cache.get(key)
         if cached is not None:
             return cached
 
         provider = BudgetedProvider(
-            build_provider(settings, self._secrets, self._client),
+            build_provider(
+                settings,
+                self._secrets,
+                self._client,
+                chatgpt_runtime=self._chatgpt_runtime,
+            ),
             self._ledger,
             self._run_id,
         )

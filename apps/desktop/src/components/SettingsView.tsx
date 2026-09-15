@@ -1,6 +1,7 @@
 import type {
   ChannelIdentity,
   ChannelStatusResponse,
+  ChatGPTAuthResponse,
   ProviderCatalogueResponse,
   RiskLevel,
   SettingsResponse,
@@ -9,10 +10,11 @@ import type {
   VerifyResponse,
   WorkspaceSettings,
 } from "@agentspace/schemas";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
+import { openChatGPTAuthUrl } from "../lib/external";
 import { clearSecret, keychainAvailable, setSecret } from "../lib/keychain";
 import { THEMES, useThemeStore, type Theme } from "../lib/theme";
 import { useFetched } from "../state/useFetched";
@@ -38,6 +40,7 @@ export interface SettingsViewProps {
 interface Form {
   provider: string;
   model: string;
+  openai_access: "api_key" | "chatgpt";
   ollama_base_url: string;
   /** Dollars, as typed. */
   cap: string;
@@ -64,6 +67,7 @@ function fromSettings(settings: WorkspaceSettings): Form {
   return {
     provider: settings.provider ?? "",
     model: settings.model ?? "",
+    openai_access: settings.openai_access ?? "api_key",
     ollama_base_url: settings.ollama_base_url ?? "",
     cap: ((settings.monthly_cap_micros ?? 0) / MICROS_PER_DOLLAR).toFixed(2),
     max_steps_per_agent: String(settings.max_steps_per_agent ?? ""),
@@ -97,6 +101,7 @@ function diff(opened: Form, form: Form): UpdateSettingsRequest {
   const patch: UpdateSettingsRequest = {};
   if (form.provider !== opened.provider) patch.provider = form.provider;
   if (form.model !== opened.model) patch.model = form.model;
+  if (form.openai_access !== opened.openai_access) patch.openai_access = form.openai_access;
   if (form.ollama_base_url !== opened.ollama_base_url) patch.ollama_base_url = form.ollama_base_url;
   const cap = dollarsToMicros(form.cap);
   if (form.cap !== opened.cap && cap !== null) patch.monthly_cap_micros = cap;
@@ -323,6 +328,45 @@ function SettingsForm({
             />
             <FieldError field="ollama_base_url" message={errorFor("ollama_base_url")} />
           </label>
+        )}
+
+        {form.provider === "openai" && (
+          <fieldset className="editor__tools" data-testid="openai-access">
+            <legend>OpenAI access</legend>
+            <label className="editor__tool">
+              <input
+                type="radio"
+                name="openai_access"
+                checked={form.openai_access === "api_key"}
+                onChange={() => {
+                  set("openai_access", "api_key");
+                }}
+                data-testid="setting-openai-api-key"
+              />
+              <span>API key</span>
+              <span className="editor__tool-description">Usage-based API billing</span>
+            </label>
+            <label className="editor__tool">
+              <input
+                type="radio"
+                name="openai_access"
+                checked={form.openai_access === "chatgpt"}
+                onChange={() => {
+                  set("openai_access", "chatgpt");
+                }}
+                data-testid="setting-openai-chatgpt"
+              />
+              <span>ChatGPT subscription</span>
+              <span className="editor__tool-description">Your personal monthly plan</span>
+            </label>
+            <p className="settings__hint">
+              Both modes use the same OpenAI provider, model setting, agent loop, tool approvals,
+              event log, and limits. Subscription calls count at the model&apos;s API-equivalent price
+              only for AgentSpace&apos;s safety cap; they are not API charges.
+            </p>
+            {form.openai_access === "chatgpt" && <ChatGPTAccount />}
+            <FieldError field="openai_access" message={errorFor("openai_access")} />
+          </fieldset>
         )}
 
         <div className="settings__verify">
@@ -600,6 +644,111 @@ function AppearanceSection() {
       </div>
       <p className="settings__hint">Applies to this window straight away, and is remembered on this computer.</p>
     </section>
+  );
+}
+
+const DISCONNECTED_CHATGPT: ChatGPTAuthResponse = {
+  state: "disconnected",
+  email: null,
+  plan: null,
+  error: null,
+};
+
+/** ChatGPT OAuth stays independent of saving the access-mode preference. */
+function ChatGPTAccount() {
+  const load = useCallback(() => api.getChatGPTAuth(), []);
+  const auth = useFetched(load, DISCONNECTED_CHATGPT);
+  const [working, setWorking] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (auth.data.state !== "connecting") return;
+    const timer = window.setInterval(auth.reload, 1_000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [auth.data.state, auth.reload]);
+
+  const act = async (operation: () => Promise<void>) => {
+    setWorking(true);
+    setFailure(null);
+    try {
+      await operation();
+      auth.reload();
+    } catch (error) {
+      setFailure(error instanceof Error ? error.message : String(error));
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const connect = () =>
+    act(async () => {
+      const attempt = await api.startChatGPTLogin();
+      await openChatGPTAuthUrl(attempt.auth_url);
+    });
+
+  const state = auth.loading
+    ? "checking"
+    : auth.data.state === "connected"
+      ? "connected"
+      : auth.data.state === "connecting"
+        ? "waiting for browser sign-in"
+        : "not connected";
+
+  return (
+    <div className="settings__oauth" data-testid="chatgpt-auth">
+      <div>
+        <span className={`status status--${auth.data.state === "connected" ? "running" : "pending"}`}>
+          {state}
+        </span>
+        {auth.data.email !== null && auth.data.email !== undefined && (
+          <span className="settings__oauth-account">
+            {" "}
+            · {auth.data.email}
+            {auth.data.plan !== null && auth.data.plan !== undefined ? ` · ${auth.data.plan}` : ""}
+          </span>
+        )}
+      </div>
+      <div className="settings__oauth-actions">
+        {auth.data.state === "connected" ? (
+          <button
+            type="button"
+            className="button button--small button--danger"
+            disabled={working}
+            onClick={() => void act(api.logoutChatGPT)}
+          >
+            Sign out
+          </button>
+        ) : auth.data.state === "connecting" ? (
+          <button
+            type="button"
+            className="button button--small"
+            disabled={working}
+            onClick={() => void act(api.cancelChatGPTLogin)}
+          >
+            Cancel sign-in
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="button button--small button--primary"
+            disabled={working}
+            onClick={() => void connect()}
+          >
+            {working ? "Opening…" : "Sign in with ChatGPT"}
+          </button>
+        )}
+        <button type="button" className="button button--small" onClick={auth.reload}>
+          Refresh
+        </button>
+      </div>
+      {(failure ?? auth.error ?? auth.data.error) !== null && (
+        <p className="settings__error" role="alert">
+          {failure ?? auth.error ?? auth.data.error}
+        </p>
+      )}
+    </div>
   );
 }
 

@@ -2,12 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   ApiError,
+  cancelChatGPTLogin,
   cancelRun,
   deleteAgent,
   deleteRun,
+  getChatGPTAuth,
   listRuns,
+  logoutChatGPT,
   onTransportFailure,
   resetBaseUrl,
+  startChatGPTLogin,
   updateSettings,
 } from "./api";
 
@@ -73,6 +77,29 @@ describe("requests", () => {
     fetchStub.mockResolvedValue(new Response(null, { status: 204 }));
 
     await expect(deleteAgent("def-1")).resolves.toBeUndefined();
+  });
+
+  it("uses the ChatGPT auth lifecycle routes without sending credential data", async () => {
+    fetchStub.mockResolvedValueOnce(respond(200, { state: "disconnected" }));
+    await getChatGPTAuth();
+
+    fetchStub.mockResolvedValueOnce(
+      respond(200, { login_id: "login_1", auth_url: "https://auth.openai.com/oauth/authorize" }),
+    );
+    await startChatGPTLogin();
+
+    fetchStub.mockResolvedValue(new Response(null, { status: 204 }));
+    await cancelChatGPTLogin();
+    await logoutChatGPT();
+
+    expect(
+      fetchStub.mock.calls.map(([url, init]) => [url, init?.method ?? "GET", init?.body]),
+    ).toEqual([
+      ["http://127.0.0.1:8787/auth/chatgpt", "GET", undefined],
+      ["http://127.0.0.1:8787/auth/chatgpt/login", "POST", undefined],
+      ["http://127.0.0.1:8787/auth/chatgpt/login/cancel", "POST", undefined],
+      ["http://127.0.0.1:8787/auth/chatgpt/logout", "POST", undefined],
+    ]);
   });
 
   it("deletes a run with DELETE on its own route, and surfaces the 409 for one still running", async () => {

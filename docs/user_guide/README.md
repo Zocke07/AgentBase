@@ -10,7 +10,8 @@ log show their work as it happens and let you replay it afterwards.
 A **space** groups a roster of agents, a folder for their files, and settings
 for their runs. The left rail switches between **Home**, **Runs**, **Agents**
 and **Space settings** for the selected space. **Settings** at the bottom
-controls defaults, API keys, the shared budget, Discord and appearance.
+controls defaults, model access, API keys, the shared budget, Discord and
+appearance.
 
 Orchestration, tool execution and the run database stay on your machine. Cloud
 models receive the prompts and tool results used in a run. Network tools can

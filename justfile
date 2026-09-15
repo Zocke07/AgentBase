@@ -219,11 +219,13 @@ schemas:
 # ---------------------------------------------------------------------------
 
 # Freeze the sidecar into a single self-contained executable. --add-data
-# carries the migration SQL, which `--onefile` would otherwise omit.
+# carries the migration SQL and the pinned Codex App Server runtime, which
+# `--onefile` would otherwise omit. `codex_cli_bin` is imported dynamically by
+# the SDK, so both its module and platform binaries must be named explicitly.
 [group('build')]
 [working-directory('apps/backend')]
 build-sidecar:
-    uv run pyinstaller --onefile --clean --noconfirm --name {{ sidecar_binary }} --distpath {{ sidecar_dir }} --workpath {{ dev_dir / "cache" / "pyinstaller" / "build" }} --specpath {{ dev_dir / "cache" / "pyinstaller" }} --add-data "{{ migrations_sql }}{{ data_sep }}agentspace/store" src/agentspace/__main__.py
+    uv run pyinstaller --onefile --clean --noconfirm --name {{ sidecar_binary }} --distpath {{ sidecar_dir }} --workpath {{ dev_dir / "cache" / "pyinstaller" / "build" }} --specpath {{ dev_dir / "cache" / "pyinstaller" }} --add-data "{{ migrations_sql }}{{ data_sep }}agentspace/store" --hidden-import codex_cli_bin --collect-all codex_cli_bin src/agentspace/__main__.py
 
 # Show the built sidecar's path, size and hash.
 [group('build')]

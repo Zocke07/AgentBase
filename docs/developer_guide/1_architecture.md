@@ -11,7 +11,8 @@ apps/backend/src/agentspace/    Python 3.12 FastAPI sidecar
   secrets.py                    API keys in memory; the stdin handshake
   events/                       EventType, EventStore.append, EventBus
   store/                        SQLite + migrations (*.sql), settings, spaces, agent_defs
-  providers/                    Provider protocol, Anthropic/OpenAI/Ollama, pricing, factory
+  providers/                    Provider protocol, Anthropic/OpenAI/Ollama, ChatGPT transport,
+                                pricing, factory
   budget/ledger.py              the monthly cap, checked before every call
   orchestrator/                 run lifecycle, supervisor, agent loop, limits,
                                 control tools, registry, launcher
@@ -19,7 +20,8 @@ apps/backend/src/agentspace/    Python 3.12 FastAPI sidecar
                                 runtime, builtin/{filesystem,network,shell}.py
   channels/                     Discord adapter, identity allowlist,
                                 the chat renderer, throttle, service
-  api/                          runs, stream (SSE), approvals, agents, spaces, settings, channels
+  api/                          runs, stream (SSE), approvals, agents, spaces, settings, auth,
+                                channels
   openapi.py                    builds the OpenAPI doc and emits the TS types
 apps/backend/tests/             pytest; support.py holds the shared doubles
 apps/desktop/src/               React 19 + Vite + TypeScript
@@ -59,8 +61,35 @@ space does not rewrite a running or historical run.
 Model and run limits resolve from the app defaults through space overrides and,
 where applicable, agent definitions. Approval policy can only narrow: a space's
 `null` means inherit, while `[]` means ask for everything. An agent definition's
-`[]` means inherit. API keys, the monthly cap, and the Discord connection are
-app-wide. `channel_space_id` selects the space receiving Discord commands.
+`[]` means inherit. Model credentials, OpenAI's access mode, the monthly cap,
+and the Discord connection are app-wide. `channel_space_id` selects the space
+receiving Discord commands.
+
+### OpenAI credential transports
+
+`openai_access` selects `api_key` or `chatgpt` without introducing another
+provider. Both factory branches return a provider named `openai` with the same
+model id and `Provider.complete`/`Provider.stream` contract, so the provider
+pool, budget wrapper, orchestrator, tools, events and limits do not branch on
+authentication method.
+
+ChatGPT access is implemented with a process-wide, pinned Codex App Server
+runtime under `<data dir>/codex`. It is a credential and inference transport,
+not an agent framework. Each call starts an ephemeral read-only thread with
+approvals denied and Codex tools disabled, supplies the AgentSpace conversation
+and tool schemas as data, and requests one structured decision. A requested
+tool is converted to the normal `ToolCall`; the hand-written AgentSpace loop
+decides whether and how to execute it. This preserves the approval and event
+boundaries even though the wire protocol differs from an API-key request. The
+App Server's structured JSON stream is incrementally decoded so only its
+top-level user-facing `text` reaches normal `llm.token` events; JSON framing
+and tool arguments never appear as display text.
+
+The runtime forces ChatGPT login and OS-keychain credential storage. The local
+auth API returns connection state, email, plan and the browser URL only; it
+never returns access or refresh tokens. Account entitlements can differ between
+ChatGPT and API access, so a selected model can be rejected by one transport.
+The adapter reports that error without changing the model.
 
 The rail separates Home, Runs, Agents and Space settings from app-wide Settings.
 `RunPanel` contains the event-derived `run-projection`; its scrubber and the

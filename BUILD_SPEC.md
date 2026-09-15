@@ -32,7 +32,7 @@ substitute equivalents, do not add the thing they replaced. If you believe one i
 | 1 | **No agent framework.** No LangChain, LangGraph, CrewAI, AutoGen, OpenAI Agents SDK, OpenClaw. Write the orchestration loop by hand. | The visualization only works if we own the event stream. Frameworks emit their own event shapes and we would have to adapt them anyway. |
 | 2 | **No Docker, no Postgres, no Redis, no LiteLLM proxy in the shipped product** (the Tauri app and the headless instance). | Single user, single machine. These systems solve multi-user fleet problems this application does not have. |
 | 3 | **Everything binds `127.0.0.1` only.** Hardcode it. Do not make the bind address configurable. | Nothing reachable off-machine means nothing to accidentally expose. |
-| 4 | **API keys go in the OS keychain.** Never `.env`, never SQLite, never a config file, never logged. | The key sits on a personal laptop. |
+| 4 | **Model credentials go in the OS keychain.** API keys and OAuth tokens never go in `.env`, SQLite, config files, logs or argv. | The credentials sit on a personal laptop. |
 | 5 | **Every filesystem/shell/network tool call passes an approval gate** before execution. No exceptions, no privileged paths for any channel. | This is the exact failure mode that produced dozens of CVEs in comparable projects. |
 | 6 | **Chat channels trigger on explicit commands/mentions only.** Never ingest ambient channel messages into agent context. | Indirect prompt injection. A slash command has a schema; a channel firehose does not. |
 | 7 | **Windows is the primary target.** macOS builds in CI and ships an ad-hoc signed, unnotarized Apple Silicon app archive. | Windows-first; macOS release added at the maintainer's request on 2026-09-13. |
@@ -316,6 +316,28 @@ resumes with zero gaps and zero duplicates.
   `budget.warning` at 80%, `budget.exceeded` and refuse at 100%.
 - Keys read from OS keychain via `tauri-plugin-keyring`, passed to the sidecar at spawn
   time over stdin, never as a command-line argument (argv is world-readable via `ps`).
+
+**Approved addition, 2026-09-14:** OpenAI has an app-wide access mode,
+`api_key` or `chatgpt`. Both construct a provider named `openai` and use the
+same selected model id, normalized response contract, AgentSpace orchestrator,
+tool catalogue, approval gate, event log, usage ledger and run limits. ChatGPT
+access uses the pinned Codex App Server as a credential and inference transport
+only. It receives one structured model decision per provider call, runs in an
+empty read-only directory with its own tools disabled, and never owns the agent
+loop or executes an AgentSpace tool. OAuth tokens stay in the OS credential
+store and are not returned by the local API. AgentSpace applies the selected
+model's API-equivalent price to subscription token usage so the existing local
+safety cap behaves the same; this estimate is not an OpenAI API charge.
+
+ChatGPT and API accounts can have different model entitlements and usage
+allowances. AgentSpace preserves the requested model and surfaces an access
+error rather than silently substituting another model. Direct Claude
+subscription login is not included because Anthropic's current
+[authentication terms](https://code.claude.com/docs/en/legal-and-compliance#authentication-and-credential-use)
+do not permit a third-party product to offer Claude.ai login or route Free,
+Pro or Max credentials. Anthropic continues to use an API key. The documented
+exception for embedding the unmodified Claude Code binary is a separate
+product mode, not an interchangeable provider credential transport.
 
 **Accept when:** switching provider is a settings change with no code change, and a run
 that would exceed the monthly cap is refused with a clear reason before any API call fires.
@@ -692,7 +714,8 @@ and CLAUDE.md records what the live runs showed.
 
 Do not build these. Do not scaffold placeholders for these.
 
-- Multi-user accounts, auth, or tenancy
+- Multi-user accounts, remote application auth, or tenancy. Local model-provider
+  sign-in for the single user is allowed as described in the Phase 3 addition.
 - Any network-exposed surface beyond `127.0.0.1`
 - Vector memory / RAG
 - Agent marketplaces or plugin systems

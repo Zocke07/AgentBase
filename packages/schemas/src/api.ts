@@ -66,6 +66,18 @@ export interface ChannelStatusResponse {
   refused?: string[];
 }
 
+export interface ChatGPTAuthResponse {
+  state: "connected" | "connecting" | "disconnected" | "error";
+  email?: string | null;
+  plan?: string | null;
+  error?: string | null;
+}
+
+export interface ChatGPTLoginResponse {
+  login_id: string;
+  auth_url: string;
+}
+
 /** Where the copy goes. A copy is a new row with a new id, never a built-in. */
 export interface CopyAgentRequest {
   space_id: string;
@@ -261,6 +273,7 @@ export interface UpdateAgentRequest {
 export interface UpdateSettingsRequest {
   provider?: string | null;
   model?: string | null;
+  openai_access?: "api_key" | "chatgpt" | null;
   monthly_cap_micros?: number | null;
   ollama_base_url?: string | null;
   max_steps_per_agent?: number | null;
@@ -306,6 +319,7 @@ export interface VerifyResponse {
 export interface WorkspaceSettings {
   provider?: string;
   model?: string;
+  openai_access?: "api_key" | "chatgpt";
   monthly_cap_micros?: number;
   ollama_base_url?: string;
   auto_approve?: RiskLevel[];

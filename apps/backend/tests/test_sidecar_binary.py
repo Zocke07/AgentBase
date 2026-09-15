@@ -325,6 +325,23 @@ def test_frozen_sidecar_creates_its_database(
     )
 
 
+def test_frozen_sidecar_contains_the_pinned_codex_runtime(
+    sidecar: subprocess.Popen[str],
+) -> None:
+    """The SDK finds its CLI through a dynamic import PyInstaller cannot infer."""
+    _require_ready(sidecar)
+
+    with urllib.request.urlopen(
+        f"http://127.0.0.1:{TEST_PORT}/auth/chatgpt", timeout=30
+    ) as response:
+        body = json.loads(response.read())
+
+    assert body["state"] in {"connected", "disconnected", "error"}
+    error = str(body.get("error") or "")
+    assert "pinned Codex runtime" not in error
+    assert "Codex binary not found" not in error
+
+
 def test_frozen_sidecar_streams_a_debug_run(sidecar: subprocess.Popen[str]) -> None:
     """End to end through the real binary: migrate, append, and stream SSE."""
     _require_ready(sidecar)

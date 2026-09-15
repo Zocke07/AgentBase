@@ -2279,6 +2279,31 @@ pre {
   font-size: 0.8667rem;
 }
 
+.settings__oauth {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.8667rem;
+}
+
+.settings__oauth-account {
+  color: var(--muted);
+}
+
+.settings__oauth-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+.settings__oauth .settings__error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
 .settings__channels {
   display: grid;
   grid-template-columns: 1fr 1fr;

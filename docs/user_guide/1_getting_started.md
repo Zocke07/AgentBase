@@ -77,7 +77,7 @@ scripted run without calling a model or using a key.
 
 ## Connect a model
 
-### Anthropic or OpenAI
+### Anthropic or OpenAI with an API key
 
 1. Obtain an API key from your provider's account dashboard.
 2. In the AgentSpace window, open **Settings → Keys**. Click **Set…** beside
@@ -99,6 +99,43 @@ set, never their stored values.
 
 Key entry works in the desktop app. A browser showing the development UI can
 only display which keys the sidecar received at startup.
+
+### OpenAI with a ChatGPT subscription
+
+1. In **Settings → Model**, choose **openai**, keep the model you want, and
+   select **ChatGPT subscription** under **OpenAI access**.
+2. Click **Connect ChatGPT**. AgentSpace opens an OpenAI sign-in page in your
+   browser. Complete sign-in with the ChatGPT account whose monthly plan you
+   want to use, then return to AgentSpace.
+3. Wait for the account status to show **connected**, then click **Save
+   settings**. **Check** confirms that the saved mode has a connected account
+   without calling a model.
+
+API-key and ChatGPT access both remain the `openai` provider. They use the same
+selected model id, AgentSpace agent loop, tool catalogue, approvals, event log,
+run limits and normalized token accounting. Switching the access radio is the
+only AgentSpace behavior change. OpenAI can expose different models and usage
+allowances to a ChatGPT plan and an API account. AgentSpace does not silently
+replace an unavailable model; the run reports the provider error so you can
+choose another model or return to API-key access.
+
+The ChatGPT credential is stored by the bundled OpenAI Codex runtime in the OS
+credential store. OAuth tokens are never returned to the AgentSpace webview or
+written to its database. The runtime is used only to obtain one model decision;
+AgentSpace still executes every tool through its own approval gate. OpenAI's
+[authentication guide](https://learn.chatgpt.com/docs/auth) documents ChatGPT
+subscription and API-key access as Codex's two sign-in methods, and its
+[App Server guide](https://learn.chatgpt.com/docs/app-server) documents the
+browser flow used here.
+
+Direct Claude Free, Pro and Max subscription login is not offered. Anthropic's
+[authentication terms](https://code.claude.com/docs/en/legal-and-compliance#authentication-and-credential-use)
+do not permit third-party products to offer Claude.ai login or route those
+credentials, so the ordinary Anthropic provider continues to require
+`anthropic_api_key`. Anthropic separately permits products to embed an
+unmodified Claude Code binary under stated conditions; that is a Claude Code
+product mode rather than an interchangeable credential transport for this
+provider loop.
 
 ### Ollama
 
@@ -156,7 +193,7 @@ The default space cannot be archived or deleted.
 
 | Section | Controls |
 |---|---|
-| **Model** | Provider, model and local Ollama address. |
+| **Model** | Provider, model, OpenAI API-key or ChatGPT access, and local Ollama address. |
 | **Limits and approvals** | Default **Steps per agent** (20), **Agents per run** (5), **Seconds per run** (600), and calls that may run automatically. |
 | **Keys** | Store or clear cloud API keys and the Discord bot token; restart to apply. |
 | **Monthly budget** | **Monthly cap (USD)**, $20.00 by default, shared across spaces. Enter dollars directly. |

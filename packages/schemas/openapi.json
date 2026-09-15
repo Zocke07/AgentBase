@@ -298,6 +298,76 @@
         "title": "ChannelStatusResponse",
         "type": "object"
       },
+      "ChatGPTAuthResponse": {
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan"
+          },
+          "state": {
+            "enum": [
+              "connected",
+              "connecting",
+              "disconnected",
+              "error"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "ChatGPTAuthResponse",
+        "type": "object"
+      },
+      "ChatGPTLoginResponse": {
+        "properties": {
+          "auth_url": {
+            "title": "Auth Url",
+            "type": "string"
+          },
+          "login_id": {
+            "title": "Login Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "login_id",
+          "auth_url"
+        ],
+        "title": "ChatGPTLoginResponse",
+        "type": "object"
+      },
       "CopyAgentRequest": {
         "description": "Where the copy goes. A copy is a new row with a new id, never a built-in.",
         "properties": {
@@ -1229,6 +1299,21 @@
             ],
             "title": "Ollama Base Url"
           },
+          "openai_access": {
+            "anyOf": [
+              {
+                "enum": [
+                  "api_key",
+                  "chatgpt"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Openai Access"
+          },
           "provider": {
             "anyOf": [
               {
@@ -1520,6 +1605,15 @@
           "ollama_base_url": {
             "default": "http://127.0.0.1:11434",
             "title": "Ollama Base Url",
+            "type": "string"
+          },
+          "openai_access": {
+            "default": "api_key",
+            "enum": [
+              "api_key",
+              "chatgpt"
+            ],
+            "title": "Openai Access",
             "type": "string"
           },
           "provider": {
@@ -1929,6 +2023,64 @@
           }
         },
         "summary": "Resolve Approval"
+      }
+    },
+    "/auth/chatgpt": {
+      "get": {
+        "operationId": "chatgpt_status_auth_chatgpt_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatGPTAuthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Chatgpt Status"
+      }
+    },
+    "/auth/chatgpt/login": {
+      "post": {
+        "operationId": "chatgpt_login_auth_chatgpt_login_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatGPTLoginResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Chatgpt Login"
+      }
+    },
+    "/auth/chatgpt/login/cancel": {
+      "post": {
+        "operationId": "chatgpt_cancel_login_auth_chatgpt_login_cancel_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Chatgpt Cancel Login"
+      }
+    },
+    "/auth/chatgpt/logout": {
+      "post": {
+        "operationId": "chatgpt_logout_auth_chatgpt_logout_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Chatgpt Logout"
       }
     },
     "/budget": {
