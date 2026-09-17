@@ -18,6 +18,7 @@ import type {
   KnowledgeSearch,
   MemoryIndex,
   MemoryItem,
+  MemoryMergeResult,
   MemoryStatus,
   ProviderCatalogueResponse,
   Run,
@@ -248,6 +249,28 @@ export const updateMemory = (
   request<MemoryItem>(`/spaces/${spaceId}/knowledge/memory`, {
     method: "PATCH",
     ...asJson({ path, ...changes }),
+  });
+
+/** Fold several memories into one note; the originals are archived with a backup. */
+export const mergeMemories = (
+  spaceId: string,
+  paths: string[],
+  title?: string,
+): Promise<MemoryMergeResult> =>
+  request<MemoryMergeResult>(`/spaces/${spaceId}/knowledge/memories/merge`, {
+    method: "POST",
+    ...asJson({ paths, title: title ?? null }),
+  });
+
+/** Pin or unpin any note; pinned notes pass every retrieval filter. */
+export const pinKnowledgeNote = (
+  spaceId: string,
+  path: string,
+  pinned: boolean,
+): Promise<KnowledgeNote> =>
+  request<KnowledgeNote>(`/spaces/${spaceId}/knowledge/pin`, {
+    method: "PATCH",
+    ...asJson({ path, pinned }),
   });
 
 export const evaluateKnowledge = (

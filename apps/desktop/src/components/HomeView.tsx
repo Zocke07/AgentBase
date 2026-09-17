@@ -24,6 +24,8 @@ export interface HomeViewProps {
   pendingApprovals: readonly ApprovalResponse[];
   /** What the open run's log says its status is, when the table lags it. */
   liveStatus: { runId: string; status: Run["status"] } | null;
+  /** "provider · model" a run here would use, so the retrieval preview can say where excerpts go. */
+  modelLabel: string | null;
   onOpenRun: (runId: string) => void;
   onOpenRuns: () => void;
   onOpenAgents: () => void;
@@ -40,6 +42,7 @@ export function HomeView({
   blocker,
   pendingApprovals,
   liveStatus,
+  modelLabel,
   onOpenRun,
   onOpenRuns,
   onOpenAgents,
@@ -103,6 +106,10 @@ export function HomeView({
       setStarting(false);
     }
   };
+
+  const kept = (retrieval ?? []).filter((hit) => !excludedCitations.includes(hit.citation));
+  const includedCount = kept.length;
+  const includedTokens = kept.reduce((total, hit) => total + (hit.estimated_tokens ?? 0), 0);
 
   const previewRetrieval = async () => {
     const trimmed = goal.trim();
@@ -217,9 +224,19 @@ export function HomeView({
             data-testid="goal-input"
           />
           {retrieval !== null && (
-            <fieldset className="new-run__retrieval">
+            <fieldset className="new-run__retrieval" data-testid="retrieval-preview">
               <legend>Retrieved context</legend>
-              <p>Clear a result to keep it out of this run and its worker handoffs.</p>
+              <p>
+                Clear a result to keep it out of this run and its worker handoffs.
+                {retrieval.length > 0 && (
+                  <>
+                    {" "}
+                    The {includedCount} kept excerpt{includedCount === 1 ? "" : "s"} (about{" "}
+                    {includedTokens} tokens) leave this machine with your goal, sent to{" "}
+                    <strong>{modelLabel ?? "the configured model"}</strong>.
+                  </>
+                )}
+              </p>
               {retrieval.length === 0 && <p>No approved memory or note matched this goal.</p>}
               {retrieval.map((hit) => (
                 <label key={hit.citation}>
@@ -237,7 +254,10 @@ export function HomeView({
                   <span>
                     <code>{hit.citation}</code>
                     <small>
-                      {Math.round(hit.score * 100)}% · {(hit.reasons ?? []).join(" · ")}
+                      {Math.round(hit.score * 100)}% relevance · {hit.estimated_tokens ?? 0} tokens
+                      {(hit.matched_terms ?? []).length > 0 &&
+                        ` · matched ${(hit.matched_terms ?? []).join(", ")}`}
+                      {(hit.reasons ?? []).length > 0 && ` · ${(hit.reasons ?? []).join(" · ")}`}
                     </small>
                   </span>
                 </label>

@@ -18,6 +18,7 @@ vi.mock("../lib/api", () => ({
   listRuns: vi.fn(),
   listAgents: vi.fn(),
   createRun: vi.fn(),
+  searchKnowledge: vi.fn(),
   startDebugRun: vi.fn(),
   updateAgent: vi.fn(),
 }));
@@ -76,6 +77,7 @@ function home(props: Partial<HomeViewProps> = {}) {
       blocker={null}
       pendingApprovals={[]}
       liveStatus={null}
+      modelLabel="anthropic · claude-sonnet-5"
       {...handlers}
       {...props}
     />,
@@ -225,6 +227,72 @@ describe("what is on the screen", () => {
     expect(screen.queryByTestId("home-recent")).toBeNull();
     expect(screen.queryByTestId("home-roster")).toBeNull();
     expect(await screen.findByText(/1 agent ready: writer/)).toBeDefined();
+  });
+});
+
+describe("the retrieval preview", () => {
+  const lab = {
+    id: "space-lab",
+    name: "Lab",
+    description: "",
+    provider: null,
+    model: null,
+    auto_approve: null,
+    max_steps_per_agent: null,
+    max_agents_per_run: null,
+    max_run_seconds: null,
+    archived: false,
+    created_at: "2026-09-15T00:00:00Z",
+    updated_at: "2026-09-15T00:00:00Z",
+    folder: "/data/spaces/space-lab",
+    is_default: false,
+  };
+
+  it("shows each excerpt's terms and token cost, names the model, and excludes an unticked one", async () => {
+    const user = userEvent.setup();
+    mocked.searchKnowledge.mockResolvedValue({
+      query: "storage",
+      hits: [
+        {
+          path: "decisions/storage.md",
+          title: "Storage",
+          heading: "WAL",
+          excerpt: "Use SQLite WAL.",
+          citation: "[[decisions/storage#WAL]]",
+          score: 0.8,
+          matched_terms: ["storag", "wal"],
+          reasons: ["body: storag, wal"],
+          estimated_tokens: 12,
+        },
+        {
+          path: "recipes/soup.md",
+          title: "Soup",
+          heading: null,
+          excerpt: "Carrots.",
+          citation: "[[recipes/soup]]",
+          score: 0.2,
+          matched_terms: ["storag"],
+          reasons: ["title: storag"],
+          estimated_tokens: 4,
+        },
+      ],
+    });
+    mocked.createRun.mockResolvedValue(row("pending", "run-new", "pick storage"));
+    home({ space: lab });
+    await screen.findByTestId("run-card-run-1");
+
+    await user.type(screen.getByTestId("goal-input"), "pick storage");
+    await user.click(screen.getByRole("button", { name: "Preview context" }));
+
+    const preview = await screen.findByTestId("retrieval-preview");
+    expect(preview.textContent).toContain("2 kept excerpts (about 16 tokens)");
+    expect(preview.textContent).toContain("anthropic · claude-sonnet-5");
+    expect(preview.textContent).toContain("matched storag, wal");
+    await user.click(screen.getByRole("checkbox", { name: /recipes\/soup/ }));
+    expect(preview.textContent).toContain("1 kept excerpt (about 12 tokens)");
+    await user.click(screen.getByRole("button", { name: "Start run" }));
+
+    expect(mocked.createRun).toHaveBeenCalledWith("pick storage", "space-lab", ["[[recipes/soup]]"]);
   });
 });
 

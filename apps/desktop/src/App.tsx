@@ -340,6 +340,9 @@ export function App() {
                 blocker={blocker}
                 pendingApprovals={pendingApprovals}
                 liveStatus={liveStatus}
+                modelLabel={
+                  effectiveProvider === null ? null : `${effectiveProvider} · ${effectiveModel ?? "?"}`
+                }
                 onOpenRun={openRun}
                 onOpenRuns={() => {
                   setSection("runs");
@@ -381,7 +384,7 @@ export function App() {
               {space === null ? (
                 <p className="runs-view__placeholder">Loading the space…</p>
               ) : (
-                <KnowledgeView key={space.id} space={space} />
+                <KnowledgeView key={space.id} space={space} onOpenRun={openRun} />
               )}
             </ErrorBoundary>
           </div>

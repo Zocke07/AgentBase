@@ -27,18 +27,23 @@ import { openInObsidian, revealAvailable } from "../lib/folder";
 
 export interface KnowledgeViewProps {
   space: SpaceResponse;
+  /** Opens the run a memory came from; absent where no run view is reachable. */
+  onOpenRun?: (runId: string) => void;
 }
 
 type ViewMode = "split" | "write" | "preview" | "graph" | "evaluate";
 type BrowserMode = "notes" | "memories";
+type NoteFilter = "all" | "pinned" | "orphans" | "unresolved";
 
 const EMPTY_GRAPH: KnowledgeGraph = { nodes: [], edges: [] };
+const TEMPLATE_FOLDER = "templates/";
+const DAILY_FOLDER = "daily/";
 
 /**
  * A space's local Markdown vault: browse and edit source, preview it safely,
  * follow links and backlinks, search the same chunks RAG uses, and inspect the graph.
  */
-export function KnowledgeView({ space }: KnowledgeViewProps) {
+export function KnowledgeView({ space, onOpenRun }: KnowledgeViewProps) {
   const [index, setIndex] = useState<KnowledgeIndex | null>(null);
   const [memories, setMemories] = useState<MemoryIndex | null>(null);
   const [browserMode, setBrowserMode] = useState<BrowserMode>("notes");
@@ -57,6 +62,10 @@ export function KnowledgeView({ space }: KnowledgeViewProps) {
   const [overwriteImport, setOverwriteImport] = useState(false);
   const [folderFilter, setFolderFilter] = useState("");
   const [tagFilter, setTagFilter] = useState("");
+  const [noteFilter, setNoteFilter] = useState<NoteFilter>("all");
+  const [tagChip, setTagChip] = useState<string | null>(null);
+  const [mergeSelection, setMergeSelection] = useState<string[]>([]);
+  const [mergeTitle, setMergeTitle] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
@@ -229,6 +238,7 @@ export function KnowledgeView({ space }: KnowledgeViewProps) {
     try {
       await api.deleteKnowledgeNote(space.id, memory.path);
       setForgetAsked(null);
+      setMergeSelection((current) => current.filter((item) => item !== memory.path));
       if (note?.path === memory.path) {
         setNote(null);
         setPath("");
@@ -236,6 +246,97 @@ export function KnowledgeView({ space }: KnowledgeViewProps) {
       }
       await reload();
       setMessage(`${memory.title} was forgotten.`);
+    } catch (failure) {
+      setError(asMessage(failure));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const mergeSelected = async () => {
+    if (mergeSelection.length < 2) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const merged = await api.mergeMemories(
+        space.id,
+        mergeSelection,
+        mergeTitle.trim() === "" ? undefined : mergeTitle.trim(),
+      );
+      setMergeSelection([]);
+      setMergeTitle("");
+      await reload();
+      setMessage(
+        `Merged ${String(merged.archived_paths.length)} memories into ${merged.memory.path}; the originals are archived. Backup: ${merged.backup_path}`,
+      );
+    } catch (failure) {
+      setError(asMessage(failure));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const pinCurrent = async () => {
+    if (note === null) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const pinned = await api.pinKnowledgeNote(space.id, note.path, !note.pinned);
+      setNote(pinned);
+      setContent(pinned.content);
+      await reload();
+      setMessage(pinned.pinned ? "Pinned. It now passes every retrieval filter." : "Unpinned.");
+    } catch (failure) {
+      setError(asMessage(failure));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startNote = (nextPath: string, nextContent: string) => {
+    setNote(null);
+    setCreating(true);
+    setPath(nextPath);
+    setContent(nextContent);
+    setMode("split");
+    setDeleteAsked(false);
+    setMoving(false);
+    setMessage(null);
+  };
+
+  const templates = (index?.notes ?? []).filter((item) => item.path.startsWith(TEMPLATE_FOLDER));
+
+  const newFromTemplate = async (templatePath: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const template = await api.getKnowledgeNote(space.id, templatePath);
+      const stem = templatePath.slice(TEMPLATE_FOLDER.length).replace(/\.md$/i, "");
+      startNote(`${stem}-${today()}.md`, fillTemplate(template.content, stem));
+    } catch (failure) {
+      setError(asMessage(failure));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const dailyNote = async () => {
+    const date = today();
+    const dailyPath = `${DAILY_FOLDER}${date}.md`;
+    if ((index?.notes ?? []).some((item) => item.path === dailyPath)) {
+      await openNote(dailyPath);
+      return;
+    }
+    const template = templates.find((item) => item.path === `${TEMPLATE_FOLDER}daily.md`);
+    if (template === undefined) {
+      startNote(dailyPath, `---\ntags: [daily]\n---\n# ${date}\n\n`);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const loaded = await api.getKnowledgeNote(space.id, template.path);
+      startNote(dailyPath, fillTemplate(loaded.content, date));
     } catch (failure) {
       setError(asMessage(failure));
     } finally {
@@ -277,6 +378,15 @@ export function KnowledgeView({ space }: KnowledgeViewProps) {
 
   const stats = index?.stats;
   const selected = note !== null || creating;
+  const visibleNotes = (index?.notes ?? []).filter(
+    (item) =>
+      (noteFilter === "all" ||
+        (noteFilter === "pinned" && item.pinned === true) ||
+        (noteFilter === "orphans" && (item.backlinks ?? []).length === 0) ||
+        (noteFilter === "unresolved" && (item.unresolved_links ?? []).length > 0)) &&
+      (tagChip === null || (item.tags ?? []).includes(tagChip)),
+  );
+  const topTags = tagCounts(index?.notes ?? []).slice(0, 12);
 
   return (
     <div className="knowledge" data-testid="knowledge-view">
@@ -292,25 +402,48 @@ export function KnowledgeView({ space }: KnowledgeViewProps) {
               <small>
                 indexed {index.index_status.changed_files} changed · {index.index_status.reused_files} reused ·{" "}
                 {Math.round(index.index_status.duration_ms)} ms
+                {index.index_status.truncated && " · over the 10,000-note limit; some notes are not indexed"}
+              </small>
+            )}
+            {stats !== undefined && ((stats.orphan_count ?? 0) > 0 || (stats.unresolved_link_count ?? 0) > 0) && (
+              <small>
+                {stats.orphan_count ?? 0} orphan{stats.orphan_count === 1 ? "" : "s"} ·{" "}
+                {stats.unresolved_link_count ?? 0} unresolved link{stats.unresolved_link_count === 1 ? "" : "s"}
               </small>
             )}
           </div>
           {browserMode === "notes" && (
-            <button
-              type="button"
-              className="button button--small"
-              onClick={() => {
-                setNote(null);
-                setCreating(true);
-                setPath("knowledge/untitled.md");
-                setContent("---\ntags: []\n---\n# New note\n\n");
-                setMode("split");
-                setDeleteAsked(false);
-                setMessage(null);
-              }}
-            >
-              New note
-            </button>
+            <div className="knowledge__new">
+              <button
+                type="button"
+                className="button button--small"
+                onClick={() => {
+                  startNote("knowledge/untitled.md", "---\ntags: []\n---\n# New note\n\n");
+                }}
+              >
+                New note
+              </button>
+              <button type="button" className="button button--small" disabled={busy} onClick={() => void dailyNote()}>
+                Daily note
+              </button>
+              {templates.length > 0 && (
+                <select
+                  aria-label="New note from template"
+                  value=""
+                  disabled={busy}
+                  onChange={(event) => {
+                    if (event.target.value !== "") void newFromTemplate(event.target.value);
+                  }}
+                >
+                  <option value="">From template…</option>
+                  {templates.map((template) => (
+                    <option key={template.path} value={template.path}>
+                      {template.title}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
           )}
         </div>
 
@@ -410,15 +543,61 @@ export function KnowledgeView({ space }: KnowledgeViewProps) {
           </div>
         )}
 
+        {browserMode === "notes" && hits === null && (
+          <div className="knowledge__browse-filters">
+            <select
+              aria-label="Show notes"
+              value={noteFilter}
+              onChange={(event) => {
+                setNoteFilter(event.target.value as NoteFilter);
+              }}
+            >
+              <option value="all">All notes</option>
+              <option value="pinned">Pinned</option>
+              <option value="orphans">Orphans (no backlinks)</option>
+              <option value="unresolved">With unresolved links</option>
+            </select>
+            {topTags.length > 0 && (
+              <div className="knowledge__chips" role="group" aria-label="Filter by tag">
+                {topTags.map(([tag, count]) => (
+                  <button
+                    type="button"
+                    key={tag}
+                    className="knowledge__chip"
+                    aria-pressed={tagChip === tag}
+                    onClick={() => {
+                      setTagChip((current) => (current === tag ? null : tag));
+                    }}
+                  >
+                    #{tag} <span>{count}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {browserMode === "memories" ? (
           <MemoryInbox
             memories={memories}
             busy={busy}
             forgetAsked={forgetAsked}
+            selection={mergeSelection}
+            mergeTitle={mergeTitle}
             onOpen={(wanted) => void openNote(wanted)}
+            onOpenRun={onOpenRun}
             onCurate={(memory, changes) => void curateMemory(memory, changes)}
             onAskForget={setForgetAsked}
             onForget={(memory) => void forgetMemory(memory)}
+            onToggleSelect={(memoryPath) => {
+              setMergeSelection((current) =>
+                current.includes(memoryPath)
+                  ? current.filter((item) => item !== memoryPath)
+                  : [...current, memoryPath],
+              );
+            }}
+            onMergeTitle={setMergeTitle}
+            onMerge={() => void mergeSelected()}
           />
         ) : hits !== null ? (
           <div className="knowledge__results" aria-label="Retrieval results">
@@ -453,14 +632,17 @@ export function KnowledgeView({ space }: KnowledgeViewProps) {
           </div>
         ) : (
           <ol className="knowledge__notes">
-            {(index?.notes ?? []).map((item) => (
+            {visibleNotes.map((item) => (
               <li key={item.path}>
                 <button
                   type="button"
                   className={item.path === note?.path ? "knowledge__note knowledge__note--active" : "knowledge__note"}
                   onClick={() => void openNote(item.path)}
                 >
-                  <strong>{item.title}</strong>
+                  <strong>
+                    {item.pinned === true && <span className="knowledge__pin" aria-label="Pinned">★ </span>}
+                    {item.title}
+                  </strong>
                   <span>{item.path}</span>
                   <small>{item.excerpt || "Empty note"}</small>
                 </button>
@@ -468,6 +650,9 @@ export function KnowledgeView({ space }: KnowledgeViewProps) {
             ))}
             {index !== null && index.notes.length === 0 && (
               <li className="knowledge__empty">Create a note or open this space as an Obsidian vault.</li>
+            )}
+            {index !== null && index.notes.length > 0 && visibleNotes.length === 0 && (
+              <li className="knowledge__empty">No notes match this filter.</li>
             )}
           </ol>
         )}
@@ -564,6 +749,11 @@ export function KnowledgeView({ space }: KnowledgeViewProps) {
                     Move or rename…
                   </button>
                 )}
+                {note !== null && !moving && (
+                  <button type="button" className="button button--small" disabled={busy} onClick={() => void pinCurrent()}>
+                    {note.pinned === true ? "Unpin note" : "Pin note"}
+                  </button>
+                )}
                 <button type="button" className="button button--small button--primary" disabled={busy || path.trim() === ""} onClick={() => void save()}>
                   {moving ? "Move note" : "Save note"}
                 </button>
@@ -642,28 +832,72 @@ function MemoryInbox({
   memories,
   busy,
   forgetAsked,
+  selection,
+  mergeTitle,
   onOpen,
+  onOpenRun,
   onCurate,
   onAskForget,
   onForget,
+  onToggleSelect,
+  onMergeTitle,
+  onMerge,
 }: {
   memories: MemoryIndex | null;
   busy: boolean;
   forgetAsked: string | null;
+  selection: string[];
+  mergeTitle: string;
   onOpen: (path: string) => void;
+  onOpenRun: ((runId: string) => void) | undefined;
   onCurate: (memory: MemoryItem, changes: { status?: MemoryStatus; pinned?: boolean }) => void;
   onAskForget: (path: string | null) => void;
   onForget: (memory: MemoryItem) => void;
+  onToggleSelect: (path: string) => void;
+  onMergeTitle: (title: string) => void;
+  onMerge: () => void;
 }) {
   if (memories === null) return <p className="knowledge__empty">Loading memories…</p>;
   if (memories.items.length === 0) {
     return <p className="knowledge__empty">Completed runs and agent proposals will appear here.</p>;
   }
   return (
+    <>
+      <p className="knowledge__inbox-summary">
+        {memories.proposed} proposed · {memories.approved} approved · {memories.archived} archived. Only
+        approved and pinned memories are retrieved.
+      </p>
+      {selection.length > 0 && (
+        <div className="knowledge__merge" data-testid="memory-merge">
+          <input
+            aria-label="Merged memory title"
+            placeholder="Title for the merged memory (optional)"
+            value={mergeTitle}
+            onChange={(event) => { onMergeTitle(event.target.value); }}
+          />
+          <button
+            type="button"
+            className="button button--small button--primary"
+            disabled={busy || selection.length < 2}
+            onClick={onMerge}
+          >
+            Merge {selection.length} selected
+          </button>
+        </div>
+      )}
     <ol className="knowledge__memories">
       {memories.items.map((memory) => (
         <li className="knowledge__memory" key={memory.path}>
           <div className="knowledge__memory-head">
+            <label className="knowledge__memory-select">
+              <input
+                type="checkbox"
+                aria-label={`Select ${memory.title} for merging`}
+                checked={selection.includes(memory.path)}
+                disabled={memory.status === "archived"}
+                onChange={() => { onToggleSelect(memory.path); }}
+              />
+            </label>
             <button type="button" className="link" onClick={() => { onOpen(memory.path); }}>
               {memory.title}
             </button>
@@ -673,10 +907,58 @@ function MemoryInbox({
           </div>
           <p>{memory.outcome || memory.goal || "Empty memory"}</p>
           <small>
-            {memory.source} · confidence {memory.confidence}
+            {(memory.merged_from ?? []).length > 0
+              ? "merged by you"
+              : memory.source === "run"
+                ? "from a run"
+                : "proposed by an agent"}{" "}
+            · created{" "}
+            {new Date(memory.created_at).toLocaleDateString()} · confidence {memory.confidence}
             {memory.pinned ? " · pinned" : ""}
+            {(memory.tags ?? []).length > 0 && ` · ${(memory.tags ?? []).map((tag) => `#${tag}`).join(" ")}`}
           </small>
+          {memory.run_id !== null && (
+            <small>
+              run <code>{memory.run_id}</code>
+              {onOpenRun !== undefined && (
+                <>
+                  {" "}
+                  <button type="button" className="link" onClick={() => { onOpenRun(memory.run_id ?? ""); }}>
+                    Open run
+                  </button>
+                </>
+              )}
+            </small>
+          )}
+          {(memory.citations ?? []).length > 0 && (
+            <div className="knowledge__citations" aria-label="Supporting citations">
+              {(memory.citations ?? []).map((citation) => {
+                const target = citationPath(citation);
+                return target === null ? (
+                  <code key={citation}>{citation}</code>
+                ) : (
+                  <button type="button" className="knowledge__relation" key={citation} onClick={() => { onOpen(target); }}>
+                    {citation}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {(memory.merged_from ?? []).length > 0 && (
+            <small>merged from {(memory.merged_from ?? []).join(", ")}</small>
+          )}
+          {memory.merged_into !== null && memory.merged_into !== undefined && (
+            <small>
+              merged into{" "}
+              <button type="button" className="link" onClick={() => { onOpen(memory.merged_into ?? ""); }}>
+                {memory.merged_into}
+              </button>
+            </small>
+          )}
           <div className="knowledge__memory-actions">
+            <button type="button" className="button button--small" disabled={busy} onClick={() => { onOpen(memory.path); }}>
+              Edit
+            </button>
             {memory.status !== "approved" && (
               <button
                 type="button"
@@ -739,7 +1021,32 @@ function MemoryInbox({
         </li>
       ))}
     </ol>
+    </>
   );
+}
+
+/** `[[path#heading]]` or `[[path]]` to the note path the vault would resolve it to. */
+function citationPath(citation: string): string | null {
+  const match = /^\[\[([^\]#|]+)/.exec(citation.trim());
+  const stem = match?.[1]?.trim();
+  return stem === undefined || stem === "" ? null : `${stem.replace(/\.md$/i, "")}.md`;
+}
+
+function tagCounts(notes: readonly { tags?: string[] }[]): [string, number][] {
+  const counts = new Map<string, number>();
+  for (const note of notes) {
+    for (const tag of note.tags ?? []) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+  }
+  return [...counts.entries()].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]));
+}
+
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** Obsidian's core template variables: `{{date}}` and `{{title}}`. Nothing else is interpreted. */
+function fillTemplate(source: string, title: string): string {
+  return source.replaceAll("{{date}}", today()).replaceAll("{{title}}", title);
 }
 
 function KnowledgeEvaluationView({ spaceId }: { spaceId: string }) {
@@ -838,6 +1145,11 @@ function NoteMetadata({ note, onOpen }: { note: KnowledgeNote; onOpen: (path: st
       ))}
       {(note.backlinks ?? []).map((path) => (
         <button type="button" className="knowledge__relation" key={`from:${path}`} onClick={() => { onOpen(path); }}>← <span className="sr-only">Backlink from </span>{path}</button>
+      ))}
+      {(note.unresolved_links ?? []).map((target) => (
+        <span className="knowledge__relation knowledge__relation--unresolved" key={`missing:${target}`} title="No note has this name yet">
+          ? {target}
+        </span>
       ))}
     </div>
   );

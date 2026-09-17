@@ -32,6 +32,16 @@ export function strings(payload: Payload, key: string): string[] {
     : [];
 }
 
+/** The object members of an array field; an empty array otherwise. */
+export function records(payload: Payload, key: string): Payload[] {
+  const value = payload[key];
+  return Array.isArray(value)
+    ? value.filter(
+        (item): item is Payload => typeof item === "object" && item !== null && !Array.isArray(item),
+      )
+    : [];
+}
+
 /** A nested object field, or an empty object. */
 export function record(payload: Payload, key: string): Payload {
   const value = payload[key];

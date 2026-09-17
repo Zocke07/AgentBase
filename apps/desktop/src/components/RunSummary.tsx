@@ -101,6 +101,47 @@ export function RunSummary({ view }: RunSummaryProps) {
         </ul>
       )}
 
+      {(view.knowledge.length > 0 || view.knowledgeExclusions.length > 0) && (
+        <details className="run-summary__context" data-testid="run-context">
+          <summary>
+            Retrieved context: {view.knowledge.length} excerpt
+            {view.knowledge.length === 1 ? "" : "s"}, about{" "}
+            {formatCount(
+              view.knowledge.reduce((total, hit) => total + (hit.estimatedTokens ?? 0), 0),
+            )}{" "}
+            tokens
+            {view.knowledgeExclusions.length > 0 &&
+              `, ${String(view.knowledgeExclusions.length)} excluded by you`}
+          </summary>
+          <p className="run-summary__context-note">
+            {/* The excerpts are what `run.started` recorded for the supervisor;
+                each worker's own retrieval is in its `llm.request` message. */}
+            These excerpts were sent to the supervisor with the goal as untrusted reference
+            material. Workers retrieved their own for each handoff; see their model requests
+            in the log.
+          </p>
+          <ul className="run-summary__excerpts">
+            {view.knowledge.map((hit) => (
+              <li key={hit.citation}>
+                <code>{hit.citation}</code>
+                <small>
+                  {hit.score !== null && `${String(Math.round(hit.score * 100))}% relevance`}
+                  {hit.estimatedTokens !== null && ` · ${String(hit.estimatedTokens)} tokens`}
+                  {hit.matchedTerms.length > 0 && ` · matched ${hit.matchedTerms.join(", ")}`}
+                  {hit.reasons.length > 0 && ` · ${hit.reasons.join(" · ")}`}
+                </small>
+              </li>
+            ))}
+            {view.knowledgeExclusions.map((citation) => (
+              <li key={`excluded:${citation}`} className="run-summary__excluded">
+                <code>{citation}</code>
+                <small>excluded before the run started</small>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
       {view.claim !== null && (
         <div className={`claim claim--${view.claim.kind}`} data-testid="run-claim">
           <span className="claim__label">
@@ -114,6 +155,12 @@ export function RunSummary({ view }: RunSummaryProps) {
               This is what the agent said it did. What it actually did is the{" "}
               {view.toolCalls.length} tool {view.toolCalls.length === 1 ? "call" : "calls"} in the
               log below.
+            </p>
+          )}
+          {view.memoryPath !== null && (
+            <p className="claim__memory" data-testid="run-memory">
+              Saved as a proposed memory at <code>{view.memoryPath}</code>. Approve it in the
+              Knowledge section's inbox before later runs can retrieve it.
             </p>
           )}
         </div>

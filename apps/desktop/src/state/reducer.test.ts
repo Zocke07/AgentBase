@@ -472,6 +472,45 @@ describe("run identity", () => {
     expect(state.limits).toMatchObject({ max_agents_per_run: 4 });
   });
 
+  it("keeps the retrieved excerpts, the user's exclusions and the memory note from the log", () => {
+    /* The inspector shows what the supervisor was given; a replay must show
+       the same excerpts, so they come from `run.started`, never from a fresh search. */
+    const log = new LogBuilder();
+    const state = reduceAll([
+      log.add("run.started", {
+        goal: "pick storage",
+        knowledge: [
+          {
+            citation: "[[decisions/storage#WAL]]",
+            path: "decisions/storage.md",
+            heading: "WAL",
+            score: 0.8,
+            matched_terms: ["storag"],
+            reasons: ["body: storag"],
+            estimated_tokens: 12,
+          },
+          "not an excerpt",
+        ],
+        knowledge_exclusions: ["[[recipes/soup]]"],
+      }),
+      log.add("run.completed", { summary: "done", memory_path: "memory/runs/run-1.md" }),
+    ]);
+
+    expect(state.knowledge).toEqual([
+      {
+        citation: "[[decisions/storage#WAL]]",
+        path: "decisions/storage.md",
+        heading: "WAL",
+        score: 0.8,
+        matchedTerms: ["storag"],
+        reasons: ["body: storag"],
+        estimatedTokens: 12,
+      },
+    ]);
+    expect(state.knowledgeExclusions).toEqual(["[[recipes/soup]]"]);
+    expect(state.memoryPath).toBe("memory/runs/run-1.md");
+  });
+
   it("keeps when the run started and when its latest event was, from their own ts", () => {
     /* The summary shows a duration from these. Both come from the log, so a
        replay shows the same duration the live view did, never a clock. */

@@ -43,6 +43,35 @@ describe("RunSummary", () => {
     expect(screen.getByTestId("budget-exceeded").textContent).toContain("cap");
   });
 
+  it("lists the retrieved excerpts with their cost and the memory note the run wrote", () => {
+    const log = new LogBuilder();
+    const view = reduceAll([
+      log.add("run.started", {
+        goal: "pick storage",
+        knowledge: [
+          {
+            citation: "[[decisions/storage#WAL]]",
+            score: 0.8,
+            matched_terms: ["storag", "wal"],
+            reasons: ["body: storag, wal"],
+            estimated_tokens: 12,
+          },
+        ],
+        knowledge_exclusions: ["[[recipes/soup]]"],
+      }),
+      log.add("run.completed", { summary: "SQLite.", memory_path: "memory/runs/run-1.md" }),
+    ]);
+
+    render(<RunSummary view={view} />);
+
+    const context = screen.getByTestId("run-context");
+    expect(context.textContent).toContain("1 excerpt, about 12 tokens, 1 excluded by you");
+    expect(context.textContent).toContain("[[decisions/storage#WAL]]");
+    expect(context.textContent).toContain("matched storag, wal");
+    expect(context.textContent).toContain("[[recipes/soup]]");
+    expect(screen.getByTestId("run-memory").textContent).toContain("memory/runs/run-1.md");
+  });
+
   it("shows how long the run took, from the events' own timestamps", () => {
     /* The fixture stamps one second per event; 28 events span 27 seconds. */
     render(<RunSummary view={reduceAll(twoAgentRun())} />);

@@ -80,6 +80,57 @@ _MARKDOWN_LINK = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
 _WIKILINK_DETAIL = re.compile(r"(!?)\[\[([^\]|#]+)(#[^\]|]+)?(\|[^\]]+)?\]\]")
 _MARKDOWN_LINK_DETAIL = re.compile(r"(?<!!)(\[[^\]]+\]\()([^)#]+)(#[^)]*)?(\))")
 _MARKDOWN_MARKS = re.compile(r"[`*_>#~]+")
+#: Function words that would otherwise count as matches and crowd the inspector.
+_STOPWORDS: Final[frozenset[str]] = frozenset(
+    [
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "but",
+        "by",
+        "do",
+        "does",
+        "for",
+        "from",
+        "has",
+        "have",
+        "how",
+        "in",
+        "into",
+        "is",
+        "it",
+        "its",
+        "not",
+        "of",
+        "on",
+        "or",
+        "our",
+        "should",
+        "that",
+        "the",
+        "their",
+        "then",
+        "there",
+        "these",
+        "this",
+        "to",
+        "was",
+        "we",
+        "were",
+        "what",
+        "when",
+        "which",
+        "will",
+        "with",
+        "would",
+        "you",
+        "your",
+    ]
+)
 
 
 class KnowledgePathError(ValueError):
@@ -1264,7 +1315,11 @@ def _matches_filters(note: _ParsedNote, filters: SearchFilters) -> bool:
 
 
 def _terms(text: str) -> list[str]:
-    return [_stem(match.group(0).casefold()) for match in _TOKEN.finditer(text)]
+    return [
+        _stem(term)
+        for match in _TOKEN.finditer(text)
+        if (term := match.group(0).casefold()) not in _STOPWORDS
+    ]
 
 
 def _stem(term: str) -> str:

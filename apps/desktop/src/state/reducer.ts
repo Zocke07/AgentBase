@@ -1,6 +1,6 @@
 import type { Event, EventType } from "@agentspace/schemas";
 
-import { flag, int, record, strings, text, type Payload } from "../lib/payload";
+import { flag, int, record, records, strings, text, type Payload } from "../lib/payload";
 
 /**
  * The run reducer: the UI's half of BUILD_SPEC §2. Everything the dashboard
@@ -93,6 +93,17 @@ export interface RunError {
   readonly seq: number;
 }
 
+/** One vault excerpt the supervisor received, as `run.started` recorded it. */
+export interface RetrievedExcerpt {
+  readonly citation: string;
+  readonly path: string | null;
+  readonly heading: string | null;
+  readonly score: number | null;
+  readonly matchedTerms: readonly string[];
+  readonly reasons: readonly string[];
+  readonly estimatedTokens: number | null;
+}
+
 export interface Budget {
   readonly spentMicros: number;
   readonly capMicros: number;
@@ -126,6 +137,11 @@ export interface RunView {
   /** Set only for a run that arrived from a chat channel. */
   readonly origin: RunOrigin | null;
   readonly limits: Payload | null;
+  /** The cited excerpts retrieved for the goal, and the citations the user removed. */
+  readonly knowledge: readonly RetrievedExcerpt[];
+  readonly knowledgeExclusions: readonly string[];
+  /** Where the run's outcome was written as a proposed memory note, if it was. */
+  readonly memoryPath: string | null;
   readonly status: RunStatus;
   readonly claim: RunClaim | null;
   readonly agents: Readonly<Record<string, AgentNode>>;
@@ -156,6 +172,9 @@ export const EMPTY_RUN: RunView = {
   goal: null,
   origin: null,
   limits: null,
+  knowledge: [],
+  knowledgeExclusions: [],
+  memoryPath: null,
   status: "pending",
   claim: null,
   agents: {},
@@ -260,11 +279,18 @@ export function reduce(state: RunView, event: Event): RunView {
         ...next,
         goal: text(payload, "goal"),
         limits: record(payload, "limits"),
+        knowledge: records(payload, "knowledge").map(excerptOf),
+        knowledgeExclusions: strings(payload, "knowledge_exclusions"),
         status: "running",
       };
 
     case "run.completed":
-      return { ...next, status: "completed", claim: claimOf("summary", payload) };
+      return {
+        ...next,
+        status: "completed",
+        claim: claimOf("summary", payload),
+        memoryPath: text(payload, "memory_path"),
+      };
 
     case "run.failed":
       return { ...next, status: "failed", claim: claimOf("reason", payload) };
@@ -491,6 +517,18 @@ export function reduceAll(events: readonly Event[], from: RunView = EMPTY_RUN): 
 function thinkingAgain(node: AgentNode): AgentNode {
   if (node.activity === "completed") return node;
   return { ...node, activity: "thinking", currentTool: null };
+}
+
+function excerptOf(hit: Payload): RetrievedExcerpt {
+  return {
+    citation: text(hit, "citation") ?? "?",
+    path: text(hit, "path"),
+    heading: text(hit, "heading"),
+    score: int(hit, "score"),
+    matchedTerms: strings(hit, "matched_terms"),
+    reasons: strings(hit, "reasons"),
+    estimatedTokens: int(hit, "estimated_tokens"),
+  };
 }
 
 function claimOf(kind: RunClaim["kind"], payload: Payload): RunClaim | null {
