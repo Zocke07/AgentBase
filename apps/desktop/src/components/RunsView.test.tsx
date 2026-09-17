@@ -31,6 +31,7 @@ vi.mock("../lib/api", () => ({
   deleteRun: vi.fn(),
   getRunHistory: vi.fn(),
   resolveApproval: vi.fn(),
+  saveKnowledgeNote: vi.fn(),
   baseUrl: vi.fn(() => Promise.resolve("http://x")),
 }));
 
@@ -423,5 +424,37 @@ describe("deleting a run", () => {
     expect((await screen.findByRole("alert")).textContent).toContain("cancel it first");
     expect(screen.getByTestId("run-panel")).toBeDefined();
     expect(screen.getByRole("button", { name: "Delete run…" })).toBeDefined();
+  });
+});
+
+describe("capturing an agent's words as a note", () => {
+  it("writes the run's summary under captures/ in the run's space and says where", async () => {
+    /* The automatic run memory is app-owned and proposed; a capture is the
+       person's own note, so it goes to a folder of its own, keyed on the run
+       and the event it came from. */
+    const user = userEvent.setup();
+    mocked.listRuns.mockResolvedValue([row("completed")]);
+    mocked.getRunHistory.mockResolvedValue(twoAgentRun());
+    mocked.saveKnowledgeNote.mockResolvedValue({
+      path: "captures/run-1-28.md",
+      title: "x",
+      excerpt: "",
+      updated_at: "2026-09-10T12:00:00Z",
+      content: "",
+    });
+    render(<Harness onRunChanged={vi.fn()} pendingApprovals={[]} />);
+    await pick(user, "quarterly", false);
+
+    await user.click(screen.getByRole("button", { name: /The run completed\./ }));
+    await user.click(screen.getByRole("button", { name: "Save as note" }));
+
+    await waitFor(() => {
+      expect(mocked.saveKnowledgeNote).toHaveBeenCalledWith(
+        "space-main",
+        expect.stringMatching(/^captures\/run-1-\d+\.md$/),
+        expect.stringContaining("type: capture"),
+      );
+    });
+    expect(screen.getByTestId("capture-notice").textContent).toContain("Saved captures/run-1-");
   });
 });

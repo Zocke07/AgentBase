@@ -2,7 +2,7 @@ import type { Event } from "@agentspace/schemas";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { clockTime, eventFamily } from "../lib/format";
-import { sentenceFor } from "../state/describe";
+import { captureText, sentenceFor } from "../state/describe";
 
 
 /**
@@ -26,9 +26,18 @@ export interface EventLogProps {
   agents: readonly string[];
   selectedAgent: string | null;
   onSelectAgent: (agent: string | null) => void;
+  /** Save an event's prose as a vault note; absent where no vault is reachable. */
+  onCapture?: ((event: Event) => void) | undefined;
 }
 
-export function EventLog({ events, cursor, agents, selectedAgent, onSelectAgent }: EventLogProps) {
+export function EventLog({
+  events,
+  cursor,
+  agents,
+  selectedAgent,
+  onSelectAgent,
+  onCapture,
+}: EventLogProps) {
   const [chosenType, setType] = useState<string>("all");
   const [showTokens, setShowTokens] = useState(false);
   const [search, setSearch] = useState("");
@@ -260,6 +269,17 @@ export function EventLog({ events, cursor, agents, selectedAgent, onSelectAgent 
                       measured(event.seq, element);
                     }}
                   >
+                    {onCapture !== undefined && captureText(event) !== null && (
+                      <button
+                        type="button"
+                        className="button button--small log__capture"
+                        onClick={() => {
+                          onCapture(event);
+                        }}
+                      >
+                        Save as note
+                      </button>
+                    )}
                     {JSON.stringify(event.payload ?? {}, null, 2)}
                   </pre>
                 )}

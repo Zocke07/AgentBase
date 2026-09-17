@@ -350,3 +350,16 @@ export function nowLine(view: RunView): string {
     }
   }
 }
+
+/** The prose an event carries that is worth keeping as a vault note, if any. */
+export function captureText(event: Event): string | null {
+  const payload = (event.payload ?? {}) as Payload;
+  switch (event.type) {
+    case "agent.message":
+      return text(payload, "text");
+    case "run.completed":
+      return text(payload, "summary");
+    default:
+      return null;
+  }
+}

@@ -30,6 +30,7 @@ export interface RunPanelProps {
   onResolveApproval: ApprovalPanelProps["onResolve"];
   /** The previous run stays on screen, dimmed, while the next one's history is fetched. */
   loading?: boolean;
+  onCapture?: ((event: Event) => void) | undefined;
 }
 
 export function RunPanel({
@@ -42,6 +43,7 @@ export function RunPanel({
   approvalReadOnly,
   onResolveApproval,
   loading = false,
+  onCapture,
 }: RunPanelProps) {
   const scrubbed = cursor < events.length;
   // Room for the widest reading the counter will show ("28 / 28") so the
@@ -178,6 +180,7 @@ export function RunPanel({
           agents={view.agentOrder}
           selectedAgent={selectedName}
           onSelectAgent={onSelectAgent}
+          onCapture={onCapture}
         />
       </div>
     </div>

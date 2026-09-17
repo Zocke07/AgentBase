@@ -3224,3 +3224,8 @@ input[type="radio"] {
     animation: none;
   }
 }
+.log__capture {
+  float: right;
+  margin: 0 0 0.4rem 0.6rem;
+  font-family: var(--font-ui, system-ui);
+}

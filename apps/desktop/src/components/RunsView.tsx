@@ -1,9 +1,10 @@
 
 
-import type { ApprovalResponse } from "@agentspace/schemas";
+import type { ApprovalResponse, Event } from "@agentspace/schemas";
 import { useCallback, useEffect, useState } from "react";
 
 import * as api from "../lib/api";
+import { captureText } from "../state/describe";
 import { hasMore, unfinished, useRunList } from "../state/runList";
 import { useRunStore } from "../state/runStore";
 import { useRunStream } from "../state/useRunStream";
@@ -125,6 +126,30 @@ export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, o
   const waitingRuns = new Set(pendingApprovals.map((approval) => approval.run_id));
 
   const selectedRow = runs.find((run) => run.id === runId);
+  // Keyed on the run it was written for, so switching runs drops it.
+  const [captureNotice, setCaptureNotice] = useState<{ runId: string; text: string } | null>(null);
+
+  // A person's own note from an agent's words: written where automatic run
+  // memories never go, so nothing app-owned overwrites it.
+  const capture = async (event: Event) => {
+    const prose = captureText(event);
+    if (prose === null || selectedRow === undefined) return;
+    const path = `captures/${selectedRow.id}-${String(event.seq)}.md`;
+    const who = event.agent_id ?? "run";
+    const content =
+      `---\ntype: capture\nrun_id: ${selectedRow.id}\nevent_seq: ${String(event.seq)}\n` +
+      `agent: ${who}\ncreated: ${event.ts.slice(0, 10)}\ntags:\n  - capture\n---\n` +
+      `# ${who}: ${event.type}\n\n${prose}\n`;
+    try {
+      await api.saveKnowledgeNote(selectedRow.space_id, path, content);
+      setCaptureNotice({ runId: selectedRow.id, text: `Saved ${path} to this space's Knowledge.` });
+    } catch (failure) {
+      setCaptureNotice({
+        runId: selectedRow.id,
+        text: failure instanceof Error ? failure.message : String(failure),
+      });
+    }
+  };
   const headStatus = !loading && headView.eventCount > 0 ? headView.status : null;
   const rowStale = selectedRow !== undefined && headStatus !== null && selectedRow.status !== headStatus;
 
@@ -244,6 +269,11 @@ export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, o
                   {cancelError}
                 </p>
               )}
+              {captureNotice !== null && captureNotice.runId === runId && (
+                <p className="runs-view__connection" role="status" data-testid="capture-notice">
+                  {captureNotice.text}
+                </p>
+              )}
               {cancellable && (
                 <button
                   type="button"
@@ -308,6 +338,7 @@ export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, o
                   approvalReadOnly={approvalReadOnly}
                   onResolveApproval={resolveApproval}
                   loading={loading}
+                  onCapture={(event) => void capture(event)}
                 />
               )}
             </ErrorBoundary>
