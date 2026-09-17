@@ -35,7 +35,17 @@ demo run. No real model was called; the Tauri window was not opened.
 
 `just ci` passed with **774 backend tests** (11 skipped) and **332 frontend
 tests**, with `ruff`, `ruff format`, `mypy --strict` on both platform targets,
-ESLint and `tsc` clean. `replayIdentity.test.tsx`'s intermediate-position
+ESLint and `tsc` clean. `just build-installer`, `just package-macos`,
+`just verify-build` and `just check-tauri` then passed: the frozen sidecar is
+**132,951,760 bytes**, SHA-256
+`45d83b0863c3253e0a6f9a44e9985da38bf0689a21c861224d280b97836e0830`, and
+`AgentSpace_0.3.0_aarch64-apple-darwin.app.zip` is **135,034,138 bytes**,
+SHA-256 `285fafb2912bbad527297ec9740bb815d17ad6f096b1310eb973e2fffba52663`,
+with **16 release checks passed** and the four Windows-only NSIS checks
+skipped. The archive is five times 0.2.0's because the sidecar has bundled
+the Codex App Server runtime (`--collect-all codex_cli_bin`) since the ChatGPT
+subscription change; that size was recorded below but its effect on the
+download was not called out until now. `replayIdentity.test.tsx`'s intermediate-position
 test, which renders 58 panels in one test, exceeded its 5 s timeout in some
 full-suite runs while the machine reported a load average above 100 from
 system processes; it passed in isolation and in other full runs.
