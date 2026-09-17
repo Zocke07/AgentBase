@@ -135,3 +135,40 @@ def test_memory_curation_move_import_and_evaluation(client: TestClient) -> None:
     )
     assert evaluated.status_code == 200, evaluated.text
     assert evaluated.json()["mean_reciprocal_rank"] == 1
+
+
+def test_memories_merge_and_any_note_can_be_pinned(client: TestClient) -> None:
+    prefix = f"/spaces/{DEFAULT_SPACE_ID}/knowledge"
+    for run_id, outcome in (("a", "Use SQLite."), ("b", "Skip the cache.")):
+        client.put(
+            f"{prefix}/note",
+            json={
+                "path": f"memory/runs/{run_id}.md",
+                "content": (
+                    f"---\ntype: run-memory\nrun_id: {run_id}\nstatus: proposed\n---\n"
+                    f"# Memory {run_id}\n\n## Goal\n\nDecide\n\n## Outcome\n\n{outcome}\n"
+                    "\n## Sources\n\n- [[research/storage]]\n"
+                ),
+            },
+        )
+
+    merged = client.post(
+        f"{prefix}/memories/merge",
+        json={"paths": ["memory/runs/a.md", "memory/runs/b.md"], "title": "Storage"},
+    )
+    pinned = client.patch(f"{prefix}/pin", json={"path": "memory/runs/a.md", "pinned": True})
+    refused = client.post(
+        f"{prefix}/memories/merge", json={"paths": ["memory/runs/a.md", "memory/runs/a.md"]}
+    )
+    missing = client.post(
+        f"{prefix}/memories/merge", json={"paths": ["memory/runs/a.md", "ghost.md"]}
+    )
+
+    assert merged.status_code == 200, merged.text
+    assert merged.json()["memory"]["citations"] == ["[[research/storage]]"]
+    assert merged.json()["archived_paths"] == ["memory/runs/a.md", "memory/runs/b.md"]
+    assert client.get(f"{prefix}/memories").json()["archived"] == 2
+    assert pinned.status_code == 200
+    assert pinned.json()["pinned"] is True
+    assert refused.status_code == 409
+    assert missing.status_code == 404

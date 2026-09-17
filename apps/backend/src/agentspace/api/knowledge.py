@@ -20,6 +20,7 @@ from agentspace.knowledge.store import (
     KnowledgeSearch,
     MemoryIndex,
     MemoryItem,
+    MemoryMergeResult,
     MemoryStatus,
     NoteNotFoundError,
     SearchFilters,
@@ -65,6 +66,16 @@ class UpdateMemoryRequest(BaseModel):
     path: str = Field(min_length=1, max_length=500)
     status: MemoryStatus | None = None
     pinned: bool | None = None
+
+
+class MergeMemoriesRequest(BaseModel):
+    paths: list[str] = Field(min_length=2, max_length=20)
+    title: str | None = Field(default=None, max_length=120)
+
+
+class PinNoteRequest(BaseModel):
+    path: str = Field(min_length=1, max_length=500)
+    pinned: bool
 
 
 class EvaluateKnowledgeRequest(BaseModel):
@@ -196,6 +207,34 @@ async def update_memory(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except KnowledgeConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/memories/merge")
+async def merge_memories(
+    request: Request, space_id: str, body: MergeMemoriesRequest
+) -> MemoryMergeResult:
+    try:
+        return await _store(request).merge_memories(space_id, body.paths, body.title)
+    except SpaceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KnowledgePathError as exc:
+        raise _bad_path(exc) from exc
+    except NoteNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KnowledgeConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.patch("/pin")
+async def pin_note(request: Request, space_id: str, body: PinNoteRequest) -> KnowledgeNote:
+    try:
+        return await _store(request).pin_note(space_id, body.path, body.pinned)
+    except SpaceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KnowledgePathError as exc:
+        raise _bad_path(exc) from exc
+    except NoteNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/evaluate")

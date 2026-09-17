@@ -1077,6 +1077,11 @@
             "title": "Path",
             "type": "string"
           },
+          "pinned": {
+            "default": false,
+            "title": "Pinned",
+            "type": "boolean"
+          },
           "properties": {
             "additionalProperties": {
               "type": "string"
@@ -1094,6 +1099,13 @@
           "title": {
             "title": "Title",
             "type": "string"
+          },
+          "unresolved_links": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unresolved Links",
+            "type": "array"
           },
           "updated_at": {
             "format": "date-time",
@@ -1161,8 +1173,18 @@
             "title": "Note Count",
             "type": "integer"
           },
+          "orphan_count": {
+            "default": 0,
+            "title": "Orphan Count",
+            "type": "integer"
+          },
           "tag_count": {
             "title": "Tag Count",
+            "type": "integer"
+          },
+          "unresolved_link_count": {
+            "default": 0,
+            "title": "Unresolved Link Count",
             "type": "integer"
           }
         },
@@ -1209,6 +1231,13 @@
       "MemoryItem": {
         "description": "A run outcome waiting for, or carrying, a user's trust decision.",
         "properties": {
+          "citations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
           "confidence": {
             "title": "Confidence",
             "type": "string"
@@ -1221,6 +1250,24 @@
           "goal": {
             "title": "Goal",
             "type": "string"
+          },
+          "merged_from": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Merged From",
+            "type": "array"
+          },
+          "merged_into": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merged Into"
           },
           "outcome": {
             "title": "Outcome",
@@ -1252,6 +1299,13 @@
           "status": {
             "$ref": "#/components/schemas/MemoryStatus"
           },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
           "title": {
             "title": "Title",
             "type": "string"
@@ -1278,6 +1332,31 @@
         "title": "MemoryItem",
         "type": "object"
       },
+      "MemoryMergeResult": {
+        "properties": {
+          "archived_paths": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Archived Paths",
+            "type": "array"
+          },
+          "backup_path": {
+            "title": "Backup Path",
+            "type": "string"
+          },
+          "memory": {
+            "$ref": "#/components/schemas/MemoryItem"
+          }
+        },
+        "required": [
+          "memory",
+          "archived_paths",
+          "backup_path"
+        ],
+        "title": "MemoryMergeResult",
+        "type": "object"
+      },
       "MemoryStatus": {
         "description": "Trust state for an agent-generated memory.",
         "enum": [
@@ -1287,6 +1366,36 @@
         ],
         "title": "MemoryStatus",
         "type": "string"
+      },
+      "MergeMemoriesRequest": {
+        "properties": {
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 2,
+            "title": "Paths",
+            "type": "array"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "paths"
+        ],
+        "title": "MergeMemoriesRequest",
+        "type": "object"
       },
       "MoveNoteRequest": {
         "properties": {
@@ -1340,6 +1449,11 @@
             "title": "Path",
             "type": "string"
           },
+          "pinned": {
+            "default": false,
+            "title": "Pinned",
+            "type": "boolean"
+          },
           "properties": {
             "additionalProperties": {
               "type": "string"
@@ -1358,6 +1472,13 @@
             "title": "Title",
             "type": "string"
           },
+          "unresolved_links": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unresolved Links",
+            "type": "array"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
@@ -1371,6 +1492,26 @@
           "updated_at"
         ],
         "title": "NoteSummary",
+        "type": "object"
+      },
+      "PinNoteRequest": {
+        "properties": {
+          "path": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          },
+          "pinned": {
+            "title": "Pinned",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "path",
+          "pinned"
+        ],
+        "title": "PinNoteRequest",
         "type": "object"
       },
       "ProviderCatalogueResponse": {
@@ -3942,6 +4083,55 @@
         "summary": "List Memories"
       }
     },
+    "/spaces/{space_id}/knowledge/memories/merge": {
+      "post": {
+        "operationId": "merge_memories_spaces__space_id__knowledge_memories_merge_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MergeMemoriesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryMergeResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Merge Memories"
+      }
+    },
     "/spaces/{space_id}/knowledge/memory": {
       "patch": {
         "operationId": "update_memory_spaces__space_id__knowledge_memory_patch",
@@ -4172,6 +4362,55 @@
           }
         },
         "summary": "Write Note"
+      }
+    },
+    "/spaces/{space_id}/knowledge/pin": {
+      "patch": {
+        "operationId": "pin_note_spaces__space_id__knowledge_pin_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PinNoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeNote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pin Note"
       }
     },
     "/spaces/{space_id}/knowledge/search": {

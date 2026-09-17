@@ -180,17 +180,25 @@ async def test_propose_memory_creates_an_untrusted_inbox_note(sandbox: Sandbox) 
             "content": "SQLite WAL worked for this workload.",
             "confidence": "high",
             "tags": ["database"],
+            "citations": ["[[decision#Storage]]", "[[decision#Storage]]"],
         },
         sandbox,
     )
 
     result = await tool.execute(prepared, sandbox)
     notes = list((sandbox.root / "memory" / "inbox").glob("*.md"))
+    written = notes[0].read_text(encoding="utf-8")
 
     assert tool.risk is RiskLevel.MEDIUM
     assert len(notes) == 1
-    assert "status: proposed" in notes[0].read_text(encoding="utf-8")
+    assert "status: proposed" in written
+    assert written.count("- [[decision#Storage]]") == 1
+    assert "## Sources" in written
     assert "Proposed memory [[memory/inbox/" in result
+    with pytest.raises(ToolArgumentError):
+        tool.prepare(
+            {"title": "x", "content": "y", "confidence": "high", "citations": [""]}, sandbox
+        )
 
 
 # --- write_file ---------------------------------------------------------------

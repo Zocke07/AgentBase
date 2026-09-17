@@ -264,6 +264,8 @@ export interface KnowledgeNote {
   properties?: Record<string, string>;
   links?: string[];
   backlinks?: string[];
+  unresolved_links?: string[];
+  pinned?: boolean;
   updated_at: string;
   content: string;
 }
@@ -281,6 +283,8 @@ export interface KnowledgeStats {
   link_count: number;
   tag_count: number;
   chunk_count: number;
+  orphan_count?: number;
+  unresolved_link_count?: number;
 }
 
 export interface MemoryIndex {
@@ -301,12 +305,27 @@ export interface MemoryItem {
   status: MemoryStatus;
   pinned: boolean;
   confidence: string;
+  tags?: string[];
+  citations?: string[];
+  merged_from?: string[];
+  merged_into?: string | null;
   created_at: string;
   updated_at: string;
 }
 
+export interface MemoryMergeResult {
+  memory: MemoryItem;
+  archived_paths: string[];
+  backup_path: string;
+}
+
 /** Trust state for an agent-generated memory. */
 export type MemoryStatus = "proposed" | "approved" | "archived";
+
+export interface MergeMemoriesRequest {
+  paths: string[];
+  title?: string | null;
+}
 
 export interface MoveNoteRequest {
   source: string;
@@ -323,7 +342,14 @@ export interface NoteSummary {
   properties?: Record<string, string>;
   links?: string[];
   backlinks?: string[];
+  unresolved_links?: string[];
+  pinned?: boolean;
   updated_at: string;
+}
+
+export interface PinNoteRequest {
+  path: string;
+  pinned: boolean;
 }
 
 /** What can be selected, and which models are priced, per provider. */

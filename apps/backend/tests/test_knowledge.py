@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -9,6 +10,7 @@ import pytest
 
 from agentspace.knowledge.store import (
     MAX_NOTES,
+    KnowledgeConflictError,
     KnowledgeEvaluationCase,
     KnowledgePathError,
     KnowledgeStore,
@@ -270,6 +272,111 @@ def test_hybrid_ranker_accepts_ten_thousand_notes() -> None:
     hits = _search(notes, "needle", 5, SearchFilters())
 
     assert hits[0].path == "scale/note-09999.md"
+
+
+async def test_ten_thousand_notes_on_disk_index_and_search_within_bounds(
+    knowledge: KnowledgeStore,
+) -> None:
+    """The practical limit is real files: a warm scan and a query stay interactive.
+
+    The bounds are loose so a slow CI runner passes; a regression that re-parses
+    or re-tokenises the whole vault per request is an order of magnitude slower.
+    """
+    root = knowledge.spaces.folder_for(DEFAULT_SPACE_ID)
+    for index in range(MAX_NOTES):
+        folder = root / f"topic-{index % 40:02}"
+        folder.mkdir(parents=True, exist_ok=True)
+        detail = "needle evidence for retention" if index == 9_999 else "ordinary planning"
+        (folder / f"note-{index:05}.md").write_text(
+            f"---\ntags: [t{index % 20}]\n---\n# Note {index}\n\n"
+            f"## Background\n\nTopic {index % 40}, see [[topic-00/note-00000]].\n\n"
+            f"## Details\n\n{detail} lorem ipsum dolor sit amet.\n",
+            encoding="utf-8",
+        )
+
+    cold = await knowledge.index(DEFAULT_SPACE_ID)
+    started = time.perf_counter()
+    warm = await knowledge.index(DEFAULT_SPACE_ID)
+    warm_seconds = time.perf_counter() - started
+    started = time.perf_counter()
+    hits = await knowledge.search(DEFAULT_SPACE_ID, "needle evidence retention")
+    search_seconds = time.perf_counter() - started
+
+    assert cold.stats.note_count == MAX_NOTES
+    assert cold.index_status.truncated is False
+    assert warm.index_status.reused_files == MAX_NOTES
+    assert warm.index_status.changed_files == 0
+    assert hits[0].path == "topic-39/note-09999.md"
+    assert warm_seconds < 5, f"warm index took {warm_seconds:.2f}s"
+    assert search_seconds < 3, f"search took {search_seconds:.2f}s"
+
+
+async def test_unresolved_links_orphans_and_pins_are_visible(
+    knowledge: KnowledgeStore,
+) -> None:
+    await knowledge.write_note(
+        DEFAULT_SPACE_ID, "hub.md", "# Hub\n\nSee [[leaf]] and [[missing note]]."
+    )
+    await knowledge.write_note(DEFAULT_SPACE_ID, "leaf.md", "# Leaf\n\nA leaf note.")
+
+    pinned = await knowledge.pin_note(DEFAULT_SPACE_ID, "leaf.md", True)
+    index = await knowledge.index(DEFAULT_SPACE_ID)
+    hub = next(note for note in index.notes if note.path == "hub.md")
+
+    assert hub.unresolved_links == ["missing note"]
+    assert hub.backlinks == []
+    assert index.stats.orphan_count == 1
+    assert index.stats.unresolved_link_count == 1
+    assert pinned.pinned is True
+    assert pinned.content.startswith("---\npinned: true\n---\n# Leaf")
+    assert (
+        await knowledge.search(
+            DEFAULT_SPACE_ID, "leaf", filters=SearchFilters(pinned_only=True)
+        )
+    )[0].path == "leaf.md"
+
+
+async def test_memories_carry_citations_and_merge_into_one_archiving_the_rest(
+    knowledge: KnowledgeStore,
+) -> None:
+    first = await knowledge.save_run_memory(
+        DEFAULT_SPACE_ID,
+        run_id="run-1",
+        goal="Pick storage",
+        summary="SQLite in WAL mode.",
+        citations=["[[research/sqlite#WAL]]", "[[research/sqlite#WAL]]"],
+    )
+    second = await knowledge.save_run_memory(
+        DEFAULT_SPACE_ID,
+        run_id="run-2",
+        goal="Pick a cache",
+        summary="No cache is needed.",
+        citations=["[[decisions/cache]]"],
+    )
+    await knowledge.update_memory(DEFAULT_SPACE_ID, first, status=MemoryStatus.APPROVED)
+
+    before = await knowledge.memories(DEFAULT_SPACE_ID)
+    merged = await knowledge.merge_memories(DEFAULT_SPACE_ID, [first, second], "Storage")
+    after = await knowledge.memories(DEFAULT_SPACE_ID)
+    originals = {item.path: item for item in after.items if item.path in {first, second}}
+
+    assert next(item for item in before.items if item.path == first).citations == [
+        "[[research/sqlite#WAL]]"
+    ]
+    assert merged.memory.path.startswith("memory/merged/")
+    assert merged.memory.title == "Storage"
+    assert merged.memory.status is MemoryStatus.PROPOSED
+    assert merged.memory.citations == ["[[research/sqlite#WAL]]", "[[decisions/cache]]"]
+    assert merged.memory.merged_from == [first, second]
+    assert "SQLite in WAL mode." in merged.memory.outcome
+    assert "No cache is needed." in merged.memory.outcome
+    assert merged.archived_paths == [first, second]
+    assert merged.backup_path.startswith(".agentspace/backups/")
+    assert {item.status for item in originals.values()} == {MemoryStatus.ARCHIVED}
+    assert {item.merged_into for item in originals.values()} == {merged.memory.path}
+    assert after.archived == 2
+    with pytest.raises(KnowledgeConflictError):
+        await knowledge.merge_memories(DEFAULT_SPACE_ID, [first, first])
 
 
 @pytest.mark.parametrize(

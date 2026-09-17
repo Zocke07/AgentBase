@@ -5,9 +5,9 @@ from __future__ import annotations
 import asyncio
 import re
 import uuid
-from datetime import UTC, datetime
 from typing import Any
 
+from agentspace.knowledge.store import MemoryStatus, memory_markdown
 from agentspace.tools.base import Prepared, ToolArgumentError
 from agentspace.tools.catalogue import RiskLevel, lookup
 from agentspace.tools.sandbox import Sandbox
@@ -57,6 +57,14 @@ class ProposeMemoryTool:
                     "items": {"type": "string"},
                     "description": "Optional tags without leading # characters.",
                 },
+                "citations": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Optional [[note#heading]] citations from search_knowledge that "
+                        "support this memory."
+                    ),
+                },
             },
             "required": ["title", "content", "confidence"],
         }
@@ -66,6 +74,7 @@ class ProposeMemoryTool:
         content = arguments.get("content")
         confidence = arguments.get("confidence")
         tags = arguments.get("tags", [])
+        citations = arguments.get("citations", [])
         if not isinstance(title, str) or not title.strip() or len(title) > 120:
             raise ToolArgumentError("propose_memory needs a title from 1 to 120 characters.")
         if not isinstance(content, str) or not content.strip() or len(content) > 20_000:
@@ -80,7 +89,17 @@ class ProposeMemoryTool:
             raise ToolArgumentError(
                 "propose_memory tags may contain letters, numbers, slash, underscore, or dash."
             )
+        if not isinstance(citations, list) or any(
+            not isinstance(citation, str) or not 1 <= len(citation.strip()) <= 300
+            for citation in citations
+        ):
+            raise ToolArgumentError(
+                "propose_memory citations must be strings from 1 to 300 characters."
+            )
         clean_tags = list(dict.fromkeys(tag.strip().lstrip("#") for tag in tags))[:20]
+        clean_citations = list(
+            dict.fromkeys(" ".join(citation.split()) for citation in citations)
+        )[:20]
         return Prepared(
             tool_name=self.name,
             summary=f"propose a memory titled {title.strip()!r}",
@@ -89,6 +108,7 @@ class ProposeMemoryTool:
                 "content": content.strip(),
                 "confidence": confidence,
                 "tags": clean_tags,
+                "citations": clean_citations,
             },
             raw_arguments=dict(arguments),
         )
@@ -97,23 +117,17 @@ class ProposeMemoryTool:
         memory_id = str(uuid.uuid4())
         relative = f"memory/inbox/{memory_id}.md"
         destination = sandbox.resolve_path(relative)
-        tags: list[str] = prepared.payload["tags"]
-        tag_lines = "".join(f"  - {tag}\n" for tag in ["agent-memory", *tags])
-        content = (
-            "---\n"
-            "type: agent-memory\n"
-            f"memory_id: {memory_id}\n"
-            f"created: {datetime.now(UTC).date().isoformat()}\n"
-            "status: proposed\n"
-            "pinned: false\n"
-            f"confidence: {prepared.payload['confidence']}\n"
-            "tags:\n"
-            f"{tag_lines}"
-            "---\n"
-            f"# {prepared.payload['title']}\n\n"
-            "## Goal\n\nAgent-proposed durable knowledge\n\n"
-            "## Outcome\n\n"
-            f"{prepared.payload['content']}\n"
+        content = memory_markdown(
+            memory_id=memory_id,
+            note_type="agent-memory",
+            status=MemoryStatus.PROPOSED,
+            pinned=False,
+            confidence=prepared.payload["confidence"],
+            tags=["agent-memory", *prepared.payload["tags"]],
+            title=prepared.payload["title"],
+            goal="",
+            outcome=prepared.payload["content"],
+            citations=prepared.payload["citations"],
         )
 
         def write() -> None:

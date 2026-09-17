@@ -262,7 +262,11 @@ async def _finish(
             space_id = run.space.id if run.space is not None else DEFAULT_SPACE_ID
             try:
                 memory_path = await knowledge.save_run_memory(
-                    space_id, run_id=run.id, goal=run.goal, summary=outcome.result
+                    space_id,
+                    run_id=run.id,
+                    goal=run.goal,
+                    summary=outcome.result,
+                    citations=[hit.citation for hit in run.knowledge],
                 )
             except (OSError, ValueError):
                 logger.exception("could not save memory for run %s", run.id)

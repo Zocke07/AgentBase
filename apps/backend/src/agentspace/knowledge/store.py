@@ -12,9 +12,11 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import math
+import os
 import posixpath
 import re
 import shutil
+import threading
 import time
 import uuid
 from collections import Counter, defaultdict
@@ -22,6 +24,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
+from stat import S_ISREG
 from typing import TYPE_CHECKING, Final
 from urllib.parse import unquote
 
@@ -53,11 +56,13 @@ __all__ = [
     "KnowledgeStore",
     "MemoryIndex",
     "MemoryItem",
+    "MemoryMergeResult",
     "MemoryStatus",
     "NoteNotFoundError",
     "NoteSummary",
     "SearchFilters",
     "SearchHit",
+    "memory_markdown",
     "search_folder",
 ]
 
@@ -109,6 +114,8 @@ class NoteSummary(BaseModel):
     properties: dict[str, str] = Field(default_factory=dict)
     links: list[str] = Field(default_factory=list)
     backlinks: list[str] = Field(default_factory=list)
+    unresolved_links: list[str] = Field(default_factory=list)
+    pinned: bool = False
     updated_at: datetime
 
 
@@ -125,6 +132,8 @@ class KnowledgeStats(BaseModel):
     link_count: int
     tag_count: int
     chunk_count: int
+    orphan_count: int = 0
+    unresolved_link_count: int = 0
 
 
 class KnowledgeIndexStatus(BaseModel):
@@ -223,6 +232,10 @@ class MemoryItem(BaseModel):
     status: MemoryStatus
     pinned: bool
     confidence: str
+    tags: list[str] = Field(default_factory=list)
+    citations: list[str] = Field(default_factory=list)
+    merged_from: list[str] = Field(default_factory=list)
+    merged_into: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -234,6 +247,14 @@ class MemoryIndex(BaseModel):
     proposed: int
     approved: int
     archived: int
+
+
+class MemoryMergeResult(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    memory: MemoryItem
+    archived_paths: list[str]
+    backup_path: str
 
 
 class KnowledgeMoveResult(BaseModel):
@@ -280,6 +301,19 @@ class KnowledgeEvaluation(BaseModel):
 
 
 @dataclass(frozen=True, slots=True)
+class _Chunk:
+    """A heading-sized slice with its ranking signals computed once at parse time."""
+
+    heading: str | None
+    content: str
+    body_counts: dict[str, int]
+    body_length: int
+    heading_terms: frozenset[str]
+    all_terms: frozenset[str]
+    vector: dict[int, float]
+
+
+@dataclass(frozen=True, slots=True)
 class _ParsedNote:
     path: str
     title: str
@@ -291,14 +325,11 @@ class _ParsedNote:
     raw_links: tuple[str, ...]
     links: tuple[str, ...]
     backlinks: tuple[str, ...]
+    unresolved_links: tuple[str, ...]
     updated_at: datetime
-
-
-@dataclass(frozen=True, slots=True)
-class _Chunk:
-    note: _ParsedNote
-    heading: str | None
-    content: str
+    title_terms: frozenset[str]
+    tag_terms: frozenset[str]
+    chunks: tuple[_Chunk, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -313,7 +344,6 @@ class KnowledgeStore:
 
     def __init__(self, spaces: SpaceStore) -> None:
         self.spaces = spaces
-        self._snapshots: dict[str, _VaultSnapshot] = {}
         self._locks: dict[str, asyncio.Lock] = {}
 
     async def list_notes(self, space_id: str) -> list[NoteSummary]:
@@ -329,7 +359,9 @@ class KnowledgeStore:
                 note_count=len(notes),
                 link_count=sum(len(note.links) for note in notes),
                 tag_count=len(tags),
-                chunk_count=len(_chunks(notes)),
+                chunk_count=sum(len(note.chunks) for note in notes),
+                orphan_count=sum(not note.backlinks for note in notes),
+                unresolved_link_count=sum(len(note.unresolved_links) for note in notes),
             ),
             index_status=status,
         )
@@ -527,7 +559,7 @@ class KnowledgeStore:
             query=query,
             hits=hits,
             duration_ms=round((time.perf_counter() - started) * 1_000, 3),
-            total_chunks=len(_chunks(notes)),
+            total_chunks=sum(len(note.chunks) for note in notes),
         )
 
     async def memories(self, space_id: str) -> MemoryIndex:
@@ -569,6 +601,86 @@ class KnowledgeStore:
         if parsed is None:  # pragma: no cover - guarded above
             raise KnowledgeConflictError(f"{note.path} is not an agent run memory.")
         return parsed
+
+    async def pin_note(self, space_id: str, path: str, pinned: bool) -> KnowledgeNote:
+        """Mark any note as a favourite; pinned notes pass every retrieval filter."""
+        note = await self.get_note(space_id, path)
+        content = _set_frontmatter_property(note.content, "pinned", str(pinned).lower())
+        return await self.write_note(space_id, note.path, content)
+
+    async def merge_memories(
+        self, space_id: str, paths: list[str], title: str | None = None
+    ) -> MemoryMergeResult:
+        """Fold several memories into one note and archive the originals, backed up."""
+        wanted = [await self._normalise_path(space_id, path) for path in paths]
+        if len(dict.fromkeys(item.casefold() for item in wanted)) < 2:
+            raise KnowledgeConflictError("Merging needs at least two different memories.")
+        notes = await self._scan(space_id)
+        by_path = {note.path.casefold(): note for note in notes}
+        sources: list[_ParsedNote] = []
+        for path in wanted:
+            note = by_path.get(path.casefold())
+            if note is None:
+                raise NoteNotFoundError(f"There is no knowledge note at {path}.")
+            if not _is_memory(note):
+                raise KnowledgeConflictError(f"{note.path} is not an agent run memory.")
+            sources.append(note)
+        items = [item for item in map(_memory_item, sources) if item is not None]
+
+        memory_id = str(uuid.uuid4())
+        target = f"memory/merged/{memory_id}.md"
+        root = await self._root(space_id)
+        statuses = {item.status for item in items}
+        status = (
+            MemoryStatus.APPROVED
+            if statuses == {MemoryStatus.APPROVED}
+            else (MemoryStatus.PROPOSED)
+        )
+        confidences = {item.confidence for item in items}
+        tags = list(
+            dict.fromkeys(tag for item in items for tag in item.tags if tag != "run-summary")
+        )
+        citations = list(dict.fromkeys(cite for item in items for cite in item.citations))
+        heading = " ".join((title or f"Merged memory: {items[0].title}").split())[:120]
+        content = memory_markdown(
+            memory_id=memory_id,
+            note_type="agent-memory",
+            status=status,
+            pinned=any(item.pinned for item in items),
+            confidence=next(iter(confidences)) if len(confidences) == 1 else "mixed",
+            tags=["agent-memory", *tags],
+            title=heading,
+            goal="\n\n".join(dict.fromkeys(item.goal for item in items if item.goal)),
+            outcome="\n\n".join(
+                f"From [[{item.path.removesuffix('.md')}]]:\n\n{item.outcome}"
+                for item in items
+                if item.outcome
+            ),
+            citations=citations,
+            merged_from=[item.path for item in items],
+        )
+
+        def merge() -> str:
+            backup = _backup_files(root, [root / note.path for note in sources], "merge")
+            _atomic_write(root / target, content)
+            for note in sources:
+                archived = _set_frontmatter_property(
+                    note.content, "status", MemoryStatus.ARCHIVED.value
+                )
+                archived = _set_frontmatter_property(archived, "merged_into", target)
+                _atomic_write(root / note.path, archived)
+            return backup.relative_to(root).as_posix()
+
+        backup_path = await asyncio.to_thread(merge)
+        merged = await self.get_note(space_id, target)
+        item = _memory_item(_parse_note(merged.path, merged.content, merged.updated_at))
+        if item is None:  # pragma: no cover - the note was just written as a memory
+            raise KnowledgeConflictError(f"{target} is not an agent run memory.")
+        return MemoryMergeResult(
+            memory=item,
+            archived_paths=[note.path for note in sources],
+            backup_path=backup_path,
+        )
 
     async def evaluate(
         self,
@@ -635,28 +747,28 @@ class KnowledgeStore:
         return rendered[:MAX_CONTEXT_CHARS]
 
     async def save_run_memory(
-        self, space_id: str, *, run_id: str, goal: str, summary: str
+        self,
+        space_id: str,
+        *,
+        run_id: str,
+        goal: str,
+        summary: str,
+        citations: Iterable[str] = (),
     ) -> str:
         """Persist a completed run's compact durable memory as canonical Markdown."""
         path = f"memory/runs/{run_id}.md"
-        today = datetime.now(UTC).date().isoformat()
-        content = (
-            "---\n"
-            "type: run-memory\n"
-            f"run_id: {run_id}\n"
-            f"created: {today}\n"
-            "status: proposed\n"
-            "pinned: false\n"
-            "confidence: agent-generated\n"
-            "tags:\n"
-            "  - agent-memory\n"
-            "  - run-summary\n"
-            "---\n"
-            f"# Run memory: {_one_line(goal)}\n\n"
-            "## Goal\n\n"
-            f"{goal.strip()}\n\n"
-            "## Outcome\n\n"
-            f"{summary.strip()}\n"
+        content = memory_markdown(
+            memory_id=None,
+            run_id=run_id,
+            note_type="run-memory",
+            status=MemoryStatus.PROPOSED,
+            pinned=False,
+            confidence="agent-generated",
+            tags=["agent-memory", "run-summary"],
+            title=f"Run memory: {_one_line(goal)}",
+            goal=goal.strip(),
+            outcome=summary.strip(),
+            citations=list(dict.fromkeys(citations)),
         )
         await self.write_note(space_id, path, content)
         return path
@@ -671,10 +783,7 @@ class KnowledgeStore:
         root = await self._root(space_id)
         lock = self._locks.setdefault(space_id, asyncio.Lock())
         async with lock:
-            snapshot = await asyncio.to_thread(
-                _refresh_snapshot, root, self._snapshots.get(space_id)
-            )
-            self._snapshots[space_id] = snapshot
+            snapshot = await asyncio.to_thread(_cached_snapshot, root)
         return list(snapshot.notes), snapshot.status
 
     async def _root(self, space_id: str) -> Path:
@@ -716,12 +825,29 @@ class KnowledgeStore:
             properties=dict(note.properties),
             links=list(note.links),
             backlinks=list(note.backlinks),
+            unresolved_links=list(note.unresolved_links),
+            pinned=_property_bool(note.properties.get("pinned")),
             updated_at=note.updated_at,
         )
 
 
+#: Incremental snapshots by resolved root, shared by the store and the agent
+#: tool so a `search_knowledge` call reuses what the UI already parsed.
+_SNAPSHOTS: dict[Path, _VaultSnapshot] = {}
+_SNAPSHOTS_GUARD = threading.Lock()
+
+
+def _cached_snapshot(root: Path) -> _VaultSnapshot:
+    with _SNAPSHOTS_GUARD:
+        previous = _SNAPSHOTS.get(root)
+    snapshot = _refresh_snapshot(root, previous)
+    with _SNAPSHOTS_GUARD:
+        _SNAPSHOTS[root] = snapshot
+    return snapshot
+
+
 def _scan_sync(root: Path) -> list[_ParsedNote]:
-    return list(_refresh_snapshot(root, None).notes)
+    return list(_cached_snapshot(root.resolve()).notes)
 
 
 def _refresh_snapshot(root: Path, previous: _VaultSnapshot | None) -> _VaultSnapshot:
@@ -732,26 +858,10 @@ def _refresh_snapshot(root: Path, previous: _VaultSnapshot | None) -> _VaultSnap
     signatures: dict[str, tuple[int, int, int]] = {}
     parsed: list[_ParsedNote] = []
     changed = reused = 0
-    candidates = sorted(root.rglob("*.md"), key=lambda item: item.as_posix().casefold())
-    visible: list[tuple[Path, Path, str, tuple[int, int, int]]] = []
-    for candidate in candidates:
-        try:
-            relative_path = candidate.relative_to(root)
-            if (
-                any(part.startswith(".") for part in relative_path.parts)
-                or not candidate.is_file()
-            ):
-                continue
-            resolved = candidate.resolve()
-            resolved.relative_to(root)
-            stat = resolved.stat()
-        except (OSError, ValueError):
-            continue
-        signature = (stat.st_mtime_ns, stat.st_size, getattr(stat, "st_ino", 0))
-        visible.append((candidate, resolved, relative_path.as_posix(), signature))
+    visible = sorted(_visible_markdown(root), key=lambda item: item[1].casefold())
 
     truncated = len(visible) > MAX_NOTES
-    for _candidate, resolved, relative_name, signature in visible[:MAX_NOTES]:
+    for full_path, relative_name, signature in visible[:MAX_NOTES]:
         signatures[relative_name] = signature
         cached = old_notes.get(relative_name)
         if cached is not None and old_signatures.get(relative_name) == signature:
@@ -759,7 +869,8 @@ def _refresh_snapshot(root: Path, previous: _VaultSnapshot | None) -> _VaultSnap
             reused += 1
             continue
         try:
-            content = resolved.read_text(encoding="utf-8", errors="replace")[:MAX_NOTE_CHARS]
+            with Path(full_path).open(encoding="utf-8", errors="replace") as handle:
+                content = handle.read(MAX_NOTE_CHARS)
             updated_at = datetime.fromtimestamp(signature[0] / 1_000_000_000, UTC)
         except OSError:
             signatures.pop(relative_name, None)
@@ -769,7 +880,12 @@ def _refresh_snapshot(root: Path, previous: _VaultSnapshot | None) -> _VaultSnap
 
     old_paths = set(old_signatures)
     changed += len(old_paths - set(signatures))
-    linked = tuple(_resolve_links(parsed))
+    # Links only move when a file did; an unchanged vault keeps its resolved notes.
+    linked = (
+        previous.notes
+        if previous is not None and changed == 0 and len(parsed) == len(previous.notes)
+        else tuple(_resolve_links(parsed))
+    )
     status = KnowledgeIndexStatus(
         indexed_at=datetime.now(UTC),
         scanned_files=len(visible),
@@ -779,6 +895,39 @@ def _refresh_snapshot(root: Path, previous: _VaultSnapshot | None) -> _VaultSnap
         duration_ms=round((time.perf_counter() - started) * 1_000, 3),
     )
     return _VaultSnapshot(signatures=signatures, notes=linked, status=status)
+
+
+def _visible_markdown(root: Path) -> list[tuple[str, str, tuple[int, int, int]]]:
+    """Every visible `.md` regular file under the root, as string paths.
+
+    This walks with `os` rather than `pathlib` because ten thousand
+    `Path.resolve()` and `relative_to()` calls cost more than reading the files.
+    Hidden entries are pruned at the directory level, and symlinks are skipped
+    rather than resolved because a link can point outside the space folder.
+    """
+    prefix = len(str(root)) + 1
+    found: list[tuple[str, str, tuple[int, int, int]]] = []
+    for directory, subdirectories, files in os.walk(root):
+        subdirectories[:] = sorted(name for name in subdirectories if not name.startswith("."))
+        for name in files:
+            if name.startswith(".") or not name.casefold().endswith(".md"):
+                continue
+            full_path = os.path.join(directory, name)  # noqa: PTH118 - see docstring
+            try:
+                stat = os.lstat(full_path)
+            except OSError:
+                continue
+            if not S_ISREG(stat.st_mode):
+                continue
+            relative_name = full_path[prefix:].replace(os.sep, "/")
+            found.append(
+                (
+                    full_path,
+                    relative_name,
+                    (stat.st_mtime_ns, stat.st_size, getattr(stat, "st_ino", 0)),
+                )
+            )
+    return found
 
 
 async def search_folder(root: Path, query: str, limit: int = 8) -> list[SearchHit]:
@@ -794,30 +943,75 @@ async def search_folder(root: Path, query: str, limit: int = 8) -> list[SearchHi
 
 def _parse_note(path: str, content: str, updated_at: datetime) -> _ParsedNote:
     properties, body = _frontmatter(content)
-    tags = _tags(properties, body)
+    tags = tuple(sorted(set(_tags(properties, body)), key=str.casefold))
     title_match = _HEADING.search(body)
     title = (
         _plain(title_match.group(2))
         if title_match is not None
         else Path(path).stem.replace("-", " ").replace("_", " ").strip().title()
-    )
+    ) or Path(path).stem
     raw_links = [match.group(1).strip() for match in _WIKILINK.finditer(body)]
     for match in _MARKDOWN_LINK.finditer(body):
         target = unquote(match.group(1).split("#", 1)[0].strip())
         if target.casefold().endswith(".md") and "://" not in target:
             raw_links.append(target)
+    title_terms = _terms(title)
+    tag_terms = _terms(" ".join(tags))
     return _ParsedNote(
         path=path,
-        title=title or Path(path).stem,
+        title=title,
         content=content,
         body=body,
         excerpt=_excerpt(body),
-        tags=tuple(sorted(set(tags), key=str.casefold)),
+        tags=tags,
         properties=properties,
         raw_links=tuple(dict.fromkeys(raw_links)),
         links=(),
         backlinks=(),
+        unresolved_links=(),
         updated_at=updated_at,
+        title_terms=frozenset(title_terms),
+        tag_terms=frozenset(tag_terms),
+        chunks=tuple(
+            _chunk(heading, text, title_terms, tag_terms) for heading, text in _sections(body)
+        ),
+    )
+
+
+def _sections(body: str) -> list[tuple[str | None, str]]:
+    matches = list(_HEADING.finditer(body))
+    if not matches:
+        return _slices(None, body)
+    sections: list[tuple[str | None, str]] = []
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(body)
+        sections.extend(_slices(_plain(match.group(2)), body[match.end() : end]))
+    return sections
+
+
+def _slices(heading: str | None, content: str) -> list[tuple[str | None, str]]:
+    clean = content.strip()
+    if not clean:
+        return []
+    return [
+        (heading, clean[start : start + MAX_CHUNK_CHARS])
+        for start in range(0, len(clean), MAX_CHUNK_CHARS)
+    ]
+
+
+def _chunk(
+    heading: str | None, content: str, title_terms: list[str], tag_terms: list[str]
+) -> _Chunk:
+    body_terms = _terms(content)
+    heading_terms = _terms(heading or "")
+    return _Chunk(
+        heading=heading,
+        content=content,
+        body_counts=dict(Counter(body_terms)),
+        body_length=len(body_terms),
+        heading_terms=frozenset(heading_terms),
+        all_terms=frozenset([*body_terms, *title_terms, *heading_terms, *tag_terms]),
+        vector=_vector([*body_terms, *title_terms, *heading_terms, *tag_terms]),
     )
 
 
@@ -870,11 +1064,15 @@ def _resolve_links(notes: list[_ParsedNote]) -> list[_ParsedNote]:
     linked: list[_ParsedNote] = []
     for note in notes:
         targets: list[str] = []
+        unresolved: list[str] = []
         for raw in note.raw_links:
             resolved = _resolve_raw_target(note.path, raw, exact, by_stem)
-            if resolved is not None and resolved not in targets:
+            if resolved is None:
+                if raw not in unresolved:
+                    unresolved.append(raw)
+            elif resolved not in targets:
                 targets.append(resolved)
-        linked.append(replace(note, links=tuple(targets)))
+        linked.append(replace(note, links=tuple(targets), unresolved_links=tuple(unresolved)))
 
     backlinks: dict[str, list[str]] = defaultdict(list)
     for note in linked:
@@ -915,73 +1113,40 @@ def _resolve_raw_target(
     return matches[0] if len(matches) == 1 else None
 
 
-def _chunks(notes: Iterable[_ParsedNote]) -> list[_Chunk]:
-    chunks: list[_Chunk] = []
-    for note in notes:
-        matches = list(_HEADING.finditer(note.body))
-        if not matches:
-            chunks.extend(_slices(note, None, note.body))
-            continue
-        for index, match in enumerate(matches):
-            end = matches[index + 1].start() if index + 1 < len(matches) else len(note.body)
-            heading = _plain(match.group(2))
-            chunks.extend(_slices(note, heading, note.body[match.end() : end].strip()))
-    return chunks
-
-
-def _slices(note: _ParsedNote, heading: str | None, content: str) -> list[_Chunk]:
-    clean = content.strip()
-    if not clean:
-        return []
-    return [
-        _Chunk(note=note, heading=heading, content=clean[start : start + MAX_CHUNK_CHARS])
-        for start in range(0, len(clean), MAX_CHUNK_CHARS)
-    ]
-
-
 def _search(
     notes: list[_ParsedNote], query: str, limit: int, filters: SearchFilters
 ) -> list[SearchHit]:
     query_terms = _terms(query)
     if not query_terms:
         return []
+    query_set = frozenset(query_terms)
     query_vector = _vector(query_terms)
-    eligible = [note for note in notes if _matches_filters(note, filters)]
-    chunks = _chunks(eligible)
-    chunk_terms = [_terms(chunk.content) for chunk in chunks]
-    document_frequency: Counter[str] = Counter(
-        term for terms in chunk_terms for term in set(terms)
-    )
-    average_length = (
-        sum(len(terms) for terms in chunk_terms) / len(chunk_terms) if chunk_terms else 1
-    )
-    ranked: list[tuple[float, _Chunk, list[str], list[str]]] = []
-    query_set = set(query_terms)
-    for chunk, body_terms in zip(chunks, chunk_terms, strict=True):
-        title_terms = _terms(chunk.note.title)
-        heading_terms = _terms(chunk.heading or "")
-        tag_terms = _terms(" ".join(chunk.note.tags))
-        all_terms = [
-            *body_terms,
-            *title_terms,
-            *heading_terms,
-            *tag_terms,
-        ]
-        matched = sorted(query_set & set(all_terms))
+    chunks = [
+        (note, chunk)
+        for note in notes
+        if _matches_filters(note, filters)
+        for chunk in note.chunks
+    ]
+    if not chunks:
+        return []
+    document_count = len(chunks)
+    average_length = sum(chunk.body_length for _, chunk in chunks) / document_count
+    # Document frequency is only needed for the query's own terms, so it costs
+    # one membership test per chunk rather than a pass over every term.
+    document_frequency = {
+        term: sum(1 for _, chunk in chunks if term in chunk.body_counts) for term in query_set
+    }
+    ranked: list[tuple[float, _ParsedNote, _Chunk, list[str], list[str]]] = []
+    for note, chunk in chunks:
+        matched = query_set & chunk.all_terms
         if not matched:
             continue
-        bm25 = _bm25(
-            query_terms,
-            body_terms,
-            document_frequency,
-            len(chunks),
-            average_length,
-        )
+        bm25 = _bm25(query_set, chunk, document_frequency, document_count, average_length)
         bm25_score = bm25 / (bm25 + 3.0)
-        cosine = _cosine(query_vector, _vector(all_terms))
-        overlap = len(query_set & set(all_terms)) / len(query_set)
-        title_overlap = len(query_set & set(title_terms)) / len(query_set)
-        tag_overlap = len(query_set & set(tag_terms)) / len(query_set)
+        cosine = _cosine(query_vector, chunk.vector)
+        overlap = len(matched) / len(query_set)
+        title_overlap = len(query_set & note.title_terms) / len(query_set)
+        tag_overlap = len(query_set & note.tag_terms) / len(query_set)
         score = (
             0.4 * bm25_score
             + 0.25 * cosine
@@ -989,39 +1154,32 @@ def _search(
             + 0.1 * title_overlap
             + 0.05 * tag_overlap
         )
-        reasons = _match_reasons(
-            query_set,
-            body_terms=body_terms,
-            heading_terms=heading_terms,
-            title_terms=title_terms,
-            tag_terms=tag_terms,
+        ranked.append(
+            (score, note, chunk, sorted(matched), _match_reasons(query_set, note, chunk))
         )
-        ranked.append((score, chunk, matched, reasons))
-    ranked.sort(
-        key=lambda item: (-item[0], item[1].note.path.casefold(), item[1].heading or "")
-    )
+    ranked.sort(key=lambda item: (-item[0], item[1].path.casefold(), item[2].heading or ""))
 
     hits: list[SearchHit] = []
     seen: set[tuple[str, str | None]] = set()
     per_note: Counter[str] = Counter()
-    for score, chunk, matched, reasons in ranked:
-        identity = (chunk.note.path, chunk.heading)
-        if identity in seen or per_note[chunk.note.path] >= 2:
+    for score, note, chunk, matched_terms, reasons in ranked:
+        identity = (note.path, chunk.heading)
+        if identity in seen or per_note[note.path] >= 2:
             continue
         seen.add(identity)
-        per_note[chunk.note.path] += 1
-        stem = chunk.note.path[:-3]
+        per_note[note.path] += 1
+        stem = note.path[:-3]
         anchor = f"#{chunk.heading}" if chunk.heading else ""
         hits.append(
             SearchHit(
-                path=chunk.note.path,
-                title=chunk.note.title,
+                path=note.path,
+                title=note.title,
                 heading=chunk.heading,
                 excerpt=chunk.content[:MAX_CHUNK_CHARS],
                 citation=f"[[{stem}{anchor}]]",
                 score=round(score, 6),
-                tags=list(chunk.note.tags),
-                matched_terms=matched,
+                tags=list(note.tags),
+                matched_terms=matched_terms,
                 reasons=reasons,
                 estimated_tokens=max(1, math.ceil(len(chunk.content) / 4)),
             )
@@ -1032,18 +1190,17 @@ def _search(
 
 
 def _bm25(
-    query_terms: list[str],
-    body_terms: list[str],
-    document_frequency: Counter[str],
+    query_terms: frozenset[str],
+    chunk: _Chunk,
+    document_frequency: dict[str, int],
     document_count: int,
     average_length: float,
 ) -> float:
-    counts = Counter(body_terms)
     score = 0.0
     k1 = 1.5
     length_normalisation = 0.75
-    for term in set(query_terms):
-        frequency = counts[term]
+    for term in query_terms:
+        frequency = chunk.body_counts.get(term, 0)
         if frequency == 0:
             continue
         containing = document_frequency[term]
@@ -1051,28 +1208,21 @@ def _bm25(
         denominator = frequency + k1 * (
             1
             - length_normalisation
-            + length_normalisation * len(body_terms) / max(1, average_length)
+            + length_normalisation * chunk.body_length / max(1, average_length)
         )
         score += inverse * (frequency * (k1 + 1)) / denominator
     return score
 
 
-def _match_reasons(
-    query: set[str],
-    *,
-    body_terms: list[str],
-    heading_terms: list[str],
-    title_terms: list[str],
-    tag_terms: list[str],
-) -> list[str]:
+def _match_reasons(query: frozenset[str], note: _ParsedNote, chunk: _Chunk) -> list[str]:
     reasons: list[str] = []
     for label, terms in (
-        ("title", title_terms),
-        ("heading", heading_terms),
-        ("tags", tag_terms),
-        ("body", body_terms),
+        ("title", note.title_terms),
+        ("heading", chunk.heading_terms),
+        ("tags", note.tag_terms),
+        ("body", chunk.body_counts.keys()),
     ):
-        matches = sorted(query & set(terms))
+        matches = sorted(query & frozenset(terms))
         if matches:
             reasons.append(f"{label}: {', '.join(matches)}")
     return reasons
@@ -1177,9 +1327,71 @@ def _memory_item(note: _ParsedNote) -> MemoryItem | None:
         status=status,
         pinned=_property_bool(note.properties.get("pinned")),
         confidence=note.properties.get("confidence", "agent-generated"),
+        tags=[tag for tag in note.tags if tag != "agent-memory"],
+        citations=_bullets(_section(note.body, "Sources")),
+        merged_from=[
+            f"{item.strip('[]')}.md" if not item.casefold().endswith(".md") else item
+            for item in _bullets(_section(note.body, "Merged from"))
+        ],
+        merged_into=note.properties.get("merged_into"),
         created_at=_property_date(note.properties.get("created"), note.updated_at),
         updated_at=note.updated_at,
     )
+
+
+def memory_markdown(
+    *,
+    memory_id: str | None,
+    note_type: str,
+    status: MemoryStatus,
+    pinned: bool,
+    confidence: str,
+    tags: list[str],
+    title: str,
+    goal: str,
+    outcome: str,
+    citations: list[str],
+    run_id: str | None = None,
+    merged_from: list[str] | None = None,
+) -> str:
+    """The one Markdown shape every memory note shares, so the inbox can read it back."""
+    lines = ["---", f"type: {note_type}"]
+    if run_id is not None:
+        lines.append(f"run_id: {run_id}")
+    if memory_id is not None:
+        lines.append(f"memory_id: {memory_id}")
+    lines.extend(
+        [
+            f"created: {datetime.now(UTC).date().isoformat()}",
+            f"status: {status.value}",
+            f"pinned: {str(pinned).lower()}",
+            f"confidence: {confidence}",
+            "tags:",
+            *(f"  - {tag}" for tag in dict.fromkeys(tags)),
+            "---",
+            f"# {title}",
+            "",
+            "## Goal",
+            "",
+            goal or "Agent-proposed durable knowledge",
+            "",
+            "## Outcome",
+            "",
+            outcome,
+        ]
+    )
+    if citations:
+        lines.extend(["", "## Sources", "", *(f"- {citation}" for citation in citations)])
+    if merged_from:
+        lines.extend(
+            [
+                "",
+                "## Merged from",
+                "",
+                *(f"- [[{path.removesuffix('.md')}]]" for path in merged_from),
+            ]
+        )
+    return "\n".join(lines) + "\n"
 
 
 def _section(body: str, heading: str) -> str:
@@ -1189,6 +1401,15 @@ def _section(body: str, heading: str) -> str:
         re.MULTILINE | re.DOTALL | re.IGNORECASE,
     )
     return match.group(1).strip() if match is not None else ""
+
+
+def _bullets(section: str) -> list[str]:
+    items = [
+        line.strip()[2:].strip()
+        for line in section.splitlines()
+        if line.strip().startswith(("- ", "* "))
+    ]
+    return list(dict.fromkeys(item for item in items if item))
 
 
 def _property_bool(value: str | None) -> bool:
