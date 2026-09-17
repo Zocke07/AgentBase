@@ -184,9 +184,16 @@ cannot store secrets in the OS keychain.
 | `POST /auth/chatgpt/logout` | Remove the ChatGPT session from the credential store. |
 | `GET /budget` | Shared monthly spend and cap. |
 | `GET /spaces` | Spaces and their folder paths. |
-| `GET /spaces/{id}/knowledge` | Markdown notes and vault statistics for a space. |
+| `GET /spaces/{id}/knowledge` | Markdown notes, vault statistics and what the incremental index did. |
 | `GET`, `PUT`, `DELETE /spaces/{id}/knowledge/note` | Read, save or delete a Markdown note. |
-| `POST /spaces/{id}/knowledge/search` | Local cited retrieval over a space's notes. |
+| `POST /spaces/{id}/knowledge/move` | Move or rename a note, rewriting links, with a backup. |
+| `PATCH /spaces/{id}/knowledge/pin` | Pin or unpin any note. |
+| `POST /spaces/{id}/knowledge/import` | Import Markdown files into the space, skipping or backing up conflicts. |
+| `POST /spaces/{id}/knowledge/search` | Local cited retrieval with optional folder, tag, type, date and status filters. |
+| `GET /spaces/{id}/knowledge/memories` | The memory inbox: run and agent memories with status, citations and provenance. |
+| `PATCH /spaces/{id}/knowledge/memory` | Approve, archive or pin a memory. |
+| `POST /spaces/{id}/knowledge/memories/merge` | Merge memories into one note and archive the originals. |
+| `POST /spaces/{id}/knowledge/evaluate` | Score retrieval against expected note paths. |
 | `GET /spaces/{id}/knowledge/graph` | Resolved note-link nodes and edges. |
 | `GET /agents` | Agent definitions; use `space_id` to select a roster. |
 | `GET /runs` | Run history; use `space_id` to select a space. |

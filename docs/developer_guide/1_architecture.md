@@ -98,19 +98,35 @@ docked `ApprovalPanel` also need current viewer or approval-service state.
 
 ### Markdown knowledge and RAG
 
-`KnowledgeStore` treats a space folder as the canonical vault. It reparses up
-to 2,000 Markdown files on demand, excludes hidden paths and resolves wikilinks
-and Markdown links into graph edges and backlinks. Heading chunks are ranked
-by a deterministic, 768-slot hashed term vector plus overlap, title and tag
-signals. This is intentionally local and dependency-free so the frozen sidecar
-does not ship a model runtime or send notes to an embedding service.
+`KnowledgeStore` treats a space folder as the canonical vault. Each request
+walks the folder with `os.walk`, compares every visible `.md` file's size,
+mtime and inode with the last snapshot, and parses only the files that
+changed; an unchanged vault reuses its resolved links. Hidden paths and
+symlinks are skipped. Parsing splits a note at headings and computes each
+chunk's BM25 term counts, a deterministic 768-slot hashed vector and its term
+sets once, so a query over 10,000 notes (`MAX_NOTES`) costs tens of
+milliseconds for the scan and about a tenth of a second for ranking. The
+snapshot cache is keyed by resolved root and shared with the agent-facing
+`search_knowledge` tool. This is intentionally local and dependency-free so the
+frozen sidecar does not ship a model runtime or send notes to an embedding
+service. `test_knowledge.py` pins the 10,000-note bound with real files.
 
 `RunLauncher` hands the store to `execute_run`. Goal retrieval happens before
 the supervisor is created, and handoff retrieval happens before each worker's
 first model call. Retrieved prose is delimited as untrusted data and carries
-stable wiki citations. Successful outcomes are projected into unique Markdown
-files under `memory/runs`; `run.completed.memory_path` connects the durable
-event to that projection. The event log remains authoritative for what happened.
+stable wiki citations. `run.started` records the exact excerpts and the
+citations the user excluded from the Home preview; the reducer folds them into
+`RunView.knowledge` so the run view and a replay show the same evidence.
+Successful outcomes are projected into unique Markdown files under
+`memory/runs` with the goal's citations under `## Sources`;
+`run.completed.memory_path` connects the durable event to that projection.
+
+Memories are Markdown with a `type` of `run-memory` or `agent-memory` and a
+`status` of `proposed`, `approved` or `archived`. `SearchFilters` admits only
+approved or pinned memories by default, which is what makes the inbox a trust
+gate rather than a label. `memory_markdown` is the one writer for run
+memories, the `propose_memory` tool and merges, so the inbox can read every
+shape back. The event log remains authoritative for what happened.
 
 ---
 

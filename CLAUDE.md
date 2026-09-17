@@ -15,20 +15,25 @@ and disconnects their stored keys.
 
 - Phases 0 through 9 and the spaces redesign are implemented. Do not restart
   Phase 0 or replace completed work from an earlier phase.
-- The current release line is **0.2.0**. It includes the Windows installer and
+- The current release line is **0.3.0**. It includes the Windows installer and
   an ad-hoc signed, unnotarized Apple Silicon macOS app archive. An incomplete
-  first Mac archive made Gatekeeper report that the app was damaged; the
-  corrected 0.2.0 bundle has a complete code seal. Check the release page and
+  first 0.2.0 Mac archive made Gatekeeper report that the app was damaged; the
+  corrected bundle has a complete code seal. Check the release page and
   tag workflow for publication status and cross-platform CI evidence.
 - The UI has a left rail, spaces, Home, Runs, Agents, Space settings, and
   app-wide Settings. Approvals are docked. Discord is the only chat adapter;
   Telegram was removed on 2026-09-11.
-- The latest recorded database migration is 007. Existing workspace files are
+- The latest recorded database migration is 008. Existing workspace files are
   adopted into the default space once; new spaces get their own folders. Each
   space folder is also an Obsidian-compatible Markdown vault. The Knowledge
-  section provides notes, properties, tags, links, backlinks, search and a
-  graph. Local hybrid RAG augments goals and handoffs with cited, untrusted
-  excerpts; completed runs write durable `memory/runs/<run-id>.md` notes.
+  section provides notes, properties, tags, links, backlinks, unresolved links,
+  pins, filters, move with link rewriting, folder import, templates, daily
+  notes, search, a graph and a retrieval evaluation. Local BM25 and
+  hashed-vector RAG augments goals and handoffs with cited, untrusted excerpts
+  that the Home preview and the run view show and the user can exclude.
+  Completed runs and the `propose_memory` tool write proposed memories that
+  the inbox approves, archives, pins, merges or forgets; only approved or
+  pinned memories are retrieved. The practical vault limit is 10,000 notes.
 - OpenAI access can use either an API key or the user's ChatGPT subscription.
   Both remain the `openai` provider and share the same AgentSpace behavior;
   Codex App Server is a credential and single-decision inference transport,
@@ -92,9 +97,12 @@ second chronological log here.
   archived or deleted; a space with runs must be archived or have those runs
   deleted first. Deleting a run leaves the files it wrote alone.
 - Markdown is the knowledge source of truth. Retrieval rebuilds from the space
-  folder and excludes hidden paths. It never edits `.obsidian`, calls a remote
-  embedding service or treats retrieved prose as instructions. Automatic run
-  memories use unique app-owned paths and are named in `run.completed`.
+  folder on use, reparsing only changed files, and excludes hidden paths and
+  symlinks. It never edits `.obsidian`, calls a remote embedding service, runs
+  a background index job or treats retrieved prose as instructions. Automatic
+  run memories use unique app-owned paths and are named in `run.completed`;
+  a memory is retrieved only once approved or pinned. Merges and moves back up
+  the files they change under `.agentspace/backups/`.
 - Discord accepts explicit commands/mentions from allowed senders only. Its
   supervised adapter runs in-process and uses the same approval gate as the UI.
 

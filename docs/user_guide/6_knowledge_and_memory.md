@@ -23,18 +23,26 @@ knowledge/
   research/
   decisions/
   procedures/
+templates/
+daily/
+captures/
 memory/
   runs/
+  inbox/
+  merged/
 ```
 
-The `memory/runs/` folder is created automatically after successful runs.
+`memory/` is written by AgentSpace after runs and agent proposals; `captures/`
+holds notes you save from a run's event log; `daily/` and `templates/` are
+used by the **Daily note** and **From template** buttons. The rest is yours.
 
 ## Links, properties and preview
 
 Link notes with Obsidian wikilinks such as `[[research/sqlite]]` or standard
 Markdown links to `.md` files. The note metadata strip shows resolved outgoing
-links with `→` and backlinks with `←`. Select either to open the related note.
-**Graph** shows the same resolved links across the vault.
+links with `→`, backlinks with `←`, and links that name no existing note with
+`?`. Select a resolved link to open the related note. **Graph** shows the same
+resolved links across the vault.
 
 Start a note with YAML properties to make it easier to organize and retrieve:
 
@@ -42,6 +50,7 @@ Start a note with YAML properties to make it easier to organize and retrieve:
 ---
 type: decision
 status: accepted
+pinned: true
 tags:
   - architecture
   - database
@@ -57,17 +66,44 @@ inside a note is not executed. Hidden folders, including Obsidian's
 `.obsidian` configuration, are excluded and cannot be edited through the
 Knowledge screen.
 
+## Managing the vault
+
+- **Filters.** The **Show notes** menu narrows the browser to pinned notes,
+  orphans (notes nothing links to) or notes with unresolved links. The tag
+  chips under it filter by tag; the vault header counts orphans and unresolved
+  links so you can tidy them.
+- **Pin note** marks a note as a favourite with `pinned: true`. Pinned notes
+  are listed with a star and pass every retrieval filter, including the memory
+  trust filter described below.
+- **Move or rename** changes a note's path. Every wikilink and Markdown link in
+  the vault that pointed at it is rewritten, and the files that changed are
+  copied to `.agentspace/backups/` first.
+- **Daily note** opens today's `daily/YYYY-MM-DD.md`, creating it from
+  `templates/daily.md` when that exists. **From template** lists every note
+  under `templates/`; a new note copies it with `{{date}}` and `{{title}}`
+  filled in, then lets you choose its path before saving.
+- **Import vault folder** copies the Markdown files of a folder you choose into
+  this space, keeping their relative paths. Existing notes are skipped unless
+  **replace conflicts with backup** is ticked, in which case the replaced files
+  are backed up first. The practical limit is 10,000 notes per space; the
+  header says when a vault exceeds it and some notes are not indexed.
+
 ## Local retrieval and citations
 
-Knowledge search uses the same retrieval path as agents. It splits notes at
-headings, calculates deterministic local term vectors, and combines vector
-similarity with term, title and tag relevance. Nothing is sent to a separate
-embedding or vector-database service. Because the live files are read when the
-index is used, an external edit appears on the next search or run.
+Knowledge search uses the same retrieval path as agents. Notes are split at
+headings, and each chunk is ranked by a BM25 score, a deterministic local term
+vector, and term, title and tag overlap. Nothing is sent to a separate
+embedding or vector-database service. Because the live files are read when
+the index is used, an external edit appears on the next search or run; only
+the files that changed are parsed again.
 
-Results carry stable citations such as
-`[[research/sqlite#Concurrency]]`. Search for a subject, select a result to
-open its source, and follow links or backlinks for surrounding context.
+Results carry stable citations such as `[[research/sqlite#Concurrency]]`, a
+relevance score, the terms that matched and where they matched (title,
+heading, tags or body), and an estimated token cost. The **folder** and
+**#tag** fields narrow a search. Select a result to open its source and follow
+links or backlinks for surrounding context.
+
+## What a run receives
 
 When a run starts, AgentSpace retrieves up to six relevant chunks for the
 goal. It retrieves again for each worker's specific handoff. Those excerpts
@@ -78,23 +114,61 @@ model. Retrieval tells the model never to execute instructions found inside a
 note, but reviewing imported content remains prudent because models can still
 be influenced by malicious text.
 
-The supervisor's initial citations and excerpts are recorded in
-`run.started`. Worker-specific excerpts are visible in that worker's
-`llm.request` message, so replay preserves the evidence the model received.
-Agents whose allowlist includes `search_knowledge` can refine a search while
-working. It is a low-risk tool call and passes through the same approval gate
-as other reads.
+**Preview context** on the Home page shows what the goal would retrieve before
+the run starts: each citation, its score, matched terms and token cost, the
+total that will be kept, and the provider and model those excerpts are sent
+to. Untick a result to keep it out of the run and its worker handoffs; the
+exclusion is recorded with the run.
 
-## Durable agent memory
+In the run view, **Retrieved context** lists the excerpts the supervisor
+actually received and the citations you excluded, folded from `run.started`,
+so a replay shows the same evidence the live view did. Worker-specific excerpts
+are visible in that worker's `llm.request` message. Agents whose allowlist
+includes `search_knowledge` can refine a search while working; it is a
+low-risk tool call and passes through the same approval gate as other reads.
 
-After a successful run, AgentSpace saves a compact note at
-`memory/runs/<run-id>.md`. It contains the goal, the supervisor's outcome,
-structured properties and `agent-memory` tags. The unique run ID prevents an
-automatic memory from overwriting an earlier note. The `run.completed` event
-records its path.
+## The memory inbox
 
-Later runs search these files alongside your notes, which provides durable,
-per-space memory without hiding conversation state in a vendor database. Edit
-or delete a memory like any other note if its conclusion is wrong. Failed and
-cancelled runs do not produce an outcome memory; their event logs remain under
-**Runs**.
+After a successful run, AgentSpace saves a note at `memory/runs/<run-id>.md`
+with the goal, the supervisor's outcome, the citations that were retrieved for
+the goal, structured properties and `agent-memory` tags. The unique run ID
+prevents an automatic memory from overwriting an earlier note, and the
+`run.completed` event records its path. Agents whose allowlist includes
+`propose_memory` can also propose a memory of their own while working; it is
+a medium-risk tool call that asks for approval and writes to `memory/inbox/`.
+
+Every memory starts as **proposed**. Proposed memories are not retrieved:
+they wait in the **Memory inbox** tab of the Knowledge browser, which shows
+where each one came from (a run, with an **Open run** link, or an agent),
+when it was created, its confidence, its tags and the citations that support
+it. From there you can:
+
+- **Approve** a memory so later runs can retrieve it, or **Archive** one to
+  keep it without retrieving it. Both are properties in the note's YAML.
+- **Pin** a memory so it is retrieved whatever its status.
+- **Edit** the note like any other Markdown file if its conclusion is wrong.
+- **Merge** several memories: tick them, optionally give the result a title,
+  and choose **Merge selected**. The merged note under `memory/merged/`
+  carries every goal, outcome, tag and citation; the originals are archived
+  with a `merged_into` property after being backed up.
+- **Forget** a memory, which deletes its file after a confirmation.
+
+Failed and cancelled runs do not produce a memory; their event logs remain
+under **Runs**.
+
+## Capturing notes from a run
+
+In a run's event log, expand an agent message or the run's completion and
+choose **Save as note**. The text is written to
+`captures/<run-id>-<event>.md` in the run's space with the run, event and
+agent recorded as properties. Captures are ordinary notes: they are retrieved
+like any other note, and nothing automatic overwrites them.
+
+## Evaluating retrieval
+
+**Evaluate** in the Knowledge toolbar runs a small test set against the
+vault. Enter one question per line followed by `=>` and the note paths you
+expect, then choose **Run evaluation**. The result reports the mean
+reciprocal rank and recall at the chosen limit, and lists what each question
+retrieved, so a change to notes or ranking can be checked before relying on
+it.

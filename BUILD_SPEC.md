@@ -744,6 +744,27 @@ content or require Obsidian to be installed.
    and delete notes, and the Rust shell still grants the webview no opener
    permission.
 
+**0.3.0 additions, agreed 2026-09-17.** The memory inbox: a run memory or an
+agent's `propose_memory` note (medium risk, approval-gated, migration 008 for
+unedited seeded roles) starts as `proposed` and is retrieved only once the user
+approves or pins it; the inbox also archives, merges (originals archived and
+backed up) and forgets memories, and shows the source run, creation date,
+confidence and supporting citations. Ranking adds BM25 to the hashed vector,
+filters by folder, tag, note type, date, pinned state and memory status, caps
+each note at two chunks, and ignores English function words. Each note's
+chunk signals are computed once at parse time and a scan walks the folder
+without resolving every path, so the practical limit rises to 10,000 notes
+with a timing-bounded test against real files; the index is still rebuilt on
+use, with no watcher or background job, per the paragraph above. The Home
+preview shows what a goal retrieves (citation, score, matched terms, token
+cost and the provider and model the excerpts go to) and lets the user exclude
+citations; `run.started` records the excerpts and exclusions, and the run view
+folds them into a "Retrieved context" section. The vault gains move or rename
+with link rewriting, folder import, pinning, unresolved-link and orphan
+counts, templates, daily notes, "Save as note" from an event, and a retrieval
+evaluation screen (MRR and recall at k). Deferred past 0.3.0: local embedding
+models, attachments, PDFs and web clipping.
+
 ---
 
 ## 6. How you should work

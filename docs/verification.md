@@ -1,8 +1,44 @@
 # Verification and remaining work
 
-Updated 2026-09-15. This is the current record; the
+Updated 2026-09-17. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
 superseded gaps. A test result below is scoped to what was actually executed.
+
+## 0.3.0: memory inbox, incremental retrieval and the inspector
+
+The 0.3.0 additions were checked on Apple Silicon macOS on 2026-09-17. At
+10,000 notes on disk, measured with a scratch vault: a cold index took 1.5 s,
+a warm index 0.04 s (down from 0.84 s before chunk signals were precomputed
+and the scan stopped resolving every path), and a query 0.02 to 0.11 s (down
+from 0.33 to 0.54 s). `test_ten_thousand_notes_on_disk_index_and_search_within_bounds`
+pins loose bounds of 5 s and 3 s against real files and took 6.4 s including
+writing them. Focused tests cover citations on run memories and proposals,
+merge with archived originals and a backup, pinning any note, unresolved
+links and orphan counts, the merge and pin endpoints, the reducer's fold of
+`run.started` excerpts and exclusions and `run.completed.memory_path`, the
+Home preview's terms, token totals, model label and exclusion, the inbox's
+provenance and merge flow, browser filters, daily notes, templates and
+capture from the event log.
+
+The Knowledge, Home and Runs sections were driven in headless Chrome against
+the Vite dev server and a sidecar on a scratch data directory: a seeded vault
+showed 3 orphans and 1 unresolved link, pinning wrote `pinned: true`, the
+inbox showed a run memory's citation and **Open run**, merging two memories
+produced a proposed `memory/merged/` note with both outcomes and citations
+and archived the originals with `merged_into`, a note was created from
+`templates/meeting.md` with `{{date}}` filled in, today's daily note opened,
+**Preview context** listed two excerpts with 42 tokens sent to
+`anthropic · claude-opus-5`, a run started over the API with one excluded
+citation recorded it in `run.started` and the run view showed it struck
+through, and **Save as note** wrote `captures/<run>-20.md` from the scripted
+demo run. No real model was called; the Tauri window was not opened.
+
+`just ci` passed with **774 backend tests** (11 skipped) and **332 frontend
+tests**, with `ruff`, `ruff format`, `mypy --strict` on both platform targets,
+ESLint and `tsc` clean. `replayIdentity.test.tsx`'s intermediate-position
+test, which renders 58 panels in one test, exceeded its 5 s timeout in some
+full-suite runs while the machine reported a load average above 100 from
+system processes; it passed in isolation and in other full runs.
 
 ## Markdown knowledge, local RAG and durable memory
 
