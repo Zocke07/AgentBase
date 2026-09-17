@@ -111,12 +111,18 @@ export interface CreateRunRequest {
   space_id?: string | null;
   origin?: "ui" | "discord";
   origin_ref?: string | null;
+  excluded_citations?: string[];
 }
 
 export interface CreateSpaceRequest {
   name: string;
   description?: string;
   seed?: "empty" | "builtins" | CopyFrom;
+}
+
+export interface EvaluateKnowledgeRequest {
+  cases: KnowledgeEvaluationCase[];
+  limit?: number;
 }
 
 /**
@@ -174,6 +180,152 @@ export interface HealthResponse {
   instance: string | null;
 }
 
+export interface ImportKnowledgeRequest {
+  files: ImportNote[];
+  overwrite?: boolean;
+}
+
+export interface ImportNote {
+  path: string;
+  content: string;
+}
+
+export interface KnowledgeEdge {
+  source: string;
+  target: string;
+}
+
+export interface KnowledgeEvaluation {
+  results: KnowledgeEvaluationResult[];
+  mean_reciprocal_rank: number;
+  mean_recall_at_k: number;
+  limit: number;
+}
+
+export interface KnowledgeEvaluationCase {
+  question: string;
+  expected_paths: string[];
+}
+
+export interface KnowledgeEvaluationResult {
+  question: string;
+  expected_paths: string[];
+  retrieved_paths: string[];
+  reciprocal_rank: number;
+  recall_at_k: number;
+}
+
+export interface KnowledgeGraph {
+  nodes: KnowledgeNode[];
+  edges: KnowledgeEdge[];
+}
+
+export interface KnowledgeImportResult {
+  created: number;
+  updated: number;
+  skipped: number;
+  backup_path: string | null;
+}
+
+export interface KnowledgeIndex {
+  notes: NoteSummary[];
+  stats: KnowledgeStats;
+  index_status: KnowledgeIndexStatus;
+}
+
+/** What the incremental vault refresh did for this response. */
+export interface KnowledgeIndexStatus {
+  indexed_at: string;
+  scanned_files: number;
+  changed_files: number;
+  reused_files: number;
+  truncated: boolean;
+  duration_ms: number;
+}
+
+export interface KnowledgeMoveResult {
+  note: KnowledgeNote;
+  updated_links: number;
+  backup_path: string;
+}
+
+export interface KnowledgeNode {
+  path: string;
+  title: string;
+  tags?: string[];
+}
+
+/** A note plus its editable Markdown source. */
+export interface KnowledgeNote {
+  path: string;
+  title: string;
+  excerpt: string;
+  tags?: string[];
+  properties?: Record<string, string>;
+  links?: string[];
+  backlinks?: string[];
+  updated_at: string;
+  content: string;
+}
+
+export interface KnowledgeSearch {
+  query: string;
+  hits: SearchHit[];
+  duration_ms?: number;
+  total_chunks?: number;
+  retrieval_mode?: string;
+}
+
+export interface KnowledgeStats {
+  note_count: number;
+  link_count: number;
+  tag_count: number;
+  chunk_count: number;
+}
+
+export interface MemoryIndex {
+  items: MemoryItem[];
+  proposed: number;
+  approved: number;
+  archived: number;
+}
+
+/** A run outcome waiting for, or carrying, a user's trust decision. */
+export interface MemoryItem {
+  path: string;
+  run_id: string | null;
+  source: string;
+  title: string;
+  goal: string;
+  outcome: string;
+  status: MemoryStatus;
+  pinned: boolean;
+  confidence: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Trust state for an agent-generated memory. */
+export type MemoryStatus = "proposed" | "approved" | "archived";
+
+export interface MoveNoteRequest {
+  source: string;
+  target: string;
+  update_links?: boolean;
+}
+
+/** What the note browser needs without opening the full document. */
+export interface NoteSummary {
+  path: string;
+  title: string;
+  excerpt: string;
+  tags?: string[];
+  properties?: Record<string, string>;
+  links?: string[];
+  backlinks?: string[];
+  updated_at: string;
+}
+
 /** What can be selected, and which models are priced, per provider. */
 export interface ProviderCatalogueResponse {
   providers: ProviderEntry[];
@@ -205,6 +357,36 @@ export interface Run {
   origin_ref?: string | null;
   created_at: string;
   finished_at?: string | null;
+}
+
+/** Optional narrowing shared by the UI, evaluations and agent tool. */
+export interface SearchFilters {
+  folders?: string[];
+  tags?: string[];
+  note_types?: string[];
+  memory_statuses?: MemoryStatus[];
+  pinned_only?: boolean;
+  updated_after?: string | null;
+  updated_before?: string | null;
+}
+
+export interface SearchHit {
+  path: string;
+  title: string;
+  heading: string | null;
+  excerpt: string;
+  citation: string;
+  score: number;
+  tags?: string[];
+  matched_terms?: string[];
+  reasons?: string[];
+  estimated_tokens?: number;
+}
+
+export interface SearchKnowledgeRequest {
+  query: string;
+  limit?: number;
+  filters?: SearchFilters;
 }
 
 /** Workspace settings plus the read-only facts the UI needs beside them. */
@@ -259,6 +441,12 @@ export interface UpdateAgentRequest {
   max_steps?: number | null;
   auto_approve?: string[] | null;
   enabled?: boolean | null;
+}
+
+export interface UpdateMemoryRequest {
+  path: string;
+  status?: MemoryStatus | null;
+  pinned?: boolean | null;
 }
 
 /**
@@ -330,4 +518,9 @@ export interface WorkspaceSettings {
   channel_identities?: ChannelIdentity[];
   channel_approvals?: "dashboard_only" | "originator";
   channel_space_id?: string | null;
+}
+
+export interface WriteNoteRequest {
+  path: string;
+  content: string;
 }

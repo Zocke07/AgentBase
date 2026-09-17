@@ -10,7 +10,7 @@ import { SpaceSwitcher } from "./SpaceSwitcher";
  * section stays mounted behind `hidden`.
  */
 
-export type Section = "home" | "runs" | "agents" | "space" | "settings";
+export type Section = "home" | "runs" | "agents" | "knowledge" | "space" | "settings";
 
 export interface RailProps {
   section: Section;
@@ -48,6 +48,15 @@ const SECTIONS: readonly { id: Section; label: string; icon: ReactNode }[] = [
         <circle cx="7" cy="6.5" r="3" />
         <circle cx="14" cy="7.5" r="2.25" />
         <path d="M1.5 16a5.5 5.5 0 0 1 11 0zM12.5 15.5a4 4 0 0 1 6 0z" />
+      </svg>
+    ),
+  },
+  {
+    id: "knowledge",
+    label: "Knowledge",
+    icon: (
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        <path d="M3 3.5h5.2c.7 0 1.3.3 1.8.8.5-.5 1.1-.8 1.8-.8H17V16h-5.2c-.7 0-1.3.3-1.8.8-.5-.5-1.1-.8-1.8-.8H3zm6.2 2A1.8 1.8 0 0 0 8 5H4.5v9.5H8c.4 0 .8.1 1.2.3zm1.6 9.3c.4-.2.8-.3 1.2-.3h3.5V5H12c-.5 0-.9.2-1.2.5z" />
       </svg>
     ),
   },

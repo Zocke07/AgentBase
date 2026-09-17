@@ -228,45 +228,45 @@ export function EventLog({ events, cursor, agents, selectedAgent, onSelectAgent 
 
       <div className="log__rows" ref={scroller} onScroll={onScroll}>
         <ol className="log__list" style={{ height: `${String(total)}px` }}>
-        {rows.slice(start, end).map((event, offset) => {
-          const isOpen = opened.has(event.seq);
-          return (
-            <li
-              key={event.seq}
-              className={`log__item log__item--${eventFamily(event.type)}`}
-              style={{ transform: `translateY(${String(offsets[start + offset] ?? 0)}px)` }}
-            >
-              <button
-                type="button"
-                className={`log__row log__row--${eventFamily(event.type)}${isOpen ? " log__row--open" : ""}`}
-                aria-expanded={isOpen}
-                onClick={() => {
-                  toggle(event.seq);
-                }}
+          {rows.slice(start, end).map((event, offset) => {
+            const isOpen = opened.has(event.seq);
+            return (
+              <li
+                key={event.seq}
+                className={`log__item log__item--${eventFamily(event.type)}`}
+                style={{ transform: `translateY(${String(offsets[start + offset] ?? 0)}px)` }}
               >
-                <span className="log__seq">{event.seq}</span>
-                <span className="log__time">{clockTime(event.ts)}</span>
-                {/* The sentence first, the raw type beside it as a chip: the
-                    sentence is what a person reads, the type is what a bug
-                    report needs. Both come from the same event. */}
-                <span className="log__sentence">{sentenceFor(event)}</span>
-                <span className="log__type">{event.type}</span>
-              </button>
-              {isOpen && (
-                <pre
-                  className="log__payload"
-                  data-testid="log-payload"
-                  ref={(element) => {
-                    measured(event.seq, element);
+                <button
+                  type="button"
+                  className={`log__row log__row--${eventFamily(event.type)}${isOpen ? " log__row--open" : ""}`}
+                  aria-expanded={isOpen}
+                  onClick={() => {
+                    toggle(event.seq);
                   }}
                 >
-                  {JSON.stringify(event.payload ?? {}, null, 2)}
-                </pre>
-              )}
-            </li>
-          );
-        })}
-        {rows.length === 0 && <li className="log__empty">No events match this filter.</li>}
+                  <span className="log__seq">{event.seq}</span>
+                  <span className="log__time">{clockTime(event.ts)}</span>
+                  {/* The sentence first, the raw type beside it as a chip: the
+                    sentence is what a person reads, the type is what a bug
+                    report needs. Both come from the same event. */}
+                  <span className="log__sentence">{sentenceFor(event)}</span>
+                  <span className="log__type">{event.type}</span>
+                </button>
+                {isOpen && (
+                  <pre
+                    className="log__payload"
+                    data-testid="log-payload"
+                    ref={(element) => {
+                      measured(event.seq, element);
+                    }}
+                  >
+                    {JSON.stringify(event.payload ?? {}, null, 2)}
+                  </pre>
+                )}
+              </li>
+            );
+          })}
+          {rows.length === 0 && <li className="log__empty">No events match this filter.</li>}
         </ol>
       </div>
 

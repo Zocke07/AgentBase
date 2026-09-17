@@ -8,8 +8,9 @@ supervisor, which delegates to the agents you have enabled. The graph and event
 log show their work as it happens and let you replay it afterwards.
 
 A **space** groups a roster of agents, a folder for their files, and settings
-for their runs. The left rail switches between **Home**, **Runs**, **Agents**
-and **Space settings** for the selected space. **Settings** at the bottom
+for their runs. Its folder is also a Markdown knowledge vault shared by people
+and agents. The left rail switches between **Home**, **Runs**, **Agents**,
+**Knowledge** and **Space settings** for the selected space. **Settings** at the bottom
 controls defaults, model access, API keys, the shared budget, Discord and
 appearance.
 
@@ -32,3 +33,5 @@ risk levels to proceed automatically.
    choose where chat tasks run.
 5. [Troubleshooting and reference](5_troubleshooting_and_reference.md): common
    failures, data locations, upgrades, removal and the local API.
+6. [Knowledge and memory](6_knowledge_and_memory.md): Markdown notes, links,
+   properties, Obsidian, retrieval, citations and durable run memory.

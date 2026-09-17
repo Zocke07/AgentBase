@@ -691,6 +691,59 @@ and CLAUDE.md records what the live runs showed.
    in, and each space reports its own spend.
 6. Every acceptance criterion from Phases 6, 7 and 8 still holds, run again, in the new UI.
 
+### Phase 12: Markdown knowledge vault and retrieval-augmented memory
+
+*Added 2026-09-15 at the maintainer's request. This explicitly replaces the v1
+non-goal that excluded vector memory and RAG.*
+
+Each space's existing folder is also an Obsidian-compatible vault. Markdown is
+the canonical data, whether a note is edited in AgentSpace, Obsidian or another
+text editor. AgentSpace must not create a proprietary second copy of note
+content or require Obsidian to be installed.
+
+- Add a **Knowledge** section per space with a note browser, Markdown source
+  editor, safe preview, YAML properties and tags, wikilinks, backlinks, local
+  search and a linked-note graph.
+- Add **Open in Obsidian** through a narrow Rust command. It accepts only an
+  existing directory under AgentSpace's data root, constructs the documented
+  `obsidian://open?path=` URI itself, and does not grant a general URL opener to
+  the webview.
+- Rebuild the index from the live folder when it is used. An edit made outside
+  AgentSpace is visible on the next list, search or run without a watcher,
+  reindex job or stale database.
+- Retrieval stays local and combines deterministic hashed term vectors with
+  term overlap, title and tag relevance. Return heading-sized chunks with
+  stable `[[path#heading]]` citations. Do not send notes to a separate embedding
+  service.
+- Retrieve context for the run goal and again for each worker handoff. Mark
+  excerpts as untrusted reference data, never instructions. The exact excerpts
+  sent to the supervisor are recorded in `run.started`; worker excerpts remain
+  visible in that worker's `llm.request` message.
+- A successful run writes its goal and outcome to the unique app-owned path
+  `memory/runs/<run-id>.md` before `run.completed`. That terminal event records
+  `memory_path`, so later runs can retrieve the memory and a replay can locate it.
+- Add the low-risk, approval-gated `search_knowledge` tool for agents that need
+  to refine retrieval while working. Existing user-edited allowlists remain
+  unchanged; seeded roles receive it through migration 007 only while their
+  allowlist still matches a shipped default.
+- Hidden paths, especially `.obsidian`, never appear in the index and cannot be
+  edited through the Knowledge API. Note paths remain inside the per-run space
+  sandbox and must end in `.md`.
+
+**Accept when:**
+
+1. A Markdown file edited outside AgentSpace appears with its YAML properties,
+   tags, outgoing links and backlinks, and the graph carries the same edges.
+2. Retrieval ranks a relevant heading above unrelated notes and returns a
+   stable citation without making a network call.
+3. A run receives cited goal context, completes, writes a run-memory note and a
+   later retrieval can find that outcome.
+4. Traversal, absolute paths, non-Markdown paths and `.obsidian` writes are
+   refused before touching a file.
+5. The native Knowledge section can create, edit, preview, search, link, graph
+   and delete notes, and the Rust shell still grants the webview no opener
+   permission.
+
 ---
 
 ## 6. How you should work
@@ -717,7 +770,8 @@ Do not build these. Do not scaffold placeholders for these.
 - Multi-user accounts, remote application auth, or tenancy. Local model-provider
   sign-in for the single user is allowed as described in the Phase 3 addition.
 - Any network-exposed surface beyond `127.0.0.1`
-- Vector memory / RAG
+- Cloud-hosted knowledge databases or separate embedding services
+- Executing Obsidian community plugins inside AgentSpace
 - Agent marketplaces or plugin systems
 - Intel macOS release artifacts (Apple Silicon `.app.zip` added for 0.2.0 on 2026-09-13;
   see constraint #7 and the Phase 9 deviation)

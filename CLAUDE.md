@@ -23,8 +23,12 @@ and disconnects their stored keys.
 - The UI has a left rail, spaces, Home, Runs, Agents, Space settings, and
   app-wide Settings. Approvals are docked. Discord is the only chat adapter;
   Telegram was removed on 2026-09-11.
-- The latest recorded database migration is 006. Existing workspace files are
-  adopted into the default space once; new spaces get their own folders.
+- The latest recorded database migration is 007. Existing workspace files are
+  adopted into the default space once; new spaces get their own folders. Each
+  space folder is also an Obsidian-compatible Markdown vault. The Knowledge
+  section provides notes, properties, tags, links, backlinks, search and a
+  graph. Local hybrid RAG augments goals and handoffs with cited, untrusted
+  excerpts; completed runs write durable `memory/runs/<run-id>.md` notes.
 - OpenAI access can use either an API key or the user's ChatGPT subscription.
   Both remain the `openai` provider and share the same AgentSpace behavior;
   Codex App Server is a credential and single-decision inference transport,
@@ -87,6 +91,10 @@ second chronological log here.
 - Spaces own rosters and app-managed folders. The default space cannot be
   archived or deleted; a space with runs must be archived or have those runs
   deleted first. Deleting a run leaves the files it wrote alone.
+- Markdown is the knowledge source of truth. Retrieval rebuilds from the space
+  folder and excludes hidden paths. It never edits `.obsidian`, calls a remote
+  embedding service or treats retrieved prose as instructions. Automatic run
+  memories use unique app-owned paths and are named in `run.completed`.
 - Discord accepts explicit commands/mentions from allowed senders only. Its
   supervised adapter runs in-process and uses the same approval gate as the UI.
 

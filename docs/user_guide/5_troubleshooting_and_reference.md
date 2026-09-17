@@ -184,6 +184,10 @@ cannot store secrets in the OS keychain.
 | `POST /auth/chatgpt/logout` | Remove the ChatGPT session from the credential store. |
 | `GET /budget` | Shared monthly spend and cap. |
 | `GET /spaces` | Spaces and their folder paths. |
+| `GET /spaces/{id}/knowledge` | Markdown notes and vault statistics for a space. |
+| `GET`, `PUT`, `DELETE /spaces/{id}/knowledge/note` | Read, save or delete a Markdown note. |
+| `POST /spaces/{id}/knowledge/search` | Local cited retrieval over a space's notes. |
+| `GET /spaces/{id}/knowledge/graph` | Resolved note-link nodes and edges. |
 | `GET /agents` | Agent definitions; use `space_id` to select a roster. |
 | `GET /runs` | Run history; use `space_id` to select a space. |
 | `GET /channels` | Discord connection state, errors and refused accounts. |

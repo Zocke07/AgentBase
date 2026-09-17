@@ -10,6 +10,7 @@ import { AgentsView } from "./components/AgentsView";
 import { BudgetMeter } from "./components/BudgetMeter";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { HomeView } from "./components/HomeView";
+import { KnowledgeView } from "./components/KnowledgeView";
 import { Rail, type Section } from "./components/Rail";
 import { RunsView } from "./components/RunsView";
 import { SettingsView } from "./components/SettingsView";
@@ -291,6 +292,7 @@ export function App() {
             {section === "home" && (space?.name ?? "Home")}
             {section === "runs" && "Runs"}
             {section === "agents" && "Agents"}
+            {section === "knowledge" && "Knowledge"}
             {section === "space" && "Space settings"}
             {section === "settings" && "Settings"}
           </h1>
@@ -372,6 +374,15 @@ export function App() {
                 spaceId={spaceId}
                 spaces={spaces}
               />
+            </ErrorBoundary>
+          </div>
+          <div className="app__view" hidden={section !== "knowledge"}>
+            <ErrorBoundary label="the knowledge vault">
+              {space === null ? (
+                <p className="runs-view__placeholder">Loading the space…</p>
+              ) : (
+                <KnowledgeView key={space.id} space={space} />
+              )}
             </ErrorBoundary>
           </div>
           <div className="app__view" hidden={section !== "space"}>

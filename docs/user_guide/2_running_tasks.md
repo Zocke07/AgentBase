@@ -53,6 +53,7 @@ The graph, log and replay controls stay available while you consider it.
 |---|---|---|
 | `read_file` | low | Read a file inside this space's folder. |
 | `list_dir` | low | List a directory inside this space's folder. |
+| `search_knowledge` | low | Retrieve relevant Markdown chunks with note and heading citations. |
 | `write_file` | medium | Create or overwrite a file inside this space's folder. |
 | `http_get` | medium | Fetch a public URL; local and private network addresses are refused. |
 | `run_shell` | high | Run a shell command as your user, starting in this space's folder, with a timeout. |
@@ -131,7 +132,7 @@ risk levels you want to authorize automatically and click **Save settings**.
 | Selection | Calls that proceed automatically |
 |---|---|
 | Nothing | None; every tool asks. |
-| **low** | Reads and folder listings inside the space folder. |
+| **low** | Reads, folder listings and knowledge searches inside the space folder. |
 | **low** and **medium** | Also writes inside the folder and public web requests. |
 | **high**, with any other selection | Shell commands, with your user account's access to files and the network. |
 

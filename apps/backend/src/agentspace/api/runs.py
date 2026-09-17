@@ -147,6 +147,7 @@ class CreateRunRequest(BaseModel):
     space_id: str | None = None
     origin: RunOrigin = "ui"
     origin_ref: str | None = None
+    excluded_citations: list[str] = Field(default_factory=list, max_length=20)
 
 
 def _store(request: Request) -> EventStore:
@@ -179,7 +180,11 @@ async def create_run(request: Request, body: CreateRunRequest) -> Run:
     """
     try:
         return await _launcher(request).launch(
-            body.goal, space_id=body.space_id, origin=body.origin, origin_ref=body.origin_ref
+            body.goal,
+            space_id=body.space_id,
+            origin=body.origin,
+            origin_ref=body.origin_ref,
+            excluded_citations=tuple(body.excluded_citations),
         )
     except SpaceNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

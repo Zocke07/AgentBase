@@ -8,9 +8,21 @@ import type {
   CreateAgentRequest,
   CreateSpaceRequest,
   Event,
+  KnowledgeGraph,
+  KnowledgeEvaluation,
+  KnowledgeEvaluationCase,
+  KnowledgeImportResult,
+  KnowledgeIndex,
+  KnowledgeMoveResult,
+  KnowledgeNote,
+  KnowledgeSearch,
+  MemoryIndex,
+  MemoryItem,
+  MemoryStatus,
   ProviderCatalogueResponse,
   Run,
   SettingsResponse,
+  SearchFilters,
   SpaceResponse,
   ToolResponse,
   UpdateAgentRequest,
@@ -169,6 +181,85 @@ export const deleteSpace = (id: string): Promise<void> =>
 export const seedSpace = (id: string): Promise<AgentDef[]> =>
   request<AgentDef[]>(`/spaces/${id}/seed`, { method: "POST" });
 
+// --- knowledge -------------------------------------------------------------
+
+/** The live Markdown vault index. It is rebuilt so external Obsidian edits appear immediately. */
+export const listKnowledge = (spaceId: string): Promise<KnowledgeIndex> =>
+  request<KnowledgeIndex>(`/spaces/${spaceId}/knowledge`);
+
+export const getKnowledgeNote = (spaceId: string, path: string): Promise<KnowledgeNote> =>
+  request<KnowledgeNote>(`/spaces/${spaceId}/knowledge/note${query({ path })}`);
+
+export const saveKnowledgeNote = (
+  spaceId: string,
+  path: string,
+  content: string,
+): Promise<KnowledgeNote> =>
+  request<KnowledgeNote>(`/spaces/${spaceId}/knowledge/note`, {
+    method: "PUT",
+    ...asJson({ path, content }),
+  });
+
+export const deleteKnowledgeNote = (spaceId: string, path: string): Promise<void> =>
+  requestNoContent(`/spaces/${spaceId}/knowledge/note${query({ path })}`, { method: "DELETE" });
+
+export const searchKnowledge = (
+  spaceId: string,
+  search: string,
+  limit = 8,
+  filters?: SearchFilters,
+): Promise<KnowledgeSearch> =>
+  request<KnowledgeSearch>(`/spaces/${spaceId}/knowledge/search`, {
+    method: "POST",
+    ...asJson({ query: search, limit, filters }),
+  });
+
+export const getKnowledgeGraph = (spaceId: string): Promise<KnowledgeGraph> =>
+  request<KnowledgeGraph>(`/spaces/${spaceId}/knowledge/graph`);
+
+export const moveKnowledgeNote = (
+  spaceId: string,
+  source: string,
+  target: string,
+): Promise<KnowledgeMoveResult> =>
+  request<KnowledgeMoveResult>(`/spaces/${spaceId}/knowledge/move`, {
+    method: "POST",
+    ...asJson({ source, target, update_links: true }),
+  });
+
+export const importKnowledge = (
+  spaceId: string,
+  files: { path: string; content: string }[],
+  overwrite: boolean,
+): Promise<KnowledgeImportResult> =>
+  request<KnowledgeImportResult>(`/spaces/${spaceId}/knowledge/import`, {
+    method: "POST",
+    ...asJson({ files, overwrite }),
+  });
+
+export const listMemories = (spaceId: string): Promise<MemoryIndex> =>
+  request<MemoryIndex>(`/spaces/${spaceId}/knowledge/memories`);
+
+export const updateMemory = (
+  spaceId: string,
+  path: string,
+  changes: { status?: MemoryStatus; pinned?: boolean },
+): Promise<MemoryItem> =>
+  request<MemoryItem>(`/spaces/${spaceId}/knowledge/memory`, {
+    method: "PATCH",
+    ...asJson({ path, ...changes }),
+  });
+
+export const evaluateKnowledge = (
+  spaceId: string,
+  cases: KnowledgeEvaluationCase[],
+  limit = 5,
+): Promise<KnowledgeEvaluation> =>
+  request<KnowledgeEvaluation>(`/spaces/${spaceId}/knowledge/evaluate`, {
+    method: "POST",
+    ...asJson({ cases, limit }),
+  });
+
 // --- runs -------------------------------------------------------------------
 
 export const listRuns = (limit = 50, spaceId?: string): Promise<Run[]> =>
@@ -177,8 +268,19 @@ export const listRuns = (limit = 50, spaceId?: string): Promise<Run[]> =>
 export const getRun = (runId: string): Promise<Run> => request<Run>(`/runs/${runId}`);
 
 /** Start a run in a space. Omitting the space means the default one. */
-export const createRun = (goal: string, spaceId?: string): Promise<Run> =>
-  request<Run>("/runs", { method: "POST", ...asJson({ goal, space_id: spaceId ?? null }) });
+export const createRun = (
+  goal: string,
+  spaceId?: string,
+  excludedCitations: string[] = [],
+): Promise<Run> =>
+  request<Run>("/runs", {
+    method: "POST",
+    ...asJson({
+      goal,
+      space_id: spaceId ?? null,
+      excluded_citations: excludedCitations,
+    }),
+  });
 
 /**
  * Ask a run to stop. Answers 202 with the row as it stands: the run stops at

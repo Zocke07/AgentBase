@@ -69,6 +69,8 @@ MIGRATION_FILES: tuple[tuple[int, str], ...] = (
     (4, "004_approvals.sql"),
     (5, "005_drop_telegram.sql"),
     (6, "006_spaces.sql"),
+    (7, "007_knowledge.sql"),
+    (8, "008_memory_inbox.sql"),
 )
 
 #: The migrations that rebuild a table other tables reference. See

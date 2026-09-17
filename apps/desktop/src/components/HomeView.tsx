@@ -1,4 +1,4 @@
-import type { AgentDef, ApprovalResponse, Run, SpaceResponse } from "@agentspace/schemas";
+import type { AgentDef, ApprovalResponse, Run, SearchHit, SpaceResponse } from "@agentspace/schemas";
 import { useEffect, useState } from "react";
 
 import * as api from "../lib/api";
@@ -48,6 +48,9 @@ export function HomeView({
 }: HomeViewProps) {
   const [goal, setGoal] = useState("");
   const [starting, setStarting] = useState(false);
+  const [retrieving, setRetrieving] = useState(false);
+  const [retrieval, setRetrieval] = useState<SearchHit[] | null>(null);
+  const [excludedCitations, setExcludedCitations] = useState<string[]>([]);
   const [startError, setStartError] = useState<string | null>(null);
   const [demoError, setDemoError] = useState<string | null>(null);
   const [busyAgent, setBusyAgent] = useState<string | null>(null);
@@ -85,14 +88,34 @@ export function HomeView({
     setStarting(true);
     setStartError(null);
     try {
-      const run = await api.createRun(trimmed, space?.id);
+      const run =
+        excludedCitations.length === 0
+          ? await api.createRun(trimmed, space?.id)
+          : await api.createRun(trimmed, space?.id, excludedCitations);
       setGoal("");
+      setRetrieval(null);
+      setExcludedCitations([]);
       onOpenRun(run.id);
       void reloadRuns();
     } catch (failure) {
       setStartError(failure instanceof Error ? failure.message : String(failure));
     } finally {
       setStarting(false);
+    }
+  };
+
+  const previewRetrieval = async () => {
+    const trimmed = goal.trim();
+    if (trimmed === "" || space === null) return;
+    setRetrieving(true);
+    setStartError(null);
+    try {
+      setRetrieval((await api.searchKnowledge(space.id, trimmed, 6)).hits);
+      setExcludedCitations([]);
+    } catch (failure) {
+      setStartError(failure instanceof Error ? failure.message : String(failure));
+    } finally {
+      setRetrieving(false);
     }
   };
 
@@ -181,6 +204,8 @@ export function HomeView({
             placeholder="Describe the task. The supervisor will plan it and hand parts to the agents that are enabled."
             onChange={(changed) => {
               setGoal(changed.target.value);
+              setRetrieval(null);
+              setExcludedCitations([]);
             }}
             onKeyDown={(pressed) => {
               // Enter sends, like a chat box; Shift+Enter is a new line.
@@ -191,6 +216,34 @@ export function HomeView({
             }}
             data-testid="goal-input"
           />
+          {retrieval !== null && (
+            <fieldset className="new-run__retrieval">
+              <legend>Retrieved context</legend>
+              <p>Clear a result to keep it out of this run and its worker handoffs.</p>
+              {retrieval.length === 0 && <p>No approved memory or note matched this goal.</p>}
+              {retrieval.map((hit) => (
+                <label key={hit.citation}>
+                  <input
+                    type="checkbox"
+                    checked={!excludedCitations.includes(hit.citation)}
+                    onChange={(event) => {
+                      setExcludedCitations((current) =>
+                        event.target.checked
+                          ? current.filter((citation) => citation !== hit.citation)
+                          : [...current, hit.citation],
+                      );
+                    }}
+                  />
+                  <span>
+                    <code>{hit.citation}</code>
+                    <small>
+                      {Math.round(hit.score * 100)}% · {(hit.reasons ?? []).join(" · ")}
+                    </small>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          )}
           <div className="new-run__row">
             {startError !== null ? (
               <p className="field-error" role="alert">
@@ -223,13 +276,23 @@ export function HomeView({
                 )}
               </p>
             )}
-            <button
-              type="submit"
-              className="button button--primary"
-              disabled={starting || goal.trim() === "" || blocker !== null}
-            >
-              {starting ? "Starting…" : "Start run"}
-            </button>
+            <div className="new-run__actions">
+              <button
+                type="button"
+                className="button"
+                disabled={retrieving || goal.trim() === "" || space === null}
+                onClick={() => void previewRetrieval()}
+              >
+                {retrieving ? "Retrieving…" : "Preview context"}
+              </button>
+              <button
+                type="submit"
+                className="button button--primary"
+                disabled={starting || goal.trim() === "" || blocker !== null}
+              >
+                {starting ? "Starting…" : "Start run"}
+              </button>
+            </div>
           </div>
         </form>
 

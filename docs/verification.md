@@ -4,6 +4,31 @@ Updated 2026-09-15. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
 superseded gaps. A test result below is scoped to what was actually executed.
 
+## Markdown knowledge, local RAG and durable memory
+
+The 2026-09-15 knowledge-vault addition was checked on Apple Silicon macOS.
+Each space now exposes ordinary Markdown notes through the native Knowledge
+section, including safe source/preview modes, YAML properties and tags,
+wikilinks, backlinks, retrieval search and a linked-note graph. The same local
+retriever supplies cited, untrusted context to run goals and worker handoffs.
+Successful runs write unique `memory/runs/<run-id>.md` outcome notes, and the
+desktop shell can open only a validated space folder through an encoded
+Obsidian URI.
+
+`just lint typecheck` passed for 108 Python source files on both the macOS and
+Windows mypy targets, plus desktop ESLint and TypeScript. The complete suites
+passed with **763 backend tests** and **324 frontend tests**; 11 backend tests
+skipped for absent platform or release-archive prerequisites. Focused tests
+also covered external Markdown parsing, relative links, heading retrieval,
+stable citations, path and `.obsidian` refusal, API CRUD/CORS, run memory and
+the agent-facing search tool. Rust formatting, Clippy and both Rust unit tests
+passed. A fresh sidecar containing migration 007 was built at **132,920,928
+bytes**, SHA-256
+`9028c9359be3f1105713b19b33516cdf23703235708c2cc9b71929fd4ee0b3b3`;
+all **13 frozen-sidecar tests** then passed against those exact bytes. The
+backend passes used normal macOS process and network facilities so their
+frozen-sidecar and DNS checks could execute.
+
 ## ChatGPT subscription transport
 
 OpenAI API-key and ChatGPT subscription access now construct the same `openai`

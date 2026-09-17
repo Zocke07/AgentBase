@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from agentspace.events.store import EventStore
     from agentspace.events.types import Run as RunRow
     from agentspace.events.types import RunOrigin
+    from agentspace.knowledge.store import KnowledgeStore
     from agentspace.orchestrator.run import Run
     from agentspace.providers.base import Provider
     from agentspace.providers.chatgpt import ChatGPTInferenceRuntime
@@ -61,6 +62,12 @@ class RunLauncher:
     tasks: set[asyncio.Task[Any]] = field(default_factory=set)
     #: The runs in flight in this process, by id, so a cancel can reach them.
     live: dict[str, Run] = field(default_factory=dict)
+    #: Local Markdown retrieval and durable run memories. Optional for narrow tests.
+    knowledge: KnowledgeStore | None = None
+    #: Rows launched here whose orchestrator task has not returned yet.
+    driving: set[str] = field(default_factory=set)
+    #: A cancel can arrive before `execute_run` has constructed its live Run.
+    pending_cancellations: dict[str, str] = field(default_factory=dict)
 
     async def launch(
         self,
@@ -69,6 +76,7 @@ class RunLauncher:
         space_id: str | None = None,
         origin: RunOrigin = "ui",
         origin_ref: str | None = None,
+        excluded_citations: tuple[str, ...] = (),
         prologue: Callable[[RunRow], Awaitable[None]] | None = None,
     ) -> RunRow:
         """Create the run, run ``prologue`` against it, then start it.
@@ -89,7 +97,15 @@ class RunLauncher:
         if prologue is not None:
             await prologue(run)
 
-        self.spawn(self._drive(run.id, goal, space))
+        self.driving.add(run.id)
+        task = self.spawn(self._drive(run.id, goal, space, excluded_citations))
+        run_id = run.id
+
+        def finished(_task: asyncio.Task[None]) -> None:
+            self.driving.discard(run_id)
+            self.pending_cancellations.pop(run_id, None)
+
+        task.add_done_callback(finished)
         return run
 
     async def space_exists(self, space_id: str) -> bool | None:
@@ -136,13 +152,22 @@ class RunLauncher:
         """
         run = self.live.get(run_id)
         if run is None:
-            return False
+            if run_id not in self.driving:
+                return False
+            self.pending_cancellations.setdefault(run_id, reason)
+            return True
         run.request_cancel(reason)
         if self.runtime is not None:
             await self.runtime.approvals.release_run(run_id)
         return True
 
-    async def _drive(self, run_id: str, goal: str, space: Space | None) -> None:
+    async def _drive(
+        self,
+        run_id: str,
+        goal: str,
+        space: Space | None,
+        excluded_citations: tuple[str, ...],
+    ) -> None:
         """Hand one run to the orchestrator, which writes every terminal event itself."""
         await execute_run(
             self.store,
@@ -157,4 +182,12 @@ class RunLauncher:
             chatgpt_runtime=self.chatgpt_runtime,
             live=self.live,
             space=space,
+            knowledge=self.knowledge,
+            excluded_citations=frozenset(excluded_citations),
+            on_registered=self._apply_pending_cancel,
         )
+
+    def _apply_pending_cancel(self, run: Run) -> None:
+        reason = self.pending_cancellations.pop(run.id, None)
+        if reason is not None:
+            run.request_cancel(reason)

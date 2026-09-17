@@ -10,6 +10,7 @@ sequential, and a worker's result reaches the supervisor through the
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 from agentspace.events.types import EventType
@@ -20,6 +21,7 @@ from agentspace.providers.base import ProviderAuthError
 from agentspace.providers.factory import UnknownProviderError
 
 if TYPE_CHECKING:
+    from agentspace.knowledge.store import KnowledgeStore
     from agentspace.orchestrator.registry import AgentRegistry, ProviderPool
     from agentspace.orchestrator.run import Mailbox, Run
     from agentspace.providers.base import Provider, ToolCall
@@ -27,17 +29,20 @@ if TYPE_CHECKING:
 
 __all__ = ["SUPERVISOR_NAME", "SUPERVISOR_ROLE", "Supervisor", "supervisor_prompt"]
 
+logger = logging.getLogger("agentspace.orchestrator")
+
 #: The supervisor's `agent_id` in the log: fixed, so a replay can find the root.
 SUPERVISOR_NAME = "supervisor"
 
 SUPERVISOR_ROLE = "Plans the work and delegates it"
 
 
-def supervisor_prompt(goal: str, roster: str) -> str:
+def supervisor_prompt(goal: str, roster: str, knowledge_context: str = "") -> str:
     """The supervisor's system prompt.
 
     The roster is here, not in `spawn_agent`, because it differs per run.
     """
+    knowledge = f"\n\n{knowledge_context}" if knowledge_context else ""
     return (
         "You are the supervisor of a small team of AI agents.\n\n"
         f"The user's goal is:\n{goal}\n\n"
@@ -51,6 +56,7 @@ def supervisor_prompt(goal: str, roster: str) -> str:
         "When you have everything you need, call `finish` with the complete "
         "answer to the user's goal. Do not call `finish` before you have "
         "delegated the work, and do not do the work yourself."
+        f"{knowledge}"
     )
 
 
@@ -66,6 +72,10 @@ class Supervisor(Agent):
         registry: AgentRegistry,
         providers: ProviderPool,
         runtime: ToolRuntime | None = None,
+        knowledge: KnowledgeStore | None = None,
+        space_id: str | None = None,
+        knowledge_context: str = "",
+        excluded_citations: frozenset[str] = frozenset(),
     ) -> None:
         super().__init__(
             run=run,
@@ -74,7 +84,7 @@ class Supervisor(Agent):
             spec=AgentSpec(
                 name=SUPERVISOR_NAME,
                 role=SUPERVISOR_ROLE,
-                system_prompt=supervisor_prompt(goal, registry.describe()),
+                system_prompt=supervisor_prompt(goal, registry.describe(), knowledge_context),
                 # No definition, no allowlist.
                 max_steps=run.limits.max_steps_per_agent,
                 control_names=SUPERVISOR_CONTROL_NAMES,
@@ -89,6 +99,9 @@ class Supervisor(Agent):
         self._providers = providers
         #: Handed to the workers this supervisor spawns, never used by itself.
         self._runtime_for_workers = runtime
+        self._knowledge = knowledge
+        self._space_id = space_id
+        self._excluded_citations = excluded_citations
 
     async def _dispatch(self, call: ToolCall, step: int) -> StepOutcome | ToolReply:
         if call.name == "spawn_agent":
@@ -144,7 +157,18 @@ class Supervisor(Agent):
             supervisor_name=self.name,
             runtime=self._runtime_for_workers,
         )
-        outcome = await worker.execute(task)
+        worker_context = ""
+        if self._knowledge is not None and self._space_id is not None:
+            try:
+                worker_context = await self._knowledge.context_for(
+                    self._space_id,
+                    task,
+                    excluded_citations=set(self._excluded_citations),
+                )
+            except OSError:
+                logger.exception("knowledge retrieval failed for worker %s", name)
+        augmented_task = f"{task}\n\n{worker_context}" if worker_context else task
+        outcome = await worker.execute(augmented_task)
 
         # From the log, not the return value: a result the log lacks stops the run here.
         result = await self._mailbox.collect(sender=name, recipient=self.name)

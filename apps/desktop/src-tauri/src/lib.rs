@@ -95,15 +95,11 @@ fn data_dir(app: &AppHandle) -> Result<PathBuf, tauri::Error> {
     }
 }
 
-/// Show a space's folder in the OS file manager: the one path-opening command
-/// the webview may call, and it refuses any path outside the data directory.
-#[tauri::command]
-fn reveal_folder(app: AppHandle, path: String) -> Result<(), String> {
-    use tauri_plugin_opener::OpenerExt;
-
-    let root = data_dir(&app).map_err(|error| error.to_string())?;
+/// Resolve one existing directory and prove it belongs to AgentSpace's data.
+fn validated_data_directory(app: &AppHandle, path: &str) -> Result<PathBuf, String> {
+    let root = data_dir(app).map_err(|error| error.to_string())?;
     let root = std::fs::canonicalize(&root).map_err(|error| error.to_string())?;
-    let wanted = std::fs::canonicalize(&path)
+    let wanted = std::fs::canonicalize(path)
         .map_err(|_| format!("{path} does not exist yet: it is created by the first run"))?;
     if !wanted.starts_with(&root) {
         return Err(format!("{path} is not inside AgentSpace's data directory"));
@@ -111,8 +107,38 @@ fn reveal_folder(app: AppHandle, path: String) -> Result<(), String> {
     if !wanted.is_dir() {
         return Err(format!("{path} is not a folder"));
     }
+    Ok(wanted)
+}
+
+/// Show a space's folder in the OS file manager: the one path-opening command
+/// the webview may call, and it refuses any path outside the data directory.
+#[tauri::command]
+fn reveal_folder(app: AppHandle, path: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+
+    let wanted = validated_data_directory(&app, &path)?;
     app.opener()
         .open_path(wanted.to_string_lossy(), None::<&str>)
+        .map_err(|error| error.to_string())
+}
+
+fn obsidian_vault_url(path: &std::path::Path) -> Result<tauri::Url, String> {
+    use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+
+    let path_text = path.to_string_lossy();
+    let encoded = utf8_percent_encode(&path_text, NON_ALPHANUMERIC);
+    tauri::Url::parse(&format!("obsidian://open?path={encoded}")).map_err(|error| error.to_string())
+}
+
+/// Open a validated space folder as a vault through Obsidian's documented URI.
+#[tauri::command]
+fn open_obsidian_vault(app: AppHandle, path: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+
+    let wanted = validated_data_directory(&app, &path)?;
+    let url = obsidian_vault_url(&wanted)?;
+    app.opener()
+        .open_url(url.as_str(), None::<&str>)
         .map_err(|error| error.to_string())
 }
 
@@ -291,6 +317,7 @@ pub fn run() {
             sidecar_instance,
             keychain_service,
             reveal_folder,
+            open_obsidian_vault,
             open_auth_url
         ])
         .setup(|app| {
@@ -309,7 +336,26 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::auth_url_is_allowed;
+    use std::path::Path;
+
+    use super::{auth_url_is_allowed, obsidian_vault_url};
+
+    #[test]
+    fn obsidian_vault_url_keeps_the_exact_path_as_one_query_value() {
+        let path = Path::new("/tmp/Agent Space/research & memory");
+        let url = obsidian_vault_url(path).expect("a valid Obsidian URL");
+        let decoded_path = url
+            .query_pairs()
+            .find_map(|(key, value)| (key == "path").then(|| value.into_owned()));
+
+        assert_eq!(decoded_path.as_deref(), path.to_str());
+        assert_eq!(url.scheme(), "obsidian");
+        assert_eq!(url.host_str(), Some("open"));
+        assert!(url
+            .as_str()
+            .contains("%2Ftmp%2FAgent%20Space%2Fresearch%20%26%20memory"));
+        assert!(!url.as_str().contains('+'));
+    }
 
     #[test]
     fn oauth_url_requires_an_exact_openai_https_host() {

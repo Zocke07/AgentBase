@@ -36,6 +36,7 @@ if TYPE_CHECKING:
 
     from agentspace.budget.ledger import BudgetLedger
     from agentspace.events.store import EventStore
+    from agentspace.knowledge.store import KnowledgeStore, SearchHit
     from agentspace.providers.base import Provider
     from agentspace.providers.chatgpt import ChatGPTInferenceRuntime
     from agentspace.secrets import SecretStore
@@ -77,6 +78,9 @@ async def execute_run(
     clock: Callable[[], float] | None = None,
     live: MutableMapping[str, Run] | None = None,
     space: Space | None = None,
+    knowledge: KnowledgeStore | None = None,
+    excluded_citations: frozenset[str] = frozenset(),
+    on_registered: Callable[[Run], None] | None = None,
 ) -> None:
     """Drive one run from `run.started` to a terminal event.
 
@@ -97,6 +101,18 @@ async def execute_run(
         workspace = space.apply_to(workspace)
     limits = RunLimits.from_settings(workspace)
 
+    hits: tuple[SearchHit, ...] = ()
+    if knowledge is not None and space is not None:
+        try:
+            hits = tuple(
+                await knowledge.search(
+                    space.id, goal, 6, excluded_citations=set(excluded_citations)
+                )
+            )
+        except OSError:
+            logger.exception("knowledge retrieval failed for run %s", run_id)
+    knowledge_context = knowledge.format_context(hits) if knowledge is not None else ""
+
     run = Run(
         store=store,
         id=run_id,
@@ -104,10 +120,14 @@ async def execute_run(
         limits=limits,
         clock=clock if clock is not None else time.monotonic,
         space=space,
+        knowledge=hits,
+        knowledge_exclusions=tuple(sorted(excluded_citations)),
     )
 
     if live is not None:
         live[run_id] = run
+    if on_registered is not None:
+        on_registered(run)
     try:
         await _execute(
             run,
@@ -119,6 +139,9 @@ async def execute_run(
             client,
             provider,
             chatgpt_runtime,
+            knowledge,
+            knowledge_context,
+            excluded_citations,
         )
     finally:
         if live is not None:
@@ -135,6 +158,9 @@ async def _execute(
     client: httpx2.AsyncClient | None,
     provider: Provider | None,
     chatgpt_runtime: ChatGPTInferenceRuntime | None,
+    knowledge: KnowledgeStore | None,
+    knowledge_context: str,
+    excluded_citations: frozenset[str],
 ) -> None:
     """`execute_run` proper, once the run is registered as live."""
     run_id = run.id
@@ -175,6 +201,10 @@ async def _execute(
         registry=registry,
         providers=providers,
         runtime=_with_workspace_policy(runtime, workspace),
+        knowledge=knowledge,
+        space_id=run.space.id if run.space is not None else DEFAULT_SPACE_ID,
+        knowledge_context=knowledge_context,
+        excluded_citations=excluded_citations,
     )
     await run.emit(
         EventType.AGENT_SPAWNED,
@@ -201,7 +231,7 @@ async def _execute(
         logger.exception("run %s failed", run_id)
         await run.fail(f"The run stopped unexpectedly: {exc}")
     else:
-        await _finish(run, outcome)
+        await _finish(run, outcome, knowledge)
 
 
 def _with_workspace_policy(
@@ -217,7 +247,9 @@ def _with_workspace_policy(
     return replace(runtime, workspace_auto_approve=tuple(workspace.auto_approve))
 
 
-async def _finish(run: Run, outcome: StepOutcome) -> None:
+async def _finish(
+    run: Run, outcome: StepOutcome, knowledge: KnowledgeStore | None = None
+) -> None:
     """Write the run's terminal event from how the supervisor actually stopped.
 
     A supervisor out of steps *completes* as an agent (§4 has no
@@ -225,7 +257,16 @@ async def _finish(run: Run, outcome: StepOutcome) -> None:
     out of steps is different: the supervisor can finish around it.
     """
     if outcome.reason == "finished":
-        await run.complete(outcome.result)
+        memory_path = None
+        if knowledge is not None:
+            space_id = run.space.id if run.space is not None else DEFAULT_SPACE_ID
+            try:
+                memory_path = await knowledge.save_run_memory(
+                    space_id, run_id=run.id, goal=run.goal, summary=outcome.result
+                )
+            except (OSError, ValueError):
+                logger.exception("could not save memory for run %s", run.id)
+        await run.complete(outcome.result, memory_path)
         return
 
     await run.fail(

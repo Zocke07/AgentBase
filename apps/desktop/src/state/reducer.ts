@@ -395,11 +395,11 @@ export function reduce(state: RunView, event: Event): RunView {
       return agent === null
         ? executing
         : withAgent(executing, agent, seq, (node) => ({
-            ...node,
-            activity: "executing",
-            currentTool: call.tool,
-            lastError: null,
-          }));
+          ...node,
+          activity: "executing",
+          currentTool: call.tool,
+          lastError: null,
+        }));
     }
 
     case "tool.result": {

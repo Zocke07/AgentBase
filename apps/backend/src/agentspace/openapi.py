@@ -49,8 +49,10 @@ _KNOWN_KEYWORDS: Final[frozenset[str]] = frozenset(
         "examples",
         "format",
         "maxLength",
+        "maxItems",
         "maximum",
         "minLength",
+        "minItems",
         "minimum",
         "title",
     }

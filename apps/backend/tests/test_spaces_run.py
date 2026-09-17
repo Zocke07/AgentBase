@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from agentspace.knowledge.store import KnowledgeStore
 from agentspace.orchestrator.launcher import RunLauncher
 from agentspace.store.spaces import DEFAULT_SPACE_ID, SpaceArchivedError, SpaceStore
 from agentspace.tools.catalogue import RiskLevel
@@ -221,3 +222,46 @@ async def test_a_run_with_no_space_named_lands_in_the_default_space(
     assert started.payload["space"]["id"] == DEFAULT_SPACE_ID
     # And the default roster (the three built-ins) was what it was offered.
     assert "researcher" in (provider.systems[0] or "")
+
+
+async def test_a_run_retrieves_vault_context_and_saves_its_summary_as_memory(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+    spaces: SpaceStore,
+) -> None:
+    await spaces.require(DEFAULT_SPACE_ID)
+    knowledge = KnowledgeStore(spaces)
+    await knowledge.write_note(
+        DEFAULT_SPACE_ID,
+        "decisions/database.md",
+        "# Database choice\n\nUse SQLite WAL for the event log.\n",
+    )
+    provider = ScriptedProvider(
+        [says("Done.", call("finish", "s1", result="SQLite remains the choice."))]
+    )
+    launcher = RunLauncher(
+        store=store,
+        settings=settings,
+        agents=agents,
+        ledger=ledger,
+        secrets=secrets,
+        spaces=spaces,
+        provider=provider,
+        knowledge=knowledge,
+    )
+
+    run = await launcher.launch("Which database should this event log use?")
+    await asyncio.gather(*launcher.tasks)
+
+    assert "[[decisions/database#Database choice]]" in (provider.systems[0] or "")
+    assert "Use SQLite WAL" in (provider.systems[0] or "")
+    events = await store.read(run.id)
+    started = next(event for event in events if event.type == "run.started")
+    assert started.payload["knowledge"][0]["path"] == "decisions/database.md"
+    completed = next(event for event in events if event.type == "run.completed")
+    assert completed.payload["memory_path"] == f"memory/runs/{run.id}.md"
+    memory = await knowledge.get_note(DEFAULT_SPACE_ID, completed.payload["memory_path"])
+    assert "SQLite remains the choice" in memory.content

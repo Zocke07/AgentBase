@@ -42,7 +42,7 @@ class ToolDeclaration:
     risk: RiskLevel
 
 
-#: The five built-ins §5 Phase 6 names. A definition may only allow a tool
+#: The built-ins a definition may allow. A definition may only allow a tool
 #: listed here. Reads inside the sandbox are low; anything that writes, or
 #: that leaves the machine, is not.
 CATALOGUE: Final[tuple[ToolDeclaration, ...]] = (
@@ -55,6 +55,21 @@ CATALOGUE: Final[tuple[ToolDeclaration, ...]] = (
         name="list_dir",
         description="List the contents of a directory inside the workspace.",
         risk=RiskLevel.LOW,
+    ),
+    ToolDeclaration(
+        name="search_knowledge",
+        description=(
+            "Search this space's Markdown knowledge and return relevant chunks with citations."
+        ),
+        risk=RiskLevel.LOW,
+    ),
+    ToolDeclaration(
+        name="propose_memory",
+        description=(
+            "Propose a durable Markdown memory for the user's review; it is not "
+            "retrieved until approved."
+        ),
+        risk=RiskLevel.MEDIUM,
     ),
     ToolDeclaration(
         name="write_file",

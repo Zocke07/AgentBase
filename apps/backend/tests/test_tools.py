@@ -1,4 +1,4 @@
-"""The five built-in tools: what each one does, and what each one refuses.
+"""The built-in tools: what each one does, and what each one refuses.
 
 The difference between the two failures matters: `ToolArgumentError` is a
 malformed call the agent can retry (`tool.error`), `ToolExecutionError` a
@@ -24,6 +24,8 @@ from agentspace.tools.builtin.filesystem import (
     ReadFileTool,
     WriteFileTool,
 )
+from agentspace.tools.builtin.knowledge import SearchKnowledgeTool
+from agentspace.tools.builtin.memory import ProposeMemoryTool
 from agentspace.tools.builtin.network import HttpGetTool
 from agentspace.tools.builtin.shell import RunShellTool
 from agentspace.tools.catalogue import CATALOGUE, RiskLevel
@@ -156,6 +158,39 @@ async def test_a_long_file_is_truncated_and_says_so(sandbox: Sandbox) -> None:
 
     assert "[truncated:" in result
     assert str(MAX_READ_CHARS) in result
+
+
+async def test_search_knowledge_returns_cited_markdown_chunks(sandbox: Sandbox) -> None:
+    (sandbox.root / "decision.md").write_text(
+        "# Storage\n\nUse SQLite WAL for the local event log.", encoding="utf-8"
+    )
+    tool = SearchKnowledgeTool()
+
+    result = await tool.execute(tool.prepare({"query": "database event log"}, sandbox), sandbox)
+
+    assert "[[decision#Storage]]" in result
+    assert "SQLite WAL" in result
+
+
+async def test_propose_memory_creates_an_untrusted_inbox_note(sandbox: Sandbox) -> None:
+    tool = ProposeMemoryTool()
+    prepared = tool.prepare(
+        {
+            "title": "Storage choice",
+            "content": "SQLite WAL worked for this workload.",
+            "confidence": "high",
+            "tags": ["database"],
+        },
+        sandbox,
+    )
+
+    result = await tool.execute(prepared, sandbox)
+    notes = list((sandbox.root / "memory" / "inbox").glob("*.md"))
+
+    assert tool.risk is RiskLevel.MEDIUM
+    assert len(notes) == 1
+    assert "status: proposed" in notes[0].read_text(encoding="utf-8")
+    assert "Proposed memory [[memory/inbox/" in result
 
 
 # --- write_file ---------------------------------------------------------------

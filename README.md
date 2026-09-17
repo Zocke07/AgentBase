@@ -11,7 +11,10 @@ the optional Discord connection sends run updates to Discord.
 of agents, a folder they may touch, and the rules their runs are held to), a
 supervisor delegates to that roster, every filesystem, shell and network call
 stops at an approval gate, and the whole run is watchable live on a graph, in
-plain language, from the window or from Discord. See
+plain language, from the window or from Discord. Each space is also a local
+Markdown knowledge vault with links, backlinks, properties, graph search,
+automatic cited RAG and durable cross-run memory. It can be opened directly in
+Obsidian, but Obsidian is optional. See
 [BUILD_SPEC.md](BUILD_SPEC.md) for the full design and [CLAUDE.md](CLAUDE.md)
 for the current implementation context.
 

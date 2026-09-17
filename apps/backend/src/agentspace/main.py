@@ -33,6 +33,7 @@ from agentspace.api.agents import router as agents_router
 from agentspace.api.approvals import router as approvals_router
 from agentspace.api.auth import router as auth_router
 from agentspace.api.channels import router as channels_router
+from agentspace.api.knowledge import router as knowledge_router
 from agentspace.api.runs import router as runs_router
 from agentspace.api.settings import router as settings_router
 from agentspace.api.spaces import router as spaces_router
@@ -49,6 +50,7 @@ from agentspace.config import (
 )
 from agentspace.events.bus import EventBus
 from agentspace.events.store import EventStore
+from agentspace.knowledge.store import KnowledgeStore
 from agentspace.orchestrator.launcher import RunLauncher
 from agentspace.providers.chatgpt import ChatGPTRuntime, CodexAppServerRuntime
 from agentspace.secrets import SecretStore, parse_secrets_line
@@ -138,6 +140,7 @@ def create_app(
         approval_store = ApprovalStore(database)
         app.state.approvals = ApprovalService(approval_store, app.state.store)
         app.state.spaces = SpaceStore(database, resolved.spaces_dir)
+        app.state.knowledge = KnowledgeStore(app.state.spaces)
         # The pre-spaces workspace folder becomes the default space's, once;
         # migration 006's SQL cannot move a directory.
         default_folder = app.state.spaces.folder_for(DEFAULT_SPACE_ID)
@@ -160,6 +163,7 @@ def create_app(
             spaces=app.state.spaces,
             chatgpt_runtime=app.state.chatgpt_runtime,
             tasks=app.state.background_tasks,
+            knowledge=app.state.knowledge,
         )
 
         # A pending approval's waiter died with the process that created it;
@@ -219,7 +223,7 @@ def create_app(
         CORSMiddleware,
         allow_origins=list(ALLOWED_ORIGINS),
         allow_credentials=False,
-        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type", "Last-Event-ID"],
     )
 
@@ -232,6 +236,7 @@ def create_app(
     app.include_router(approvals_router)
     app.include_router(auth_router)
     app.include_router(channels_router)
+    app.include_router(knowledge_router)
     app.include_router(runs_router)
     app.include_router(settings_router)
     app.include_router(spaces_router)

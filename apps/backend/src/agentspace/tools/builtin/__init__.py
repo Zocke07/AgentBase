@@ -1,4 +1,4 @@
-"""The five built-in tools, and the registry that holds them.
+"""The built-in tools, and the registry that holds them.
 
 Each implements :class:`~agentspace.tools.base.Tool`, reads its risk from the
 catalogue rather than restating it, and resolves every path and URL through
@@ -10,6 +10,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Final
 
 from agentspace.tools.builtin.filesystem import ListDirTool, ReadFileTool, WriteFileTool
+from agentspace.tools.builtin.knowledge import SearchKnowledgeTool
+from agentspace.tools.builtin.memory import ProposeMemoryTool
 from agentspace.tools.builtin.network import HttpGetTool
 from agentspace.tools.builtin.shell import RunShellTool
 
@@ -20,8 +22,10 @@ __all__ = [
     "BUILTIN_TOOLS",
     "HttpGetTool",
     "ListDirTool",
+    "ProposeMemoryTool",
     "ReadFileTool",
     "RunShellTool",
+    "SearchKnowledgeTool",
     "WriteFileTool",
     "build_registry",
 ]
@@ -30,6 +34,8 @@ __all__ = [
 BUILTIN_TOOLS: Final[tuple[type[Tool], ...]] = (
     ReadFileTool,
     ListDirTool,
+    SearchKnowledgeTool,
+    ProposeMemoryTool,
     WriteFileTool,
     HttpGetTool,
     RunShellTool,

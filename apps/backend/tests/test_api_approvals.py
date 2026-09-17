@@ -72,6 +72,8 @@ def test_the_application_builds_a_tool_runtime(client: TestClient) -> None:
     assert set(state.tool_runtime.tools) == {
         "read_file",
         "list_dir",
+        "search_knowledge",
+        "propose_memory",
         "write_file",
         "http_get",
         "run_shell",

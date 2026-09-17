@@ -14,14 +14,15 @@ apps/backend/src/agentspace/    Python 3.12 FastAPI sidecar
   providers/                    Provider protocol, Anthropic/OpenAI/Ollama, ChatGPT transport,
                                 pricing, factory
   budget/ledger.py              the monthly cap, checked before every call
+  knowledge/store.py            Markdown parser, links, graph, local vectors, RAG memory
   orchestrator/                 run lifecycle, supervisor, agent loop, limits,
                                 control tools, registry, launcher
   tools/                        catalogue, Tool protocol, sandbox, approval gate,
-                                runtime, builtin/{filesystem,network,shell}.py
+                                runtime, builtin/{filesystem,knowledge,network,shell}.py
   channels/                     Discord adapter, identity allowlist,
                                 the chat renderer, throttle, service
-  api/                          runs, stream (SSE), approvals, agents, spaces, settings, auth,
-                                channels
+  api/                          runs, stream (SSE), approvals, agents, spaces, knowledge,
+                                settings, auth, channels
   openapi.py                    builds the OpenAPI doc and emits the TS types
 apps/backend/tests/             pytest; support.py holds the shared doubles
 apps/desktop/src/               React 19 + Vite + TypeScript
@@ -94,6 +95,22 @@ The adapter reports that error without changing the model.
 The rail separates Home, Runs, Agents and Space settings from app-wide Settings.
 `RunPanel` contains the event-derived `run-projection`; its scrubber and the
 docked `ApprovalPanel` also need current viewer or approval-service state.
+
+### Markdown knowledge and RAG
+
+`KnowledgeStore` treats a space folder as the canonical vault. It reparses up
+to 2,000 Markdown files on demand, excludes hidden paths and resolves wikilinks
+and Markdown links into graph edges and backlinks. Heading chunks are ranked
+by a deterministic, 768-slot hashed term vector plus overlap, title and tag
+signals. This is intentionally local and dependency-free so the frozen sidecar
+does not ship a model runtime or send notes to an embedding service.
+
+`RunLauncher` hands the store to `execute_run`. Goal retrieval happens before
+the supervisor is created, and handoff retrieval happens before each worker's
+first model call. Retrieved prose is delimited as untrusted data and carries
+stable wiki citations. Successful outcomes are projected into unique Markdown
+files under `memory/runs`; `run.completed.memory_path` connects the durable
+event to that projection. The event log remains authoritative for what happened.
 
 ---
 

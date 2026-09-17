@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from agentspace.events.store import EventStore
+    from agentspace.knowledge.store import SearchHit
     from agentspace.orchestrator.limits import RunLimits
     from agentspace.store.spaces import Space
 
@@ -72,6 +73,10 @@ class Run:
     clock: Callable[[], float] = time.monotonic
     #: The space this run happens in, recorded in `run.started`; ``None`` under app-wide rules.
     space: Space | None = None
+    #: The excerpts retrieved before this run started, recorded for replay.
+    knowledge: tuple[SearchHit, ...] = ()
+    #: Citations the user removed in the pre-run retrieval inspector.
+    knowledge_exclusions: tuple[str, ...] = ()
     started_at: float = field(default=0.0, init=False)
     _agents: list[str] = field(default_factory=list, init=False)
     #: Set by `request_cancel`, consumed by `check_deadline`: a flag, so the
@@ -86,11 +91,18 @@ class Run:
         payload: dict[str, Any] = {"goal": self.goal, "limits": self.limits.as_payload()}
         if self.space is not None:
             payload["space"] = self.space.as_payload()
+        if self.knowledge:
+            payload["knowledge"] = [hit.model_dump(mode="json") for hit in self.knowledge]
+        if self.knowledge_exclusions:
+            payload["knowledge_exclusions"] = list(self.knowledge_exclusions)
         await self.emit(EventType.RUN_STARTED, payload)
         await self.store.set_run_status(self.id, "running")
 
-    async def complete(self, summary: str) -> None:
-        await self.emit(EventType.RUN_COMPLETED, {"summary": summary})
+    async def complete(self, summary: str, memory_path: str | None = None) -> None:
+        payload = {"summary": summary}
+        if memory_path is not None:
+            payload["memory_path"] = memory_path
+        await self.emit(EventType.RUN_COMPLETED, payload)
         await self.store.set_run_status(self.id, "completed")
 
     async def fail(self, reason: str) -> None:

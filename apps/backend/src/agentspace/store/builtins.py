@@ -29,7 +29,12 @@ BUILTIN_ROLES: Final[tuple[BuiltinRole, ...]] = (
             "do not know rather than filling the gap. Do not write prose for "
             "publication: another agent does that with what you find."
         ),
-        "allowed_tools": ("read_file", "list_dir"),
+        "allowed_tools": (
+            "read_file",
+            "list_dir",
+            "search_knowledge",
+            "propose_memory",
+        ),
     },
     {
         "name": "writer",
@@ -40,7 +45,12 @@ BUILTIN_ROLES: Final[tuple[BuiltinRole, ...]] = (
             "figures exactly as they were given to you: do not round them, and do "
             "not add any you were not given. Be brief."
         ),
-        "allowed_tools": ("read_file", "write_file"),
+        "allowed_tools": (
+            "read_file",
+            "write_file",
+            "search_knowledge",
+            "propose_memory",
+        ),
     },
     {
         "name": "reviewer",
@@ -51,6 +61,11 @@ BUILTIN_ROLES: Final[tuple[BuiltinRole, ...]] = (
             "fix them. If it is sound, say so plainly rather than inventing "
             "criticism. Do not rewrite it yourself."
         ),
-        "allowed_tools": ("read_file", "list_dir"),
+        "allowed_tools": (
+            "read_file",
+            "list_dir",
+            "search_knowledge",
+            "propose_memory",
+        ),
     },
 )

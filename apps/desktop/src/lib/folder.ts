@@ -11,3 +11,9 @@ export async function revealFolder(path: string): Promise<void> {
   const core = await import("@tauri-apps/api/core");
   await core.invoke("reveal_folder", { path });
 }
+
+/** Ask the shell to open the validated space folder as an Obsidian vault. */
+export async function openInObsidian(path: string): Promise<void> {
+  const core = await import("@tauri-apps/api/core");
+  await core.invoke("open_obsidian_vault", { path });
+}

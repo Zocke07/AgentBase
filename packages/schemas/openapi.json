@@ -486,6 +486,14 @@
       },
       "CreateRunRequest": {
         "properties": {
+          "excluded_citations": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Excluded Citations",
+            "type": "array"
+          },
           "goal": {
             "maxLength": 10000,
             "minLength": 1,
@@ -564,6 +572,31 @@
           "name"
         ],
         "title": "CreateSpaceRequest",
+        "type": "object"
+      },
+      "EvaluateKnowledgeRequest": {
+        "properties": {
+          "cases": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeEvaluationCase"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Cases",
+            "type": "array"
+          },
+          "limit": {
+            "default": 5,
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cases"
+        ],
+        "title": "EvaluateKnowledgeRequest",
         "type": "object"
       },
       "Event": {
@@ -686,6 +719,658 @@
           "instance"
         ],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "ImportKnowledgeRequest": {
+        "properties": {
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/ImportNote"
+            },
+            "maxItems": 10000,
+            "minItems": 1,
+            "title": "Files",
+            "type": "array"
+          },
+          "overwrite": {
+            "default": false,
+            "title": "Overwrite",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "title": "ImportKnowledgeRequest",
+        "type": "object"
+      },
+      "ImportNote": {
+        "properties": {
+          "content": {
+            "maxLength": 200000,
+            "title": "Content",
+            "type": "string"
+          },
+          "path": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "content"
+        ],
+        "title": "ImportNote",
+        "type": "object"
+      },
+      "KnowledgeEdge": {
+        "properties": {
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "target"
+        ],
+        "title": "KnowledgeEdge",
+        "type": "object"
+      },
+      "KnowledgeEvaluation": {
+        "properties": {
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "mean_recall_at_k": {
+            "title": "Mean Recall At K",
+            "type": "number"
+          },
+          "mean_reciprocal_rank": {
+            "title": "Mean Reciprocal Rank",
+            "type": "number"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeEvaluationResult"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "results",
+          "mean_reciprocal_rank",
+          "mean_recall_at_k",
+          "limit"
+        ],
+        "title": "KnowledgeEvaluation",
+        "type": "object"
+      },
+      "KnowledgeEvaluationCase": {
+        "properties": {
+          "expected_paths": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Expected Paths",
+            "type": "array"
+          },
+          "question": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question",
+          "expected_paths"
+        ],
+        "title": "KnowledgeEvaluationCase",
+        "type": "object"
+      },
+      "KnowledgeEvaluationResult": {
+        "properties": {
+          "expected_paths": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Expected Paths",
+            "type": "array"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "recall_at_k": {
+            "title": "Recall At K",
+            "type": "number"
+          },
+          "reciprocal_rank": {
+            "title": "Reciprocal Rank",
+            "type": "number"
+          },
+          "retrieved_paths": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Retrieved Paths",
+            "type": "array"
+          }
+        },
+        "required": [
+          "question",
+          "expected_paths",
+          "retrieved_paths",
+          "reciprocal_rank",
+          "recall_at_k"
+        ],
+        "title": "KnowledgeEvaluationResult",
+        "type": "object"
+      },
+      "KnowledgeGraph": {
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeEdge"
+            },
+            "title": "Edges",
+            "type": "array"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeNode"
+            },
+            "title": "Nodes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "nodes",
+          "edges"
+        ],
+        "title": "KnowledgeGraph",
+        "type": "object"
+      },
+      "KnowledgeImportResult": {
+        "properties": {
+          "backup_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backup Path"
+          },
+          "created": {
+            "title": "Created",
+            "type": "integer"
+          },
+          "skipped": {
+            "title": "Skipped",
+            "type": "integer"
+          },
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "created",
+          "updated",
+          "skipped",
+          "backup_path"
+        ],
+        "title": "KnowledgeImportResult",
+        "type": "object"
+      },
+      "KnowledgeIndex": {
+        "properties": {
+          "index_status": {
+            "$ref": "#/components/schemas/KnowledgeIndexStatus"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/NoteSummary"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/KnowledgeStats"
+          }
+        },
+        "required": [
+          "notes",
+          "stats",
+          "index_status"
+        ],
+        "title": "KnowledgeIndex",
+        "type": "object"
+      },
+      "KnowledgeIndexStatus": {
+        "description": "What the incremental vault refresh did for this response.",
+        "properties": {
+          "changed_files": {
+            "title": "Changed Files",
+            "type": "integer"
+          },
+          "duration_ms": {
+            "title": "Duration Ms",
+            "type": "number"
+          },
+          "indexed_at": {
+            "format": "date-time",
+            "title": "Indexed At",
+            "type": "string"
+          },
+          "reused_files": {
+            "title": "Reused Files",
+            "type": "integer"
+          },
+          "scanned_files": {
+            "title": "Scanned Files",
+            "type": "integer"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "indexed_at",
+          "scanned_files",
+          "changed_files",
+          "reused_files",
+          "truncated",
+          "duration_ms"
+        ],
+        "title": "KnowledgeIndexStatus",
+        "type": "object"
+      },
+      "KnowledgeMoveResult": {
+        "properties": {
+          "backup_path": {
+            "title": "Backup Path",
+            "type": "string"
+          },
+          "note": {
+            "$ref": "#/components/schemas/KnowledgeNote"
+          },
+          "updated_links": {
+            "title": "Updated Links",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "note",
+          "updated_links",
+          "backup_path"
+        ],
+        "title": "KnowledgeMoveResult",
+        "type": "object"
+      },
+      "KnowledgeNode": {
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "title"
+        ],
+        "title": "KnowledgeNode",
+        "type": "object"
+      },
+      "KnowledgeNote": {
+        "description": "A note plus its editable Markdown source.",
+        "properties": {
+          "backlinks": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Backlinks",
+            "type": "array"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "excerpt": {
+            "title": "Excerpt",
+            "type": "string"
+          },
+          "links": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Links",
+            "type": "array"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "properties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Properties",
+            "type": "object"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "title",
+          "excerpt",
+          "updated_at",
+          "content"
+        ],
+        "title": "KnowledgeNote",
+        "type": "object"
+      },
+      "KnowledgeSearch": {
+        "properties": {
+          "duration_ms": {
+            "default": 0,
+            "title": "Duration Ms",
+            "type": "number"
+          },
+          "hits": {
+            "items": {
+              "$ref": "#/components/schemas/SearchHit"
+            },
+            "title": "Hits",
+            "type": "array"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "retrieval_mode": {
+            "default": "hybrid-bm25-local-vector",
+            "title": "Retrieval Mode",
+            "type": "string"
+          },
+          "total_chunks": {
+            "default": 0,
+            "title": "Total Chunks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "query",
+          "hits"
+        ],
+        "title": "KnowledgeSearch",
+        "type": "object"
+      },
+      "KnowledgeStats": {
+        "properties": {
+          "chunk_count": {
+            "title": "Chunk Count",
+            "type": "integer"
+          },
+          "link_count": {
+            "title": "Link Count",
+            "type": "integer"
+          },
+          "note_count": {
+            "title": "Note Count",
+            "type": "integer"
+          },
+          "tag_count": {
+            "title": "Tag Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "note_count",
+          "link_count",
+          "tag_count",
+          "chunk_count"
+        ],
+        "title": "KnowledgeStats",
+        "type": "object"
+      },
+      "MemoryIndex": {
+        "properties": {
+          "approved": {
+            "title": "Approved",
+            "type": "integer"
+          },
+          "archived": {
+            "title": "Archived",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MemoryItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "proposed": {
+            "title": "Proposed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "proposed",
+          "approved",
+          "archived"
+        ],
+        "title": "MemoryIndex",
+        "type": "object"
+      },
+      "MemoryItem": {
+        "description": "A run outcome waiting for, or carrying, a user's trust decision.",
+        "properties": {
+          "confidence": {
+            "title": "Confidence",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "goal": {
+            "title": "Goal",
+            "type": "string"
+          },
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "pinned": {
+            "title": "Pinned",
+            "type": "boolean"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MemoryStatus"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "run_id",
+          "source",
+          "title",
+          "goal",
+          "outcome",
+          "status",
+          "pinned",
+          "confidence",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "MemoryItem",
+        "type": "object"
+      },
+      "MemoryStatus": {
+        "description": "Trust state for an agent-generated memory.",
+        "enum": [
+          "proposed",
+          "approved",
+          "archived"
+        ],
+        "title": "MemoryStatus",
+        "type": "string"
+      },
+      "MoveNoteRequest": {
+        "properties": {
+          "source": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Source",
+            "type": "string"
+          },
+          "target": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Target",
+            "type": "string"
+          },
+          "update_links": {
+            "default": true,
+            "title": "Update Links",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "source",
+          "target"
+        ],
+        "title": "MoveNoteRequest",
+        "type": "object"
+      },
+      "NoteSummary": {
+        "description": "What the note browser needs without opening the full document.",
+        "properties": {
+          "backlinks": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Backlinks",
+            "type": "array"
+          },
+          "excerpt": {
+            "title": "Excerpt",
+            "type": "string"
+          },
+          "links": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Links",
+            "type": "array"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "properties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Properties",
+            "type": "object"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "title",
+          "excerpt",
+          "updated_at"
+        ],
+        "title": "NoteSummary",
         "type": "object"
       },
       "ProviderCatalogueResponse": {
@@ -838,6 +1523,166 @@
           "created_at"
         ],
         "title": "Run",
+        "type": "object"
+      },
+      "SearchFilters": {
+        "description": "Optional narrowing shared by the UI, evaluations and agent tool.",
+        "properties": {
+          "folders": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Folders",
+            "type": "array"
+          },
+          "memory_statuses": {
+            "items": {
+              "$ref": "#/components/schemas/MemoryStatus"
+            },
+            "title": "Memory Statuses",
+            "type": "array"
+          },
+          "note_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Note Types",
+            "type": "array"
+          },
+          "pinned_only": {
+            "default": false,
+            "title": "Pinned Only",
+            "type": "boolean"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "updated_after": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated After"
+          },
+          "updated_before": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated Before"
+          }
+        },
+        "title": "SearchFilters",
+        "type": "object"
+      },
+      "SearchHit": {
+        "properties": {
+          "citation": {
+            "title": "Citation",
+            "type": "string"
+          },
+          "estimated_tokens": {
+            "default": 0,
+            "title": "Estimated Tokens",
+            "type": "integer"
+          },
+          "excerpt": {
+            "title": "Excerpt",
+            "type": "string"
+          },
+          "heading": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading"
+          },
+          "matched_terms": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Matched Terms",
+            "type": "array"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "title",
+          "heading",
+          "excerpt",
+          "citation",
+          "score"
+        ],
+        "title": "SearchHit",
+        "type": "object"
+      },
+      "SearchKnowledgeRequest": {
+        "properties": {
+          "filters": {
+            "$ref": "#/components/schemas/SearchFilters"
+          },
+          "limit": {
+            "default": 8,
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "query": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "SearchKnowledgeRequest",
         "type": "object"
       },
       "SettingsResponse": {
@@ -1156,6 +2001,42 @@
           }
         },
         "title": "UpdateAgentRequest",
+        "type": "object"
+      },
+      "UpdateMemoryRequest": {
+        "properties": {
+          "path": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          },
+          "pinned": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pinned"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MemoryStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "UpdateMemoryRequest",
         "type": "object"
       },
       "UpdateSettingsRequest": {
@@ -1623,6 +2504,27 @@
           }
         },
         "title": "WorkspaceSettings",
+        "type": "object"
+      },
+      "WriteNoteRequest": {
+        "properties": {
+          "content": {
+            "maxLength": 200000,
+            "title": "Content",
+            "type": "string"
+          },
+          "path": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "content"
+        ],
+        "title": "WriteNoteRequest",
         "type": "object"
       }
     }
@@ -2823,6 +3725,502 @@
           }
         },
         "summary": "Update Space"
+      }
+    },
+    "/spaces/{space_id}/knowledge": {
+      "get": {
+        "operationId": "list_knowledge_spaces__space_id__knowledge_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeIndex"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Knowledge"
+      }
+    },
+    "/spaces/{space_id}/knowledge/evaluate": {
+      "post": {
+        "operationId": "evaluate_knowledge_spaces__space_id__knowledge_evaluate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvaluateKnowledgeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeEvaluation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Evaluate Knowledge"
+      }
+    },
+    "/spaces/{space_id}/knowledge/graph": {
+      "get": {
+        "operationId": "knowledge_graph_spaces__space_id__knowledge_graph_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeGraph"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Knowledge Graph"
+      }
+    },
+    "/spaces/{space_id}/knowledge/import": {
+      "post": {
+        "operationId": "import_knowledge_spaces__space_id__knowledge_import_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportKnowledgeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeImportResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Knowledge"
+      }
+    },
+    "/spaces/{space_id}/knowledge/memories": {
+      "get": {
+        "operationId": "list_memories_spaces__space_id__knowledge_memories_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryIndex"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Memories"
+      }
+    },
+    "/spaces/{space_id}/knowledge/memory": {
+      "patch": {
+        "operationId": "update_memory_spaces__space_id__knowledge_memory_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMemoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryItem"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Memory"
+      }
+    },
+    "/spaces/{space_id}/knowledge/move": {
+      "post": {
+        "operationId": "move_note_spaces__space_id__knowledge_move_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveNoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeMoveResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Move Note"
+      }
+    },
+    "/spaces/{space_id}/knowledge/note": {
+      "delete": {
+        "operationId": "delete_note_spaces__space_id__knowledge_note_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Note"
+      },
+      "get": {
+        "operationId": "get_note_spaces__space_id__knowledge_note_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeNote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Note"
+      },
+      "put": {
+        "operationId": "write_note_spaces__space_id__knowledge_note_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteNoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeNote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Write Note"
+      }
+    },
+    "/spaces/{space_id}/knowledge/search": {
+      "post": {
+        "operationId": "search_knowledge_spaces__space_id__knowledge_search_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchKnowledgeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeSearch"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search Knowledge"
       }
     },
     "/spaces/{space_id}/seed": {
