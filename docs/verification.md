@@ -1,8 +1,73 @@
 # Verification and remaining work
 
-Updated 2026-09-18. This is the current record; the
+Updated 2026-09-19. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
 superseded gaps. A test result below is scoped to what was actually executed.
+
+## 0.4.0: scheduled runs, Usage, the tour, and two layout fixes
+
+Phase 13, on 2026-09-19, in seven commits after 0.3.3. The sidecar gained
+migration 009 and `store/schedules.py` (three cadences, `LocalZone`,
+`next_occurrence`, a store that keeps `next_run_at` consistent with
+`enabled`), `orchestrator/scheduler.py` (one task: a catch-up pass at launch,
+then sleep until the earliest time or a 60 s poll, launching through
+`RunLauncher` with origin `schedule`), `api/schedules.py` (CRUD, run-now,
+preview) and `budget/usage.py` behind `GET /usage`; `RunOrigin` gained
+`schedule`, the settings response gained `version`, `data_dir` and the
+`onboarding_completed` setting. The window gained the Schedules section in
+Space settings, the Usage section, the tour and About box, per-agent usage in
+the run inspector, the folded summary with the memory row, and the Agents and
+canvas fixes.
+
+Executed: `ruff`, `ruff format --check`, `mypy --strict` over `src` and
+`tests`, and **747 backend tests** pass with 11 skipped (the 74 deselected are
+`test_sandbox.py` and `test_tools.py`, whose `example.com` lookups fail on this
+Mac's DNS; CI runs them). `test_schedules.py` (19) covers the cadence
+arithmetic with a hand-written summer-time zone, including 09:00 the morning
+after a DST switch landing at 07:00 UTC, `LocalZone` against the C library
+under `TZ=Europe/Amsterdam`, the store, and the scheduler's passes: a due
+schedule fires once with origin `schedule`; a schedule three days overdue at
+launch runs once or is skipped per its policy and moves to tomorrow either
+way; a schedule whose previous run is still going is skipped; an archived
+space turns its schedule off; the loop fires on time and wakes for an edit.
+`test_api_schedules.py` (9) and `test_api_usage.py` (3) cover the endpoints,
+including the space-narrowed and prior-period reports and a deleted run's
+spend listed as such. `tsc`, `eslint --max-warnings 0` and **408 frontend
+tests** (37 files) pass, including `replayIdentity.test.tsx` over the reducer's
+new per-agent fields, and `test_repo_hygiene.py` passes.
+
+Exercised in Chrome against a scratch sidecar on port 8790 (the maintainer's
+own 0.3.3 held 8787; the page's requests were rewritten over CDP) with
+screenshots read back: on a fresh data directory the tour opened on the
+sidecar's flag, every step spotlit its target with the section switched
+beneath it, the keys step scrolled its target into view after a fix, **Try a
+demo run** from the last step started the scripted run, closed the tour and
+opened the run, and `onboarding_completed` read `true` afterwards; a weekly
+schedule was created from the picker with the preview reading "Weekdays at
+09:00. Next: Mon, Sep 21, 09:00 AM, ..."; **Run now** started a run and the row
+read "Started by hand." with a link to it; with `next_run_at` set into the
+past in SQLite the poll started a run with origin `schedule` within 70 s and
+moved the schedule to Monday; after the sidecar was stopped, the schedule set
+three days overdue and the sidecar restarted, the row read "Started a run:
+the app was closed at 01:23 on Wednesday 16 September, so it ran at launch."
+and the next time was again Monday, not three runs. The Usage page rendered
+seeded spend rows (ten calls across three runs and a deleted run) with the
+cards, the day bars, both tables and the run table, narrowed to the space and
+widened to all spaces. With a second space, the Agents editor showed the
+move-or-copy bar above the editor and the tools list cut short with ellipses
+(a second overflow, the fieldset's min-content width, was found here and
+fixed). A completed demo run showed the "read 1" chip, the Outcome title with
+its pill, the handoff label between the cards and the return handoff beneath
+them; the inspector listed the researcher's one model call, 412 in, 38 out,
+and 412 tokens of context.
+
+**Not exercised:** the Tauri window itself (no screen access here); a
+scheduled run against a real model (every scratch run failed at once for want
+of a key, as expected, which is also how a schedule's failure reads in Runs);
+a DST switch on the real clock rather than the injected zone; the memory row
+against a run that wrote a memory (the demo run writes none; the row is
+covered by `RunSummary.test.tsx`); and the Usage bars past a month with rows
+on every day, which the flex layout would compress to about 30 bars.
 
 ## 0.3.3: Obsidian-flavoured vault, workflow canvas, shell shortcuts
 
@@ -322,6 +387,8 @@ cover the behavior. They are not all release blockers.
   binding port 8787 with the changed key in its handshake.
 - Installing 0.3.2 from the disk image on a Mac by hand, and confirming
   Spotlight lists the app afterwards.
+- A schedule firing in the packaged app against a real model with a
+  pre-authorized policy, and its catch-up after the app was closed overnight.
 
 The first Mac session already closed automatic browser SSE reconnect,
 two simultaneous browser streams, clicking run deletion, both-theme replay

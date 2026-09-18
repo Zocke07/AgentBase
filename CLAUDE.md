@@ -15,23 +15,28 @@ and disconnects their stored keys.
 
 - Phases 0 through 9 and the spaces redesign are implemented. Do not restart
   Phase 0 or replace completed work from an earlier phase.
-- The current release line is **0.3.3**, a frontend-only release (the run
-  canvas, the Obsidian-flavoured vault and Markdown renderer) over 0.3.2's
-  packaging. It includes the Windows installer and an ad-hoc signed,
+- The current release line is **0.4.0**: Phase 13 (scheduled runs, the Usage
+  section, the first-run tour and About box, migration 009) over 0.3.3's run
+  canvas and vault and 0.3.2's packaging. It includes the Windows installer and an ad-hoc signed,
   unnotarized Apple Silicon macOS disk image (a zip until 0.3.1; the image's
   Applications link keeps the app out of Downloads, where Gatekeeper
   translocates it and Spotlight ignores it). An incomplete first 0.2.0 Mac
   archive made Gatekeeper report that the app was damaged; the corrected
   bundle has a complete code seal. Check the release page and tag workflow
   for publication status and cross-platform CI evidence.
-- The UI has a left rail, spaces, Home, Runs, Agents, Knowledge, Space
+- The UI has a left rail, spaces, Home, Runs, Agents, Knowledge, Usage, Space
   settings, and app-wide Settings. Approvals are docked. The run canvas is a
   left-to-right workflow (goal, supervisor, workers, outcome) with an
   inspector; the Knowledge section is laid out as an Obsidian vault and one
   Markdown renderer (`components/Markdown.tsx`, over `lib/markdown.ts`)
   serves notes, agent prose and excerpts without ever emitting raw HTML.
+  A first launch opens a tour, gated on the `onboarding_completed` setting.
   Discord is the only chat adapter; Telegram was removed on 2026-09-11.
-- The latest recorded database migration is 008. Existing workspace files are
+- A space can schedule runs (Space settings): daily or weekly at a local time,
+  or every N hours, started through `RunLauncher` by one scheduler task in the
+  sidecar. The app must be open; a missed time is run once at the next launch
+  or skipped, per the schedule. There is no tray or service mode.
+- The latest recorded database migration is 009 (schedules). Existing workspace files are
   adopted into the default space once; new spaces get their own folders. Each
   space folder is also an Obsidian-compatible Markdown vault. The Knowledge
   section provides notes, properties, tags, links, backlinks, unresolved links,
