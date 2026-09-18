@@ -16,6 +16,7 @@ import { RunsView } from "./components/RunsView";
 import { SettingsView } from "./components/SettingsView";
 import { SpaceSettingsView } from "./components/SpaceSettingsView";
 import { Tour } from "./components/Tour";
+import { UsageView } from "./components/UsageView";
 import * as api from "./lib/api";
 import { SECTION_ORDER } from "./lib/sections";
 import { connectWithRetry, type SidecarStatus } from "./lib/sidecar";
@@ -465,6 +466,18 @@ export function App() {
                   onInboxCount={setInboxCount}
                 />
               )}
+            </ErrorBoundary>
+          </div>
+          <div className="app__view" hidden={section !== "usage"}>
+            <ErrorBoundary label="the usage section">
+              <UsageView
+                space={space}
+                active={section === "usage"}
+                onOpenRun={openRunWherever}
+                onOpenSettings={() => {
+                  setSection("settings");
+                }}
+              />
             </ErrorBoundary>
           </div>
           <div className="app__view" hidden={section !== "space"}>

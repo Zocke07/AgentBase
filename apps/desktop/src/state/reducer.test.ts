@@ -452,6 +452,39 @@ describe("tokens and budget", () => {
     expect(state.costMicros).toBe(2000);
   });
 
+  it("keeps each agent's own calls, tokens, cost and context size", () => {
+    /* The input tokens of one call are the context that agent sent: the
+       latest figure is what it is carrying now, the largest is the most it
+       has carried. Folded per agent so the inspector and the usage screen
+       can say which agent is expensive, not only that the run was. */
+    const log = new LogBuilder();
+    const state = reduceAll([
+      log.add("agent.spawned", { role: "s" }, "supervisor"),
+      log.add("agent.spawned", { role: "w" }, "worker"),
+      log.add("llm.response", { input_tokens: 400, output_tokens: 20, cost_micros: 100 }, "supervisor"),
+      log.add("llm.response", { input_tokens: 2500, output_tokens: 80, cost_micros: 600 }, "worker"),
+      log.add("llm.response", { input_tokens: 1800, output_tokens: 40, cost_micros: 400 }, "worker"),
+    ]);
+
+    expect(state.agents.supervisor).toMatchObject({
+      calls: 1,
+      inputTokens: 400,
+      outputTokens: 20,
+      costMicros: 100,
+      lastContext: 400,
+      peakContext: 400,
+    });
+    expect(state.agents.worker).toMatchObject({
+      calls: 2,
+      inputTokens: 4300,
+      outputTokens: 120,
+      costMicros: 1000,
+      lastContext: 1800,
+      peakContext: 2500,
+    });
+    expect(state.inputTokens).toBe(4700);
+  });
+
   it("takes the latest budget figures from budget events", () => {
     const log = new LogBuilder();
     const state = reduceAll([

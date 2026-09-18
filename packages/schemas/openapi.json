@@ -2888,6 +2888,277 @@
         "title": "UpdateSpaceRequest",
         "type": "object"
       },
+      "UsageBucket": {
+        "description": "One slice of the period: a model, a space or a day.",
+        "properties": {
+          "calls": {
+            "title": "Calls",
+            "type": "integer"
+          },
+          "cost_display": {
+            "title": "Cost Display",
+            "type": "string"
+          },
+          "cost_micros": {
+            "title": "Cost Micros",
+            "type": "integer"
+          },
+          "input_tokens": {
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "output_tokens": {
+            "title": "Output Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "calls",
+          "input_tokens",
+          "output_tokens",
+          "cost_micros",
+          "cost_display"
+        ],
+        "title": "UsageBucket",
+        "type": "object"
+      },
+      "UsageReport": {
+        "properties": {
+          "by_day": {
+            "items": {
+              "$ref": "#/components/schemas/UsageBucket"
+            },
+            "title": "By Day",
+            "type": "array"
+          },
+          "by_model": {
+            "items": {
+              "$ref": "#/components/schemas/UsageBucket"
+            },
+            "title": "By Model",
+            "type": "array"
+          },
+          "by_space": {
+            "items": {
+              "$ref": "#/components/schemas/UsageBucket"
+            },
+            "title": "By Space",
+            "type": "array"
+          },
+          "cap_micros": {
+            "title": "Cap Micros",
+            "type": "integer"
+          },
+          "period": {
+            "title": "Period",
+            "type": "string"
+          },
+          "periods": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Periods",
+            "type": "array"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/UsageRun"
+            },
+            "title": "Runs",
+            "type": "array"
+          },
+          "space_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Space Id"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/UsageTotals"
+          }
+        },
+        "required": [
+          "period",
+          "periods",
+          "space_id",
+          "cap_micros",
+          "totals",
+          "by_model",
+          "by_space",
+          "by_day",
+          "runs"
+        ],
+        "title": "UsageReport",
+        "type": "object"
+      },
+      "UsageRun": {
+        "properties": {
+          "calls": {
+            "title": "Calls",
+            "type": "integer"
+          },
+          "cost_display": {
+            "title": "Cost Display",
+            "type": "string"
+          },
+          "cost_micros": {
+            "title": "Cost Micros",
+            "type": "integer"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal"
+          },
+          "input_tokens": {
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "mean_context": {
+            "title": "Mean Context",
+            "type": "integer"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin"
+          },
+          "output_tokens": {
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "peak_context": {
+            "title": "Peak Context",
+            "type": "integer"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "space_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Space Id"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "required": [
+          "run_id",
+          "space_id",
+          "goal",
+          "status",
+          "origin",
+          "created_at",
+          "calls",
+          "input_tokens",
+          "output_tokens",
+          "peak_context",
+          "mean_context",
+          "cost_micros",
+          "cost_display"
+        ],
+        "title": "UsageRun",
+        "type": "object"
+      },
+      "UsageTotals": {
+        "properties": {
+          "calls": {
+            "title": "Calls",
+            "type": "integer"
+          },
+          "cost_display": {
+            "title": "Cost Display",
+            "type": "string"
+          },
+          "cost_micros": {
+            "title": "Cost Micros",
+            "type": "integer"
+          },
+          "input_tokens": {
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "output_tokens": {
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "runs": {
+            "title": "Runs",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "calls",
+          "runs",
+          "input_tokens",
+          "output_tokens",
+          "cost_micros",
+          "cost_display"
+        ],
+        "title": "UsageTotals",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -5285,6 +5556,69 @@
           }
         },
         "summary": "List Tools"
+      }
+    },
+    "/usage": {
+      "get": {
+        "description": "A month of model calls from the ledger: totals, by model, space and day, and the costliest runs.\n\n``period`` is ``YYYY-MM`` and defaults to this month; ``space_id`` narrows\nto one space's runs. Read from the same rows the cap is enforced on, so the\nreport and the meter cannot disagree.",
+        "operationId": "get_usage_usage_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Period"
+            }
+          },
+          {
+            "in": "query",
+            "name": "space_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Space Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Usage"
       }
     }
   }

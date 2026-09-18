@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from agentspace import __version__
 from agentspace.budget.ledger import current_period
+from agentspace.budget.usage import UsageReport, UsageStore
 from agentspace.channels.identity import ChannelIdentity
 from agentspace.providers.base import ProviderAuthError
 from agentspace.providers.chatgpt import ChatGPTRuntime
@@ -276,6 +277,23 @@ async def get_budget(request: Request, space_id: str | None = None) -> BudgetRes
         space_spent_micros=in_space,
         space_spent_display=None if in_space is None else format_micros(in_space),
     )
+
+
+@router.get("/usage")
+async def get_usage(
+    request: Request, period: str | None = None, space_id: str | None = None
+) -> UsageReport:
+    """A month of model calls from the ledger: totals, by model, space and day, and the costliest runs.
+
+    ``period`` is ``YYYY-MM`` and defaults to this month; ``space_id`` narrows
+    to one space's runs. Read from the same rows the cap is enforced on, so the
+    report and the meter cannot disagree.
+    """
+    chosen = period if period is not None else current_period()
+    if len(chosen) != 7 or chosen[4] != "-" or not (chosen[:4] + chosen[5:]).isdigit():
+        raise _reject("a period looks like 2026-09", "period")
+    usage = UsageStore(request.app.state.db)
+    return await usage.report(chosen, space_id, await _ledger(request).cap_micros())
 
 
 class VerifyResponse(BaseModel):

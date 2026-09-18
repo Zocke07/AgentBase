@@ -66,6 +66,15 @@ const SECTIONS: readonly { id: Section; label: string; icon: ReactNode }[] = [
     ),
   },
   {
+    id: "usage",
+    label: "Usage",
+    icon: (
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        <path d="M3 16.5V3h1.5v12h12v1.5zm3.5-3v-5H8v5zm3-9v9H11v-9zm3 3.5v5.5H14V8z" />
+      </svg>
+    ),
+  },
+  {
     id: "space",
     label: "Space settings",
     icon: (

@@ -33,6 +33,7 @@ import type {
   UpdateScheduleRequest,
   UpdateSettingsRequest,
   UpdateSpaceRequest,
+  UsageReport,
   VerifyResponse,
 } from "@agentspace/schemas";
 
@@ -402,6 +403,10 @@ export const getSettings = (): Promise<SettingsResponse> => request<SettingsResp
  */
 export const updateSettings = (patch: UpdateSettingsRequest): Promise<SettingsResponse> =>
   request<SettingsResponse>("/settings", { method: "PATCH", ...asJson(patch) });
+
+/** A month of model calls from the ledger, sliced; `period` is `YYYY-MM`, this month if omitted. */
+export const getUsage = (period: string | null, spaceId: string | null): Promise<UsageReport> =>
+  request<UsageReport>(`/usage${query({ period, space_id: spaceId })}`);
 
 /** Whether each chat adapter is actually connected, and why not if not. */
 export const getChannels = (): Promise<ChannelStatusResponse[]> =>

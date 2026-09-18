@@ -42,6 +42,17 @@ export interface AgentNode {
   readonly lastMessage: string | null;
   /** Where this agent first appears, the graph orders nodes by it. */
   readonly seq: number;
+  /** This agent's own model calls, summed from its `llm.response` events. */
+  readonly calls: number;
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly costMicros: number;
+  /**
+   * The input tokens of the latest call and the largest so far: the size of
+   * the context this agent is carrying, and the most it has carried.
+   */
+  readonly lastContext: number | null;
+  readonly peakContext: number;
 }
 
 export interface Handoff {
@@ -218,6 +229,12 @@ const newAgent = (name: string, seq: number): AgentNode => ({
   streamedText: "",
   lastMessage: null,
   seq,
+  calls: 0,
+  inputTokens: 0,
+  outputTokens: 0,
+  costMicros: 0,
+  lastContext: null,
+  peakContext: 0,
 });
 
 /**
@@ -374,13 +391,26 @@ export function reduce(state: RunView, event: Event): RunView {
       }));
 
     case "llm.response": {
+      const input = int(payload, "input_tokens") ?? 0;
+      const output = int(payload, "output_tokens") ?? 0;
+      const cost = int(payload, "cost_micros") ?? 0;
       const totalled: RunView = {
         ...next,
-        inputTokens: next.inputTokens + (int(payload, "input_tokens") ?? 0),
-        outputTokens: next.outputTokens + (int(payload, "output_tokens") ?? 0),
-        costMicros: next.costMicros + (int(payload, "cost_micros") ?? 0),
+        inputTokens: next.inputTokens + input,
+        outputTokens: next.outputTokens + output,
+        costMicros: next.costMicros + cost,
       };
-      return agent === null ? totalled : withAgent(totalled, agent, seq, thinkingAgain);
+      return agent === null
+        ? totalled
+        : withAgent(totalled, agent, seq, (node) => ({
+            ...thinkingAgain(node),
+            calls: node.calls + 1,
+            inputTokens: node.inputTokens + input,
+            outputTokens: node.outputTokens + output,
+            costMicros: node.costMicros + cost,
+            lastContext: input,
+            peakContext: Math.max(node.peakContext, input),
+          }));
     }
 
     case "llm.error": {

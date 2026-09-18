@@ -32,6 +32,7 @@ vi.mock("./lib/api", () => ({
   getRunHistory: vi.fn(),
   getBudget: vi.fn(),
   getSettings: vi.fn(),
+  getUsage: vi.fn(),
   verifySettings: vi.fn(),
   listApprovals: vi.fn(),
   getChannels: vi.fn(),
@@ -95,6 +96,7 @@ beforeEach(() => {
   vi.mocked(events.streamRun).mockReturnValue({ close: vi.fn() });
   mocked.getBudget.mockRejectedValue(new Error("not in this test"));
   mocked.getSettings.mockRejectedValue(new Error("not in this test"));
+  mocked.getUsage.mockRejectedValue(new Error("not in this test"));
   mocked.verifySettings.mockResolvedValue({ ok: true, provider: "ollama", model: "qwen3:4b" });
   mocked.listApprovals.mockResolvedValue([]);
   mocked.getChannels.mockResolvedValue([]);

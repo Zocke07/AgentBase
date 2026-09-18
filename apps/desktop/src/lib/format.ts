@@ -39,6 +39,15 @@ export function whenLabel(iso: string): string {
   });
 }
 
+/** `2026-09` as `September 2026`: a ledger period, for a picker. */
+export function periodLabel(period: string): string {
+  const [year, month] = period.split("-");
+  const index = Number(month) - 1;
+  const at = new Date(Number(year), Number.isNaN(index) ? 0 : index, 1);
+  if (year === undefined || Number.isNaN(at.getTime())) return period;
+  return at.toLocaleString(undefined, { month: "long", year: "numeric" });
+}
+
 /** `27s`, `1m 32s`, `1h 23m`: a span between two of the log's own timestamps. */
 export function formatDuration(milliseconds: number): string {
   const total = Math.max(0, Math.round(milliseconds / 1000));

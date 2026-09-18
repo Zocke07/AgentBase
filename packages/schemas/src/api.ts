@@ -584,6 +584,54 @@ export interface UpdateSpaceRequest {
   archived?: boolean | null;
 }
 
+/** One slice of the period: a model, a space or a day. */
+export interface UsageBucket {
+  key: string;
+  label: string;
+  calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  cost_micros: number;
+  cost_display: string;
+}
+
+export interface UsageReport {
+  period: string;
+  periods: string[];
+  space_id: string | null;
+  cap_micros: number;
+  totals: UsageTotals;
+  by_model: UsageBucket[];
+  by_space: UsageBucket[];
+  by_day: UsageBucket[];
+  runs: UsageRun[];
+}
+
+export interface UsageRun {
+  run_id: string | null;
+  space_id: string | null;
+  goal: string | null;
+  status: string | null;
+  origin: string | null;
+  created_at: string | null;
+  calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  peak_context: number;
+  mean_context: number;
+  cost_micros: number;
+  cost_display: string;
+}
+
+export interface UsageTotals {
+  calls: number;
+  runs: number;
+  input_tokens: number;
+  output_tokens: number;
+  cost_micros: number;
+  cost_display: string;
+}
+
 export interface ValidationError {
   loc: (string | number)[];
   msg: string;

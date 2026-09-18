@@ -4792,6 +4792,247 @@ button.md__tag:hover {
   white-space: nowrap;
 }
 
+/* --- usage ---------------------------------------------------------------- */
+
+.usage {
+  height: 100%;
+  padding: 1.5rem 2rem 3rem;
+  overflow-y: auto;
+}
+
+.usage__head {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  max-width: 64rem;
+  margin: 0 auto 1rem;
+}
+
+.usage__title {
+  font-size: 1.25rem;
+}
+
+.usage__hint {
+  max-width: 44rem;
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.usage__controls {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.usage__scope {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.usage__scope-choice {
+  padding: 0.3rem 0.75rem;
+  border: 0;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.usage__scope-choice--on {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+
+.usage__loading,
+.usage__empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8667rem;
+}
+
+.usage__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 64rem;
+  margin: 0 auto;
+  transition: opacity 120ms ease;
+}
+
+.usage__body--stale {
+  opacity: 0.6;
+}
+
+.usage__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.75rem;
+}
+
+.usage__card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.usage__card--spend {
+  grid-column: span 1;
+}
+
+.usage__card-label {
+  color: var(--muted);
+  font-size: 0.7333rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.usage__card-value {
+  font-size: 1.5rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage__card-note {
+  color: var(--muted);
+  font-size: 0.7333rem;
+}
+
+.usage__meter {
+  display: block;
+  height: 4px;
+  margin-top: 0.4rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.usage__meter > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.usage__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.usage__section h3 {
+  font-size: 0.9333rem;
+}
+
+.usage__columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: 1rem;
+}
+
+.usage__chart {
+  display: flex;
+  gap: 0.3rem;
+  align-items: flex-end;
+  height: 8rem;
+  padding-top: 0.5rem;
+}
+
+.usage__bar {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  height: 100%;
+  min-width: 0;
+}
+
+.usage__bar-fill {
+  display: block;
+  border-radius: 3px 3px 0 0;
+  background: var(--accent);
+  opacity: 0.85;
+}
+
+.usage__bar:hover .usage__bar-fill {
+  opacity: 1;
+}
+
+.usage__bar-label {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.6667rem;
+  text-align: center;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.usage__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8667rem;
+}
+
+.usage__table th {
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.7333rem;
+  font-weight: 600;
+  text-align: left;
+}
+
+.usage__table td {
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.usage__table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.usage__table th.usage__num,
+.usage__table td.usage__num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.usage__goal {
+  max-width: 28rem;
+}
+
+.usage__goal .link-button {
+  text-align: left;
+}
+
+.usage__origin,
+.usage__mean,
+.usage__deleted {
+  color: var(--muted);
+  font-size: 0.7333rem;
+}
+
 /* --- about ---------------------------------------------------------------- */
 
 .about__facts {

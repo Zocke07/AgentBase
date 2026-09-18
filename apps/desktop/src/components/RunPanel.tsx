@@ -1,6 +1,6 @@
 import type { Event } from "@agentspace/schemas";
 
-import { ellipsise, summariseArgs } from "../lib/format";
+import { ellipsise, formatCount, formatMicros, summariseArgs } from "../lib/format";
 import { activityLabel, nowLine } from "../state/describe";
 import type { AgentNode, Denial, Handoff, RunView, ToolCall } from "../state/reducer";
 
@@ -230,6 +230,24 @@ function AgentDetail({
           <dt>Tools it may call</dt>
           <dd>{agent.allowedTools.length === 0 ? "none" : agent.allowedTools.join(", ")}</dd>
         </div>
+        {agent.calls > 0 && (
+          <>
+            <div>
+              <dt>Model calls</dt>
+              <dd data-testid="agent-usage">
+                {agent.calls} · {formatCount(agent.inputTokens)} in, {formatCount(agent.outputTokens)} out ·{" "}
+                {formatMicros(agent.costMicros)}
+              </dd>
+            </div>
+            <div>
+              <dt>Context</dt>
+              <dd data-testid="agent-context">
+                {formatCount(agent.lastContext ?? 0)} tokens on the last call
+                {agent.peakContext > (agent.lastContext ?? 0) && `, ${formatCount(agent.peakContext)} at most`}
+              </dd>
+            </div>
+          </>
+        )}
       </dl>
 
       {agent.lastMessage !== null && (

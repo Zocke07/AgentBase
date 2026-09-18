@@ -195,6 +195,12 @@ function ghostAgent(name: string): AgentNode {
     streamedText: "",
     lastMessage: null,
     seq: 0,
+    calls: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    costMicros: 0,
+    lastContext: null,
+    peakContext: 0,
   };
 }
 
