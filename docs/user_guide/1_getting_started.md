@@ -4,16 +4,16 @@
 
 ## Install and open AgentSpace
 
-The 0.2.0 downloads are a Windows x64 installer and a macOS Apple Silicon app
-archive. Python, Node and Rust are bundled or unnecessary for installed users.
-Use the [0.2.0 release](https://github.com/Zocke07/AgentBase/releases/tag/v0.2.0)
+The 0.3.2 downloads are a Windows x64 installer and a macOS Apple Silicon disk
+image. Python, Node and Rust are bundled or unnecessary for installed users.
+Use the [0.3.2 release](https://github.com/Zocke07/AgentBase/releases/tag/v0.3.2)
 or the matching artifact from a successful
 [build run](https://github.com/Zocke07/AgentBase/actions/workflows/build.yml).
-See the [release notes](../releases/0.2.0.md) for release status and limitations.
+See the [release notes](../releases/0.3.2.md) for release status and limitations.
 
 ### Windows
 
-1. Download `AgentSpace_0.2.0_x64-setup.exe` for an x64 Windows PC.
+1. Download `AgentSpace_0.3.2_x64-setup.exe` for an x64 Windows PC.
 2. Run the installer. The build is unsigned; if SmartScreen shows **Windows
    protected your PC**, choose **More info → Run anyway** to proceed with the
    downloaded build you trust. A new installer or your machine's security
@@ -24,18 +24,24 @@ See the [release notes](../releases/0.2.0.md) for release status and limitations
 
 ### macOS
 
-1. Download `AgentSpace_0.2.0_aarch64-apple-darwin.app.zip` for an Apple Silicon
-   Mac. This archive is not an Intel or universal build.
-2. Double-click the ZIP to extract **AgentSpace.app**, then move the app into
-   **Applications**, or your own `~/Applications` folder.
-3. Open the app. It has no Developer ID signature or Apple notarization. If
-   macOS blocks it as an unidentified developer, attempt to open it once, then
-   go to **System Settings → Privacy & Security → Open Anyway** and confirm
-   the exception. Only do this for the project download you intended to run.
+1. Download `AgentSpace_0.3.2_aarch64.dmg` for an Apple Silicon Mac. This
+   image is not an Intel or universal build.
+2. Open the disk image and drag **AgentSpace** onto the **Applications** link
+   in the window that appears, then eject the image. Installing it there is
+   what makes Spotlight list the app; an app run straight from
+   the image or from Downloads is started by macOS as a temporary copy each
+   time, which can show up as several AgentSpace entries in Finder searches.
+   Releases before 0.3.2 shipped a zip; if you kept one of those apps in
+   Downloads, delete it and use the one in Applications.
+3. Open the app from **Applications**. It has no Developer ID signature or
+   Apple notarization. If macOS blocks it as an unidentified developer,
+   attempt to open it once, then go to **System Settings → Privacy & Security
+   → Open Anyway** and confirm the exception. Only do this for the project
+   download you intended to run.
    [Apple's instructions](https://support.apple.com/en-us/102445) explain the
    prompts and the exception.
 
-If the downloaded app remains quarantined, an alternative in Terminal is:
+If the installed app remains quarantined, an alternative in Terminal is:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/AgentSpace.app
@@ -82,9 +88,11 @@ scripted run without calling a model or using a key.
 1. Obtain an API key from your provider's account dashboard.
 2. In the AgentSpace window, open **Settings → Keys**. Click **Set…** beside
    `anthropic_api_key` or `openai_api_key`, paste the key, and click **Save key**.
-3. **Quit and reopen AgentSpace.** The key is stored in the OS credential
-   store and read when the app starts. Saving or clearing a key requires a
-   restart; **Save settings** is separate from **Save key**.
+3. Click **Restart AgentSpace**, which appears under the key list once a key
+   has been saved or cleared, or quit and reopen the app yourself. The key is
+   stored in the OS credential store and read when the app starts, so a
+   change takes effect only after a restart, and a restart stops any run in
+   progress. **Save settings** is separate from **Save key**.
 4. Under **Settings → Model**, choose **Provider** and **Model**, then click
    **Save settings**. The defaults are Anthropic and `claude-opus-5`.
 5. Click **Check** under **Model**. A **Ready** result means the saved
@@ -93,7 +101,9 @@ scripted run without calling a model or using a key.
    real connection.
 
 The model dropdown lists the cloud models whose prices this build knows. A
-model that is not in its price table is refused before a model call. Keys are
+model that is not in its price table is refused before a model call; an
+Anthropic dated snapshot such as `claude-haiku-4-5-20251001` is priced as its
+alias `claude-haiku-4-5`, so either id works in a space or agent override. Keys are
 shared by every space. AgentSpace displays their names and whether they are
 set, never their stored values.
 

@@ -12,15 +12,23 @@ server from another launch on that port and refused to attach to it. The
 installed app uses the fixed address `127.0.0.1:8787`.
 
 **macOS blocks the app.**
-Follow the [macOS installation steps](1_getting_started.md#macos). The corrected
-0.2.0 archive is ad-hoc signed but does not have a trusted Developer ID
-signature or Apple notarization. The Gatekeeper exception and the later
-keychain access prompt are separate. If an earlier 0.2.0 download reports that
-the app is damaged, download the current archive again.
+Follow the [macOS installation steps](1_getting_started.md#macos). The app is
+ad-hoc signed but does not have a trusted Developer ID signature or Apple
+notarization. The Gatekeeper exception and the later keychain access prompt
+are separate. If an earlier 0.2.0 download reports that the app is damaged,
+download the current disk image again.
+
+**Spotlight does not find AgentSpace, or Finder shows several copies.**
+The app is running from Downloads or straight from the disk image. macOS
+starts a quarantined app outside Applications from a temporary copy on every
+launch, and each copy is registered separately. Drag **AgentSpace** from the
+disk image onto its **Applications** link, delete any copy left in Downloads,
+and open the one in Applications.
 
 **Home says there is no API key, or a run fails with “No API key.”**
-In **Settings → Keys**, set the key for the selected provider, then quit and
-reopen AgentSpace. A row saying **set: restart AgentSpace to apply** has not
+In **Settings → Keys**, set the key for the selected provider, then click
+**Restart AgentSpace** under the key list, or quit and reopen the app. A row
+saying **set: restart AgentSpace to apply** has not
 been loaded into the running sidecar. On macOS, a denied keychain read also
 leaves the key unavailable: relaunch and allow the named keychain item. Check
 whether the space or an individual agent selects a different provider from
@@ -49,8 +57,10 @@ problem. Save changed settings before checking them.
 
 **The model is unpriced.**
 Choose a model offered by the relevant model dropdown. If the space or an
-agent pins its own model, change it there as well. Local Ollama models are
-priced at zero by the app.
+agent pins its own model, change it there as well. An Anthropic dated snapshot
+such as `claude-haiku-4-5-20251001` is priced as its alias
+`claude-haiku-4-5`; other ids must match the table exactly. Local Ollama
+models are priced at zero by the app.
 
 **Ollama is slow or does not finish.**
 Confirm the daemon is running and `ollama list` contains the exact model you

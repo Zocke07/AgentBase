@@ -28,7 +28,8 @@ covers the portal flow.
 
 1. In AgentSpace, open **Settings → Keys**, click **Set…** beside
    `discord_bot_token`, paste the token and click **Save key**.
-2. Quit and reopen AgentSpace so the sidecar receives the new token.
+2. Click **Restart AgentSpace** under the key list, or quit and reopen the
+   app, so the sidecar receives the new token.
 3. Open **Settings → Chat channels** and tick **Enable discord**.
 4. Under **Who may give the bots tasks**, enter the Discord **Account id**
    and a **Name** to identify that person in the log, then click **Add**.

@@ -15,9 +15,11 @@ and disconnects their stored keys.
 
 - Phases 0 through 9 and the spaces redesign are implemented. Do not restart
   Phase 0 or replace completed work from an earlier phase.
-- The current release line is **0.3.1**. It includes the Windows installer and
-  an ad-hoc signed, unnotarized Apple Silicon macOS app archive. An incomplete
-  first 0.2.0 Mac archive made Gatekeeper report that the app was damaged; the
+- The current release line is **0.3.2**. It includes the Windows installer and
+  an ad-hoc signed, unnotarized Apple Silicon macOS disk image (a zip until
+  0.3.1; the image's Applications link keeps the app out of Downloads, where
+  Gatekeeper translocates it and Spotlight ignores it). An incomplete first
+  0.2.0 Mac archive made Gatekeeper report that the app was damaged; the
   corrected bundle has a complete code seal. Check the release page and
   tag workflow for publication status and cross-platform CI evidence.
 - The UI has a left rail, spaces, Home, Runs, Agents, Space settings, and
@@ -74,7 +76,9 @@ second chronological log here.
   first sign-in (never frozen into the sidecar), and only safe account status
   reaches the local API. Never
   put secrets in SQLite, files, logs or argv. The webview can set/delete keys,
-  not read them; API key changes require an app restart.
+  not read them; API key changes require an app restart, which Settings offers
+  through the shell's `restart_app` (stop the sidecar, then relaunch), never by
+  re-reading keys into a running sidecar.
 - Spawn-time key reads use the native `keyring` crate directly so a macOS
   access denial remains an error. Do not route these reads through the plugin's
   `get_password`, which discards the error. Ad-hoc builds can prompt again

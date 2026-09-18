@@ -4,6 +4,54 @@ Updated 2026-09-18. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
 superseded gaps. A test result below is scoped to what was actually executed.
 
+## 0.3.2: disk image, restart from Settings, dated snapshot prices
+
+Checked on Apple Silicon macOS on 2026-09-18, from the first macOS field
+report. Launch Services on this machine explained the report's "two
+AgentSpace icons": the zipped app had only ever been opened from Downloads,
+so Gatekeeper had registered six translocated copies under
+`AppTranslocation`, and no copy sat in Applications for Spotlight to list.
+
+The macOS download is now Tauri's `dmg` target, built with `CI=true` so the
+Finder AppleScript is skipped on every host. The local
+`AgentSpace_0.3.2_aarch64.dmg` is **24,571,117 bytes**, SHA-256
+`cb5ddb4ac47284f79ea3afe9f3f0b300737942b0a72b8334f7aeab6b04a0da22`; mounted,
+it holds exactly `AgentSpace.app`, `Applications -> /Applications` and the
+volume icon. The sidecar froze at **22,130,976 bytes**, SHA-256
+`99e9fec643199c8dca0eeb2e666d97448176827deea0608935ee84ab8240f8a1`.
+`just build-installer`, `just verify-build` (**18 release checks passed**,
+four Windows-only skipped: the rewritten `test_macos_dmg.py` mounts the image,
+checks its two entries, copies the app out with `ditto`, and runs the earlier
+version, executable-mode, strict-signature and sidecar launch checks on that
+copy) and `just check-tauri` passed. The `test_ci_workflow.py` pins now
+require the `bundle/dmg/*.dmg` upload and `dist/*.dmg` release asset and
+refuse any `.app.zip`.
+
+The shell gained `restart_app`, which stops the sidecar and then calls
+Tauri's `AppHandle::restart` from a thread of its own, so Tauri's exit path
+runs the `RunEvent::Exit` callback before it execs the new copy. Settings
+shows **Restart AgentSpace** under the key list once a key has been written
+or cleared, only inside Tauri; the Settings tests cover the offer appearing
+after a change, the call to the shell, the disabled "Restarting…" state and
+a refused restart, and `lib/shell.test.ts` covers the browser case. **The
+relaunch itself has not been exercised live:** this machine has no screen or
+accessibility access to click the button in the packaged app, and there is no
+other way to invoke the command. The mechanism is the one
+`tauri-plugin-process` exposes as `relaunch`, read from Tauri's source, and
+clippy is clean.
+
+`pricing._lookup` resolves an Anthropic `-YYYYMMDD` snapshot to its alias
+price; `claude-haiku-4-5-20251001` now costs what `claude-haiku-4-5` costs,
+and a snapshot of an unpriced family or an OpenAI-shaped date stays refused
+(two new tests). `just ci` passed lint, formatting, mypy on both platforms
+and the TypeScript checks with **787 backend tests** (12 skipped) and **338
+frontend tests**; the five remaining backend failures were
+`test_sandbox.py` and `test_tools.py` cases that resolve `example.com`, which
+this machine's router resolver answered with AAAA records only during the
+session, and they fail identically on the committed 0.3.1 tree. They are
+network state, not code, and the tag workflow's test job re-runs them on
+both runners.
+
 ## 0.3.1: the Codex runtime is fetched, not frozen
 
 Checked on Apple Silicon macOS on 2026-09-18. The 0.3.0 sidecar carried the
@@ -227,6 +275,11 @@ cover the behavior. They are not all release blockers.
   of events. Parallel workers are not implemented.
 - A downloaded macOS release passing Gatekeeper's manual-open flow. Earlier
   Mac checks launched a locally built app, which had no download quarantine.
+- **Restart AgentSpace** from Settings in the packaged app on either
+  platform: the sidecar stopping, the window reopening, and the new sidecar
+  binding port 8787 with the changed key in its handshake.
+- Installing 0.3.2 from the disk image on a Mac by hand, and confirming
+  Spotlight lists the app afterwards.
 
 The first Mac session already closed automatic browser SSE reconnect,
 two simultaneous browser streams, clicking run deletion, both-theme replay
