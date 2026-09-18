@@ -15,13 +15,15 @@ and disconnects their stored keys.
 
 - Phases 0 through 9 and the spaces redesign are implemented. Do not restart
   Phase 0 or replace completed work from an earlier phase.
-- The current release line is **0.3.2**. It includes the Windows installer and
-  an ad-hoc signed, unnotarized Apple Silicon macOS disk image (a zip until
-  0.3.1; the image's Applications link keeps the app out of Downloads, where
-  Gatekeeper translocates it and Spotlight ignores it). An incomplete first
-  0.2.0 Mac archive made Gatekeeper report that the app was damaged; the
-  corrected bundle has a complete code seal. Check the release page and
-  tag workflow for publication status and cross-platform CI evidence.
+- The current release line is **0.3.3**, a frontend-only release (the run
+  canvas, the Obsidian-flavoured vault and Markdown renderer) over 0.3.2's
+  packaging. It includes the Windows installer and an ad-hoc signed,
+  unnotarized Apple Silicon macOS disk image (a zip until 0.3.1; the image's
+  Applications link keeps the app out of Downloads, where Gatekeeper
+  translocates it and Spotlight ignores it). An incomplete first 0.2.0 Mac
+  archive made Gatekeeper report that the app was damaged; the corrected
+  bundle has a complete code seal. Check the release page and tag workflow
+  for publication status and cross-platform CI evidence.
 - The UI has a left rail, spaces, Home, Runs, Agents, Knowledge, Space
   settings, and app-wide Settings. Approvals are docked. The run canvas is a
   left-to-right workflow (goal, supervisor, workers, outcome) with an

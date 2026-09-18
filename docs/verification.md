@@ -4,9 +4,9 @@ Updated 2026-09-18. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
 superseded gaps. A test result below is scoped to what was actually executed.
 
-## Unreleased: Obsidian-flavoured vault, workflow canvas, shell shortcuts
+## 0.3.3: Obsidian-flavoured vault, workflow canvas, shell shortcuts
 
-Frontend-only work on 2026-09-18, after 0.3.2, in four commits. The vault
+Frontend-only work on 2026-09-18, released as 0.3.3, in four commits. The vault
 gained a parser for the Obsidian dialect (`lib/markdown.ts`: frontmatter
 properties, wikilinks with aliases and headings, embeds, tags, highlights,
 strikethrough, callouts with fold state, nested and task lists, tables, code
