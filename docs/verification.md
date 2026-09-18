@@ -4,6 +4,48 @@ Updated 2026-09-18. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
 superseded gaps. A test result below is scoped to what was actually executed.
 
+## Unreleased: Obsidian-flavoured vault, workflow canvas, shell shortcuts
+
+Frontend-only work on 2026-09-18, after 0.3.2, in four commits. The vault
+gained a parser for the Obsidian dialect (`lib/markdown.ts`: frontmatter
+properties, wikilinks with aliases and headings, embeds, tags, highlights,
+strikethrough, callouts with fold state, nested and task lists, tables, code
+fences, a single newline as a break) and a renderer (`components/Markdown.tsx`)
+that builds elements from the tree and never from strings; `Markdown.test.tsx`
+asserts that a `<script>` and an `<img onerror>` in a note stay text and that
+only `http`, `https` and `mailto` become links. The Knowledge section is laid
+out as a vault: a folding folder tree, the note head with path, tags and
+properties, source and preview, a links pane, a status line, `[[` completion,
+a formatting bar, a quick switcher (Ctrl/Cmd+O) that creates missing notes,
+Ctrl/Cmd+S and Ctrl/Cmd+E, an unsaved-changes guard, task boxes that write
+back to the source, tags that filter the tree, a force-directed graph with a
+local scope, and toasts. The run canvas draws goal, supervisor, workers and
+outcome as cards with state pills and per-tool chips, routes return handoffs
+beneath the cards, and opens an inspector with the agent's last message,
+handoffs and tool calls. Citations on Home and in a run open their note; the
+rail badges approvals and proposed memories; Ctrl/Cmd+1..6 switch sections.
+
+`tsc`, `eslint --max-warnings 0` and **384 frontend tests** (34 files) pass,
+including `replayIdentity.test.tsx` against the new canvas and inspector, and
+`test_repo_hygiene.py` passes. Exercised in Chrome against a scratch sidecar
+(`AGENTSPACE_DATA_DIR` under the session scratchpad, Vite on 5173, headless
+Chrome over CDP with screenshots read back): a seeded note with callouts,
+highlights, nested tasks, a table and a fenced block renders in split,
+preview, light and dark; a `[[note#heading|alias]]` link opens the target;
+the whole-vault and local graphs draw their edges; Ctrl+O finds a note and
+offers to create one; typing `[[ret` in the source lists notes and Enter
+inserts `[[Retention policy]]` and marks the note unsaved; the demo run's
+canvas shows the four cards, both handoff edges with their labels and the
+`read_file` chip, and clicking the supervisor opens the inspector; **Preview
+context** on Home renders each excerpt and its citation opens the note in
+Knowledge. Two collisions found only in the browser were fixed before the
+commit: the quick switcher's `.switcher` class had restyled the space
+switcher, and the editor's `.editor` class the agent editor. **Not
+exercised:** the Tauri window itself (no screen access on this machine), the
+external-link behaviour inside the shell (an `http` link copies its address
+there, since the webview is granted no opener), and a vault near the
+10,000-note limit, where the graph falls back to a circle past 600 nodes.
+
 ## 0.3.2: disk image, restart from Settings, dated snapshot prices
 
 Checked on Apple Silicon macOS on 2026-09-18, from the first macOS field

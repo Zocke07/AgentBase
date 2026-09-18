@@ -15,6 +15,10 @@ export interface Point {
 
 /** The distance two linked notes settle at, in canvas pixels. */
 const SPRING = 150;
+/** Beyond this, two notes stop pushing each other apart; it keeps a loner from flying off. */
+const REACH = SPRING * 3;
+/** The pull toward the centre, as a fraction of the distance from it. */
+const GRAVITY = 0.12;
 
 function stepsFor(count: number): number {
   if (count <= 80) return 260;
@@ -45,6 +49,7 @@ export function forceLayout(ids: readonly string[], edges: readonly (readonly [s
         const ddx = (xs[a] ?? 0) - (xs[b] ?? 0);
         const ddy = (ys[a] ?? 0) - (ys[b] ?? 0);
         const distance = Math.max(Math.hypot(ddx, ddy), 0.01);
+        if (distance > REACH) continue;
         const force = (SPRING * SPRING) / distance;
         dx[a] = (dx[a] ?? 0) + (ddx / distance) * force;
         dy[a] = (dy[a] ?? 0) + (ddy / distance) * force;
@@ -63,8 +68,8 @@ export function forceLayout(ids: readonly string[], edges: readonly (readonly [s
       dy[target] = (dy[target] ?? 0) + (ddy / distance) * force;
     }
     for (let a = 0; a < count; a += 1) {
-      const gx = (dx[a] ?? 0) - (xs[a] ?? 0) * 0.04;
-      const gy = (dy[a] ?? 0) - (ys[a] ?? 0) * 0.04;
+      const gx = (dx[a] ?? 0) - (xs[a] ?? 0) * GRAVITY;
+      const gy = (dy[a] ?? 0) - (ys[a] ?? 0) * GRAVITY;
       const magnitude = Math.max(Math.hypot(gx, gy), 0.01);
       const move = Math.min(magnitude, temperature);
       xs[a] = (xs[a] ?? 0) + (gx / magnitude) * move;

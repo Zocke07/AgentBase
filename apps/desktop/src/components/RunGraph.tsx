@@ -52,9 +52,13 @@ const STATE_WORD: Record<Activity, string> = {
 function Ports() {
   return (
     <>
-      {/* Without handles React Flow silently draws no edge touching this node. */}
-      <Handle type="target" position={Position.Left} />
-      <Handle type="source" position={Position.Right} />
+      {/* Without handles React Flow silently draws no edge touching this node.
+          The side ports carry the flow rightward; the bottom ones carry a
+          handoff back or across, drawn beneath the cards. */}
+      <Handle type="target" position={Position.Left} id="in" />
+      <Handle type="source" position={Position.Right} id="out" />
+      <Handle type="source" position={Position.Bottom} id="back-out" className="flow-node__back-port" />
+      <Handle type="target" position={Position.Bottom} id="back-in" className="flow-node__back-port" />
     </>
   );
 }
@@ -130,7 +134,6 @@ function GoalCard({ data }: { data: GoalNodeData }) {
           <GoalGlyph />
         </span>
         <span className="flow-node__title">Goal</span>
-        <span className={`flow-node__state flow-node__state--${data.status}`}>{STATUS_LABEL[data.status]}</span>
       </div>
       <div className="end-node__text">{data.goal ?? "Waiting for the run to start"}</div>
       <div className="end-node__foot">

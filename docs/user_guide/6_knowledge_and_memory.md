@@ -38,11 +38,20 @@ used by the **Daily note** and **From template** buttons. The rest is yours.
 
 ## Links, properties and preview
 
-Link notes with Obsidian wikilinks such as `[[research/sqlite]]` or standard
-Markdown links to `.md` files. The note metadata strip shows resolved outgoing
-links with `→`, backlinks with `←`, and links that name no existing note with
-`?`. Select a resolved link to open the related note. **Graph** shows the same
-resolved links across the vault.
+Link notes with Obsidian wikilinks such as `[[research/sqlite]]`,
+`[[research/sqlite#Concurrency|the concurrency section]]` or standard
+Markdown links to `.md` files. Typing `[[` in the editor lists matching notes;
+Enter completes the link. The **Links** pane beneath the note shows linked
+mentions (backlinks) with `←`, outgoing links with `→`, and names that match
+no note with `?`. Select a link to open the note; a link with a heading
+scrolls to it. **Graph** draws the same links across the vault, or, with
+**Around this note**, only the open note and its neighbours.
+
+The preview reads the Obsidian dialect: `#tags` (click one to filter the
+tree), `==highlights==`, `~~strikethrough~~`, callouts such as
+`> [!tip] Title` (`[!warning]-` starts folded), task lists whose boxes you
+can tick in the preview to change the source, nested lists, tables and fenced
+code with its language. A single newline is a line break, as in Obsidian.
 
 Start a note with YAML properties to make it easier to organize and retrieve:
 
@@ -60,14 +69,26 @@ tags:
 Use SQLite in WAL mode. Related: [[research/sqlite]].
 ```
 
-Properties and tags appear above the editor. **Split** shows Markdown source
-and a safe preview together; **Write** and **Preview** use the full area. HTML
-inside a note is not executed. Hidden folders, including Obsidian's
-`.obsidian` configuration, are excluded and cannot be edited through the
-Knowledge screen.
+Properties and tags appear under the note's path. **Split** shows Markdown
+source and a safe preview together; **Write** and **Preview** use the full
+area, and Ctrl/Cmd+E cycles between them. The formatting bar above the source
+wraps the selection in bold, italic, highlight, code or a link, or turns the
+selected lines into a heading, list, task, quote or callout. HTML inside a
+note is not executed. Hidden folders, including Obsidian's `.obsidian`
+configuration, are excluded and cannot be edited through the Knowledge screen.
+
+**Save note** (Ctrl/Cmd+S) writes the file; **Unsaved** beside it says the
+editor differs from the disk, and opening another note first asks whether to
+discard the change. The status line counts words and shows when the file last
+changed.
 
 ## Managing the vault
 
+- **Files** shows the vault as folders that fold, with the open note marked.
+  Typing in the filter box narrows the tree at once; Enter searches note text
+  through retrieval instead. The search icon (or Ctrl/Cmd+O) opens a quick
+  switcher: type part of a title or path, arrow to it and press Enter, or
+  create a note with that name when none matches.
 - **Filters.** The **Show notes** menu narrows the browser to pinned notes,
   orphans (notes nothing links to) or notes with unresolved links. The tag
   chips under it filter by tag; the vault header counts orphans and unresolved
@@ -78,14 +99,14 @@ Knowledge screen.
 - **Move or rename** changes a note's path. Every wikilink and Markdown link in
   the vault that pointed at it is rewritten, and the files that changed are
   copied to `.agentspace/backups/` first.
-- **Daily note** opens today's `daily/YYYY-MM-DD.md`, creating it from
-  `templates/daily.md` when that exists. **From template** lists every note
-  under `templates/`; a new note copies it with `{{date}}` and `{{title}}`
-  filled in, then lets you choose its path before saving.
-- **Import vault folder** copies the Markdown files of a folder you choose into
-  this space, keeping their relative paths. Existing notes are skipped unless
-  **replace conflicts with backup** is ticked, in which case the replaced files
-  are backed up first. The practical limit is 10,000 notes per space; the
+- **Daily note** (the calendar icon) opens today's `daily/YYYY-MM-DD.md`,
+  creating it from `templates/daily.md` when that exists. **Template** lists
+  every note under `templates/`; a new note copies it with `{{date}}` and
+  `{{title}}` filled in, then lets you choose its path before saving.
+- **Import vault folder**, under **Filters and import**, copies the Markdown
+  files of a folder you choose into this space, keeping their relative paths.
+  Existing notes are skipped unless **replace conflicts with backup** is
+  ticked, in which case the replaced files are backed up first. The practical limit is 10,000 notes per space; the
   header says when a vault exceeds it and some notes are not indexed.
 
 ## Local retrieval and citations
@@ -115,10 +136,11 @@ note, but reviewing imported content remains prudent because models can still
 be influenced by malicious text.
 
 **Preview context** on the Home page shows what the goal would retrieve before
-the run starts: each citation, its score, matched terms and token cost, the
-total that will be kept, and the provider and model those excerpts are sent
-to. Untick a result to keep it out of the run and its worker handoffs; the
-exclusion is recorded with the run.
+the run starts: each citation with its excerpt rendered, its score, matched
+terms and token cost, the total that will be kept, and the provider and model
+those excerpts are sent to. Untick a result to keep it out of the run and its
+worker handoffs; the exclusion is recorded with the run. Click a citation,
+here or in a run's **Retrieved context**, to open the note in Knowledge.
 
 In the run view, **Retrieved context** lists the excerpts the supervisor
 actually received and the citations you excluded, folded from `run.started`,
@@ -138,7 +160,8 @@ prevents an automatic memory from overwriting an earlier note, and the
 a medium-risk tool call that asks for approval and writes to `memory/inbox/`.
 
 Every memory starts as **proposed**. Proposed memories are not retrieved:
-they wait in the **Memory inbox** tab of the Knowledge browser, which shows
+they wait in the **Memory inbox** tab of the Knowledge browser, whose count
+also shows beside **Knowledge** in the rail. The inbox shows
 where each one came from (a run, with an **Open run** link, or an agent),
 when it was created, its confidence, its tags and the citations that support
 it. From there you can:

@@ -26,11 +26,11 @@ export const OUTCOME = "outcome";
  * is how live and replay once framed the same run at different zooms.
  * `.flow-node` in the stylesheet is sized to match.
  */
-export const NODE_WIDTH = 236;
+export const NODE_WIDTH = 224;
 export const NODE_HEIGHT = 118;
-export const END_WIDTH = 208;
-export const END_HEIGHT = 100;
-const COLUMN_GAP = 72;
+export const END_WIDTH = 184;
+export const END_HEIGHT = 82;
+const COLUMN_GAP = 100;
 const ROW_GAP = 22;
 /** Workers per column; a dozen in one column zoomed the camera out past legibility. */
 export const WORKERS_PER_COLUMN = 4;
@@ -219,22 +219,33 @@ export function toolUsesFor(view: RunView, agent: string): ToolUse[] {
   return [...uses.entries()].map(([tool, counts]) => ({ tool, ...counts, running: running === tool }));
 }
 
-/** One edge per ordered pair, labelled with how many handoffs it carries. */
-export function edgesFor(view: RunView): Edge[] {
-  const counts = new Map<string, { from: string; to: string; count: number; task: string }>();
+interface HandoffPair {
+  readonly from: string;
+  readonly to: string;
+  readonly count: number;
+  /** The first handoff's task; a later one does not replace it. */
+  readonly task: string;
+}
 
+/** The handoffs grouped by ordered pair, in the order each pair first appeared. */
+function handoffPairs(view: RunView): HandoffPair[] {
+  const pairs = new Map<string, { from: string; to: string; count: number; task: string }>();
   for (const handoff of view.handoffs) {
     const key = `${handoff.from}->${handoff.to}`;
-    const existing = counts.get(key);
+    const existing = pairs.get(key);
     if (existing === undefined) {
-      counts.set(key, { from: handoff.from, to: handoff.to, count: 1, task: handoff.task });
+      pairs.set(key, { from: handoff.from, to: handoff.to, count: 1, task: handoff.task });
     } else {
       existing.count += 1;
     }
   }
+  return [...pairs.values()];
+}
 
-  return [...counts.entries()].map(([key, edge]) => ({
-    id: key,
+/** One edge per ordered pair, labelled with how many handoffs it carries. */
+export function edgesFor(view: RunView): Edge[] {
+  return handoffPairs(view).map((edge) => ({
+    id: `${edge.from}->${edge.to}`,
     source: edge.from,
     target: edge.to,
     // A single handoff shows what was asked; several would be a paragraph.
@@ -269,6 +280,8 @@ export function workflowEdges(view: RunView): Edge[] {
       id: `${GOAL}->${first}`,
       source: GOAL,
       target: first,
+      sourceHandle: "out",
+      targetHandle: "in",
       type: "smoothstep",
       className: "flow-edge flow-edge--goal",
       animated: busy(first),
@@ -276,13 +289,24 @@ export function workflowEdges(view: RunView): Edge[] {
     });
   }
 
-  for (const edge of edgesFor(view)) {
+  for (const pair of handoffPairs(view)) {
+    // Work flows rightward through the side ports. A handoff back to the
+    // supervisor, or across to another worker, leaves and arrives by the
+    // bottom ports so it is drawn beneath the cards rather than over the
+    // edge going the other way.
+    const forward = pair.from === SUPERVISOR;
+    const label = pair.count > 1 ? `${String(pair.count)} handoffs` : ellipsise(pair.task, 28);
     edges.push({
-      ...edge,
+      id: `${pair.from}->${pair.to}`,
+      source: pair.from,
+      target: pair.to,
+      sourceHandle: forward ? "out" : "back-out",
+      targetHandle: forward ? "in" : "back-in",
       type: "smoothstep",
-      className: `flow-edge flow-edge--handoff${view.agents[edge.target] === undefined ? " flow-edge--ghost" : ""}`,
-      animated: busy(edge.target),
+      className: `flow-edge flow-edge--handoff${forward ? "" : " flow-edge--return"}${view.agents[pair.to] === undefined ? " flow-edge--ghost" : ""}`,
+      animated: busy(pair.to),
       markerEnd: arrow,
+      ...(label === "" ? {} : { label }),
     });
   }
 
@@ -293,6 +317,8 @@ export function workflowEdges(view: RunView): Edge[] {
       id: `${last}->${OUTCOME}`,
       source: last,
       target: OUTCOME,
+      sourceHandle: "out",
+      targetHandle: "in",
       type: "smoothstep",
       className: `flow-edge flow-edge--outcome flow-edge--${view.status}`,
       animated: !settled && view.status === "running",
@@ -313,7 +339,7 @@ export interface Viewport {
 /** Never zoom in past this, however few agents there are. */
 const MAX_ZOOM = 1.4;
 /** Fraction of the pane left as breathing room around the content. */
-const PADDING = 0.1;
+const PADDING = 0.06;
 
 /**
  * The camera, computed from the nodes rather than fitted to them. React Flow's

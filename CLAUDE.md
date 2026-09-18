@@ -22,9 +22,13 @@ and disconnects their stored keys.
   0.2.0 Mac archive made Gatekeeper report that the app was damaged; the
   corrected bundle has a complete code seal. Check the release page and
   tag workflow for publication status and cross-platform CI evidence.
-- The UI has a left rail, spaces, Home, Runs, Agents, Space settings, and
-  app-wide Settings. Approvals are docked. Discord is the only chat adapter;
-  Telegram was removed on 2026-09-11.
+- The UI has a left rail, spaces, Home, Runs, Agents, Knowledge, Space
+  settings, and app-wide Settings. Approvals are docked. The run canvas is a
+  left-to-right workflow (goal, supervisor, workers, outcome) with an
+  inspector; the Knowledge section is laid out as an Obsidian vault and one
+  Markdown renderer (`components/Markdown.tsx`, over `lib/markdown.ts`)
+  serves notes, agent prose and excerpts without ever emitting raw HTML.
+  Discord is the only chat adapter; Telegram was removed on 2026-09-11.
 - The latest recorded database migration is 008. Existing workspace files are
   adopted into the default space once; new spaces get their own folders. Each
   space folder is also an Obsidian-compatible Markdown vault. The Knowledge

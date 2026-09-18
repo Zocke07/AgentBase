@@ -99,8 +99,8 @@ export function NoteEditor({ value, onChange, notes }: NoteEditorProps) {
   };
 
   return (
-    <div className="editor">
-      <div className="editor__bar" role="toolbar" aria-label="Formatting">
+    <div className="source">
+      <div className="source__bar" role="toolbar" aria-label="Formatting">
         <button type="button" title="Bold" onClick={() => { wrap("**", "**", "bold"); }}>
           <b>B</b>
         </button>
@@ -116,7 +116,7 @@ export function NoteEditor({ value, onChange, notes }: NoteEditorProps) {
         <button type="button" title="Inline code" onClick={() => { wrap("`", "`", "code"); }}>
           <code>{"<>"}</code>
         </button>
-        <span className="editor__bar-gap" />
+        <span className="source__bar-gap" />
         <button type="button" title="Heading" onClick={() => { prefixLines("## "); }}>
           H2
         </button>
@@ -132,7 +132,7 @@ export function NoteEditor({ value, onChange, notes }: NoteEditorProps) {
         <button type="button" title="Callout" onClick={() => { prefixLines("> [!note] "); }}>
           {"✎"} callout
         </button>
-        <span className="editor__bar-gap" />
+        <span className="source__bar-gap" />
         <button type="button" title="Link to a note" onClick={() => { wrap("[[", "]]", "note"); }}>
           [[link]]
         </button>
@@ -140,7 +140,7 @@ export function NoteEditor({ value, onChange, notes }: NoteEditorProps) {
           #tag
         </button>
       </div>
-      <div className="editor__body">
+      <div className="source__body">
         <textarea
           ref={area}
           className="knowledge__editor"
@@ -185,12 +185,12 @@ export function NoteEditor({ value, onChange, notes }: NoteEditorProps) {
           }}
         />
         {completion !== null && matches.length > 0 && (
-          <ol className="editor__completions" aria-label="Link suggestions" data-testid="link-completions">
+          <ol className="source__completions" aria-label="Link suggestions" data-testid="link-completions">
             {matches.map((match, index) => (
               <li key={match.item.path}>
                 <button
                   type="button"
-                  className={`editor__completion${index === completion.cursor ? " editor__completion--selected" : ""}`}
+                  className={`source__completion${index === completion.cursor ? " source__completion--selected" : ""}`}
                   onMouseDown={(event) => {
                     event.preventDefault();
                     accept(match.item);

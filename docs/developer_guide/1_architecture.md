@@ -26,11 +26,14 @@ apps/backend/src/agentspace/    Python 3.12 FastAPI sidecar
   openapi.py                    builds the OpenAPI doc and emits the TS types
 apps/backend/tests/             pytest; support.py holds the shared doubles
 apps/desktop/src/               React 19 + Vite + TypeScript
-  lib/                          api.ts (typed calls), events.ts (SSE client), sidecar.ts
+  lib/                          api.ts (typed calls), events.ts (SSE client), sidecar.ts,
+                                markdown.ts (the Obsidian dialect), fuzzy.ts, graphLayout.ts
   state/                        reducer.ts: the fold; runStore, graph, spaces, hooks
   components/                   Rail, SpaceSwitcher, HomeView, RunsView, AgentsView,
                                 SpaceSettingsView, SettingsView, RunGraph, EventLog,
-                                ApprovalPanel, AgentEditor, BudgetMeter, RunPanel
+                                ApprovalPanel, AgentEditor, BudgetMeter, RunPanel,
+                                Markdown, KnowledgeView, NoteTree, NoteEditor,
+                                QuickSwitcher, MemoryInbox, KnowledgeEvaluation
 apps/desktop/src-tauri/         Rust shell: spawns the sidecar, reads the keychain
   binaries/                     the frozen sidecar lands here (git-ignored)
 packages/schemas/               openapi.json + src/api.ts, GENERATED and committed

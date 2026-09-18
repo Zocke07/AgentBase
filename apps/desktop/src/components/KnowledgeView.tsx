@@ -8,7 +8,16 @@ import type {
   SearchHit,
   SpaceResponse,
 } from "@agentspace/schemas";
-import { Background, BackgroundVariant, Controls, ReactFlow, type Edge, type Node } from "@xyflow/react";
+import {
+  Background,
+  BackgroundVariant,
+  Controls,
+  Handle,
+  Position,
+  ReactFlow,
+  type Edge,
+  type Node,
+} from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 
 import * as api from "../lib/api";
@@ -1361,11 +1370,13 @@ function KnowledgeGraphView({
       ) : (
         <div className="knowledge__graph" aria-label="Knowledge graph">
           <ReactFlow
+            key={`${scope}:${focus ?? ""}`}
             nodes={nodes}
             edges={edges}
             nodeTypes={graphNodeTypes}
             fitView
-            fitViewOptions={{ padding: 0.15, maxZoom: 1.3 }}
+            fitViewOptions={{ padding: 0.2, maxZoom: 1.2 }}
+            defaultEdgeOptions={{ type: "straight" }}
             minZoom={0.15}
             maxZoom={2}
             nodesDraggable={false}
@@ -1388,6 +1399,9 @@ function NoteBubble({ data }: { data: NoteGraphData }) {
   const size = data.degree >= 8 ? "large" : data.degree >= 3 ? "medium" : "small";
   return (
     <div className={`note-bubble note-bubble--${size}${data.focus ? " note-bubble--focus" : ""}`} title={data.label}>
+      {/* Without handles React Flow draws no edge touching this node; they are hidden by the stylesheet. */}
+      <Handle type="target" position={Position.Top} className="note-bubble__port" />
+      <Handle type="source" position={Position.Bottom} className="note-bubble__port" />
       <span className="note-bubble__dot" aria-hidden="true" />
       <span className="note-bubble__label">{data.label}</span>
     </div>

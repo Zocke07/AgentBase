@@ -121,9 +121,15 @@ warning in the console while every test passed.
   `view === reduceAll(events.slice(0, cursor))`, always. Scrubbing backwards
   refolds from zero because the reducer has no inverse: that is by design and
   a test fails if you "optimise" it.
-- **`state/graph.ts`** turns a `RunView` into nodes, edges and a camera,
-  arithmetically. The camera is *not* `fitView`: fitting depends on when nodes
-  were measured, which made live and replay differ by 10% of the pixels.
+- **`state/graph.ts`** turns a `RunView` into the workflow's nodes (goal,
+  supervisor, workers, outcome, with each agent's per-tool counts), its edges
+  (return handoffs use the bottom ports) and a camera, arithmetically. The
+  camera is *not* `fitView`: fitting depends on when nodes were measured,
+  which made live and replay differ by 10% of the pixels.
+- **`lib/markdown.ts`** parses the Obsidian dialect into a tree and
+  **`components/Markdown.tsx`** renders it; nothing turns a string into HTML.
+  Every block carries its source line, which is how a task ticked in the
+  vault preview finds the line to rewrite.
 - **`lib/events.ts`** is the `EventSource` client. It closes itself on a
   terminal event; without that the browser re-requests a finished run every
   second forever.

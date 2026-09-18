@@ -22,19 +22,29 @@ Home's task box.
 ## Watch the work
 
 The run view shows its status and counts of agents, tool calls, denials,
-tokens, errors and cost. The sentence above the graph describes what is
-happening now. Graph nodes show the supervisor and workers, and arrows show
-handoffs. Click a node to inspect that agent's model, steps, allowed tools,
-system prompt and any streamed output.
+tokens, errors and cost. The sentence above the canvas describes what is
+happening now. The canvas reads left to right as a workflow: the **Goal**
+card, the supervisor, the workers it handed work to, and the **Outcome**
+card. Each agent card carries a state pill (ready, thinking, model, tool,
+approval, done), a sentence for what it is doing, its model, and chips that
+sum what it did with each tool: a green count for executions, a red one for
+denials, and a pulsing chip while a call runs. Arrows carry the handoff task;
+a handoff back to the supervisor is drawn beneath the cards. Click a card to
+open the inspector beside the canvas: the agent's last message, whom it handed
+off to, every tool call with its result or the reason it was refused, and its
+system prompt and streamed output. Scroll to zoom and drag to pan; the camera
+frames the whole run again when a new agent appears unless you have moved it.
 
 The event log below the graph tells the story in order. Use **Agent** and
 **Type** to filter it, **Find** to search, and **show tokens** to include
 streaming chunks that are hidden by default. Click a row to inspect its
-recorded details. The log follows new events while you are at the bottom;
-**↓ newest** returns there after you scroll up.
+recorded details; a row that carries an agent's message or the run's summary
+shows that prose formatted above the raw payload, with **Save as note**. The
+log follows new events while you are at the bottom; **↓ newest** returns
+there after you scroll up.
 
 When a run finishes, **The supervisor's account of the run** shows what the
-model says it did. Verify the result with the event log and the actual files.
+model says it did, with its Markdown rendered. Verify the result with the event log and the actual files.
 A `tool.called` entry shows that a call executed; inspect `tool.result` or
 `tool.error` to see how it ended. Tool-call totals also include coordination
 calls, so a nonzero count alone does not prove that a file was written.

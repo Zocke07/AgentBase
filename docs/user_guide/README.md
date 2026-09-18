@@ -10,7 +10,9 @@ log show their work as it happens and let you replay it afterwards.
 A **space** groups a roster of agents, a folder for their files, and settings
 for their runs. Its folder is also a Markdown knowledge vault shared by people
 and agents. The left rail switches between **Home**, **Runs**, **Agents**,
-**Knowledge** and **Space settings** for the selected space. **Settings** at the bottom
+**Knowledge** and **Space settings** for the selected space; Ctrl/Cmd+1 to 6
+jump between them in that order, and a badge on **Runs** or **Knowledge**
+counts approvals or memories waiting for you. **Settings** at the bottom
 controls defaults, model access, API keys, the shared budget, Discord and
 appearance.
 

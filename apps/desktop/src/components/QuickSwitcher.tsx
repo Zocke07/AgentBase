@@ -50,16 +50,16 @@ export function QuickSwitcher({ notes, onOpen, onCreate, onClose }: QuickSwitche
 
   return (
     <div
-      className="switcher"
+      className="palette"
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="switcher__panel" role="dialog" aria-label="Open a note">
+      <div className="palette__panel" role="dialog" aria-label="Open a note">
         <input
           ref={input}
-          className="switcher__input"
+          className="palette__input"
           aria-label="Find a note by title or path"
           placeholder="Type a note name; Enter opens it, Esc closes"
           value={query}
@@ -83,12 +83,12 @@ export function QuickSwitcher({ notes, onOpen, onCreate, onClose }: QuickSwitche
             }
           }}
         />
-        <ol className="switcher__list" aria-label="Matching notes">
+        <ol className="palette__list" aria-label="Matching notes">
           {matches.map((match, index) => (
             <li key={match.item.path}>
               <button
                 type="button"
-                className={`switcher__row${index === selected ? " switcher__row--selected" : ""}`}
+                className={`palette__row${index === selected ? " palette__row--selected" : ""}`}
                 onMouseEnter={() => {
                   setCursor(index);
                 }}
@@ -96,11 +96,11 @@ export function QuickSwitcher({ notes, onOpen, onCreate, onClose }: QuickSwitche
                   choose(index);
                 }}
               >
-                <span className="switcher__title">
+                <span className="palette__title">
                   {match.item.pinned === true && <span className="tree__pin">{"★"} </span>}
                   {match.item.title}
                 </span>
-                <span className="switcher__path">{match.item.path}</span>
+                <span className="palette__path">{match.item.path}</span>
               </button>
             </li>
           ))}
@@ -108,7 +108,7 @@ export function QuickSwitcher({ notes, onOpen, onCreate, onClose }: QuickSwitche
             <li>
               <button
                 type="button"
-                className={`switcher__row switcher__row--create${matches.length === selected ? " switcher__row--selected" : ""}`}
+                className={`palette__row palette__row--create${matches.length === selected ? " palette__row--selected" : ""}`}
                 onMouseEnter={() => {
                   setCursor(matches.length);
                 }}
@@ -116,12 +116,12 @@ export function QuickSwitcher({ notes, onOpen, onCreate, onClose }: QuickSwitche
                   choose(matches.length);
                 }}
               >
-                <span className="switcher__title">Create {createPath}</span>
-                <span className="switcher__path">a new note with this name</span>
+                <span className="palette__title">Create {createPath}</span>
+                <span className="palette__path">a new note with this name</span>
               </button>
             </li>
           )}
-          {rows === 0 && <li className="switcher__empty">No notes yet. Type a name to create one.</li>}
+          {rows === 0 && <li className="palette__empty">No notes yet. Type a name to create one.</li>}
         </ol>
       </div>
     </div>

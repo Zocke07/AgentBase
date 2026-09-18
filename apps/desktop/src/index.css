@@ -624,15 +624,20 @@ pre {
 }
 
 .knowledge__browser-head {
-  display: flex;
-  gap: 0.5rem;
-  align-items: flex-start;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.15rem 0.5rem;
+  align-items: center;
   padding: 0.85rem 0.85rem 0.6rem;
 }
 
 .knowledge__browser-title {
-  min-width: 0;
+  display: contents;
+}
+
+.knowledge__browser-title p,
+.knowledge__browser-title small {
+  grid-column: 1 / -1;
 }
 
 .knowledge__browser-head h2 {
@@ -656,7 +661,8 @@ pre {
 
 .knowledge__new {
   display: flex;
-  flex: none;
+  grid-column: 2;
+  grid-row: 1;
   gap: 0.2rem;
   align-items: center;
 }
@@ -1260,29 +1266,35 @@ pre {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
-.knowledge__document--split .editor {
+.knowledge__document--split .source {
   border-right: 1px solid var(--border);
 }
 
-.editor {
+.source {
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
 }
 
-.editor__bar {
+.source__bar {
   display: flex;
   flex: none;
-  flex-wrap: wrap;
   gap: 0.15rem;
   align-items: center;
   padding: 0.3rem 0.6rem;
+  overflow-x: auto;
   border-bottom: 1px solid var(--border);
   background: var(--surface-2);
+  scrollbar-width: none;
 }
 
-.editor__bar button {
+.source__bar button {
+  flex: none;
+  white-space: nowrap;
+}
+
+.source__bar button {
   padding: 0.15rem 0.45rem;
   border: 1px solid transparent;
   border-radius: 4px;
@@ -1293,30 +1305,30 @@ pre {
   cursor: pointer;
 }
 
-.editor__bar button:hover {
+.source__bar button:hover {
   border-color: var(--border);
   background: var(--surface);
   color: var(--text);
 }
 
-.editor__bar button code {
+.source__bar button code {
   font-size: 0.7rem;
 }
 
-.editor__bar button mark {
+.source__bar button mark {
   padding: 0 0.15em;
   background: color-mix(in srgb, var(--warn) 32%, transparent);
   color: inherit;
 }
 
-.editor__bar-gap {
+.source__bar-gap {
   width: 1px;
   height: 1rem;
   margin: 0 0.3rem;
   background: var(--border);
 }
 
-.editor__body {
+.source__body {
   position: relative;
   display: flex;
   flex: 1;
@@ -1343,7 +1355,7 @@ pre {
   tab-size: 2;
 }
 
-.editor__completions {
+.source__completions {
   position: absolute;
   bottom: 0.75rem;
   left: 1.4rem;
@@ -1360,7 +1372,7 @@ pre {
   box-shadow: var(--shadow-2);
 }
 
-.editor__completion {
+.source__completion {
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -1375,14 +1387,14 @@ pre {
   cursor: pointer;
 }
 
-.editor__completion small {
+.source__completion small {
   color: var(--muted);
   font-family: var(--mono);
   font-size: 0.6667rem;
 }
 
-.editor__completion--selected,
-.editor__completion:hover {
+.source__completion--selected,
+.source__completion:hover {
   background: var(--accent-soft);
 }
 
@@ -1517,7 +1529,7 @@ pre {
 }
 
 /* The quick switcher. */
-.switcher {
+.palette {
   position: fixed;
   inset: 0;
   z-index: 20;
@@ -1527,7 +1539,7 @@ pre {
   background: rgb(10 12 20 / 35%);
 }
 
-.switcher__panel {
+.palette__panel {
   width: min(34rem, calc(100% - 2rem));
   height: fit-content;
   max-height: 70vh;
@@ -1540,7 +1552,7 @@ pre {
   overflow: hidden;
 }
 
-.switcher__input {
+.palette__input {
   padding: 0.8rem 1rem;
   border: 0;
   border-bottom: 1px solid var(--border);
@@ -1551,14 +1563,14 @@ pre {
   outline: none;
 }
 
-.switcher__list {
+.palette__list {
   margin: 0;
   padding: 0.3rem;
   overflow: auto;
   list-style: none;
 }
 
-.switcher__row {
+.palette__row {
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -1572,26 +1584,26 @@ pre {
   cursor: pointer;
 }
 
-.switcher__row--selected {
+.palette__row--selected {
   background: var(--accent-soft);
 }
 
-.switcher__row--create .switcher__title {
+.palette__row--create .palette__title {
   color: var(--accent);
 }
 
-.switcher__title {
+.palette__title {
   font-size: 0.9rem;
   font-weight: 500;
 }
 
-.switcher__path {
+.palette__path {
   color: var(--muted);
   font-family: var(--mono);
   font-size: 0.7rem;
 }
 
-.switcher__empty {
+.palette__empty {
   padding: 0.75rem;
   color: var(--muted);
   font-size: 0.8667rem;
@@ -1652,6 +1664,11 @@ pre {
   white-space: nowrap;
 }
 
+.note-bubble__port {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .note-bubble__dot {
   flex: none;
   width: 0.55rem;
@@ -1661,12 +1678,22 @@ pre {
   opacity: 0.75;
 }
 
-.note-bubble--medium .note-bubble__dot {
+.note-bubble--medium .note-bubble__port {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.note-bubble__dot {
   width: 0.8rem;
   height: 0.8rem;
 }
 
-.note-bubble--large .note-bubble__dot {
+.note-bubble--large .note-bubble__port {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.note-bubble__dot {
   width: 1.05rem;
   height: 1.05rem;
 }
@@ -2648,7 +2675,7 @@ button.md__tag:hover {
   font-size: 0.75rem;
 }
 
-.new-run__retrieval label span {
+.new-run__retrieval label>span {
   display: flex;
   flex-direction: column;
 }
@@ -2660,11 +2687,14 @@ button.md__tag:hover {
 }
 
 .new-run__excerpt {
+  max-height: 9rem;
   margin: 0.2rem 0 0.25rem;
   padding: 0.35rem 0.6rem;
+  overflow: hidden;
   border-left: 2px solid var(--border-strong);
   color: var(--text);
   font-size: 0.8rem;
+  mask-image: linear-gradient(to bottom, #000 80%, transparent);
 }
 
 .new-run__retrieval small {
@@ -2923,7 +2953,7 @@ button.md__tag:hover {
 
 .run-projection {
   display: grid;
-  grid-template-rows: auto auto minmax(12rem, 1fr) minmax(10rem, 1.25fr);
+  grid-template-rows: auto auto minmax(17rem, 1.4fr) minmax(9rem, 1fr);
   min-height: 0;
   flex: 1;
 }
@@ -3322,7 +3352,7 @@ button.md__tag:hover {
 .agent-node {
   /* Matches NODE_WIDTH / NODE_HEIGHT in state/graph.ts, which React Flow is
      told up front so the camera never waits on a measurement. */
-  width: 236px;
+  width: 224px;
   height: 118px;
 }
 
@@ -3428,10 +3458,12 @@ button.md__tag:hover {
   animation: pulse 1.6s ease-in-out infinite;
 }
 
-/* The goal and the outcome, at either end of the flow. */
+/* The goal and the outcome, at either end of the flow: END_WIDTH / END_HEIGHT. */
 .end-node {
-  width: 208px;
-  height: 100px;
+  width: 184px;
+  height: 82px;
+  gap: 0.1rem;
+  padding: 0.5rem 0.6rem 0.45rem;
 }
 
 .end-node--goal {
@@ -3448,11 +3480,11 @@ button.md__tag:hover {
 }
 
 .end-node__text {
-  display: -webkit-box;
   overflow: hidden;
   color: var(--text);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  font-size: 0.7333rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .end-node__foot {
@@ -3462,6 +3494,19 @@ button.md__tag:hover {
   font-size: 0.7333rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.flow-node .react-flow__handle {
+  width: 6px;
+  height: 6px;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  background: var(--border-strong);
+}
+
+.flow-node .flow-node__back-port {
+  opacity: 0;
 }
 
 /* Edges: a handoff carries its task as a label; an outcome edge takes the run's colour. */
@@ -3481,6 +3526,10 @@ button.md__tag:hover {
 .graph .react-flow__edge.flow-edge--pending .react-flow__edge-path,
 .graph .react-flow__edge.flow-edge--running .react-flow__edge-path {
   stroke-dasharray: 5 4;
+}
+
+.graph .react-flow__edge.flow-edge--return .react-flow__edge-path {
+  stroke: var(--faint);
 }
 
 .graph .react-flow__edge.flow-edge--ghost .react-flow__edge-path {
