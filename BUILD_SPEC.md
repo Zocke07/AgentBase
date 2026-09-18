@@ -775,6 +775,47 @@ counts, templates, daily notes, "Save as note" from an event, and a retrieval
 evaluation screen (MRR and recall at k). Deferred past 0.3.0: local embedding
 models, attachments, PDFs and web clipping.
 
+### Phase 13: Scheduled runs, usage, and the first-run tour
+
+*Added 2026-09-19 at the maintainer's request.*
+
+- **Schedules.** A space may run a goal on its own at set times: every day
+  or on chosen days at a local time, or every N hours. A schedule starts its
+  run through the same `RunLauncher` as the window and Discord, so it gets the
+  space's roster, rules, folder, approval gate and the shared cap and nothing
+  more; the scheduler never answers an approval. `next_run_at` is stored in
+  UTC and recomputed from the clock after each firing, never added to the
+  previous time. The sidecar remains a child of the window (§7 still excludes
+  a headless or server mode and no tray or service is added), so a time that
+  passes while the app is closed is handled at the next launch per the
+  schedule's missed policy: run once now, or skip. One catch-up, never one
+  per missed occurrence.
+- **Usage.** A section that reads the spend ledger, the rows the cap is
+  enforced on, for one month: totals, by model, by space, by day, and the
+  costliest runs with each run's peak and mean input tokens as its context.
+  Nothing is estimated; a figure not in the ledger is not on the page.
+- **The first-run tour and About.** A short tour that points at real parts of
+  the window and ends on the demo run, shown once on the sidecar's
+  `onboarding_completed` setting and replayable from an About box that shows
+  the sidecar's version and data folder.
+- **The run's memory within reach.** The run summary looks up its memory's
+  status, approves it in place and opens it beside the inbox; a long summary
+  starts folded so the canvas and log stay in view.
+
+**Accept when:**
+
+1. A daily schedule created the evening before a DST switch fires at the
+   named wall-clock time the next morning, and a schedule due while the app
+   was closed runs once at launch or is skipped, per its policy, with the
+   following time computed from the clock.
+2. A scheduled run appears in Runs with origin `schedule`, and a space that
+   asks for everything is told so beside its schedules.
+3. The Usage totals for a month equal the budget meter's figure for the same
+   month, and a run's peak context equals the largest `input_tokens` among its
+   ledger rows.
+4. The tour opens exactly once per fresh data directory and never on a
+   settings document without the flag.
+
 ---
 
 ## 6. How you should work

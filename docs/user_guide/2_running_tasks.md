@@ -44,10 +44,19 @@ log follows new events while you are at the bottom; **↓ newest** returns
 there after you scroll up.
 
 When a run finishes, **The supervisor's account of the run** shows what the
-model says it did, with its Markdown rendered. Verify the result with the event log and the actual files.
+model says it did, with its Markdown rendered; a long account starts folded,
+with **Show the whole summary** beneath it, so the canvas and the log stay in
+view. Verify the result with the event log and the actual files.
 A `tool.called` entry shows that a call executed; inspect `tool.result` or
 `tool.error` to see how it ended. Tool-call totals also include coordination
 calls, so a nonzero count alone does not prove that a file was written.
+
+Under the account, **Saved as a memory at** names the note the run wrote and
+its status: **proposed** until you decide, **approved** once later runs may
+retrieve it, **pinned** or **archived**. **Approve** decides it right there;
+**Open in the inbox** opens the note beside the Knowledge inbox, where it can
+also be pinned, merged or forgotten (see
+[The memory inbox](6_knowledge_and_memory.md#the-memory-inbox)).
 
 A model may send text in large chunks, or call tools without sending prose.
 The graph and log can show activity even when no text is streaming.
@@ -154,3 +163,51 @@ Space and agent settings can narrow this permission. A space's own policy
 with nothing ticked asks for everything; an agent definition with nothing
 ticked inherits the space's effective policy. Automatic decisions are still
 recorded in the log, with approvals marked **by policy**.
+
+## Schedule a run
+
+A space can run a goal on its own at set times. Open **Space settings →
+Schedules**, click **New schedule**, give it a name and the goal to run, and
+choose when: **Every day** or **On chosen days** at a time of day (your
+computer's local time), or **Every few hours**. The editor shows the
+sidecar's own reading of the choice ("Weekdays at 09:00") and the next three
+times before you save. Each schedule can be switched off, run now, edited or
+deleted, and its row shows the next time, the last time, what happened then,
+and a link to the run it started. A scheduled run appears in **Runs** marked
+**from schedule** and is an ordinary run in every other way: the space's
+agents, folder, rules, approval gate and the shared budget all apply.
+
+Two things to know before relying on one:
+
+- **AgentSpace has to be open.** The local server is part of the app, so a
+  time that passes while the app is closed cannot start anything then. Each
+  schedule chooses what happens instead: **Run it once when AgentSpace next
+  opens** (the default) or **Skip it and wait for the next time**. Either
+  way the following time is computed from the clock, so a laptop shut for a
+  week runs the schedule once on opening, not seven times.
+- **Nobody is there to approve.** A tool call the space's policy does not
+  pre-authorize waits for you up to the run's time limit and then fails. The
+  Schedules section says what the space can call without asking; tick the
+  risk levels you trust under **Limits and approvals** (see
+  [Run without answering every call](#run-without-answering-every-call))
+  before scheduling work that writes files or fetches pages.
+
+A schedule whose previous run is still going skips that time, and one whose
+space is archived turns itself off.
+
+## Follow cost, tokens and context
+
+**Usage** (Ctrl/Cmd+5) is a month of model calls from the same ledger the
+monthly cap is enforced on, so it always agrees with the meter in the header.
+The cards show what was spent (against the cap, when every space is shown),
+how many model calls were made across how many runs, and the input and output
+tokens. Below them: a bar per day, a table per model, a table per space, and
+the costliest runs with their calls, tokens and **context**: the most tokens
+any one call in that run sent, and the mean per call. A goal in that table
+opens the run. The period picker offers every month the ledger has; **This
+space** and **All spaces** narrow or widen the view.
+
+Inside a run, click an agent's card to see its own model calls, tokens and
+cost, and the context it carried on its last call and at most. Deleting a run
+keeps its spend with the run cleared, listed under **deleted runs**, so the
+month's total never shrinks by deletion.

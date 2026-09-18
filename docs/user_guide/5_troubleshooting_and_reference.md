@@ -184,7 +184,7 @@ cannot store secrets in the OS keychain.
 
 | Endpoint | Use |
 |---|---|
-| `GET /settings` | Saved app defaults and names of loaded secrets. |
+| `GET /settings` | Saved app defaults, names of loaded secrets, the sidecar's version and data folder. |
 | `PATCH /settings` | Change app defaults; unknown fields are refused. |
 | `GET /settings/providers` | Providers and the model names priced by this build. |
 | `POST /settings/verify` | Check local provider configuration without calling a model. |
@@ -194,6 +194,11 @@ cannot store secrets in the OS keychain.
 | `POST /auth/chatgpt/login/cancel` | Cancel the active sign-in attempt. |
 | `POST /auth/chatgpt/logout` | Remove the ChatGPT session from the credential store. |
 | `GET /budget` | Shared monthly spend and cap. |
+| `GET /usage` | A month of model calls from the ledger, by model, space, day and run; `period` is `YYYY-MM`, `space_id` narrows. |
+| `GET`, `POST /schedules` | List (by `space_id`) or create a schedule: a goal a space runs at set times while the app is open. |
+| `PATCH`, `DELETE /schedules/{id}` | Change, switch off or remove a schedule. |
+| `POST /schedules/{id}/run` | Start the schedule's run now, leaving its next time as it was. |
+| `POST /schedules/preview` | A cadence in words and its next three times, before saving. |
 | `GET /spaces` | Spaces and their folder paths. |
 | `GET /spaces/{id}/knowledge` | Markdown notes, vault statistics and what the incremental index did. |
 | `GET`, `PUT`, `DELETE /spaces/{id}/knowledge/note` | Read, save or delete a Markdown note. |

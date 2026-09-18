@@ -10,30 +10,34 @@ apps/backend/src/agentspace/    Python 3.12 FastAPI sidecar
   config.py                     BIND_HOST (hardcoded), ports, data paths
   secrets.py                    API keys in memory; the stdin handshake
   events/                       EventType, EventStore.append, EventBus
-  store/                        SQLite + migrations (*.sql), settings, spaces, agent_defs
+  store/                        SQLite + migrations (*.sql), settings, spaces, agent_defs,
+                                schedules (cadences, LocalZone, next_occurrence)
   providers/                    Provider protocol, Anthropic/OpenAI/Ollama, ChatGPT transport,
                                 pricing, factory
   budget/ledger.py              the monthly cap, checked before every call
+  budget/usage.py               the usage report read from the same ledger
   knowledge/store.py            Markdown parser, links, graph, local vectors, RAG memory
   orchestrator/                 run lifecycle, supervisor, agent loop, limits,
-                                control tools, registry, launcher
+                                control tools, registry, launcher, scheduler
   tools/                        catalogue, Tool protocol, sandbox, approval gate,
                                 runtime, builtin/{filesystem,knowledge,network,shell}.py
   channels/                     Discord adapter, identity allowlist,
                                 the chat renderer, throttle, service
   api/                          runs, stream (SSE), approvals, agents, spaces, knowledge,
-                                settings, auth, channels
+                                settings (and /usage), auth, channels, schedules
   openapi.py                    builds the OpenAPI doc and emits the TS types
 apps/backend/tests/             pytest; support.py holds the shared doubles
 apps/desktop/src/               React 19 + Vite + TypeScript
   lib/                          api.ts (typed calls), events.ts (SSE client), sidecar.ts,
-                                markdown.ts (the Obsidian dialect), fuzzy.ts, graphLayout.ts
+                                markdown.ts (the Obsidian dialect), fuzzy.ts, graphLayout.ts,
+                                sections.ts (rail order), tour.ts (the tour's script)
   state/                        reducer.ts: the fold; runStore, graph, spaces, hooks
   components/                   Rail, SpaceSwitcher, HomeView, RunsView, AgentsView,
                                 SpaceSettingsView, SettingsView, RunGraph, EventLog,
                                 ApprovalPanel, AgentEditor, BudgetMeter, RunPanel,
                                 Markdown, KnowledgeView, NoteTree, NoteEditor,
-                                QuickSwitcher, MemoryInbox, KnowledgeEvaluation
+                                QuickSwitcher, MemoryInbox, KnowledgeEvaluation,
+                                Schedules, UsageView, Tour
 apps/desktop/src-tauri/         Rust shell: spawns the sidecar, reads the keychain
   binaries/                     the frozen sidecar lands here (git-ignored)
 packages/schemas/               openapi.json + src/api.ts, GENERATED and committed
@@ -68,6 +72,56 @@ where applicable, agent definitions. Approval policy can only narrow: a space's
 `[]` means inherit. Model credentials, OpenAI's access mode, the monthly cap,
 and the Discord connection are app-wide. `channel_space_id` selects the space
 receiving Discord commands.
+
+### Schedules
+
+A schedule (`store/schedules.py`, migration 009) is a goal, a cadence and a
+space. `orchestrator/scheduler.py` is one asyncio task in the sidecar that
+sleeps until the earliest `next_run_at` (or a poll of 60 s, or a `wake()` from
+the API after a write) and launches what is due through the same `RunLauncher`
+as the window and Discord, with `origin="schedule"` and the schedule id as
+`origin_ref`. So a scheduled run is an ordinary run: the space's roster, rules,
+folder, approval gate and the shared cap all apply, and a call the policy does
+not pre-authorize waits for the user up to the run's time limit.
+
+`next_run_at` is stored in UTC and always recomputed from the cadence and the
+clock after a firing, never added to the previous time. Daily and weekly
+cadences are wall-clock times in the machine's zone: `LocalZone` is the
+`datetime` documentation's `LocalTimezone` recipe, asking `mktime` for the
+offset of the wall time in question, because `datetime.now().astimezone()`
+freezes the offset in force now and would put "tomorrow at 09:00" an hour off
+across a DST switch. The tests inject a hand-written zone with its own
+summer-time rule so the DST cases need no `tzdata`.
+
+The sidecar is a child of the window, so nothing runs while the app is
+closed. The scheduler's first pass after a launch is a catch-up: a schedule
+due more than two minutes ago (`MISSED_AFTER`) runs once now or is moved on,
+per its `missed` policy, and the next time is tomorrow either way. A schedule
+whose last run is still in `launcher.live` or `launcher.driving` is skipped;
+one whose space is archived turns itself off. Deleting a space deletes its
+schedules; deleting a run clears `last_run_id` through `ON DELETE SET NULL`.
+The sidecar still has no OS-level service or tray mode; that would be new
+shell infrastructure and is not built.
+
+### Usage and the first-run tour
+
+`GET /usage` (`budget/usage.py`) reads the `spend` table joined to `runs` for
+one period: totals, buckets by model, space and day, and the costliest runs
+with `MAX(input_tokens)` as their peak context and the mean per call. It is
+the same rows the cap is enforced on, so the report and the meter cannot
+disagree; a deleted run's spend keeps a NULL `run_id` and is listed as
+"deleted runs". The frontend reducer also folds each agent's own calls,
+tokens, cost, latest and peak context from `llm.response`, which the run
+inspector shows.
+
+`onboarding_completed` is a workspace setting (key/value, so no migration)
+rather than webview storage, so the tour survives an upgrade with the rest of
+the data and comes back exactly when "start over" deletes it. The shell opens
+the tour only on a settings document that carries the flag as `false`; the
+tour (`components/Tour.tsx`, script in `lib/tour.ts`) switches to a step's
+section before measuring its `data-tour` target, because every section stays
+mounted behind `hidden`. Settings shows the sidecar's `version` and
+`data_dir` from the same response in an About box.
 
 ### OpenAI credential transports
 

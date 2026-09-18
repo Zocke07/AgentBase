@@ -161,7 +161,10 @@ a medium-risk tool call that asks for approval and writes to `memory/inbox/`.
 
 Every memory starts as **proposed**. Proposed memories are not retrieved:
 they wait in the **Memory inbox** tab of the Knowledge browser, whose count
-also shows beside **Knowledge** in the rail. The inbox shows
+also shows beside **Knowledge** in the rail. The run that wrote a memory
+shows its status under the supervisor's account, with **Approve** and **Open
+in the inbox** there, so the decision can be made without leaving the run.
+The inbox shows
 where each one came from (a run, with an **Open run** link, or an agent),
 when it was created, its confidence, its tags and the citations that support
 it. From there you can:

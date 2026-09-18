@@ -4,16 +4,16 @@
 
 ## Install and open AgentSpace
 
-The 0.3.2 downloads are a Windows x64 installer and a macOS Apple Silicon disk
+The 0.4.0 downloads are a Windows x64 installer and a macOS Apple Silicon disk
 image. Python, Node and Rust are bundled or unnecessary for installed users.
-Use the [0.3.2 release](https://github.com/Zocke07/AgentBase/releases/tag/v0.3.2)
+Use the [0.4.0 release](https://github.com/Zocke07/AgentBase/releases/tag/v0.4.0)
 or the matching artifact from a successful
 [build run](https://github.com/Zocke07/AgentBase/actions/workflows/build.yml).
-See the [release notes](../releases/0.3.2.md) for release status and limitations.
+See the [release notes](../releases/0.4.0.md) for release status and limitations.
 
 ### Windows
 
-1. Download `AgentSpace_0.3.2_x64-setup.exe` for an x64 Windows PC.
+1. Download `AgentSpace_0.4.0_x64-setup.exe` for an x64 Windows PC.
 2. Run the installer. The build is unsigned; if SmartScreen shows **Windows
    protected your PC**, choose **More info → Run anyway** to proceed with the
    downloaded build you trust. A new installer or your machine's security
@@ -24,7 +24,7 @@ See the [release notes](../releases/0.3.2.md) for release status and limitations
 
 ### macOS
 
-1. Download `AgentSpace_0.3.2_aarch64.dmg` for an Apple Silicon Mac. This
+1. Download `AgentSpace_0.4.0_aarch64.dmg` for an Apple Silicon Mac. This
    image is not an Intel or universal build.
 2. Open the disk image and drag **AgentSpace** onto the **Applications** link
    in the window that appears, then eject the image. Installing it there is
@@ -62,7 +62,10 @@ builds have an ad-hoc code identity, another build may ask again. If you choose
 ## Find your way around
 
 On launch, **Connecting to the sidecar** means the app is starting its local
-server. After it connects, you land on **Home** in the default space.
+server. After it connects, you land on **Home** in the default space. The
+first launch opens a short tour that points at each part of the window and
+ends on the demo run; **Skip the tour** or Esc closes it for good, and
+**Settings → About AgentSpace → Replay the tour** brings it back.
 
 | Control | What it opens |
 |---|---|
@@ -70,8 +73,10 @@ server. After it connects, you land on **Home** in the default space.
 | **Home** | Enter a task, see runs under **Now** and **Recent runs**, and enable or disable agents. |
 | **Runs** | Open a current run or replay a past one in this space. |
 | **Agents** | Create and edit this space's agent definitions. |
-| **Space settings** | Name, description, folder, model and limits for this space. |
-| **Settings**, at the bottom | App defaults, keys, shared budget, Discord and theme. |
+| **Knowledge** | The space folder as a Markdown vault, and the memory inbox. |
+| **Usage** | What this month's model calls cost and carried, by day, model, space and run. |
+| **Space settings** | Name, description, folder, model, limits and schedules for this space. |
+| **Settings**, at the bottom | App defaults, keys, shared budget, Discord, theme and the About box. |
 
 The header shows the selected space's provider and model, the shared monthly
 budget, and any approvals waiting across spaces. Switching spaces changes
@@ -214,6 +219,7 @@ The default space cannot be archived or deleted.
 | **Monthly budget** | **Monthly cap (USD)**, $20.00 by default, shared across spaces. Enter dollars directly. |
 | **Chat channels** | Enable Discord, allow accounts, choose approval responders and the destination space. |
 | **Appearance** | **Follow the system**, **Light**, or **Dark**; changes immediately. |
+| **About AgentSpace** | The version that is running, the data folder with **Open folder**, and **Replay the tour**. |
 
 Click **Save settings** for changed settings. Model, limit and approval
 changes affect future runs; an active run keeps its starting configuration.
