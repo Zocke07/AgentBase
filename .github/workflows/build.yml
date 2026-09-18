@@ -62,14 +62,11 @@ jobs:
         with:
           components: clippy
 
-      # PyInstaller does not cross-compile, hence a matrix job.
+      # PyInstaller does not cross-compile, hence a matrix job. On macOS this
+      # also produces the disk image, a single file that keeps the app's
+      # executable modes across artifact upload where a raw .app would not.
       - name: Build the sidecar and the bundle
         run: just build-installer
-
-      # Preserve the app's executable modes and bundle root across artifact upload.
-      - name: Archive the macOS app
-        if: runner.os == 'macOS'
-        run: just package-macos
 
       # The guards that skipped in the test job, after the build so they have
       # something to inspect, with `--require-build-checks` so a missing
@@ -93,12 +90,12 @@ jobs:
           path: apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
 
-      - name: Upload the macOS app archive
+      - name: Upload the macOS disk image
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v7
         with:
           name: AgentSpace-macos-app
-          path: apps/desktop/src-tauri/target/release/bundle/macos/*.app.zip
+          path: apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
           if-no-files-found: error
 
   smoke:
@@ -146,7 +143,7 @@ jobs:
           name: AgentSpace-windows-installer
           path: dist
 
-      - name: Download the app archive built by the macOS job
+      - name: Download the disk image built by the macOS job
         uses: actions/download-artifact@v8
         with:
           name: AgentSpace-macos-app
@@ -163,11 +160,11 @@ jobs:
               --repo "$GITHUB_REPOSITORY" \
               --title "AgentSpace $GITHUB_REF_NAME" \
               --notes-file "docs/releases/${GITHUB_REF_NAME#v}.md"
-            gh release upload "$GITHUB_REF_NAME" dist/*-setup.exe dist/*.app.zip \
+            gh release upload "$GITHUB_REF_NAME" dist/*-setup.exe dist/*.dmg \
               --repo "$GITHUB_REPOSITORY" \
               --clobber
           else
-            gh release create "$GITHUB_REF_NAME" dist/*-setup.exe dist/*.app.zip \
+            gh release create "$GITHUB_REF_NAME" dist/*-setup.exe dist/*.dmg \
               --repo "$GITHUB_REPOSITORY" \
               --title "AgentSpace $GITHUB_REF_NAME" \
               --notes-file "docs/releases/${GITHUB_REF_NAME#v}.md"

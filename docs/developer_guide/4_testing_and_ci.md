@@ -54,16 +54,16 @@ mutation that does not fail is not evidence the code is right.
 
 ### Tests that skip, and why
 
-`test_sidecar_binary.py`, `test_installer_bundle.py` and `test_macos_archive.py`
+`test_sidecar_binary.py`, `test_installer_bundle.py` and `test_macos_dmg.py`
 inspect built artefacts and skip when prerequisites are absent: right for
 `just test`, wrong for a
 release. `just verify-build` passes `--require-build-checks`, which turns each
 skip into a failure naming what was missing. `test_installed_app.py` **installs
 software** and only runs under `--install-smoke` (`just verify-installed`); it
 does not install anything during ordinary `just test` runs. Platform-specific
-checks also skip on the other host. On macOS, build and run
-`just package-macos` before `just verify-build`, so the archive check has an
-artefact to extract.
+checks also skip on the other host. On macOS, `just build-installer` produces
+the disk image the check mounts, so nothing runs between it and
+`just verify-build`.
 
 The symlink-escape sandbox test runs on Windows rather than skipping: it falls
 back to a directory junction, which needs no privilege and which
@@ -80,10 +80,9 @@ is not coverage of it.
 ```
 test (windows, macos)  →  build (windows, macos)  →  smoke (windows)  →  release (tag only)
      just ci                just build-installer       just verify-installed   gh release create/edit
-                            just package-macos (macOS)
                             just verify-build
                             just check-tauri
-                            upload installer / app.zip
+                            upload installer / dmg
 ```
 
 - **`build` has `needs: test`.** That one line is §5 Phase 9's requirement (a
@@ -94,10 +93,11 @@ test (windows, macos)  →  build (windows, macos)  →  smoke (windows)  →  r
   job to `just ci`.
 - Test, build and Windows smoke jobs share `.github/actions/toolchain`.
 - The build jobs upload `AgentSpace-windows-installer` and
-  `AgentSpace-macos-app`. The latter contains a `ditto` archive of the `.app`,
-  preserving executable permissions through artifact upload.
-- The macOS archive check extracts the zip, checks its bundle version,
-  executable modes and sidecar hash, then launches the extracted sidecar.
+  `AgentSpace-macos-app`. The latter is the disk image, one file, so artifact
+  upload cannot strip the app's executable permissions.
+- The macOS image check mounts the image, checks that it holds the app and an
+  `Applications` link, copies the app out, checks its bundle version,
+  executable modes and sidecar hash, then launches that sidecar.
   The Windows smoke job installs its downloaded NSIS artifact and starts the
   installed sidecar with Python removed from its environment.
 - Only a `v*` tag creates a GitHub release, after build and smoke succeed.
@@ -110,7 +110,6 @@ To reproduce the applicable jobs locally, run these commands in order:
 ```
 just ci
 just build-installer
-just package-macos     # macOS only
 just verify-build
 just check-tauri
 ```

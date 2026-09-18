@@ -144,7 +144,9 @@ def test_the_rust_shell_is_linted_after_the_sidecar_exists() -> None:
 
 
 def test_both_platforms_publish_their_verified_artefact() -> None:
-    """The macOS app must be zipped before uploading to preserve executable modes."""
+    """The macOS app travels as a disk image: one file, so upload-artifact
+    cannot strip its executable modes, and an Applications link beside it so
+    the install is a drag rather than an app left running from Downloads."""
     uploads = [
         step
         for step in _job("build")["steps"]
@@ -155,7 +157,7 @@ def test_both_platforms_publish_their_verified_artefact() -> None:
     by_platform = {step["if"]: step for step in uploads}
     for platform, name, suffix in (
         ("Windows", "AgentSpace-windows-installer", "*-setup.exe"),
-        ("macOS", "AgentSpace-macos-app", "*.app.zip"),
+        ("macOS", "AgentSpace-macos-app", "bundle/dmg/*.dmg"),
     ):
         upload = by_platform[f"runner.os == '{platform}'"]
         assert upload["with"]["name"] == name
@@ -163,13 +165,7 @@ def test_both_platforms_publish_their_verified_artefact() -> None:
         assert upload["with"]["if-no-files-found"] == "error"
 
     build = _job("build")
-    assert (
-        _step_index(build, "just build-installer")
-        < _step_index(build, "just package-macos")
-        < _step_index(build, "just verify-build")
-    )
-    packaged = next(s for s in build["steps"] if s.get("run") == "just package-macos")
-    assert packaged["if"] == "runner.os == 'macOS'"
+    assert _step_index(build, "just build-installer") < _step_index(build, "just verify-build")
     verified = next(s for s in build["steps"] if s.get("run") == "just verify-build")
     assert all(build["steps"].index(verified) < build["steps"].index(s) for s in uploads)
 
@@ -179,7 +175,8 @@ def test_both_platforms_publish_their_verified_artefact() -> None:
     assert all(s["with"]["path"] == "dist" for s in downloads)
     command = next(s["run"] for s in release["steps"] if "gh release" in s.get("run", ""))
     assert "dist/*-setup.exe" in command
-    assert "dist/*.app.zip" in command
+    assert "dist/*.dmg" in command
+    assert ".app.zip" not in command, "the zip was replaced by the disk image"
     assert '--notes-file "docs/releases/${GITHUB_REF_NAME#v}.md"' in command
     assert "gh release view" in command
     assert "gh release edit" in command
@@ -234,9 +231,9 @@ def test_every_recipe_ci_runs_works_on_a_clean_clone() -> None:
     }
     assert invoked, "the workflow runs no `just` recipes, which cannot be right"
 
-    # These read an earlier step's build with Cargo or macOS system tools;
-    # neither installs Python or Node dependencies.
-    for recipe in sorted(invoked - {"check-tauri", "package-macos"}):
+    # This one reads an earlier step's build with Cargo and installs no Python
+    # or Node dependencies.
+    for recipe in sorted(invoked - {"check-tauri"}):
         assert recipe in direct, f"{recipe!r} is not a recipe in the justfile"
         assert depends_on_setup(recipe), (
             f"`just {recipe}` never reaches `setup`, so it works only where "

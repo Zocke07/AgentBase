@@ -53,8 +53,8 @@ just verify-build      # check the built artefacts, refusing to skip
 
 The Windows installer lands in
 `apps/desktop/src-tauri/target/release/bundle/nsis/`. On macOS, the `.app`
-lands under `bundle/macos/`; run `just package-macos` before verification to
-create the distributable archive without losing executable permissions.
+lands under `bundle/macos/` and the distributable disk image, with the app
+beside an Applications link, under `bundle/dmg/`.
 
 Run `just verify-build` *after* a build, never before: it launches the frozen
 binary, unpacks the produced installer and compares the sidecar inside it
@@ -64,8 +64,8 @@ right for `just test` and wrong for a release, so this recipe passes
 
 ## Installing
 
-Download `AgentSpace_0.2.0_x64-setup.exe` for Windows x64 or
-`AgentSpace_0.2.0_aarch64-apple-darwin.app.zip` for Apple Silicon macOS from the
+Download `AgentSpace_0.3.2_x64-setup.exe` for Windows x64 or
+`AgentSpace_0.3.2_aarch64.dmg` for Apple Silicon macOS from the
 [latest release](https://github.com/Zocke07/AgentBase/releases/latest), or from the artifacts of a green
 [build run](https://github.com/Zocke07/AgentBase/actions/workflows/build.yml). See the
 [User Guide](docs/user_guide/1_getting_started.md) for both installation paths.
@@ -96,7 +96,7 @@ pass on Windows *and* macOS before any installer is bundled. A red test leaves
 the build job skipped rather than producing an artefact nobody should download.
 
 CI uploads and publishes both the Windows installer and an ad-hoc signed,
-unnotarized Apple Silicon macOS app archive. The macOS archive is made with
-`ditto` before artifact upload and verified after extraction, including a
-strict signature check. `just typecheck` runs mypy for the host and the other
+unnotarized Apple Silicon macOS disk image. The image is mounted and verified
+after the build, including a strict signature check of the app it carries.
+`just typecheck` runs mypy for the host and the other
 supported platform so platform-specific branches are checked before a push.

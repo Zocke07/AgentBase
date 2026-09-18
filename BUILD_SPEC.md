@@ -35,7 +35,7 @@ substitute equivalents, do not add the thing they replaced. If you believe one i
 | 4 | **Model credentials go in the OS keychain.** API keys and OAuth tokens never go in `.env`, SQLite, config files, logs or argv. | The credentials sit on a personal laptop. |
 | 5 | **Every filesystem/shell/network tool call passes an approval gate** before execution. No exceptions, no privileged paths for any channel. | This is the exact failure mode that produced dozens of CVEs in comparable projects. |
 | 6 | **Chat channels trigger on explicit commands/mentions only.** Never ingest ambient channel messages into agent context. | Indirect prompt injection. A slash command has a schema; a channel firehose does not. |
-| 7 | **Windows is the primary target.** macOS builds in CI and ships an ad-hoc signed, unnotarized Apple Silicon app archive. | Windows-first; macOS release added at the maintainer's request on 2026-09-13. |
+| 7 | **Windows is the primary target.** macOS builds in CI and ships an ad-hoc signed, unnotarized Apple Silicon app on a disk image. | Windows-first; macOS release added at the maintainer's request on 2026-09-13; the zip became a disk image on 2026-09-18. |
 | 8 | **Python 3.12 backend, TypeScript frontend.** No other languages except the Rust that Tauri requires. | |
 
 ---
@@ -473,9 +473,16 @@ originating chat channel, and a channel-originated tool call still hits the appr
   maintainer's release handoff: constraint 7 and §7 now permit this archive. macOS remains
   without a trusted Developer ID signature and unnotarized; Developer ID signing,
   notarization and an Intel release are deferred.
-  Zip the `.app` with `ditto --keepParent` before upload, because artifact upload strips
-  executable modes from raw files. Verify the extracted archive's bundle version, shell
-  and sidecar hashes, executable modes, database startup and shutdown before publishing.
+  Ship the `.app` inside Tauri's `dmg` image, beside a link to `/Applications`. One file
+  survives artifact upload, which strips executable modes from raw files; the link makes
+  the install a drag. **2026-09-18 deviation from the zip the 0.2.0 handoff chose:** the
+  zip left the app in Downloads, where Gatekeeper ran a fresh translocated copy on every
+  launch, Finder searches showed several AgentSpace entries and Spotlight listed none,
+  which was the first macOS bug report. The earlier objection to `dmg`, that it could
+  only fail for reasons outside this repository, predates publishing macOS at all; the
+  image is built with `CI=true` so Tauri skips the Finder AppleScript on every host.
+  Mount the image and verify the app's bundle version, shell and sidecar hashes,
+  executable modes, database startup and shutdown before publishing.
 - **Keep the repo public.** Private-repo Actions minutes drain at a 2x multiplier on Windows
   runners and 10x on macOS: the macOS build job is the expensive one to watch.
 - Keep the Windows installer unsigned for now. Windows does not hard-block an unsigned app: the
@@ -797,8 +804,8 @@ Do not build these. Do not scaffold placeholders for these.
 - Cloud-hosted knowledge databases or separate embedding services
 - Executing Obsidian community plugins inside AgentSpace
 - Agent marketplaces or plugin systems
-- Intel macOS release artifacts (Apple Silicon `.app.zip` added for 0.2.0 on 2026-09-13;
-  see constraint #7 and the Phase 9 deviation)
+- Intel macOS release artifacts (Apple Silicon `.app.zip` added for 0.2.0 on 2026-09-13,
+  replaced by a `.dmg` on 2026-09-18; see constraint #7 and the Phase 9 deviation)
 - Developer ID code signing or notarization
 - Auto-update
 - Mobile
