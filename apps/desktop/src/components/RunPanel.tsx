@@ -35,6 +35,10 @@ export interface RunPanelProps {
   onCapture?: ((event: Event) => void) | undefined;
   /** See {@link RunSummaryProps.onOpenNote}. */
   onOpenNote?: RunSummaryProps["onOpenNote"];
+  /** See {@link RunSummaryProps.spaceId}, {@link RunSummaryProps.onOpenMemory} and {@link RunSummaryProps.onMemoryChanged}. */
+  spaceId?: RunSummaryProps["spaceId"];
+  onOpenMemory?: RunSummaryProps["onOpenMemory"];
+  onMemoryChanged?: RunSummaryProps["onMemoryChanged"];
 }
 
 export function RunPanel({
@@ -49,6 +53,9 @@ export function RunPanel({
   loading = false,
   onCapture,
   onOpenNote,
+  spaceId,
+  onOpenMemory,
+  onMemoryChanged,
 }: RunPanelProps) {
   const scrubbed = cursor < events.length;
   // Room for the widest reading the counter will show ("28 / 28") so the
@@ -118,7 +125,13 @@ export function RunPanel({
       />
 
       <div className="run-projection" data-testid="run-projection">
-        <RunSummary view={view} onOpenNote={onOpenNote} />
+        <RunSummary
+          view={view}
+          onOpenNote={onOpenNote}
+          spaceId={spaceId}
+          onOpenMemory={onOpenMemory}
+          onMemoryChanged={onMemoryChanged}
+        />
 
         {/* One sentence about the run at this cursor. Derived from the fold,
             so it is the same sentence live and on replay, and it is the

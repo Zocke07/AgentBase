@@ -50,7 +50,14 @@ export function App() {
   const [runId, setRunId] = useState<string | null>(null);
   // A note another section asked the vault to open; the nonce makes a repeat
   // of the same path a new request.
-  const [noteRequest, setNoteRequest] = useState<{ path: string; heading: string | null; nonce: number } | null>(null);
+  const [noteRequest, setNoteRequest] = useState<{
+    path: string;
+    heading: string | null;
+    nonce: number;
+    inbox?: boolean;
+  } | null>(null);
+  // Bumped when a run changes a memory's status, so the vault reloads its inbox.
+  const [memoryNonce, setMemoryNonce] = useState(0);
   // Memories waiting in the inbox, reported by the vault for the rail's badge.
   const [inboxCount, setInboxCount] = useState(0);
   // Set when a request failed to reach the sidecar after startup; the window
@@ -219,6 +226,15 @@ export function App() {
   const openNote = useCallback((path: string, heading: string | null) => {
     setNoteRequest((current) => ({ path, heading, nonce: (current?.nonce ?? 0) + 1 }));
     setSection("knowledge");
+  }, []);
+
+  const openMemory = useCallback((path: string) => {
+    setNoteRequest((current) => ({ path, heading: null, nonce: (current?.nonce ?? 0) + 1, inbox: true }));
+    setSection("knowledge");
+  }, []);
+
+  const memoryChanged = useCallback(() => {
+    setMemoryNonce((current) => current + 1);
   }, []);
 
   // Ctrl/Cmd and a digit jumps to a section, in rail order.
@@ -400,6 +416,8 @@ export function App() {
                   setSection("home");
                 }}
                 onOpenNote={openNote}
+                onOpenMemory={openMemory}
+                onMemoryChanged={memoryChanged}
               />
             </ErrorBoundary>
           </div>
@@ -422,6 +440,7 @@ export function App() {
                   space={space}
                   onOpenRun={openRun}
                   openRequest={noteRequest ?? undefined}
+                  reloadNonce={memoryNonce}
                   onInboxCount={setInboxCount}
                 />
               )}

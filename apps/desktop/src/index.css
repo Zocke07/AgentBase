@@ -1852,10 +1852,76 @@ pre {
   text-decoration: line-through;
 }
 
+/* A long summary starts folded, with the fold height matching CLAIM_FOLD_PX. */
+.claim__body {
+  position: relative;
+}
+
+.claim__body--folded .claim__scroll {
+  max-height: 220px;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 70%, transparent);
+}
+
+.claim__fold {
+  margin-top: 0.3rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.claim__fold:hover {
+  color: var(--accent-strong);
+}
+
 .claim__memory {
-  margin: 0.5rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.75rem;
+  align-items: center;
+  margin: 0.6rem 0 0;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
   color: var(--muted);
   font-size: 0.8rem;
+}
+
+.claim__memory-text {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+
+.claim__memory-word {
+  color: var(--muted);
+}
+
+.claim__memory-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex: none;
+}
+
+.memory-status {
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.7333rem;
+  font-weight: 600;
+}
+
+.memory-status--proposed {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.memory-status--approved {
+  background: var(--good-soft);
+  color: var(--good);
 }
 
 
@@ -2953,7 +3019,7 @@ button.md__tag:hover {
 
 .run-projection {
   display: grid;
-  grid-template-rows: auto auto minmax(17rem, 1.4fr) minmax(9rem, 1fr);
+  grid-template-rows: auto auto minmax(20rem, 1.6fr) minmax(9rem, 1fr);
   min-height: 0;
   flex: 1;
 }
@@ -3353,7 +3419,7 @@ button.md__tag:hover {
   /* Matches NODE_WIDTH / NODE_HEIGHT in state/graph.ts, which React Flow is
      told up front so the camera never waits on a measurement. */
   width: 224px;
-  height: 118px;
+  height: 136px;
 }
 
 .agent-node--selected {
@@ -3394,23 +3460,22 @@ button.md__tag:hover {
 
 .agent-node__foot {
   display: flex;
-  gap: 0.4rem;
-  align-items: center;
+  flex-direction: column;
+  gap: 0.25rem;
   margin-top: auto;
   min-width: 0;
   font-size: 0.7333rem;
 }
 
 .agent-node__meta {
-  flex: 0 1 auto;
-  min-width: 3rem;
+  min-width: 0;
 }
 
+/* One row of chips, clipped at the right; the card caps how many it shows
+   and the last chip says how many more there are. */
 .agent-node__tools {
   display: flex;
-  flex: 1;
   gap: 0.25rem;
-  justify-content: flex-end;
   min-width: 0;
   overflow: hidden;
 }
@@ -3460,7 +3525,7 @@ button.md__tag:hover {
 
 /* The goal and the outcome, at either end of the flow: END_WIDTH / END_HEIGHT. */
 .end-node {
-  width: 184px;
+  width: 204px;
   height: 82px;
   gap: 0.1rem;
   padding: 0.5rem 0.6rem 0.45rem;
@@ -4213,6 +4278,9 @@ button.md__tag:hover {
 
 .agents-view__editor {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
   padding: 1.25rem 1.5rem;
   overflow-y: auto;
 }
@@ -4333,6 +4401,7 @@ button.md__tag:hover {
   flex-wrap: wrap;
   gap: 0.75rem;
   align-items: center;
+  width: min(46rem, 100%);
   margin-bottom: 0.75rem;
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--border);
@@ -4422,6 +4491,7 @@ button.md__tag:hover {
   display: flex;
   gap: 0.6rem;
   align-items: center;
+  width: min(46rem, 100%);
   margin-bottom: 0.75rem;
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--warn);

@@ -27,10 +27,13 @@ export const OUTCOME = "outcome";
  * `.flow-node` in the stylesheet is sized to match.
  */
 export const NODE_WIDTH = 224;
-export const NODE_HEIGHT = 118;
-export const END_WIDTH = 184;
+export const NODE_HEIGHT = 136;
+export const END_WIDTH = 204;
 export const END_HEIGHT = 82;
-const COLUMN_GAP = 100;
+/** Wide enough that a handoff label at LABEL_CHARS sits clear of both cards. */
+const COLUMN_GAP = 150;
+/** The most of a handoff task an edge label shows; the inspector has the rest. */
+const LABEL_CHARS = 22;
 const ROW_GAP = 22;
 /** Workers per column; a dozen in one column zoomed the camera out past legibility. */
 export const WORKERS_PER_COLUMN = 4;
@@ -295,7 +298,7 @@ export function workflowEdges(view: RunView): Edge[] {
     // bottom ports so it is drawn beneath the cards rather than over the
     // edge going the other way.
     const forward = pair.from === SUPERVISOR;
-    const label = pair.count > 1 ? `${String(pair.count)} handoffs` : ellipsise(pair.task, 28);
+    const label = pair.count > 1 ? `${String(pair.count)} handoffs` : ellipsise(pair.task, LABEL_CHARS);
     edges.push({
       id: `${pair.from}->${pair.to}`,
       source: pair.from,

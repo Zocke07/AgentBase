@@ -49,6 +49,28 @@ const STATE_WORD: Record<Activity, string> = {
   completed: "done",
 };
 
+/** How many tool chips a card shows before folding the rest into "+n". */
+const CHIP_LIMIT = 3;
+
+/**
+ * A chip is a glance, not a name: the built-in tools shorten to the verb
+ * that distinguishes them, and the full name stays in the chip's tooltip
+ * and in the inspector. An unknown tool keeps its name.
+ */
+const CHIP_LABEL: Readonly<Record<string, string>> = {
+  read_file: "read",
+  write_file: "write",
+  list_dir: "list",
+  search_knowledge: "search",
+  propose_memory: "memory",
+  http_get: "http",
+  run_shell: "shell",
+};
+
+function chipLabel(tool: string): string {
+  return CHIP_LABEL[tool] ?? tool;
+}
+
 function Ports() {
   return (
     <>
@@ -105,17 +127,28 @@ function AgentCard({ data }: { data: AgentNodeData }) {
             </span>
             {tools.length > 0 && (
               <span className="agent-node__tools" aria-label="Tools used">
-                {tools.map((use) => (
+                {tools.slice(0, CHIP_LIMIT).map((use) => (
                   <span
                     key={use.tool}
                     className={`agent-node__tool${use.denied > 0 ? " agent-node__tool--denied" : ""}${use.running ? " agent-node__tool--running" : ""}`}
                     title={`${use.tool}: ${String(use.calls)} executed, ${String(use.denied)} denied`}
                   >
-                    {use.tool}
+                    {chipLabel(use.tool)}
                     {use.calls > 0 && <b>{use.calls}</b>}
                     {use.denied > 0 && <i>{use.denied}</i>}
                   </span>
                 ))}
+                {tools.length > CHIP_LIMIT && (
+                  <span
+                    className="agent-node__tool"
+                    title={tools
+                      .slice(CHIP_LIMIT)
+                      .map((use) => `${use.tool}: ${String(use.calls)} executed, ${String(use.denied)} denied`)
+                      .join("\n")}
+                  >
+                    +{tools.length - CHIP_LIMIT}
+                  </span>
+                )}
               </span>
             )}
           </div>

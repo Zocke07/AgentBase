@@ -31,6 +31,10 @@ export interface RunsViewProps {
   onNewRun: () => void;
   /** Open a cited note in the Knowledge section. */
   onOpenNote?: ((path: string, heading: string | null) => void) | undefined;
+  /** Open a run's memory beside the Knowledge inbox. */
+  onOpenMemory?: ((path: string) => void) | undefined;
+  /** A memory's status was changed from a run; the inbox should reload. */
+  onMemoryChanged?: (() => void) | undefined;
 }
 
 function connectionLabel(
@@ -61,7 +65,16 @@ interface PerRun<T> {
   value: T;
 }
 
-export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, onNewRun, onOpenNote }: RunsViewProps) {
+export function RunsView({
+  onRunChanged,
+  pendingApprovals,
+  runId,
+  onSelectRun,
+  onNewRun,
+  onOpenNote,
+  onOpenMemory,
+  onMemoryChanged,
+}: RunsViewProps) {
   const [cancelling, setCancelling] = useState(false);
   /** The run the sidecar accepted a cancel for; it stops at its next check. */
   const [stopping, setStopping] = useState<string | null>(null);
@@ -342,6 +355,9 @@ export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, o
                   loading={loading}
                   onCapture={(event) => void capture(event)}
                   onOpenNote={onOpenNote}
+                  spaceId={selectedRow?.space_id ?? null}
+                  onOpenMemory={onOpenMemory}
+                  onMemoryChanged={onMemoryChanged}
                 />
               )}
             </ErrorBoundary>

@@ -1,3 +1,7 @@
+import type { MemoryItem } from "@agentspace/schemas";
+import { useEffect, useRef, useState } from "react";
+
+import * as api from "../lib/api";
 import { ellipsise, formatCount, formatDuration, formatMicros } from "../lib/format";
 import { STATUS_LABEL } from "../state/describe";
 import type { RunView } from "../state/reducer";
@@ -14,9 +18,24 @@ export interface RunSummaryProps {
   view: RunView;
   /** Open a cited note in the Knowledge section; absent where none is reachable. */
   onOpenNote?: ((path: string, heading: string | null) => void) | undefined;
+  /** The space this run belongs to, so its memory's status can be looked up. */
+  spaceId?: string | null | undefined;
+  /** Open the run's memory beside the inbox, where it is approved or forgotten. */
+  onOpenMemory?: ((path: string) => void) | undefined;
+  /** The memory's status changed here; the Knowledge section should reload its inbox. */
+  onMemoryChanged?: (() => void) | undefined;
 }
 
-export function RunSummary({ view, onOpenNote }: RunSummaryProps) {
+/** A summary taller than this starts folded; the whole canvas was scrolling off to make room for it. */
+const CLAIM_FOLD_PX = 220;
+
+export function RunSummary({
+  view,
+  onOpenNote,
+  spaceId = null,
+  onOpenMemory,
+  onMemoryChanged,
+}: RunSummaryProps) {
   const denied = view.denials.length;
   const sandboxed = view.denials.filter((denial) => denial.blockedBy === "sandbox").length;
   // From the log's own stamps, so a replay shows the duration the live view
@@ -165,7 +184,8 @@ export function RunSummary({ view, onOpenNote }: RunSummaryProps) {
               ? "The supervisor's account of the run"
               : "Why the run stopped"}
           </span>
-          <Markdown source={view.claim.text} className="claim__text" />
+          {/* Keyed by run so the fold starts closed on each run rather than carrying over. */}
+          <FoldedClaim key={view.runId ?? ""} text={view.claim.text} />
           {view.claim.kind === "summary" && (
             <p className="claim__caveat">
               This is what the agent said it did. What it actually did is the{" "}
@@ -174,10 +194,13 @@ export function RunSummary({ view, onOpenNote }: RunSummaryProps) {
             </p>
           )}
           {view.memoryPath !== null && (
-            <p className="claim__memory" data-testid="run-memory">
-              Saved as a proposed memory at <code>{view.memoryPath}</code>. Approve it in the
-              Knowledge section's inbox before later runs can retrieve it.
-            </p>
+            <RunMemory
+              key={`${spaceId ?? ""}:${view.memoryPath}`}
+              path={view.memoryPath}
+              spaceId={spaceId}
+              onOpen={onOpenMemory ?? (onOpenNote === undefined ? undefined : (path) => { onOpenNote(path, null); })}
+              onChanged={onMemoryChanged}
+            />
           )}
         </div>
       )}
@@ -190,5 +213,149 @@ export function RunSummary({ view, onOpenNote }: RunSummaryProps) {
         </p>
       )}
     </section>
+  );
+}
+
+
+/**
+ * The supervisor's summary, folded past a height when it is long: it is a
+ * claim, and the canvas and log beneath it are the evidence, which a long
+ * summary used to push off the screen.
+ */
+function FoldedClaim({ text }: { text: string }) {
+  const body = useRef<HTMLDivElement>(null);
+  const [overflows, setOverflows] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  // Measured rather than counted: Markdown height depends on headings, lists
+  // and wrapping, not on characters, and it changes when the panel is resized.
+  useEffect(() => {
+    const element = body.current;
+    if (element === null) return undefined;
+    const observer = new ResizeObserver(() => {
+      setOverflows(element.scrollHeight > CLAIM_FOLD_PX + 8);
+    });
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+    };
+  }, [text]);
+
+  return (
+    <div className={`claim__body${overflows && !open ? " claim__body--folded" : ""}`}>
+      <div ref={body} className="claim__scroll">
+        <Markdown source={text} className="claim__text" />
+      </div>
+      {overflows && (
+        <button
+          type="button"
+          className="claim__fold"
+          aria-expanded={open}
+          onClick={() => {
+            setOpen((current) => !current);
+          }}
+        >
+          {open ? "Show less" : "Show the whole summary"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+const MEMORY_WORD: Record<MemoryItem["status"], string> = {
+  proposed: "proposed: not retrieved until you approve it",
+  approved: "approved: later runs can retrieve it",
+  archived: "archived: kept, not retrieved",
+};
+
+/**
+ * The memory the run wrote, with its trust status looked up live and the one
+ * decision most people want to make here (approve) without leaving the run.
+ * Everything else about a memory happens in the Knowledge inbox.
+ */
+function RunMemory({
+  path,
+  spaceId,
+  onOpen,
+  onChanged,
+}: {
+  path: string;
+  spaceId: string | null;
+  onOpen: ((path: string) => void) | undefined;
+  onChanged: (() => void) | undefined;
+}) {
+  const [item, setItem] = useState<MemoryItem | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Keyed on the path by the caller, so a different memory is a fresh row.
+  useEffect(() => {
+    if (spaceId === null) return undefined;
+    let live = true;
+    void api
+      .listMemories(spaceId)
+      .then((index) => {
+        if (live) setItem(index.items.find((entry) => entry.path === path) ?? null);
+      })
+      .catch(() => {
+        // Without a status the row still names the file; nothing to alarm about.
+      });
+    return () => {
+      live = false;
+    };
+  }, [spaceId, path]);
+
+  const approve = async () => {
+    if (spaceId === null) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setItem(await api.updateMemory(spaceId, path, { status: "approved" }));
+      onChanged?.();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : String(failure));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const status = item?.status ?? null;
+  return (
+    <div className="claim__memory" data-testid="run-memory">
+      <span className="claim__memory-text">
+        Saved as a memory at <code>{path}</code>
+        {status !== null && (
+          <>
+            {" "}
+            <span className={`memory-status memory-status--${status}`}>{item?.pinned === true ? "pinned" : status}</span>{" "}
+            <span className="claim__memory-word">{item?.pinned === true ? "pinned: always retrieved" : MEMORY_WORD[status]}</span>
+          </>
+        )}
+        {status === null && spaceId === null && ". Approve it in the Knowledge inbox before later runs can retrieve it."}
+      </span>
+      <span className="claim__memory-actions">
+        {status === "proposed" && (
+          <button type="button" className="button button--small button--primary" disabled={busy} onClick={() => void approve()}>
+            {busy ? "Approving…" : "Approve"}
+          </button>
+        )}
+        {onOpen !== undefined && (
+          <button
+            type="button"
+            className="button button--small"
+            onClick={() => {
+              onOpen(path);
+            }}
+          >
+            Open in the inbox
+          </button>
+        )}
+      </span>
+      {error !== null && (
+        <span className="field-error" role="alert">
+          {error}
+        </span>
+      )}
+    </div>
   );
 }

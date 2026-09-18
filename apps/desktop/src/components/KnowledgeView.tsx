@@ -44,8 +44,13 @@ export interface KnowledgeViewProps {
   space: SpaceResponse;
   /** Opens the run a memory came from; absent where no run view is reachable. */
   onOpenRun?: (runId: string) => void;
-  /** A note another section asked to open; a new `nonce` is a new request. */
-  openRequest?: { path: string; heading: string | null; nonce: number } | undefined;
+  /**
+   * A note another section asked to open; a new `nonce` is a new request.
+   * `inbox` opens it beside the memory inbox rather than the file tree.
+   */
+  openRequest?: { path: string; heading: string | null; nonce: number; inbox?: boolean } | undefined;
+  /** Bumped when another section changed a memory, so the inbox is re-read. */
+  reloadNonce?: number;
   /** How many memories wait for a decision, for a badge outside this view. */
   onInboxCount?: ((proposed: number) => void) | undefined;
 }
@@ -62,7 +67,13 @@ const NEW_NOTE = "---\ntags: []\n---\n# New note\n\n";
 /** How long a confirmation stays on screen before it goes by itself. */
 const TOAST_MS = 6_000;
 
-export function KnowledgeView({ space, onOpenRun, openRequest, onInboxCount }: KnowledgeViewProps) {
+export function KnowledgeView({
+  space,
+  onOpenRun,
+  openRequest,
+  reloadNonce = 0,
+  onInboxCount,
+}: KnowledgeViewProps) {
   const [index, setIndex] = useState<KnowledgeIndex | null>(null);
   const [memories, setMemories] = useState<MemoryIndex | null>(null);
   const [browserMode, setBrowserMode] = useState<BrowserMode>("notes");
@@ -120,7 +131,7 @@ export function KnowledgeView({ space, onOpenRun, openRequest, onInboxCount }: K
       .catch((failure: unknown) => {
         setError(asMessage(failure));
       });
-  }, [space.id]);
+  }, [space.id, reloadNonce]);
 
   useEffect(() => {
     importInput.current?.setAttribute("webkitdirectory", "");
@@ -202,7 +213,7 @@ export function KnowledgeView({ space, onOpenRun, openRequest, onInboxCount }: K
   useEffect(() => {
     if (openRequest === undefined || openRequest.nonce === lastRequest.current) return;
     lastRequest.current = openRequest.nonce;
-    setBrowserMode("notes");
+    setBrowserMode(openRequest.inbox === true ? "memories" : "notes");
     requestOpen(openRequest.path, openRequest.heading);
   }, [openRequest, requestOpen]);
 

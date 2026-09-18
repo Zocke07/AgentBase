@@ -1,10 +1,33 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 
+import * as api from "../lib/api";
 import { reduceAll } from "../state/reducer";
 import { LogBuilder, twoAgentRun } from "../test/log";
 
 import { RunSummary } from "./RunSummary";
+
+vi.mock("../lib/api", () => ({
+  listMemories: vi.fn(),
+  updateMemory: vi.fn(),
+}));
+
+const mocked = vi.mocked(api);
+
+const proposed = {
+  path: "memory/runs/run-1.md",
+  run_id: "run-1",
+  source: "run",
+  title: "pick storage",
+  goal: "pick storage",
+  outcome: "SQLite.",
+  status: "proposed" as const,
+  pinned: false,
+  confidence: "medium",
+  created_at: "2026-09-18T00:00:00Z",
+  updated_at: "2026-09-18T00:00:00Z",
+};
 
 /**
  * The run's header. Most of what it shows is covered by `replayIdentity`;
@@ -91,5 +114,67 @@ describe("RunSummary", () => {
 
     expect(screen.queryByTestId("run-errors")).toBeNull();
     expect(screen.queryByTestId("budget-exceeded")).toBeNull();
+  });
+
+  it("looks up the memory's status, approves it in place and opens it beside the inbox", async () => {
+    /* The summary used to say "approve it in the Knowledge inbox" and leave
+       the user to find it; the seam between a run and its memory is the one
+       place a person decides what the app remembers. */
+    mocked.listMemories.mockResolvedValue({ items: [proposed], proposed: 1, approved: 0, archived: 0 });
+    mocked.updateMemory.mockResolvedValue({ ...proposed, status: "approved" });
+    const log = new LogBuilder();
+    const view = reduceAll([
+      log.add("run.started", { goal: "pick storage" }),
+      log.add("run.completed", { summary: "SQLite.", memory_path: "memory/runs/run-1.md" }),
+    ]);
+    const onOpenMemory = vi.fn();
+    const onMemoryChanged = vi.fn();
+
+    render(
+      <RunSummary view={view} spaceId="space-1" onOpenMemory={onOpenMemory} onMemoryChanged={onMemoryChanged} />,
+    );
+
+    const row = screen.getByTestId("run-memory");
+    await waitFor(() => {
+      expect(row.textContent).toContain("proposed");
+    });
+    expect(row.textContent).toContain("not retrieved until you approve it");
+
+    await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+    expect(mocked.updateMemory).toHaveBeenCalledWith("space-1", "memory/runs/run-1.md", { status: "approved" });
+    await waitFor(() => {
+      expect(row.textContent).toContain("later runs can retrieve it");
+    });
+    expect(onMemoryChanged).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Open in the inbox" }));
+    expect(onOpenMemory).toHaveBeenCalledWith("memory/runs/run-1.md");
+  });
+
+  it("folds a long summary and unfolds it on request", async () => {
+    /* A long summary pushed the canvas and the log, the evidence for the
+       claim, off the bottom of the screen. jsdom has no layout, so the
+       height is stubbed on the measured element. */
+    const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollHeight");
+    Object.defineProperty(HTMLElement.prototype, "scrollHeight", { configurable: true, get: () => 900 });
+    try {
+      const log = new LogBuilder();
+      const view = reduceAll([
+        log.add("run.started", { goal: "long" }),
+        log.add("run.completed", { summary: "# Plan\n\n" + "- item\n".repeat(60) }),
+      ]);
+      render(<RunSummary view={view} />);
+
+      const fold = screen.getByRole("button", { name: "Show the whole summary" });
+      expect(fold.getAttribute("aria-expanded")).toBe("false");
+      expect(screen.getByTestId("run-claim").querySelector(".claim__body--folded")).not.toBeNull();
+
+      await userEvent.click(fold);
+      expect(screen.getByRole("button", { name: "Show less" }).getAttribute("aria-expanded")).toBe("true");
+      expect(screen.getByTestId("run-claim").querySelector(".claim__body--folded")).toBeNull();
+    } finally {
+      if (original !== undefined) Object.defineProperty(HTMLElement.prototype, "scrollHeight", original);
+    }
   });
 });

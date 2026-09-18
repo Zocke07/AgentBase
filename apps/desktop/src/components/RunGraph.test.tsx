@@ -151,7 +151,9 @@ describe("RunGraph", () => {
     const { getByTestId } = graph();
 
     const chips = [...getByTestId("agent-node-researcher").querySelectorAll(".agent-node__tool")];
-    expect(chips.map((chip) => chip.textContent)).toEqual(["read_file1", "write_file1"]);
+    // The chip shows the verb; the full name and the counts are in its tooltip.
+    expect(chips.map((chip) => chip.textContent)).toEqual(["read1", "write1"]);
+    expect(chips[0]?.getAttribute("title")).toBe("read_file: 0 executed, 1 denied");
     expect(chips[0]?.className).toContain("agent-node__tool--denied");
   });
 
