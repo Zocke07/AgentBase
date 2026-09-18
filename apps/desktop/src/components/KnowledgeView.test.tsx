@@ -352,3 +352,115 @@ describe("knowledge vault", () => {
     expect(await screen.findByText(/Merged 2 memories into memory\/merged\/new\.md/)).toBeTruthy();
   });
 });
+
+describe("the vault as an editor", () => {
+  it("shows notes as a folder tree whose folders fold", async () => {
+    const user = userEvent.setup();
+    render(<KnowledgeView space={space} />);
+    await screen.findByRole("button", { name: /Storage decision/ });
+
+    const folder = screen.getByRole("button", { name: /decisions/ });
+    expect(folder).toHaveProperty("ariaExpanded", "true");
+    await user.click(folder);
+    expect(screen.queryByRole("button", { name: /Storage decision/ })).toBeNull();
+    await user.click(folder);
+    expect(screen.getByRole("button", { name: /Storage decision/ })).toBeTruthy();
+  });
+
+  it("opens the quick switcher with Ctrl+O and creates a note that does not exist", async () => {
+    const user = userEvent.setup();
+    render(<KnowledgeView space={space} />);
+    await screen.findByRole("button", { name: /Storage decision/ });
+
+    await user.keyboard("{Control>}o{/Control}");
+    const finder = screen.getByLabelText("Find a note by title or path");
+    await user.type(finder, "ideas/next steps");
+    expect(screen.getByRole("button", { name: /Create ideas\/next steps\.md/ })).toBeTruthy();
+    await user.keyboard("{Enter}");
+
+    expect(screen.getByLabelText<HTMLInputElement>("Note path").value).toBe("ideas/next steps.md");
+    expect(screen.getByLabelText<HTMLTextAreaElement>("Markdown source").value).toContain("# next steps");
+  });
+
+  it("asks before unsaved changes are lost to another note", async () => {
+    const user = userEvent.setup();
+    render(<KnowledgeView space={space} />);
+    await user.click(await screen.findByRole("button", { name: /Storage decision/ }));
+    await user.type(await screen.findByLabelText("Markdown source"), " more");
+    expect(screen.getByTestId("unsaved")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: /Orphan/ }));
+    expect(screen.getByTestId("unsaved-guard").textContent).toContain("scratch/orphan.md");
+    expect(mocked.getKnowledgeNote).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(screen.queryByTestId("unsaved-guard")).toBeNull();
+    await user.click(screen.getByRole("button", { name: /Orphan/ }));
+    await user.click(screen.getByRole("button", { name: "Discard and open" }));
+    expect(mocked.getKnowledgeNote).toHaveBeenLastCalledWith("space-lab", "scratch/orphan.md");
+  });
+
+  it("completes a [[ link from the vault's note names", async () => {
+    const user = userEvent.setup();
+    render(<KnowledgeView space={space} />);
+    await user.click(await screen.findByRole("button", { name: "New note" }));
+
+    const editor = screen.getByLabelText<HTMLTextAreaElement>("Markdown source");
+    await user.clear(editor);
+    // user-event reads `[[` as one literal bracket, so four make the two typed.
+    await user.type(editor, "See [[[[orph");
+    expect(screen.getByTestId("link-completions").textContent).toContain("Orphan");
+    await user.keyboard("{Enter}");
+
+    expect(editor.value).toBe("See [[scratch/orphan]]");
+    expect(screen.queryByTestId("link-completions")).toBeNull();
+  });
+
+  it("writes a ticked task back into the source", async () => {
+    const user = userEvent.setup();
+    mocked.getKnowledgeNote.mockResolvedValue({ ...note, content: "# Todo\n\n- [ ] write it up\n- [x] done" });
+    render(<KnowledgeView space={space} />);
+    await user.click(await screen.findByRole("button", { name: /Storage decision/ }));
+
+    await user.click(await screen.findByRole("checkbox", { name: "Mark as done" }));
+
+    expect(screen.getByLabelText<HTMLTextAreaElement>("Markdown source").value).toContain("- [x] write it up");
+    expect(screen.getByTestId("unsaved")).toBeTruthy();
+  });
+
+  it("filters the tree by a tag clicked in the preview", async () => {
+    const user = userEvent.setup();
+    mocked.getKnowledgeNote.mockResolvedValue({ ...note, content: "# Note\n\nTagged #scratch here." });
+    render(<KnowledgeView space={space} />);
+    await user.click(await screen.findByRole("button", { name: /Storage decision/ }));
+
+    const preview = screen.getByLabelText("Markdown preview");
+    const tag = [...preview.querySelectorAll("button")].find((button) => button.textContent === "#scratch");
+    if (tag === undefined) throw new Error("tag not rendered");
+    await user.click(tag);
+
+    expect(screen.getByRole("button", { name: "#scratch 1" })).toHaveProperty("ariaPressed", "true");
+    expect(screen.queryByRole("button", { name: /Storage decision/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /Orphan/ })).toBeTruthy();
+  });
+
+  it("opens the note another section asked for and reports the inbox count", async () => {
+    const onInboxCount = vi.fn();
+    mocked.listMemories.mockResolvedValue({ ...memoryIndex, proposed: 3 });
+    const { rerender } = render(<KnowledgeView space={space} onInboxCount={onInboxCount} />);
+    await screen.findByRole("button", { name: /Storage decision/ });
+    expect(onInboxCount).toHaveBeenCalledWith(3);
+
+    rerender(
+      <KnowledgeView
+        space={space}
+        onInboxCount={onInboxCount}
+        openRequest={{ path: "scratch/orphan.md", heading: null, nonce: 1 }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(mocked.getKnowledgeNote).toHaveBeenCalledWith("space-lab", "scratch/orphan.md");
+    });
+  });
+});

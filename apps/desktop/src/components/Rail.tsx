@@ -1,6 +1,8 @@
 import type { SpaceResponse } from "@agentspace/schemas";
 import type { ReactNode } from "react";
 
+import { SECTION_ORDER, type Section } from "../lib/sections";
+
 import { SpaceSwitcher } from "./SpaceSwitcher";
 
 /**
@@ -10,7 +12,7 @@ import { SpaceSwitcher } from "./SpaceSwitcher";
  * section stays mounted behind `hidden`.
  */
 
-export type Section = "home" | "runs" | "agents" | "knowledge" | "space" | "settings";
+export type { Section } from "../lib/sections";
 
 export interface RailProps {
   section: Section;
@@ -19,7 +21,10 @@ export interface RailProps {
   currentSpaceId: string | null;
   onSelectSpace: (id: string) => void;
   onSpaceCreated: (space: SpaceResponse) => void;
+  /** A count worth a glance beside a section's name: approvals waiting, memories to decide on. */
+  badges?: Partial<Record<Section, number>> | undefined;
 }
+
 
 const SECTIONS: readonly { id: Section; label: string; icon: ReactNode }[] = [
   {
@@ -78,21 +83,32 @@ export function Rail({
   currentSpaceId,
   onSelectSpace,
   onSpaceCreated,
+  badges,
 }: RailProps) {
-  const entry = (id: Section, label: string, icon: ReactNode) => (
-    <button
-      key={id}
-      type="button"
-      className={`rail__item${section === id ? " rail__item--active" : ""}`}
-      aria-current={section === id ? "page" : undefined}
-      onClick={() => {
-        onSelect(id);
-      }}
-    >
-      {icon}
-      <span>{label}</span>
-    </button>
-  );
+  const entry = (id: Section, label: string, icon: ReactNode) => {
+    const badge = badges?.[id] ?? 0;
+    const shortcut = SECTION_ORDER.indexOf(id) + 1;
+    return (
+      <button
+        key={id}
+        type="button"
+        className={`rail__item${section === id ? " rail__item--active" : ""}`}
+        aria-current={section === id ? "page" : undefined}
+        title={`${label} (Ctrl/Cmd+${String(shortcut)})`}
+        onClick={() => {
+          onSelect(id);
+        }}
+      >
+        {icon}
+        <span>{label}</span>
+        {badge > 0 && (
+          <span className="rail__badge" aria-label={`${String(badge)} waiting`}>
+            {badge}
+          </span>
+        )}
+      </button>
+    );
+  };
 
   return (
     <nav className="rail" aria-label="Sections" data-testid="rail">

@@ -5,6 +5,7 @@ import * as api from "../lib/api";
 import { useRoster } from "../state/roster";
 import { unfinished, useRunList } from "../state/runList";
 
+import { Markdown } from "./Markdown";
 import { RunCard } from "./RunCard";
 
 /**
@@ -30,6 +31,8 @@ export interface HomeViewProps {
   onOpenRuns: () => void;
   onOpenAgents: () => void;
   onOpenSettings: () => void;
+  /** Open a cited note in the Knowledge section. */
+  onOpenNote?: ((path: string, heading: string | null) => void) | undefined;
   /** Spend or settings may have changed: the shell re-reads its header. */
   onWorkspaceChanged: () => void;
 }
@@ -47,6 +50,7 @@ export function HomeView({
   onOpenRuns,
   onOpenAgents,
   onOpenSettings,
+  onOpenNote,
   onWorkspaceChanged,
 }: HomeViewProps) {
   const [goal, setGoal] = useState("");
@@ -252,7 +256,24 @@ export function HomeView({
                     }}
                   />
                   <span>
-                    <code>{hit.citation}</code>
+                    {onOpenNote === undefined ? (
+                      <code>{hit.citation}</code>
+                    ) : (
+                      <button
+                        type="button"
+                        className="citation"
+                        title="Open this note in Knowledge"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          onOpenNote(hit.path, hit.heading ?? null);
+                        }}
+                      >
+                        {hit.citation}
+                      </button>
+                    )}
+                    {hit.excerpt !== "" && (
+                      <Markdown source={hit.excerpt} className="md--compact new-run__excerpt" />
+                    )}
                     <small>
                       {Math.round(hit.score * 100)}% relevance · {hit.estimated_tokens ?? 0} tokens
                       {(hit.matched_terms ?? []).length > 0 &&

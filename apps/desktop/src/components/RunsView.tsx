@@ -29,6 +29,8 @@ export interface RunsViewProps {
   onSelectRun: (runId: string | null) => void;
   /** Take the user to the Home screen, where a run is started. */
   onNewRun: () => void;
+  /** Open a cited note in the Knowledge section. */
+  onOpenNote?: ((path: string, heading: string | null) => void) | undefined;
 }
 
 function connectionLabel(
@@ -59,7 +61,7 @@ interface PerRun<T> {
   value: T;
 }
 
-export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, onNewRun }: RunsViewProps) {
+export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, onNewRun, onOpenNote }: RunsViewProps) {
   const [cancelling, setCancelling] = useState(false);
   /** The run the sidecar accepted a cancel for; it stops at its next check. */
   const [stopping, setStopping] = useState<string | null>(null);
@@ -339,6 +341,7 @@ export function RunsView({ onRunChanged, pendingApprovals, runId, onSelectRun, o
                   onResolveApproval={resolveApproval}
                   loading={loading}
                   onCapture={(event) => void capture(event)}
+                  onOpenNote={onOpenNote}
                 />
               )}
             </ErrorBoundary>

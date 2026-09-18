@@ -16,6 +16,7 @@ import { RunsView } from "./components/RunsView";
 import { SettingsView } from "./components/SettingsView";
 import { SpaceSettingsView } from "./components/SpaceSettingsView";
 import * as api from "./lib/api";
+import { SECTION_ORDER } from "./lib/sections";
 import { connectWithRetry, type SidecarStatus } from "./lib/sidecar";
 import { useTheme } from "./lib/theme";
 import { useRoster } from "./state/roster";
@@ -47,6 +48,11 @@ export function App() {
   // Which run is open: held here so it survives a section switch and can be
   // opened from the header badge or the Home cards.
   const [runId, setRunId] = useState<string | null>(null);
+  // A note another section asked the vault to open; the nonce makes a repeat
+  // of the same path a new request.
+  const [noteRequest, setNoteRequest] = useState<{ path: string; heading: string | null; nonce: number } | null>(null);
+  // Memories waiting in the inbox, reported by the vault for the rail's badge.
+  const [inboxCount, setInboxCount] = useState(0);
   // Set when a request failed to reach the sidecar after startup; the window
   // stays where it was underneath.
   const [lost, setLost] = useState<Exclude<SidecarStatus, { kind: "ready" }> | null>(null);
@@ -205,9 +211,33 @@ export function App() {
       selectSpace(id);
       // The open run belongs to the space it was started in.
       setRunId(null);
+      setInboxCount(0);
     },
     [spaceId, selectSpace],
   );
+
+  const openNote = useCallback((path: string, heading: string | null) => {
+    setNoteRequest((current) => ({ path, heading, nonce: (current?.nonce ?? 0) + 1 }));
+    setSection("knowledge");
+  }, []);
+
+  // Ctrl/Cmd and a digit jumps to a section, in rail order.
+  useEffect(() => {
+    if (status.kind !== "ready") return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
+      const digit = Number.parseInt(event.key, 10);
+      if (Number.isNaN(digit)) return;
+      const target = SECTION_ORDER[digit - 1];
+      if (target === undefined) return;
+      event.preventDefault();
+      setSection(target);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [status.kind]);
 
   // The provider and model a run in this space would use.
   const effectiveProvider = space?.provider ?? settings?.settings.provider ?? null;
@@ -262,6 +292,7 @@ export function App() {
             setSection("home");
           });
         }}
+        badges={{ runs: pendingApprovals.length, knowledge: inboxCount }}
       />
 
       <div className="app__main">
@@ -353,6 +384,7 @@ export function App() {
                 onOpenSettings={() => {
                   setSection("settings");
                 }}
+                onOpenNote={openNote}
                 onWorkspaceChanged={refreshWorkspace}
               />
             </ErrorBoundary>
@@ -367,6 +399,7 @@ export function App() {
                 onNewRun={() => {
                   setSection("home");
                 }}
+                onOpenNote={openNote}
               />
             </ErrorBoundary>
           </div>
@@ -384,7 +417,13 @@ export function App() {
               {space === null ? (
                 <p className="runs-view__placeholder">Loading the space…</p>
               ) : (
-                <KnowledgeView key={space.id} space={space} onOpenRun={openRun} />
+                <KnowledgeView
+                  key={space.id}
+                  space={space}
+                  onOpenRun={openRun}
+                  openRequest={noteRequest ?? undefined}
+                  onInboxCount={setInboxCount}
+                />
               )}
             </ErrorBoundary>
           </div>
