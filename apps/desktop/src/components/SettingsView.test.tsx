@@ -26,6 +26,7 @@ vi.mock("../lib/api", async (importOriginal) => ({
   verifySettings: vi.fn(),
   getChannels: vi.fn(),
   getChatGPTAuth: vi.fn(),
+  installChatGPTRuntime: vi.fn(),
   startChatGPTLogin: vi.fn(),
   cancelChatGPTLogin: vi.fn(),
   logoutChatGPT: vi.fn(),
@@ -219,6 +220,81 @@ describe("the model", () => {
     expect(external.openChatGPTAuthUrl).toHaveBeenCalledWith(
       "https://auth.openai.com/oauth/authorize?client_id=test",
     );
+  });
+
+  it("fetches the App Server runtime first when it is missing, then signs in", async () => {
+    /* The runtime is not in the app. The button downloads it, shows the
+       progress the sidecar reports, and only then opens the browser sign-in. */
+    const user = userEvent.setup();
+    const missing = {
+      state: "disconnected" as const,
+      email: null,
+      plan: null,
+      error: null,
+      runtime: { state: "missing" as const, version: "0.154.0", downloaded_bytes: 0, total_bytes: 112_690_061, error: null },
+    };
+    const downloading = {
+      ...missing,
+      state: "preparing" as const,
+      runtime: { ...missing.runtime, state: "downloading" as const, downloaded_bytes: 43_000_000 },
+    };
+    const ready = { ...missing, runtime: { ...missing.runtime, state: "ready" as const } };
+    mocked.getChatGPTAuth.mockResolvedValue(missing);
+    mocked.installChatGPTRuntime.mockImplementation(() => {
+      mocked.getChatGPTAuth.mockResolvedValueOnce(downloading).mockResolvedValue(ready);
+      return Promise.resolve(downloading);
+    });
+    view();
+    await loaded();
+
+    await user.selectOptions(screen.getByTestId("setting-provider"), "openai");
+    await user.click(screen.getByTestId("setting-openai-chatgpt"));
+    expect((await screen.findByTestId("chatgpt-runtime")).textContent).toContain("0.154.0");
+    expect(screen.getByTestId("chatgpt-runtime").textContent).toContain("113 MB");
+    await user.click(screen.getByRole("button", { name: "Sign in with ChatGPT" }));
+
+    expect(mocked.installChatGPTRuntime).toHaveBeenCalledOnce();
+    expect((await screen.findByTestId("chatgpt-auth")).textContent).toContain(
+      "downloading the ChatGPT runtime · 43 MB of 113 MB",
+    );
+    await waitFor(
+      () => {
+        expect(mocked.startChatGPTLogin).toHaveBeenCalledOnce();
+      },
+      { timeout: 4_000 },
+    );
+    expect(external.openChatGPTAuthUrl).toHaveBeenCalledWith(
+      "https://auth.openai.com/oauth/authorize?client_id=test",
+    );
+  });
+
+  it("shows why the runtime could not be installed instead of opening a browser", async () => {
+    const user = userEvent.setup();
+    const failed = {
+      state: "error" as const,
+      email: null,
+      plan: null,
+      error: null,
+      runtime: {
+        state: "error" as const,
+        version: "0.154.0",
+        downloaded_bytes: 0,
+        total_bytes: 112_690_061,
+        error: "The ChatGPT runtime download did not match the pinned SHA-256 and was discarded.",
+      },
+    };
+    mocked.getChatGPTAuth.mockResolvedValue({ ...failed, state: "disconnected", runtime: { ...failed.runtime, state: "missing", error: null } });
+    mocked.installChatGPTRuntime.mockResolvedValue(failed);
+    view();
+    await loaded();
+
+    await user.selectOptions(screen.getByTestId("setting-provider"), "openai");
+    await user.click(screen.getByTestId("setting-openai-chatgpt"));
+    await user.click(await screen.findByRole("button", { name: "Sign in with ChatGPT" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain("pinned SHA-256");
+    expect(mocked.startChatGPTLogin).not.toHaveBeenCalled();
+    expect(external.openChatGPTAuthUrl).not.toHaveBeenCalled();
   });
 
   it("shows the connected ChatGPT account and can sign out", async () => {

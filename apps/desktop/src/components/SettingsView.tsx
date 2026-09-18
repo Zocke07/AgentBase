@@ -2,6 +2,7 @@ import type {
   ChannelIdentity,
   ChannelStatusResponse,
   ChatGPTAuthResponse,
+  ChatGPTRuntimeResponse,
   ProviderCatalogueResponse,
   RiskLevel,
   SettingsResponse,
@@ -654,16 +655,23 @@ const DISCONNECTED_CHATGPT: ChatGPTAuthResponse = {
   error: null,
 };
 
+const RUNTIME_POLL_MS = 1_000;
+
+function megabytes(bytes: number): string {
+  return `${String(Math.round(bytes / 1_000_000))} MB`;
+}
+
 /** ChatGPT OAuth stays independent of saving the access-mode preference. */
 function ChatGPTAccount() {
   const load = useCallback(() => api.getChatGPTAuth(), []);
   const auth = useFetched(load, DISCONNECTED_CHATGPT);
   const [working, setWorking] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  const [download, setDownload] = useState<ChatGPTRuntimeResponse | null>(null);
 
   useEffect(() => {
-    if (auth.data.state !== "connecting") return;
-    const timer = window.setInterval(auth.reload, 1_000);
+    if (auth.data.state !== "connecting" && auth.data.state !== "preparing") return;
+    const timer = window.setInterval(auth.reload, RUNTIME_POLL_MS);
     return () => {
       window.clearInterval(timer);
     };
@@ -679,14 +687,36 @@ function ChatGPTAccount() {
       setFailure(error instanceof Error ? error.message : String(error));
     } finally {
       setWorking(false);
+      setDownload(null);
     }
   };
 
+  // The App Server runtime is not shipped in the app: the first sign-in
+  // fetches the pinned build, then the browser sign-in proceeds by itself.
   const connect = () =>
     act(async () => {
+      let status = auth.data;
+      if (status.runtime !== null && status.runtime !== undefined && status.runtime.state !== "ready") {
+        status = await api.installChatGPTRuntime();
+        setDownload(status.runtime ?? null);
+        while (status.state === "preparing") {
+          await new Promise((resolve) => window.setTimeout(resolve, RUNTIME_POLL_MS));
+          status = await api.getChatGPTAuth();
+          setDownload(status.runtime ?? null);
+        }
+        if (status.runtime?.state !== "ready") {
+          throw new Error(status.runtime?.error ?? status.error ?? "The ChatGPT runtime could not be installed.");
+        }
+      }
       const attempt = await api.startChatGPTLogin();
       await openChatGPTAuthUrl(attempt.auth_url);
     });
+
+  const runtime = download ?? auth.data.runtime ?? null;
+  const downloading = runtime !== null && runtime.state === "downloading";
+  const progress = downloading
+    ? `downloading the ChatGPT runtime · ${megabytes(runtime.downloaded_bytes ?? 0)} of ${megabytes(runtime.total_bytes ?? 0)}`
+    : null;
 
   const state = auth.loading
     ? "checking"
@@ -694,7 +724,7 @@ function ChatGPTAccount() {
       ? "connected"
       : auth.data.state === "connecting"
         ? "waiting for browser sign-in"
-        : "not connected";
+        : progress ?? "not connected";
 
   return (
     <div className="settings__oauth" data-testid="chatgpt-auth">
@@ -733,16 +763,23 @@ function ChatGPTAccount() {
           <button
             type="button"
             className="button button--small button--primary"
-            disabled={working}
+            disabled={working || auth.data.state === "preparing"}
             onClick={() => void connect()}
           >
-            {working ? "Opening…" : "Sign in with ChatGPT"}
+            {working ? (downloading ? "Downloading…" : "Opening…") : "Sign in with ChatGPT"}
           </button>
         )}
         <button type="button" className="button button--small" onClick={auth.reload}>
           Refresh
         </button>
       </div>
+      {runtime !== null && runtime.state !== "ready" && auth.data.state !== "connected" && (
+        <p className="settings__hint" data-testid="chatgpt-runtime">
+          The first sign-in downloads the Codex App Server runtime {runtime.version} (about{" "}
+          {megabytes(runtime.total_bytes ?? 112_000_000)}) from PyPI into AgentSpace's data folder,
+          verified against its pinned checksum. API-key access never needs it.
+        </p>
+      )}
       {(failure ?? auth.error ?? auth.data.error) !== null && (
         <p className="settings__error" role="alert">
           {failure ?? auth.error ?? auth.data.error}

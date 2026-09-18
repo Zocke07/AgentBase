@@ -68,6 +68,7 @@ cross_platform := if os() == "windows" { "darwin" } else { "win32" }
 # migration, and forgetting it is a binary that dies on a missing resource
 # only when frozen. A test asserts the glob covers every MIGRATIONS entry.
 migrations_sql := justfile_directory() / "apps" / "backend" / "src" / "agentspace" / "store" / "*.sql"
+codex_manifest := justfile_directory() / "apps" / "backend" / "src" / "agentspace" / "providers" / "codex_runtime.json"
 sidecar_path := sidecar_dir / sidecar_file
 
 # Generated TypeScript API types, committed rather than built on demand.
@@ -219,13 +220,20 @@ schemas:
 # ---------------------------------------------------------------------------
 
 # Freeze the sidecar into a single self-contained executable. --add-data
-# carries the migration SQL and the pinned Codex App Server runtime, which
-# `--onefile` would otherwise omit. `codex_cli_bin` is imported dynamically by
-# the SDK, so both its module and platform binaries must be named explicitly.
+# carries the migration SQL and the Codex runtime manifest, which `--onefile`
+# would otherwise omit. The Codex App Server runtime itself is excluded: it is
+# fetched into the data directory on the first ChatGPT sign-in, because a
+# one-file sidecar unpacks everything it carries on every launch.
 [group('build')]
 [working-directory('apps/backend')]
 build-sidecar:
-    uv run pyinstaller --onefile --clean --noconfirm --name {{ sidecar_binary }} --distpath {{ sidecar_dir }} --workpath {{ dev_dir / "cache" / "pyinstaller" / "build" }} --specpath {{ dev_dir / "cache" / "pyinstaller" }} --add-data "{{ migrations_sql }}{{ data_sep }}agentspace/store" --hidden-import codex_cli_bin --collect-all codex_cli_bin src/agentspace/__main__.py
+    uv run pyinstaller --onefile --clean --noconfirm --name {{ sidecar_binary }} --distpath {{ sidecar_dir }} --workpath {{ dev_dir / "cache" / "pyinstaller" / "build" }} --specpath {{ dev_dir / "cache" / "pyinstaller" }} --add-data "{{ migrations_sql }}{{ data_sep }}agentspace/store" --add-data "{{ codex_manifest }}{{ data_sep }}agentspace/providers" --exclude-module codex_cli_bin src/agentspace/__main__.py
+
+# Regenerate the Codex runtime manifest from the wheels `uv.lock` pins.
+[group('build')]
+[working-directory('apps/backend')]
+codex-manifest:
+    uv run python -m agentspace.providers.codex_runtime uv.lock {{ codex_manifest }}
 
 # Show the built sidecar's path, size and hash.
 [group('build')]

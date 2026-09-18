@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
@@ -39,6 +40,11 @@ from agentspace.providers.base import (
     ToolCall,
     ToolSpec,
 )
+from agentspace.providers.codex_runtime import (
+    CodexRuntimeError,
+    CodexRuntimeInstaller,
+    CodexRuntimeStatus,
+)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -54,17 +60,22 @@ __all__ = [
     "CodexAppServerRuntime",
 ]
 
-AuthState = Literal["connected", "connecting", "disconnected", "error"]
+AuthState = Literal["connected", "connecting", "preparing", "disconnected", "error"]
 
 
 @dataclass(frozen=True, slots=True)
 class ChatGPTAuthStatus:
-    """Safe account facts for the UI. OAuth tokens never enter this shape."""
+    """Safe account facts for the UI. OAuth tokens never enter this shape.
+
+    `preparing` means the runtime is still being fetched; `runtime` carries its
+    progress so Settings can show it before the browser sign-in can begin.
+    """
 
     state: AuthState
     email: str | None = None
     plan: str | None = None
     error: str | None = None
+    runtime: CodexRuntimeStatus | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,6 +140,8 @@ class ChatGPTRuntime(ChatGPTInferenceRuntime, ChatGPTStreamingInferenceRuntime, 
 
     async def status(self) -> ChatGPTAuthStatus: ...
 
+    async def install_runtime(self) -> ChatGPTAuthStatus: ...
+
     async def start_login(self) -> ChatGPTLoginAttempt: ...
 
     async def cancel_login(self) -> None: ...
@@ -187,20 +200,25 @@ _CODEX_OVERRIDES = (
 
 
 class CodexAppServerRuntime:
-    """One pinned Codex App Server process for OAuth and model requests."""
+    """One pinned Codex App Server process for OAuth and model requests.
 
-    def __init__(self, codex_home: Path, codex: AsyncCodex | None = None) -> None:
+    The App Server executable is not part of the sidecar. `installer` fetches
+    it once into the data directory, and the client is built the first time
+    the executable is both wanted and present.
+    """
+
+    def __init__(
+        self,
+        codex_home: Path,
+        installer: CodexRuntimeInstaller | None = None,
+        codex: AsyncCodex | None = None,
+    ) -> None:
         self._home = codex_home.resolve()
         self._cwd = self._home / "transport"
-        self._codex = codex or AsyncCodex(
-            CodexConfig(
-                config_overrides=_CODEX_OVERRIDES,
-                cwd=str(self._cwd),
-                env={"CODEX_HOME": str(self._home)},
-                client_name="agentspace",
-                client_title="AgentSpace",
-            )
+        self._installer = installer or CodexRuntimeInstaller(
+            self._home.parent / "codex-runtime"
         )
+        self._codex = codex
         self._login_handle: AsyncChatgptLoginHandle | None = None
         self._login_attempt: ChatGPTLoginAttempt | None = None
         self._login_task: asyncio.Task[None] | None = None
@@ -213,38 +231,97 @@ class CodexAppServerRuntime:
         # keyring is forced above, so lack of an OS credential store is an error.
         self._cwd.mkdir(parents=True, exist_ok=True)
 
+    def _client(self) -> AsyncCodex | None:
+        """The App Server client, or None while the runtime is not installed."""
+        if self._codex is not None:
+            return self._codex
+        executable = self._installer.installed_codex()
+        if executable is None:
+            return None
+        # `codex_bin` disables the SDK's own PATH additions, so the bundled
+        # helpers (ripgrep) are put on PATH here instead.
+        path_dirs = [str(item) for item in self._installer.path_dirs()]
+        env = {"CODEX_HOME": str(self._home)}
+        if path_dirs:
+            env["PATH"] = os.pathsep.join([*path_dirs, os.environ.get("PATH", "")])
+        self._codex = AsyncCodex(
+            CodexConfig(
+                codex_bin=str(executable),
+                config_overrides=_CODEX_OVERRIDES,
+                cwd=str(self._cwd),
+                env=env,
+                client_name="agentspace",
+                client_title="AgentSpace",
+            )
+        )
+        return self._codex
+
+    def _require_client(self) -> AsyncCodex:
+        client = self._client()
+        if client is None:
+            runtime = self._installer.status()
+            if runtime.state == "downloading":
+                raise ProviderUnavailableError(
+                    "The ChatGPT runtime is still downloading; try again when it is ready."
+                )
+            raise ProviderUnavailableError(
+                "The ChatGPT runtime is not installed. Install it from Settings first."
+            )
+        return client
+
     async def _account_payload(self) -> dict[str, Any] | None:
         self._ensure_directories()
-        response = await self._codex.account()
+        response = await self._require_client().account()
         if response.account is None:
             return None
         dumped = response.account.model_dump(mode="json")
         return dumped if isinstance(dumped, dict) else None
 
     async def status(self) -> ChatGPTAuthStatus:
+        runtime = self._installer.status()
+        if self._client() is None:
+            if runtime.state == "downloading":
+                return ChatGPTAuthStatus(state="preparing", runtime=runtime)
+            if runtime.state == "error":
+                return ChatGPTAuthStatus(state="error", error=runtime.error, runtime=runtime)
+            return ChatGPTAuthStatus(state="disconnected", runtime=runtime)
+
         try:
             account = await self._account_payload()
         except Exception as exc:
-            return ChatGPTAuthStatus(state="error", error=_safe_error(exc))
+            return ChatGPTAuthStatus(state="error", error=_safe_error(exc), runtime=runtime)
 
         if account is not None:
             if account.get("type") != "chatgpt":
                 return ChatGPTAuthStatus(
                     state="error",
                     error="Codex is not authenticated with ChatGPT. Sign in from AgentSpace.",
+                    runtime=runtime,
                 )
             return ChatGPTAuthStatus(
                 state="connected",
                 email=_optional_text(account.get("email")),
                 plan=_optional_text(account.get("plan_type") or account.get("planType")),
+                runtime=runtime,
             )
 
         task = self._login_task
         if task is not None and not task.done():
-            return ChatGPTAuthStatus(state="connecting")
+            return ChatGPTAuthStatus(state="connecting", runtime=runtime)
         if self._login_error is not None:
-            return ChatGPTAuthStatus(state="error", error=self._login_error)
-        return ChatGPTAuthStatus(state="disconnected")
+            return ChatGPTAuthStatus(state="error", error=self._login_error, runtime=runtime)
+        return ChatGPTAuthStatus(state="disconnected", runtime=runtime)
+
+    async def install_runtime(self) -> ChatGPTAuthStatus:
+        """Start fetching the runtime if it is absent; answer with the current state."""
+        if self._client() is None:
+            try:
+                self._installer.start()
+            except CodexRuntimeError as exc:
+                raise ProviderUnavailableError(str(exc)) from exc
+            # Let the task reach its first await so a failure to even begin shows up.
+            await asyncio.sleep(0)
+        return await self.status()
 
     async def start_login(self) -> ChatGPTLoginAttempt:
         async with self._lock:
@@ -253,9 +330,10 @@ class CodexAppServerRuntime:
                     raise ProviderError("ChatGPT login state is inconsistent.")
                 return self._login_attempt
 
+            codex = self._require_client()
             self._ensure_directories()
             self._login_error = None
-            handle = await self._codex.login_chatgpt()
+            handle = await codex.login_chatgpt()
             attempt = ChatGPTLoginAttempt(handle.login_id, handle.auth_url)
             self._login_handle = handle
             self._login_attempt = attempt
@@ -292,8 +370,12 @@ class CodexAppServerRuntime:
 
     async def logout(self) -> None:
         await self.cancel_login()
+        codex = self._client()
+        if codex is None:
+            # Nothing could have signed in without the runtime.
+            return
         self._ensure_directories()
-        await self._codex.logout()
+        await codex.logout()
 
     async def aclose(self) -> None:
         task = self._login_task
@@ -301,7 +383,9 @@ class CodexAppServerRuntime:
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await task
-        await self._codex.close()
+        await self._installer.aclose()
+        if self._codex is not None:
+            await self._codex.close()
 
     async def infer(
         self,
@@ -365,7 +449,7 @@ class CodexAppServerRuntime:
         system_parts.extend(
             message.content for message in messages if message.role is Role.SYSTEM
         )
-        return await self._codex.thread_start(
+        return await self._require_client().thread_start(
             approval_mode=ApprovalMode.deny_all,
             base_instructions=_BASE_INSTRUCTIONS,
             developer_instructions="\n\n".join(system_parts) or None,

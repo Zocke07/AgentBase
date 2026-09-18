@@ -53,6 +53,7 @@ from agentspace.events.store import EventStore
 from agentspace.knowledge.store import KnowledgeStore
 from agentspace.orchestrator.launcher import RunLauncher
 from agentspace.providers.chatgpt import ChatGPTRuntime, CodexAppServerRuntime
+from agentspace.providers.codex_runtime import CodexRuntimeInstaller
 from agentspace.secrets import SecretStore, parse_secrets_line
 from agentspace.store.agents import AgentDefStore
 from agentspace.store.db import Database
@@ -134,7 +135,8 @@ def create_app(
         app.state.agents = AgentDefStore(database, app.state.settings)
         app.state.ledger = BudgetLedger(database, app.state.settings, app.state.store)
         app.state.chatgpt_runtime = chatgpt_runtime or CodexAppServerRuntime(
-            resolved.data_dir / "codex"
+            resolved.data_dir / "codex",
+            installer=CodexRuntimeInstaller(resolved.data_dir / "codex-runtime"),
         )
 
         approval_store = ApprovalStore(database)

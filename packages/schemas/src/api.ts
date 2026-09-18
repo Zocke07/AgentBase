@@ -67,15 +67,25 @@ export interface ChannelStatusResponse {
 }
 
 export interface ChatGPTAuthResponse {
-  state: "connected" | "connecting" | "disconnected" | "error";
+  state: "connected" | "connecting" | "preparing" | "disconnected" | "error";
   email?: string | null;
   plan?: string | null;
   error?: string | null;
+  runtime?: ChatGPTRuntimeResponse | null;
 }
 
 export interface ChatGPTLoginResponse {
   login_id: string;
   auth_url: string;
+}
+
+/** The fetched App Server runtime: absent, downloading with progress, ready or failed. */
+export interface ChatGPTRuntimeResponse {
+  state: "ready" | "missing" | "downloading" | "error";
+  version: string;
+  downloaded_bytes?: number;
+  total_bytes?: number;
+  error?: string | null;
 }
 
 /** Where the copy goes. A copy is a new row with a new id, never a built-in. */

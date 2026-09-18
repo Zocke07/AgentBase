@@ -325,10 +325,15 @@ def test_frozen_sidecar_creates_its_database(
     )
 
 
-def test_frozen_sidecar_contains_the_pinned_codex_runtime(
+def test_frozen_sidecar_leaves_the_codex_runtime_to_a_first_sign_in(
     sidecar: subprocess.Popen[str],
 ) -> None:
-    """The SDK finds its CLI through a dynamic import PyInstaller cannot infer."""
+    """The App Server runtime is fetched into the data directory, not frozen.
+
+    A frozen copy made every launch unpack 290 MB. The sidecar must therefore
+    start without `codex_cli_bin`, report the runtime as missing rather than
+    crash, and know which pinned wheel it would fetch.
+    """
     _require_ready(sidecar)
 
     with urllib.request.urlopen(
@@ -336,10 +341,16 @@ def test_frozen_sidecar_contains_the_pinned_codex_runtime(
     ) as response:
         body = json.loads(response.read())
 
-    assert body["state"] in {"connected", "disconnected", "error"}
-    error = str(body.get("error") or "")
-    assert "pinned Codex runtime" not in error
-    assert "Codex binary not found" not in error
+    assert body["state"] == "disconnected", body
+    assert body["runtime"]["state"] == "missing", body
+    assert body["runtime"]["version"], body
+    assert body["error"] is None
+
+
+def test_frozen_sidecar_is_not_carrying_the_codex_runtime() -> None:
+    """Size is the cheapest guard against `--collect-all codex_cli_bin` returning."""
+    size = SIDECAR.stat().st_size
+    assert size < 60_000_000, f"the sidecar is {size:,} bytes; the runtime is bundled again"
 
 
 def test_frozen_sidecar_streams_a_debug_run(sidecar: subprocess.Popen[str]) -> None:

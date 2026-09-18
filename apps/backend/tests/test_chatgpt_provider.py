@@ -20,7 +20,6 @@ from agentspace.providers.base import (
     ToolSpec,
 )
 from agentspace.providers.chatgpt import (
-    ChatGPTAuthStatus,
     ChatGPTModelDelta,
     ChatGPTModelResponse,
     ChatGPTSubscriptionProvider,
@@ -273,7 +272,7 @@ class _FakeCodex:
 
 async def test_codex_runtime_is_a_single_restricted_model_turn(tmp_path: Path) -> None:
     fake = _FakeCodex()
-    runtime = CodexAppServerRuntime(tmp_path / "codex", cast(AsyncCodex, fake))
+    runtime = CodexAppServerRuntime(tmp_path / "codex", codex=cast(AsyncCodex, fake))
 
     response = await runtime.infer(
         "gpt-5.6-terra",
@@ -298,8 +297,11 @@ async def test_codex_runtime_is_a_single_restricted_model_turn(tmp_path: Path) -
     assert "Second system rule." not in fake.thread.run_kwargs["prompt"]
     assert response.usage == TokenUsage(31, 9)
     assert response.tool_calls == (ToolCall("codex_turn_42_1", "read_file", {"path": "q3.md"}),)
-    assert await runtime.status() == ChatGPTAuthStatus(
-        state="connected", email="person@example.com", plan="plus"
+    status = await runtime.status()
+    assert (status.state, status.email, status.plan) == (
+        "connected",
+        "person@example.com",
+        "plus",
     )
 
     await runtime.aclose()
@@ -310,7 +312,7 @@ async def test_codex_runtime_streams_only_decoded_text_then_the_decision(
     tmp_path: Path,
 ) -> None:
     fake = _FakeCodex()
-    runtime = CodexAppServerRuntime(tmp_path / "codex", cast(AsyncCodex, fake))
+    runtime = CodexAppServerRuntime(tmp_path / "codex", codex=cast(AsyncCodex, fake))
 
     events = [
         event

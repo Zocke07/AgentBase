@@ -333,10 +333,21 @@
             ],
             "title": "Plan"
           },
+          "runtime": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChatGPTRuntimeResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "state": {
             "enum": [
               "connected",
               "connecting",
+              "preparing",
               "disconnected",
               "error"
             ],
@@ -366,6 +377,52 @@
           "auth_url"
         ],
         "title": "ChatGPTLoginResponse",
+        "type": "object"
+      },
+      "ChatGPTRuntimeResponse": {
+        "description": "The fetched App Server runtime: absent, downloading with progress, ready or failed.",
+        "properties": {
+          "downloaded_bytes": {
+            "default": 0,
+            "title": "Downloaded Bytes",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "state": {
+            "enum": [
+              "ready",
+              "missing",
+              "downloading",
+              "error"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "total_bytes": {
+            "default": 0,
+            "title": "Total Bytes",
+            "type": "integer"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "version"
+        ],
+        "title": "ChatGPTRuntimeResponse",
         "type": "object"
       },
       "CopyAgentRequest": {
@@ -3124,6 +3181,25 @@
           }
         },
         "summary": "Chatgpt Logout"
+      }
+    },
+    "/auth/chatgpt/runtime": {
+      "post": {
+        "description": "Fetch the pinned App Server runtime once; idempotent while it downloads.",
+        "operationId": "chatgpt_install_runtime_auth_chatgpt_runtime_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatGPTAuthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Chatgpt Install Runtime"
       }
     },
     "/budget": {

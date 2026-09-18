@@ -15,6 +15,7 @@ from agentspace.providers.chatgpt import (
     ChatGPTModelDelta,
     ChatGPTModelResponse,
 )
+from agentspace.providers.codex_runtime import CodexRuntimeStatus
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -28,6 +29,18 @@ class FakeChatGPTRuntime:
     closed: bool = False
 
     async def status(self) -> ChatGPTAuthStatus:
+        return self.auth
+
+    async def install_runtime(self) -> ChatGPTAuthStatus:
+        self.auth = ChatGPTAuthStatus(
+            state="preparing",
+            runtime=CodexRuntimeStatus(
+                state="downloading",
+                version="0.154.0",
+                downloaded_bytes=1_000,
+                total_bytes=112_690_061,
+            ),
+        )
         return self.auth
 
     async def start_login(self) -> ChatGPTLoginAttempt:
@@ -82,6 +95,7 @@ def test_chatgpt_auth_lifecycle_is_reported_without_tokens(app_paths: AppPaths) 
             "email": None,
             "plan": None,
             "error": None,
+            "runtime": None,
         }
 
         started = client.post("/auth/chatgpt/login")
@@ -153,3 +167,24 @@ def test_chatgpt_access_verify_explains_when_login_is_missing(app_paths: AppPath
     assert verified["ok"] is False
     assert "chatgpt" in verified["reason"].lower()
     assert "sign in" in verified["reason"].lower()
+
+
+def test_the_runtime_can_be_fetched_before_sign_in_and_reports_progress(
+    app_paths: AppPaths,
+) -> None:
+    """Sign-in waits for the runtime; the endpoint that fetches it is idempotent."""
+    runtime = FakeChatGPTRuntime(ChatGPTAuthStatus(state="disconnected"))
+
+    with TestClient(create_app(app_paths, chatgpt_runtime=runtime)) as client:
+        started = client.post("/auth/chatgpt/runtime")
+        assert started.status_code == 200, started.text
+        assert started.json()["state"] == "preparing"
+        assert started.json()["runtime"] == {
+            "state": "downloading",
+            "version": "0.154.0",
+            "downloaded_bytes": 1_000,
+            "total_bytes": 112_690_061,
+            "error": None,
+        }
+        assert client.get("/auth/chatgpt").json()["state"] == "preparing"
+        assert "token" not in started.text.lower()

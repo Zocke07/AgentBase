@@ -393,6 +393,10 @@ export const verifySettings = (spaceId?: string): Promise<VerifyResponse> =>
 export const getChatGPTAuth = (): Promise<ChatGPTAuthResponse> =>
   request<ChatGPTAuthResponse>("/auth/chatgpt");
 
+/** Fetch the pinned App Server runtime into the data directory; idempotent while it runs. */
+export const installChatGPTRuntime = (): Promise<ChatGPTAuthResponse> =>
+  request<ChatGPTAuthResponse>("/auth/chatgpt/runtime", { method: "POST" });
+
 export const startChatGPTLogin = (): Promise<ChatGPTLoginResponse> =>
   request<ChatGPTLoginResponse>("/auth/chatgpt/login", { method: "POST" });
 
