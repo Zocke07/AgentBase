@@ -28,7 +28,8 @@ exists that fails when they do not: read the failure, it names the other place.
 4. If a run depends on it, **snapshot it at run start** (see `RunLimits`): a
    run must not be held to different rules at step 1 and step 12.
 5. If a service depends on it (channels), make the `PATCH` handler reconcile
-   immediately: this product has no restart button.
+   immediately. The **Restart AgentSpace** button exists for keys, which only
+   reach the sidecar at spawn; a setting must never need it.
 6. For a space override, also update `store/spaces.py`, `api/spaces.py`,
    `Space.apply_to`, and the space editor. Preserve the distinction between a
    missing PATCH field, `null` for inheritance, and `[]` for a space's manual
@@ -43,7 +44,9 @@ change.** That was the Phase 5 `max_steps` bug; the rule is in CLAUDE.md.
 2. `apps/desktop/src-tauri/src/lib.rs`: `SECRET_NAMES`. `test_secrets.py` compares them.
 3. If it is a provider key, `providers/factory.py`: `SUPPORTED_PROVIDERS`.
 4. `apps/desktop/src/components/SettingsView.tsx`: the key row. The app reads
-   keys at startup, so saving or clearing a key requires a restart.
+   keys at startup, so saving or clearing a key requires a restart; the
+   `KeyRows` component offers it through the shell's `restart_app` once any
+   key has changed.
 
 Secrets go in the keychain and travel over stdin. Never in `settings`, never in
 a file, never in `argv`, never in a log. `test_no_api_keys_in_tracked_files`

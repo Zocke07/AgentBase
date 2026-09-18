@@ -17,6 +17,7 @@ import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
 import { openChatGPTAuthUrl } from "../lib/external";
 import { clearSecret, keychainAvailable, setSecret } from "../lib/keychain";
+import { restartApp, restartAvailable } from "../lib/shell";
 import { THEMES, useThemeStore, type Theme } from "../lib/theme";
 import { useFetched } from "../state/useFetched";
 
@@ -25,8 +26,9 @@ import { useFetched } from "../state/useFetched";
  *
  * Keys go to the OS keychain, not to the sidecar (§1 constraint 4): the
  * webview writes an entry the shell reads at the next spawn, so every key row
- * says "restart to apply", and which keys are set comes from
- * `configured_secrets` by name only. Save is a PATCH of what changed, diffed
+ * says "restart to apply" and the section offers the restart itself once a
+ * key has changed, and which keys are set comes from `configured_secrets` by
+ * name only. Save is a PATCH of what changed, diffed
  * against what the screen loaded, and a refusal lands on the field the
  * server named. Money is dollars here and integer micros on the wire.
  */
@@ -475,7 +477,7 @@ function SettingsForm({
         <p className="settings__hint">
           Keys live in the operating system&apos;s keychain and are read once, when AgentSpace starts. They
           are never written to a file or sent to the sidecar by this screen; after setting or clearing
-          one, restart AgentSpace.
+          one, restart AgentSpace. A restart stops any run in progress.
         </p>
         <KeyRows loaded={loaded} />
       </section>
@@ -841,6 +843,18 @@ function KeyRows({ loaded }: { loaded: SettingsResponse }) {
   const [written, setWritten] = useState<ReadonlySet<string>>(() => new Set());
   const [cleared, setCleared] = useState<ReadonlySet<string>>(() => new Set());
   const [failure, setFailure] = useState<string | null>(null);
+  const [restarting, setRestarting] = useState(false);
+
+  const restart = async () => {
+    setFailure(null);
+    setRestarting(true);
+    try {
+      await restartApp();
+    } catch (error) {
+      setRestarting(false);
+      setFailure(error instanceof Error ? error.message : String(error));
+    }
+  };
 
   const commit = async (name: string) => {
     if (draft.trim() === "") return;
@@ -966,6 +980,21 @@ function KeyRows({ loaded }: { loaded: SettingsResponse }) {
           );
         })}
       </ul>
+      {restartAvailable() && (written.size > 0 || cleared.size > 0) && (
+        <p className="settings__restart" data-testid="restart-offer">
+          <button
+            type="button"
+            className="button button--primary"
+            disabled={restarting}
+            onClick={() => void restart()}
+          >
+            {restarting ? "Restarting…" : "Restart AgentSpace"}
+          </button>
+          <span className="settings__hint">
+            Quits and reopens the app so the sidecar starts with the keys as they are now.
+          </span>
+        </p>
+      )}
     </div>
   );
 }

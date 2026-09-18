@@ -7,6 +7,7 @@ import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
 import * as external from "../lib/external";
 import * as keychain from "../lib/keychain";
+import * as shell from "../lib/shell";
 
 import { SettingsView } from "./SettingsView";
 
@@ -40,6 +41,11 @@ vi.mock("../lib/keychain", () => ({
   keychainAvailable: vi.fn(() => false),
   setSecret: vi.fn(),
   clearSecret: vi.fn(),
+}));
+
+vi.mock("../lib/shell", () => ({
+  restartAvailable: vi.fn(() => false),
+  restartApp: vi.fn(),
 }));
 
 const mocked = vi.mocked(api);
@@ -96,6 +102,7 @@ beforeEach(() => {
   mocked.logoutChatGPT.mockResolvedValue(undefined);
   vi.mocked(external.openChatGPTAuthUrl).mockResolvedValue(undefined);
   vi.mocked(keychain.keychainAvailable).mockReturnValue(false);
+  vi.mocked(shell.restartAvailable).mockReturnValue(false);
 });
 
 function view(onSaved = vi.fn()) {
@@ -377,6 +384,58 @@ describe("keys", () => {
     await user.click(screen.getByRole("button", { name: "Clear anthropic_api_key" }));
 
     expect(keychain.clearSecret).toHaveBeenCalledWith("anthropic_api_key");
+  });
+
+  it("offers a restart only once a key has changed, and asks the shell for it", async () => {
+    /* The button is the shell's relaunch: the sidecar reads keys at spawn, so
+       nothing short of a restart applies a change. Before any change there is
+       nothing to apply, and a browser tab has no process to relaunch. */
+    const user = userEvent.setup();
+    vi.mocked(keychain.keychainAvailable).mockReturnValue(true);
+    vi.mocked(shell.restartAvailable).mockReturnValue(true);
+    vi.mocked(keychain.clearSecret).mockResolvedValue(undefined);
+    vi.mocked(shell.restartApp).mockResolvedValue(undefined);
+    view();
+    await loaded();
+    expect(screen.queryByTestId("restart-offer")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Clear anthropic_api_key" }));
+    const restart = await screen.findByRole("button", { name: "Restart AgentSpace" });
+    await user.click(restart);
+
+    expect(shell.restartApp).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Restarting…" }).disabled).toBe(true);
+  });
+
+  it("keeps the restart offer usable when the shell refuses", async () => {
+    const user = userEvent.setup();
+    vi.mocked(keychain.keychainAvailable).mockReturnValue(true);
+    vi.mocked(shell.restartAvailable).mockReturnValue(true);
+    vi.mocked(keychain.clearSecret).mockResolvedValue(undefined);
+    vi.mocked(shell.restartApp).mockRejectedValue(new Error("no relaunch today"));
+    view();
+    await loaded();
+
+    await user.click(screen.getByRole("button", { name: "Clear anthropic_api_key" }));
+    await user.click(await screen.findByRole("button", { name: "Restart AgentSpace" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain("no relaunch today");
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Restart AgentSpace" }).disabled).toBe(
+      false,
+    );
+  });
+
+  it("offers no restart in a browser tab, which has no process to relaunch", async () => {
+    const user = userEvent.setup();
+    vi.mocked(keychain.keychainAvailable).mockReturnValue(true);
+    vi.mocked(keychain.clearSecret).mockResolvedValue(undefined);
+    view();
+    await loaded();
+
+    await user.click(screen.getByRole("button", { name: "Clear anthropic_api_key" }));
+
+    expect((await screen.findByTestId("secret-anthropic_api_key")).textContent).toContain("restart");
+    expect(screen.queryByTestId("restart-offer")).toBeNull();
   });
 });
 

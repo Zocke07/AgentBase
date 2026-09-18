@@ -165,6 +165,22 @@ fn auth_url_is_allowed(url: &str) -> bool {
     parsed.scheme() == "https" && allowed_host
 }
 
+/// Quit and relaunch, so a key written to the keychain reaches the next
+/// spawn's handshake without the user finding the app in the Dock. The work
+/// runs on a thread of its own: `restart` from the main thread would skip the
+/// `RunEvent::Exit` callback and orphan the sidecar on its port, while from
+/// any other thread it requests an exit, waits for that callback (which stops
+/// the sidecar) and then execs a fresh copy of this binary. The sidecar is
+/// stopped here first anyway, so the new instance never races the old one for
+/// port 8787 whichever path Tauri takes.
+#[tauri::command]
+fn restart_app(app: AppHandle) {
+    std::thread::spawn(move || {
+        shutdown_sidecar(&app);
+        app.restart();
+    });
+}
+
 /// Start the sidecar and keep its handle for shutdown. The data directory is
 /// resolved here and handed over in the environment, so the two sides cannot
 /// guess it separately.
@@ -318,7 +334,8 @@ pub fn run() {
             keychain_service,
             reveal_folder,
             open_obsidian_vault,
-            open_auth_url
+            open_auth_url,
+            restart_app
         ])
         .setup(|app| {
             spawn_sidecar(app.handle())?;
