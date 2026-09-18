@@ -1259,6 +1259,482 @@ pre {
   }
 }
 
+/* --- Obsidian-flavoured Markdown ------------------------------------------ */
+
+/*
+ * One renderer for a vault note, an agent's message and a retrieved excerpt.
+ * The dialect's own marks (wikilinks, tags, highlights, callouts) get the
+ * accent and the meaning colours; everything else is the reading typography.
+ */
+
+.md {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.md>*:first-child {
+  margin-top: 0;
+}
+
+.md>*:last-child {
+  margin-bottom: 0;
+}
+
+.md h1,
+.md h2,
+.md h3,
+.md h4,
+.md h5,
+.md h6 {
+  margin: 1.5em 0 0.5em;
+  font-weight: 650;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.md h1 {
+  font-size: 1.75rem;
+}
+
+.md h2 {
+  font-size: 1.35rem;
+}
+
+.md h3 {
+  font-size: 1.1rem;
+}
+
+.md h4 {
+  font-size: 1rem;
+}
+
+.md h5,
+.md h6 {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.md p {
+  margin: 0 0 0.8em;
+}
+
+.md code {
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: var(--surface-2);
+  font-size: 0.85em;
+}
+
+.md .md__code {
+  position: relative;
+  margin: 0 0 1em;
+  padding: 0.8rem 0.95rem;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 0.8267rem;
+  line-height: 1.55;
+}
+
+.md .md__code code {
+  padding: 0;
+  background: none;
+  font-size: inherit;
+}
+
+.md .md__code[data-language]::before {
+  content: attr(data-language);
+  position: absolute;
+  top: 0.35rem;
+  right: 0.6rem;
+  color: var(--faint);
+  font: 0.6667rem var(--mono);
+  text-transform: lowercase;
+}
+
+.md mark {
+  padding: 0 0.15em;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--warn) 32%, transparent);
+  color: inherit;
+}
+
+.md del {
+  color: var(--muted);
+}
+
+.md .md__rule {
+  height: 1px;
+  margin: 1.5em 0;
+  border: 0;
+  background: var(--border);
+}
+
+.md .md__quote {
+  margin: 0 0 1em;
+  padding: 0.1rem 0 0.1rem 1rem;
+  border-left: 3px solid var(--border-strong);
+  color: var(--muted);
+}
+
+.md .md__quote>*:last-child {
+  margin-bottom: 0;
+}
+
+.md .md__list {
+  margin: 0 0 0.8em;
+  padding-left: 1.5em;
+}
+
+.md .md__list .md__list {
+  margin: 0.2em 0 0;
+}
+
+.md li {
+  margin: 0.15em 0;
+}
+
+.md li>p {
+  margin: 0;
+}
+
+.md .md__task {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.45rem;
+  align-items: baseline;
+  list-style: none;
+  margin-left: -1.5em;
+}
+
+.md .md__task-box {
+  display: inline-flex;
+  align-items: center;
+  height: 1.5em;
+}
+
+.md .md__task-box input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.md .md__task-box input:not(:disabled) {
+  cursor: pointer;
+}
+
+.md .md__task--done .md__task-text {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-color: var(--faint);
+}
+
+.md .md__table-wrap {
+  margin: 0 0 1em;
+  overflow: auto;
+}
+
+.md .md__table {
+  min-width: 20rem;
+  border-collapse: collapse;
+  font-size: 0.9333rem;
+}
+
+.md .md__table th,
+.md .md__table td {
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.md .md__table th {
+  background: var(--surface-2);
+  font-weight: 600;
+}
+
+.md .md__link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  text-underline-offset: 0.15em;
+}
+
+.md .md__link::after {
+  content: "\2197";
+  margin-left: 0.15em;
+  font-size: 0.75em;
+  vertical-align: super;
+}
+
+.md .md__wikilink {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  text-underline-offset: 0.15em;
+  text-align: left;
+}
+
+button.md__wikilink {
+  cursor: pointer;
+}
+
+button.md__wikilink:hover {
+  color: var(--accent-strong);
+  text-decoration-color: currentColor;
+}
+
+.md .md__wikilink--embed {
+  display: inline-block;
+  padding: 0.1em 0.5em;
+  border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+}
+
+.md .md__wikilink--embed::before {
+  content: "\2197 ";
+  color: var(--muted);
+}
+
+.md .md__tag,
+.md__tag {
+  display: inline-block;
+  padding: 0 0.5em;
+  border: 0;
+  border-radius: 999px;
+  background: var(--info-soft);
+  color: var(--info);
+  font: inherit;
+  font-size: 0.85em;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+button.md__tag {
+  cursor: pointer;
+}
+
+button.md__tag:hover {
+  background: color-mix(in srgb, var(--info) 24%, transparent);
+}
+
+/* Properties, the way Obsidian shows frontmatter: a key column and a value column. */
+.md .md__properties {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.2rem 1rem;
+  margin: 0 0 1.4rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 0.8667rem;
+}
+
+.md .md__property {
+  display: contents;
+}
+
+.md .md__property dt {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1.7;
+}
+
+.md .md__property dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
+  margin: 0;
+  min-height: 1.5rem;
+}
+
+.md .md__property-item {
+  padding: 0 0.5em;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 0.85em;
+  line-height: 1.6;
+}
+
+.md .md__property-empty {
+  color: var(--faint);
+  font-style: italic;
+}
+
+/* Callouts: the family's colour on the edge and the title, a glyph before the title. */
+.md .md__callout {
+  --callout: var(--info);
+  margin: 0 0 1em;
+  padding: 0.7rem 0.9rem;
+  border-left: 3px solid var(--callout);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--callout) 9%, var(--surface));
+}
+
+.md .md__callout-title {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0;
+  color: var(--callout);
+  font-weight: 600;
+}
+
+.md .md__callout-title::before {
+  content: "\2139";
+  flex: none;
+  width: 1.1em;
+  font-size: 0.95em;
+  text-align: center;
+}
+
+.md .md__callout-body {
+  margin-top: 0.45rem;
+}
+
+.md .md__callout-body>*:last-child {
+  margin-bottom: 0;
+}
+
+.md .md__callout--foldable>summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.md .md__callout--foldable>summary::-webkit-details-marker {
+  display: none;
+}
+
+.md .md__callout--foldable>summary::after {
+  content: "\203A";
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 1.1em;
+  transform: rotate(90deg);
+  transition: transform 120ms ease;
+}
+
+.md .md__callout--foldable:not([open])>summary::after {
+  transform: rotate(0deg);
+}
+
+.md .md__callout--note {
+  --callout: var(--info);
+}
+
+.md .md__callout--note .md__callout-title::before {
+  content: "\270E";
+}
+
+.md .md__callout--abstract {
+  --callout: var(--info);
+}
+
+.md .md__callout--abstract .md__callout-title::before {
+  content: "\2261";
+}
+
+.md .md__callout--todo .md__callout-title::before {
+  content: "\2610";
+}
+
+.md .md__callout--tip {
+  --callout: var(--good);
+}
+
+.md .md__callout--tip .md__callout-title::before {
+  content: "\2605";
+}
+
+.md .md__callout--success {
+  --callout: var(--good);
+}
+
+.md .md__callout--success .md__callout-title::before {
+  content: "\2713";
+}
+
+.md .md__callout--question {
+  --callout: var(--warn);
+}
+
+.md .md__callout--question .md__callout-title::before {
+  content: "?";
+}
+
+.md .md__callout--warning {
+  --callout: var(--warn);
+}
+
+.md .md__callout--warning .md__callout-title::before {
+  content: "\26A0";
+}
+
+.md .md__callout--failure,
+.md .md__callout--danger,
+.md .md__callout--bug {
+  --callout: var(--bad);
+}
+
+.md .md__callout--failure .md__callout-title::before {
+  content: "\2715";
+}
+
+.md .md__callout--danger .md__callout-title::before {
+  content: "\26A1";
+}
+
+.md .md__callout--bug .md__callout-title::before {
+  content: "\2699";
+}
+
+.md .md__callout--example {
+  --callout: var(--accent);
+}
+
+.md .md__callout--example .md__callout-title::before {
+  content: "\2630";
+}
+
+.md .md__callout--quote {
+  --callout: var(--muted);
+}
+
+.md .md__callout--quote .md__callout-title::before {
+  content: "\201C";
+}
+
+/* A compact reading: an excerpt in a list, an agent's message in a card. */
+.md--compact {
+  font-size: 0.8667rem;
+}
+
+.md--compact h1,
+.md--compact h2,
+.md--compact h3,
+.md--compact h4 {
+  margin: 0.8em 0 0.3em;
+  font-size: 1em;
+}
+
+.md--compact p,
+.md--compact .md__list,
+.md--compact .md__code,
+.md--compact .md__quote,
+.md--compact .md__callout,
+.md--compact .md__table-wrap {
+  margin-bottom: 0.5em;
+}
+
 /* --- buttons -------------------------------------------------------------- */
 
 .button {
