@@ -10,6 +10,7 @@ user's own cap, never what a provider bills.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final
 
@@ -35,6 +36,12 @@ TOKENS_PER_PRICE_UNIT: Final[int] = 1_000_000
 
 #: Model ids under this prefix run on the user's own machine and cost nothing.
 LOCAL_MODEL_PREFIX: Final[str] = "ollama/"
+
+#: Anthropic names a dated snapshot `<alias>-YYYYMMDD` (`claude-haiku-4-5-20251001`)
+#: and prices it exactly as the alias, which is only a pointer to a snapshot.
+#: OpenAI's `-YYYY-MM-DD` snapshots have carried different prices from their
+#: alias, so the rule is deliberately as narrow as Anthropic's format.
+_ANTHROPIC_SNAPSHOT: Final[re.Pattern[str]] = re.compile(r"^(claude-[a-z0-9-]+?)-(\d{8})$")
 
 
 class UnknownModelError(LookupError):
@@ -138,10 +145,17 @@ MODELS_BY_PROVIDER: Final[dict[str, list[str]]] = {
 
 
 def _lookup(model: str) -> ModelPrice | None:
-    """Resolve a price, or ``None``. Local models match by prefix."""
+    """Resolve a price, or ``None``.
+
+    Local models match by prefix; an Anthropic dated snapshot resolves to its
+    alias. Anything else is priced only by its exact id.
+    """
     if model.startswith(LOCAL_MODEL_PREFIX):
         return PRICES["ollama/*"]
-    return PRICES.get(model)
+    price = PRICES.get(model)
+    if price is None and (snapshot := _ANTHROPIC_SNAPSHOT.match(model)):
+        price = _ANTHROPIC.get(snapshot.group(1))
+    return price
 
 
 def is_priced(model: str) -> bool:

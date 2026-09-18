@@ -138,6 +138,30 @@ def test_is_priced_reports_without_raising() -> None:
     assert not is_priced("some-model-released-tomorrow")
 
 
+def test_an_anthropic_dated_snapshot_costs_what_its_alias_costs() -> None:
+    """`claude-haiku-4-5-20251001` is the id Anthropic documents; the alias
+    `claude-haiku-4-5` only points at it. A space or definition override
+    carries whichever the user typed, and both must charge the same."""
+    usage = TokenUsage(input_tokens=1_000_000, output_tokens=1_000_000)
+
+    assert is_priced("claude-haiku-4-5-20251001")
+    assert cost_micros("claude-haiku-4-5-20251001", usage) == cost_micros(
+        "claude-haiku-4-5", usage
+    )
+    assert "claude-haiku-4-5-20251001" not in PRICES, "the table lists aliases once"
+
+
+def test_a_dated_snapshot_of_an_unpriced_family_is_still_refused() -> None:
+    """The date rule widens nothing: it needs a priced alias underneath, and
+    it is Anthropic's `-YYYYMMDD` shape only, because OpenAI's dated
+    snapshots have not always cost what their alias costs."""
+    assert not is_priced("claude-opus-99-20991231")
+    assert not is_priced("claude-haiku-4-5-2025-10-01")
+    assert not is_priced("gpt-4o-2024-05-13")
+    with pytest.raises(UnknownModelError):
+        cost_micros("claude-opus-99-20991231", TokenUsage(input_tokens=1))
+
+
 # --- local models ------------------------------------------------------------
 
 
