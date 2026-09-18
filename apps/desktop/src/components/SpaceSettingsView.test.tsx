@@ -54,6 +54,8 @@ const settings: SettingsResponse = {
   known_secrets: [],
   supported_providers: ["ollama"],
   model_is_priced: true,
+  version: "0.4.0",
+  data_dir: "D:\\data",
 };
 
 beforeEach(() => {

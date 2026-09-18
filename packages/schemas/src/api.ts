@@ -119,15 +119,30 @@ export interface CreateAgentRequest {
 export interface CreateRunRequest {
   goal: string;
   space_id?: string | null;
-  origin?: "ui" | "discord";
+  origin?: "ui" | "discord" | "schedule";
   origin_ref?: string | null;
   excluded_citations?: string[];
+}
+
+export interface CreateScheduleRequest {
+  space_id: string;
+  name: string;
+  goal: string;
+  cadence: DailyCadence | WeeklyCadence | IntervalCadence;
+  missed?: "run_on_launch" | "skip";
+  enabled?: boolean;
 }
 
 export interface CreateSpaceRequest {
   name: string;
   description?: string;
   seed?: "empty" | "builtins" | CopyFrom;
+}
+
+/** Every day at a local time of day. */
+export interface DailyCadence {
+  kind: "daily";
+  at: string;
 }
 
 export interface EvaluateKnowledgeRequest {
@@ -198,6 +213,12 @@ export interface ImportKnowledgeRequest {
 export interface ImportNote {
   path: string;
   content: string;
+}
+
+/** Every so many hours, counted from the last time it was due. */
+export interface IntervalCadence {
+  kind: "interval";
+  every_hours: number;
 }
 
 export interface KnowledgeEdge {
@@ -362,6 +383,10 @@ export interface PinNoteRequest {
   pinned: boolean;
 }
 
+export interface PreviewRequest {
+  cadence: DailyCadence | WeeklyCadence | IntervalCadence;
+}
+
 /** What can be selected, and which models are priced, per provider. */
 export interface ProviderCatalogueResponse {
   providers: ProviderEntry[];
@@ -389,10 +414,34 @@ export interface Run {
   space_id: string;
   goal: string;
   status: "pending" | "running" | "paused" | "completed" | "failed" | "cancelled";
-  origin: "ui" | "discord";
+  origin: "ui" | "discord" | "schedule";
   origin_ref?: string | null;
   created_at: string;
   finished_at?: string | null;
+}
+
+/** What a cadence means, before it is saved. */
+export interface SchedulePreview {
+  summary: string;
+  next: string[];
+}
+
+/** A schedule, plus its cadence in words so every screen says the same thing. */
+export interface ScheduleResponse {
+  id: string;
+  space_id: string;
+  name: string;
+  goal: string;
+  cadence: DailyCadence | WeeklyCadence | IntervalCadence;
+  missed?: "run_on_launch" | "skip";
+  enabled?: boolean;
+  next_run_at?: string | null;
+  last_run_at?: string | null;
+  last_run_id?: string | null;
+  last_outcome?: string | null;
+  created_at: string;
+  updated_at: string;
+  summary: string;
 }
 
 /** Optional narrowing shared by the UI, evaluations and agent tool. */
@@ -432,6 +481,8 @@ export interface SettingsResponse {
   known_secrets: string[];
   supported_providers: string[];
   model_is_priced: boolean;
+  version: string;
+  data_dir: string;
 }
 
 /** A space, plus where its runs read and write. */
@@ -485,6 +536,15 @@ export interface UpdateMemoryRequest {
   pinned?: boolean | null;
 }
 
+/** A partial update; fields left out are untouched. */
+export interface UpdateScheduleRequest {
+  name?: string | null;
+  goal?: string | null;
+  cadence?: DailyCadence | WeeklyCadence | IntervalCadence | null;
+  missed?: "run_on_launch" | "skip" | null;
+  enabled?: boolean | null;
+}
+
 /**
  * A partial update. Every field optional; omitted fields are untouched.
  *
@@ -508,6 +568,7 @@ export interface UpdateSettingsRequest {
   channel_identities?: ChannelIdentity[] | null;
   channel_approvals?: "dashboard_only" | "originator" | null;
   channel_space_id?: string | null;
+  onboarding_completed?: boolean | null;
 }
 
 /** A partial update. ``None`` means "inherit", so `model_fields_set` tells it from "not sent". */
@@ -539,6 +600,13 @@ export interface VerifyResponse {
   model?: string | null;
 }
 
+/** On chosen weekdays at a local time of day. */
+export interface WeeklyCadence {
+  kind: "weekly";
+  at: string;
+  weekdays: number[];
+}
+
 /** Everything the user can configure that is not a secret. */
 export interface WorkspaceSettings {
   provider?: string;
@@ -554,6 +622,7 @@ export interface WorkspaceSettings {
   channel_identities?: ChannelIdentity[];
   channel_approvals?: "dashboard_only" | "originator";
   channel_space_id?: string | null;
+  onboarding_completed?: boolean;
 }
 
 export interface WriteNoteRequest {

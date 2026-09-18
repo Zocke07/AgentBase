@@ -105,6 +105,13 @@ class WorkspaceSettings(BaseModel):
     #: API checks the space exists; a stored id since deleted falls back at launch.
     channel_space_id: str | None = None
 
+    # --- the window -------------------------------------------------------------
+
+    #: Whether the first-run tour has been finished or skipped. Kept here rather
+    #: than in the webview's storage so it survives an upgrade with the rest of
+    #: the data and comes back exactly when "start over" deletes that data.
+    onboarding_completed: bool = False
+
     @field_validator("channel_identities")
     @classmethod
     def _identities_are_unambiguous(

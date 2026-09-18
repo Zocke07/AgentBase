@@ -35,6 +35,7 @@ from agentspace.api.auth import router as auth_router
 from agentspace.api.channels import router as channels_router
 from agentspace.api.knowledge import router as knowledge_router
 from agentspace.api.runs import router as runs_router
+from agentspace.api.schedules import router as schedules_router
 from agentspace.api.settings import router as settings_router
 from agentspace.api.spaces import router as spaces_router
 from agentspace.budget.ledger import BudgetLedger
@@ -52,11 +53,13 @@ from agentspace.events.bus import EventBus
 from agentspace.events.store import EventStore
 from agentspace.knowledge.store import KnowledgeStore
 from agentspace.orchestrator.launcher import RunLauncher
+from agentspace.orchestrator.scheduler import Scheduler
 from agentspace.providers.chatgpt import ChatGPTRuntime, CodexAppServerRuntime
 from agentspace.providers.codex_runtime import CodexRuntimeInstaller
 from agentspace.secrets import SecretStore, parse_secrets_line
 from agentspace.store.agents import AgentDefStore
 from agentspace.store.db import Database
+from agentspace.store.schedules import ScheduleStore
 from agentspace.store.settings import SettingsStore
 from agentspace.store.spaces import DEFAULT_SPACE_ID, SpaceStore
 from agentspace.tools.approval import ApprovalService, ApprovalStore
@@ -198,11 +201,19 @@ def create_app(
         )
         await app.state.channels.start()
 
+        # Last, after the orphan sweep: its first pass launches whatever came
+        # due while the app was closed, and those must not read as orphans.
+        app.state.schedules = ScheduleStore(database)
+        app.state.scheduler = Scheduler(app.state.schedules, app.state.launcher)
+        await app.state.scheduler.start()
+
         try:
             yield
         finally:
-            # Channels first: an adapter outliving the database would report
+            # The scheduler first, so nothing new starts while the rest closes;
+            # then channels: an adapter outliving the database would report
             # against a closed handle.
+            await app.state.scheduler.aclose()
             await app.state.channels.aclose()
             for task in tuple(app.state.background_tasks):
                 task.cancel()
@@ -240,6 +251,7 @@ def create_app(
     app.include_router(channels_router)
     app.include_router(knowledge_router)
     app.include_router(runs_router)
+    app.include_router(schedules_router)
     app.include_router(settings_router)
     app.include_router(spaces_router)
 

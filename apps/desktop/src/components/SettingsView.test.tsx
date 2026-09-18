@@ -69,6 +69,8 @@ const settings: SettingsResponse = {
   known_secrets: ["anthropic_api_key", "discord_bot_token", "openai_api_key"],
   supported_providers: ["anthropic", "ollama", "openai"],
   model_is_priced: true,
+  version: "0.4.0",
+  data_dir: "D:\\data",
 };
 
 beforeEach(() => {

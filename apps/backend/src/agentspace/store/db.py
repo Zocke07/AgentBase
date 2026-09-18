@@ -71,6 +71,7 @@ MIGRATION_FILES: tuple[tuple[int, str], ...] = (
     (6, "006_spaces.sql"),
     (7, "007_knowledge.sql"),
     (8, "008_memory_inbox.sql"),
+    (9, "009_schedules.sql"),
 )
 
 #: The migrations that rebuild a table other tables reference. See

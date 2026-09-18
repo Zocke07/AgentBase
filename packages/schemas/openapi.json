@@ -561,7 +561,8 @@
             "default": "ui",
             "enum": [
               "ui",
-              "discord"
+              "discord",
+              "schedule"
             ],
             "title": "Origin",
             "type": "string"
@@ -593,6 +594,62 @@
           "goal"
         ],
         "title": "CreateRunRequest",
+        "type": "object"
+      },
+      "CreateScheduleRequest": {
+        "properties": {
+          "cadence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DailyCadence"
+              },
+              {
+                "$ref": "#/components/schemas/WeeklyCadence"
+              },
+              {
+                "$ref": "#/components/schemas/IntervalCadence"
+              }
+            ],
+            "title": "Cadence"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "goal": {
+            "maxLength": 10000,
+            "minLength": 1,
+            "title": "Goal",
+            "type": "string"
+          },
+          "missed": {
+            "default": "run_on_launch",
+            "enum": [
+              "run_on_launch",
+              "skip"
+            ],
+            "title": "Missed",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "space_id": {
+            "title": "Space Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "space_id",
+          "name",
+          "goal",
+          "cadence"
+        ],
+        "title": "CreateScheduleRequest",
         "type": "object"
       },
       "CreateSpaceRequest": {
@@ -629,6 +686,26 @@
           "name"
         ],
         "title": "CreateSpaceRequest",
+        "type": "object"
+      },
+      "DailyCadence": {
+        "description": "Every day at a local time of day.",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "kind": {
+            "const": "daily",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "at"
+        ],
+        "title": "DailyCadence",
         "type": "object"
       },
       "EvaluateKnowledgeRequest": {
@@ -820,6 +897,28 @@
           "content"
         ],
         "title": "ImportNote",
+        "type": "object"
+      },
+      "IntervalCadence": {
+        "description": "Every so many hours, counted from the last time it was due.",
+        "properties": {
+          "every_hours": {
+            "maximum": 168.0,
+            "minimum": 1.0,
+            "title": "Every Hours",
+            "type": "integer"
+          },
+          "kind": {
+            "const": "interval",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "every_hours"
+        ],
+        "title": "IntervalCadence",
         "type": "object"
       },
       "KnowledgeEdge": {
@@ -1571,6 +1670,29 @@
         "title": "PinNoteRequest",
         "type": "object"
       },
+      "PreviewRequest": {
+        "properties": {
+          "cadence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DailyCadence"
+              },
+              {
+                "$ref": "#/components/schemas/WeeklyCadence"
+              },
+              {
+                "$ref": "#/components/schemas/IntervalCadence"
+              }
+            ],
+            "title": "Cadence"
+          }
+        },
+        "required": [
+          "cadence"
+        ],
+        "title": "PreviewRequest",
+        "type": "object"
+      },
       "ProviderCatalogueResponse": {
         "description": "What can be selected, and which models are priced, per provider.",
         "properties": {
@@ -1679,7 +1801,8 @@
           "origin": {
             "enum": [
               "ui",
-              "discord"
+              "discord",
+              "schedule"
             ],
             "title": "Origin",
             "type": "string"
@@ -1721,6 +1844,150 @@
           "created_at"
         ],
         "title": "Run",
+        "type": "object"
+      },
+      "SchedulePreview": {
+        "description": "What a cadence means, before it is saved.",
+        "properties": {
+          "next": {
+            "items": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "title": "Next",
+            "type": "array"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "summary",
+          "next"
+        ],
+        "title": "SchedulePreview",
+        "type": "object"
+      },
+      "ScheduleResponse": {
+        "description": "A schedule, plus its cadence in words so every screen says the same thing.",
+        "properties": {
+          "cadence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DailyCadence"
+              },
+              {
+                "$ref": "#/components/schemas/WeeklyCadence"
+              },
+              {
+                "$ref": "#/components/schemas/IntervalCadence"
+              }
+            ],
+            "title": "Cadence"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "goal": {
+            "title": "Goal",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "last_outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Outcome"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          },
+          "last_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run Id"
+          },
+          "missed": {
+            "default": "run_on_launch",
+            "enum": [
+              "run_on_launch",
+              "skip"
+            ],
+            "title": "Missed",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "next_run_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Run At"
+          },
+          "space_id": {
+            "title": "Space Id",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "space_id",
+          "name",
+          "goal",
+          "cadence",
+          "created_at",
+          "updated_at",
+          "summary"
+        ],
+        "title": "ScheduleResponse",
         "type": "object"
       },
       "SearchFilters": {
@@ -1893,6 +2160,10 @@
             "title": "Configured Secrets",
             "type": "array"
           },
+          "data_dir": {
+            "title": "Data Dir",
+            "type": "string"
+          },
           "known_secrets": {
             "items": {
               "type": "string"
@@ -1913,6 +2184,10 @@
             },
             "title": "Supported Providers",
             "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
           }
         },
         "required": [
@@ -1920,7 +2195,9 @@
           "configured_secrets",
           "known_secrets",
           "supported_providers",
-          "model_is_priced"
+          "model_is_priced",
+          "version",
+          "data_dir"
         ],
         "title": "SettingsResponse",
         "type": "object"
@@ -2237,6 +2514,83 @@
         "title": "UpdateMemoryRequest",
         "type": "object"
       },
+      "UpdateScheduleRequest": {
+        "additionalProperties": false,
+        "description": "A partial update; fields left out are untouched.",
+        "properties": {
+          "cadence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DailyCadence"
+              },
+              {
+                "$ref": "#/components/schemas/WeeklyCadence"
+              },
+              {
+                "$ref": "#/components/schemas/IntervalCadence"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cadence"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "maxLength": 10000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal"
+          },
+          "missed": {
+            "anyOf": [
+              {
+                "enum": [
+                  "run_on_launch",
+                  "skip"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Missed"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "UpdateScheduleRequest",
+        "type": "object"
+      },
       "UpdateSettingsRequest": {
         "additionalProperties": false,
         "description": "A partial update. Every field optional; omitted fields are untouched.\n\nUnknown fields are rejected, not dropped: Pydantic's default turns a\nmisspelled setting into a `200 OK` that changed nothing. This model must\nlist every field of :class:`~agentspace.store.settings.WorkspaceSettings`\n(they differ in bounds and optionality, so it cannot be the same class),\nand `test_every_workspace_setting_can_be_patched` keeps the two in step.",
@@ -2377,6 +2731,17 @@
               }
             ],
             "title": "Ollama Base Url"
+          },
+          "onboarding_completed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Onboarding Completed"
           },
           "openai_access": {
             "anyOf": [
@@ -2610,6 +2975,36 @@
         "title": "VerifyResponse",
         "type": "object"
       },
+      "WeeklyCadence": {
+        "description": "On chosen weekdays at a local time of day.",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "kind": {
+            "const": "weekly",
+            "title": "Kind",
+            "type": "string"
+          },
+          "weekdays": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 7,
+            "minItems": 1,
+            "title": "Weekdays",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "at",
+          "weekdays"
+        ],
+        "title": "WeeklyCadence",
+        "type": "object"
+      },
       "WorkspaceSettings": {
         "description": "Everything the user can configure that is not a secret.",
         "properties": {
@@ -2685,6 +3080,11 @@
             "default": "http://127.0.0.1:11434",
             "title": "Ollama Base Url",
             "type": "string"
+          },
+          "onboarding_completed": {
+            "default": false,
+            "title": "Onboarding Completed",
+            "type": "boolean"
           },
           "openai_access": {
             "default": "api_key",
@@ -3644,6 +4044,288 @@
           }
         },
         "summary": "Get Run Events"
+      }
+    },
+    "/schedules": {
+      "get": {
+        "description": "Every schedule, or one space's.",
+        "operationId": "list_schedules_schedules_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "space_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Space Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ScheduleResponse"
+                  },
+                  "title": "Response List Schedules Schedules Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Schedules"
+      },
+      "post": {
+        "operationId": "create_schedule_schedules_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Schedule"
+      }
+    },
+    "/schedules/preview": {
+      "post": {
+        "description": "The cadence in words and its next few times, for the editor before a save.",
+        "operationId": "preview_schedule_schedules_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchedulePreview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Schedule"
+      }
+    },
+    "/schedules/{schedule_id}": {
+      "delete": {
+        "operationId": "delete_schedule_schedules__schedule_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_id",
+            "required": true,
+            "schema": {
+              "title": "Schedule Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Schedule"
+      },
+      "get": {
+        "operationId": "get_schedule_schedules__schedule_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_id",
+            "required": true,
+            "schema": {
+              "title": "Schedule Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Schedule"
+      },
+      "patch": {
+        "operationId": "update_schedule_schedules__schedule_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_id",
+            "required": true,
+            "schema": {
+              "title": "Schedule Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Schedule"
+      }
+    },
+    "/schedules/{schedule_id}/run": {
+      "post": {
+        "description": "Start this schedule's run right now, leaving its next time as it was.",
+        "operationId": "run_schedule_now_schedules__schedule_id__run_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_id",
+            "required": true,
+            "schema": {
+              "title": "Schedule Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Run"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Schedule Now"
       }
     },
     "/settings": {

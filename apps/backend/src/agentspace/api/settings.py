@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from agentspace import __version__
 from agentspace.budget.ledger import current_period
 from agentspace.channels.identity import ChannelIdentity
 from agentspace.providers.base import ProviderAuthError
@@ -57,6 +58,11 @@ class SettingsResponse(BaseModel):
     supported_providers: list[str]
     #: False means every run will be refused; the UI says so before Start.
     model_is_priced: bool
+    #: The sidecar's release, for the About box. The window is built from the
+    #: same version; showing this one says which sidecar actually answered.
+    version: str
+    #: Where the database and space folders live, for the same box.
+    data_dir: str
 
 
 class UpdateSettingsRequest(BaseModel):
@@ -94,6 +100,8 @@ class UpdateSettingsRequest(BaseModel):
     # Where a chat-started run happens. `exclude_none` means null cannot be
     # sent, so an empty string means "the default space" and is stored as null.
     channel_space_id: str | None = None
+
+    onboarding_completed: bool | None = None
 
 
 class BudgetResponse(BaseModel):
@@ -142,6 +150,8 @@ async def _response(request: Request, settings: WorkspaceSettings) -> SettingsRe
         # `qualified_model`, not `settings.model`: the price is looked up
         # under the id the provider namespaces to (`ollama/<name>`).
         model_is_priced=is_priced(qualified_model(settings.provider, settings.model)),
+        version=__version__,
+        data_dir=str(request.app.state.paths.data_dir),
     )
 
 

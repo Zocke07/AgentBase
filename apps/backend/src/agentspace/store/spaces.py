@@ -281,7 +281,7 @@ class SpaceStore:
         return _row_to_space(row)
 
     async def delete(self, space_id: str) -> None:
-        """Delete a space and its agents.
+        """Delete a space, its agents and its schedules.
 
         :raises DefaultSpaceProtectedError: for the default space.
         :raises SpaceHasRunsError: when any run belongs to it; archive instead.
@@ -303,6 +303,7 @@ class SpaceStore:
             if runs:
                 raise SpaceHasRunsError(row["name"], int(runs))
             connection.execute("DELETE FROM agent_defs WHERE space_id = ?", (space_id,))
+            connection.execute("DELETE FROM schedules WHERE space_id = ?", (space_id,))
             connection.execute("DELETE FROM spaces WHERE id = ?", (space_id,))
 
 
