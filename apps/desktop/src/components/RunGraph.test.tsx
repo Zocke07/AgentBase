@@ -132,9 +132,37 @@ describe("RunGraph", () => {
     expect(nodes.length).toBeGreaterThan(0);
 
     for (const node of nodes) {
-      expect(node.querySelector(".react-flow__handle-top")).not.toBeNull();
-      expect(node.querySelector(".react-flow__handle-bottom")).not.toBeNull();
+      expect(node.querySelector(".react-flow__handle-left")).not.toBeNull();
+      expect(node.querySelector(".react-flow__handle-right")).not.toBeNull();
     }
+  });
+
+  it("frames the run with a goal card and an outcome card", () => {
+    const { getByTestId } = graph();
+
+    expect(getByTestId("goal-node").textContent).toContain("Summarise the quarterly report");
+    expect(getByTestId("goal-node").textContent).toContain("from this window");
+    expect(getByTestId("outcome-node").textContent).toContain("Quarterly report summarised and saved");
+    expect(getByTestId("outcome-node").className).toContain("end-node--completed");
+    expect(getByTestId("outcome-node").textContent).toContain("2 agents · 2 tool calls");
+  });
+
+  it("shows what an agent did with each tool as a chip on its card", () => {
+    const { getByTestId } = graph();
+
+    const chips = [...getByTestId("agent-node-researcher").querySelectorAll(".agent-node__tool")];
+    expect(chips.map((chip) => chip.textContent)).toEqual(["read_file1", "write_file1"]);
+    expect(chips[0]?.className).toContain("agent-node__tool--denied");
+  });
+
+  it("says the outcome is still in progress while the run is", () => {
+    const events = twoAgentRun();
+    const { getByTestId } = render(
+      <RunGraph view={reduceAll(events.slice(0, 9))} selectedAgent={null} onSelectAgent={vi.fn()} />,
+    );
+
+    expect(getByTestId("outcome-node").textContent).toContain("Still in progress");
+    expect(getByTestId("outcome-node").className).toContain("end-node--running");
   });
 
   it("derives one edge per ordered pair, counting repeats", () => {

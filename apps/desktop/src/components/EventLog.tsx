@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { clockTime, eventFamily } from "../lib/format";
 import { captureText, sentenceFor } from "../state/describe";
 
+import { Markdown } from "./Markdown";
 
 /**
  * The event log panel: the raw log, which is what you check the reduced view
@@ -147,7 +148,7 @@ export function EventLog({
   const start = Math.max(0, firstVisible - OVERSCAN);
   const end = Math.min(rows.length, lastVisible + 1 + OVERSCAN);
 
-  const measured = (seq: number, element: HTMLPreElement | null) => {
+  const measured = (seq: number, element: HTMLDivElement | null) => {
     if (element === null) return;
     const height = element.offsetHeight;
     if (height === 0 || payloadHeights.get(seq) === height) return;
@@ -262,26 +263,34 @@ export function EventLog({
                   <span className="log__type">{event.type}</span>
                 </button>
                 {isOpen && (
-                  <pre
-                    className="log__payload"
-                    data-testid="log-payload"
+                  <div
+                    className="log__detail"
                     ref={(element) => {
                       measured(event.seq, element);
                     }}
                   >
-                    {onCapture !== undefined && captureText(event) !== null && (
-                      <button
-                        type="button"
-                        className="button button--small log__capture"
-                        onClick={() => {
-                          onCapture(event);
-                        }}
-                      >
-                        Save as note
-                      </button>
+                    {/* The prose an agent wrote, read as it was written; the
+                        payload below it is what a bug report needs. */}
+                    {captureText(event) !== null && (
+                      <div className="log__prose" data-testid="log-prose">
+                        <Markdown source={captureText(event) ?? ""} className="md--compact" />
+                        {onCapture !== undefined && (
+                          <button
+                            type="button"
+                            className="button button--small log__capture"
+                            onClick={() => {
+                              onCapture(event);
+                            }}
+                          >
+                            Save as note
+                          </button>
+                        )}
+                      </div>
                     )}
-                    {JSON.stringify(event.payload ?? {}, null, 2)}
-                  </pre>
+                    <pre className="log__payload" data-testid="log-payload">
+                      {JSON.stringify(event.payload ?? {}, null, 2)}
+                    </pre>
+                  </div>
                 )}
               </li>
             );

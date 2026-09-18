@@ -2,7 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import { LogBuilder, twoAgentRun } from "../test/log";
 
-import { edgesFor, layout, NODE_HEIGHT, NODE_WIDTH, viewportFor } from "./graph";
+import {
+  edgesFor,
+  GOAL,
+  layout,
+  NODE_HEIGHT,
+  NODE_WIDTH,
+  OUTCOME,
+  toolUsesFor,
+  viewportFor,
+  workflowEdges,
+} from "./graph";
 import { reduceAll } from "./reducer";
 
 
@@ -23,14 +33,13 @@ import { reduceAll } from "./reducer";
 const view = () => reduceAll(twoAgentRun());
 
 describe("layout", () => {
-  it("puts the supervisor on the top row and workers below it", () => {
+  it("reads left to right: the goal, the supervisor, the workers, the outcome", () => {
     const nodes = layout(view(), null);
+    const x = (id: string) => nodes.find((node) => node.id === id)?.position.x ?? Number.NaN;
 
-    const supervisor = nodes.find((node) => node.id === "supervisor");
-    const worker = nodes.find((node) => node.id === "researcher");
-
-    expect(supervisor?.position.y).toBe(0);
-    expect(worker?.position.y).toBeGreaterThan(0);
+    expect(x(GOAL)).toBeLessThan(x("supervisor"));
+    expect(x("supervisor")).toBeLessThan(x("researcher"));
+    expect(x("researcher")).toBeLessThan(x(OUTCOME));
   });
 
   it("declares each node's size rather than leaving it to be measured", () => {
@@ -38,9 +47,37 @@ describe("layout", () => {
        out, and anything downstream of measurement then depends on when the node
        appeared rather than on the log. */
     for (const node of layout(view(), null)) {
-      expect(node.width).toBe(NODE_WIDTH);
-      expect(node.height).toBe(NODE_HEIGHT);
+      expect(node.width).toBeGreaterThan(0);
+      expect(node.height).toBeGreaterThan(0);
+      if (node.type === "agent") {
+        expect(node.width).toBe(NODE_WIDTH);
+        expect(node.height).toBe(NODE_HEIGHT);
+      }
     }
+  });
+
+  it("carries the goal and the outcome on their own cards", () => {
+    const nodes = layout(view(), null);
+
+    expect(nodes.find((node) => node.id === GOAL)?.data).toMatchObject({
+      goal: "Summarise the quarterly report",
+      status: "completed",
+    });
+    expect(nodes.find((node) => node.id === OUTCOME)?.data).toMatchObject({
+      status: "completed",
+      claim: { kind: "summary" },
+      toolCalls: 2,
+    });
+  });
+
+  it("sums what each agent did with its tools onto its card", () => {
+    const researcher = layout(view(), null).find((node) => node.id === "researcher");
+
+    expect(researcher?.data.tools).toEqual([
+      { tool: "read_file", calls: 0, denied: 1, running: false },
+      { tool: "write_file", calls: 1, denied: 0, running: false },
+    ]);
+    expect(layout(view(), null).find((node) => node.id === "supervisor")?.data.delegated).toBe(1);
   });
 
   it("places the same agents identically every time", () => {
@@ -55,8 +92,8 @@ describe("layout", () => {
   });
 });
 
-  it("wraps workers onto a second row past four", () => {
-    /* One row per run put a dozen workers 2880px wide and the camera zoomed
+  it("wraps workers into a second column past four", () => {
+    /* One column per run put a dozen workers 1600px tall and the camera zoomed
        out until nothing on a node could be read. */
     const log = new LogBuilder();
     const events = [log.add("agent.spawned", { role: "s" }, "supervisor")];
@@ -65,10 +102,30 @@ describe("layout", () => {
     }
     const nodes = layout(reduceAll(events), null);
 
-    const rows = new Set(nodes.filter((n) => n.id !== "supervisor").map((n) => n.position.y));
-    expect(rows.size).toBe(2);
-    const perRow = [...rows].map((y) => nodes.filter((n) => n.position.y === y).length);
-    expect(perRow).toEqual([4, 2]);
+    const workers = nodes.filter((n) => n.type === "agent" && n.id !== "supervisor");
+    const columns = new Set(workers.map((n) => n.position.x));
+    expect(columns.size).toBe(2);
+    const perColumn = [...columns].map((x) => workers.filter((n) => n.position.x === x).length);
+    expect(perColumn).toEqual([4, 2]);
+    expect(nodes.find((n) => n.id === OUTCOME)?.position.x).toBeGreaterThan(Math.max(...columns));
+  });
+
+  it("is a projection of the cursor: a tool in flight is marked running on its card", () => {
+    const events = twoAgentRun();
+    const called = events.findIndex((event) => event.type === "tool.called" && event.agent_id === "researcher") + 1;
+
+    expect(toolUsesFor(reduceAll(events.slice(0, called)), "researcher")).toContainEqual({
+      tool: "write_file",
+      calls: 1,
+      denied: 0,
+      running: true,
+    });
+    expect(toolUsesFor(reduceAll(events.slice(0, called + 1)), "researcher")).toContainEqual({
+      tool: "write_file",
+      calls: 1,
+      denied: 0,
+      running: false,
+    });
   });
 
   it("draws a handoff to a name the run never spawned as a ghost node", () => {
@@ -123,6 +180,35 @@ describe("edgesFor", () => {
   });
 });
 
+describe("workflowEdges", () => {
+  it("joins the goal to the supervisor, the handoffs, and the supervisor to the outcome", () => {
+    const edges = workflowEdges(view()).map((edge) => [edge.source, edge.target]);
+
+    expect(edges).toEqual([
+      [GOAL, "supervisor"],
+      ["supervisor", "researcher"],
+      ["supervisor", OUTCOME],
+    ]);
+  });
+
+  it("animates an edge into an agent still working, and settles once the run ends", () => {
+    const events = twoAgentRun();
+    const midway = events.findIndex((event) => event.type === "agent.handoff") + 1;
+
+    const live = workflowEdges(reduceAll(events.slice(0, midway)));
+    expect(live.find((edge) => edge.target === "researcher")?.animated).toBe(true);
+    expect(live.find((edge) => edge.target === OUTCOME)?.className).toContain("flow-edge--running");
+
+    const done = workflowEdges(view());
+    expect(done.every((edge) => edge.animated === false)).toBe(true);
+    expect(done.find((edge) => edge.target === OUTCOME)?.className).toContain("flow-edge--completed");
+  });
+
+  it("has nothing to join before an agent exists", () => {
+    expect(workflowEdges(reduceAll([]))).toEqual([]);
+  });
+});
+
 describe("the camera", () => {
   it("is the same for the same nodes and pane, however they got there", () => {
     /* The property the whole acceptance criterion rests on. Live, the nodes
@@ -160,9 +246,8 @@ describe("the camera", () => {
 
     const { x, zoom } = viewportFor(nodes, paneWidth, 400);
 
-    const xs = nodes.map((node) => node.position.x);
-    const left = Math.min(...xs) * zoom + x;
-    const right = (Math.max(...xs) + NODE_WIDTH) * zoom + x;
+    const left = Math.min(...nodes.map((node) => node.position.x)) * zoom + x;
+    const right = Math.max(...nodes.map((node) => node.position.x + (node.width ?? 0))) * zoom + x;
 
     expect(left).toBeCloseTo(paneWidth - right, 5);
   });

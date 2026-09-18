@@ -2,6 +2,8 @@ import { ellipsise, formatCount, formatDuration, formatMicros } from "../lib/for
 import { STATUS_LABEL } from "../state/describe";
 import type { RunView } from "../state/reducer";
 
+import { Markdown } from "./Markdown";
+
 /**
  * The run's header and outcome. A terminal `summary` is a model's claim, not a
  * record of what happened, so it is labelled as the supervisor's account and
@@ -10,9 +12,11 @@ import type { RunView } from "../state/reducer";
 
 export interface RunSummaryProps {
   view: RunView;
+  /** Open a cited note in the Knowledge section; absent where none is reachable. */
+  onOpenNote?: ((path: string, heading: string | null) => void) | undefined;
 }
 
-export function RunSummary({ view }: RunSummaryProps) {
+export function RunSummary({ view, onOpenNote }: RunSummaryProps) {
   const denied = view.denials.length;
   const sandboxed = view.denials.filter((denial) => denial.blockedBy === "sandbox").length;
   // From the log's own stamps, so a replay shows the duration the live view
@@ -123,7 +127,19 @@ export function RunSummary({ view }: RunSummaryProps) {
           <ul className="run-summary__excerpts">
             {view.knowledge.map((hit) => (
               <li key={hit.citation}>
-                <code>{hit.citation}</code>
+                {onOpenNote !== undefined && hit.path !== null ? (
+                  <button
+                    type="button"
+                    className="citation"
+                    onClick={() => {
+                      onOpenNote(hit.path ?? "", hit.heading);
+                    }}
+                  >
+                    {hit.citation}
+                  </button>
+                ) : (
+                  <code>{hit.citation}</code>
+                )}
                 <small>
                   {hit.score !== null && `${String(Math.round(hit.score * 100))}% relevance`}
                   {hit.estimatedTokens !== null && ` · ${String(hit.estimatedTokens)} tokens`}
@@ -149,7 +165,7 @@ export function RunSummary({ view }: RunSummaryProps) {
               ? "The supervisor's account of the run"
               : "Why the run stopped"}
           </span>
-          <p className="claim__text">{view.claim.text}</p>
+          <Markdown source={view.claim.text} className="claim__text" />
           {view.claim.kind === "summary" && (
             <p className="claim__caveat">
               This is what the agent said it did. What it actually did is the{" "}

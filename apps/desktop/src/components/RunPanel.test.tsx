@@ -72,3 +72,35 @@ describe("the scrubber", () => {
     expect(screen.getByTestId("scrub-position").style.minWidth).toBe("7ch");
   });
 });
+
+describe("the agent inspector", () => {
+  it("shows what the selected agent said and did with its tools, at this cursor", () => {
+    const events = twoAgentRun();
+    const onSelectAgent = vi.fn();
+
+    render(
+      <RunPanel
+        view={reduceAll(events)}
+        events={events}
+        cursor={events.length}
+        selectedAgent="researcher"
+        onSelectAgent={onSelectAgent}
+        onCursorChange={vi.fn()}
+        approvalReadOnly="finished"
+        onResolveApproval={() => Promise.resolve()}
+      />,
+    );
+
+    const detail = screen.getByTestId("agent-detail");
+    expect(screen.getByTestId("agent-last-message").textContent).toContain("Revenue up 12% QoQ");
+    const calls = screen.getByTestId("agent-tool-calls");
+    expect(calls.textContent).toContain("read_file");
+    expect(calls.textContent).toContain("refused by the sandbox");
+    expect(calls.textContent).toContain("write_file");
+    expect(calls.textContent).toContain("Wrote 31 characters");
+    expect(detail.textContent).toContain("done");
+
+    screen.getByRole("button", { name: "Close the agent detail" }).click();
+    expect(onSelectAgent).toHaveBeenCalledWith(null);
+  });
+});

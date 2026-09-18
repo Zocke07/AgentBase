@@ -2445,6 +2445,37 @@ button.md__tag:hover {
   font-size: 0.9333rem;
 }
 
+.claim__text p {
+  margin-bottom: 0.4em;
+}
+
+.claim__text h1,
+.claim__text h2,
+.claim__text h3,
+.claim__text h4 {
+  margin: 0.6em 0 0.25em;
+  font-size: 1em;
+}
+
+/* A `[[note#heading]]` citation that opens the note. */
+.citation {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: 0.8267rem var(--mono);
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.citation:hover {
+  color: var(--accent-strong);
+}
+
 .claim__caveat {
   margin: 0.35rem 0 0;
   color: var(--muted);
@@ -2545,6 +2576,7 @@ button.md__tag:hover {
 }
 
 .graph {
+  position: relative;
   flex: 1;
   min-height: 0;
   background: var(--bg);
@@ -2573,44 +2605,133 @@ button.md__tag:hover {
   font-size: 0.9333rem;
 }
 
-.agent-node {
-  /* Matches NODE_WIDTH / NODE_HEIGHT in state/graph.ts, which React Flow is
-     told up front so the camera never waits on a measurement. */
-  width: 200px;
-  height: 96px;
+/*
+ * A card on the workflow canvas. `--tone` is the one colour the card carries:
+ * an agent's activity, the run's status on the goal and outcome cards. It
+ * tints the icon, the state word and the left edge, and nothing else.
+ */
+.flow-node {
+  --tone: var(--faint);
+  --tone-soft: var(--surface-2);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
   overflow: hidden;
-  padding: 0.55rem 0.7rem;
+  padding: 0.6rem 0.75rem 0.55rem;
   border: 1px solid var(--border);
-  border-left: 3px solid var(--faint);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow-1);
   font-size: 0.8rem;
+  line-height: 1.35;
 }
 
+.flow-node::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--tone);
+}
+
+.flow-node__head {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.flow-node__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 7px;
+  background: var(--tone-soft);
+  color: var(--tone);
+}
+
+.flow-node__icon svg {
+  width: 1rem;
+  height: 1rem;
+  fill: currentColor;
+}
+
+.flow-node__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.9333rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flow-node__state {
+  flex: none;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--tone-soft);
+  color: var(--tone);
+  font-size: 0.6667rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+/* The agent activities, each a tone. */
 .agent-node--thinking,
-.agent-node--calling {
-  border-left-color: var(--accent);
+.agent-node--calling,
+.end-node--running {
+  --tone: var(--accent);
+  --tone-soft: var(--accent-soft);
 }
 
 .agent-node--executing {
-  border-left-color: var(--info);
+  --tone: var(--info);
+  --tone-soft: var(--info-soft);
 }
 
-.agent-node--waiting {
-  border-left-color: var(--warn);
+.agent-node--waiting,
+.end-node--paused {
+  --tone: var(--warn);
+  --tone-soft: var(--warn-soft);
 }
 
-.agent-node--completed {
-  border-left-color: var(--good);
+.agent-node--completed,
+.end-node--completed {
+  --tone: var(--good);
+  --tone-soft: var(--good-soft);
+}
+
+.agent-node--errored,
+.end-node--failed {
+  --tone: var(--bad);
+  --tone-soft: var(--bad-soft);
+}
+
+.end-node--cancelled {
+  --tone: var(--muted);
+}
+
+.flow-node__state--thinking,
+.flow-node__state--calling,
+.flow-node__state--running {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.agent-node {
+  /* Matches NODE_WIDTH / NODE_HEIGHT in state/graph.ts, which React Flow is
+     told up front so the camera never waits on a measurement. */
+  width: 236px;
+  height: 118px;
 }
 
 .agent-node--selected {
   border-color: var(--text);
-}
-
-.agent-node--errored {
-  border-left-color: var(--bad);
+  box-shadow: var(--shadow-2), 0 0 0 2px color-mix(in srgb, var(--text) 12%, transparent);
 }
 
 /* A name that was handed off to and never spawned. */
@@ -2618,11 +2739,6 @@ button.md__tag:hover {
   border-style: dashed;
   box-shadow: none;
   opacity: 0.7;
-}
-
-.agent-node__name {
-  font-size: 0.8667rem;
-  font-weight: 650;
 }
 
 .agent-node__role,
@@ -2634,16 +2750,203 @@ button.md__tag:hover {
 }
 
 .agent-node__activity {
-  margin-top: 0.15rem;
+  overflow: hidden;
   color: var(--text);
   font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .agent-node__error {
   overflow: hidden;
   color: var(--bad);
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.agent-node__foot {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin-top: auto;
+  min-width: 0;
+  font-size: 0.7333rem;
+}
+
+.agent-node__meta {
+  flex: 0 1 auto;
+  min-width: 3rem;
+}
+
+.agent-node__tools {
+  display: flex;
+  flex: 1;
+  gap: 0.25rem;
+  justify-content: flex-end;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.agent-node__tool {
+  display: inline-flex;
+  gap: 0.25rem;
+  align-items: center;
+  flex: none;
+  padding: 0 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.6667rem;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.agent-node__tool b {
+  color: var(--good);
+  font-weight: 650;
+}
+
+.agent-node__tool i {
+  color: var(--bad);
+  font-style: normal;
+  font-weight: 650;
+}
+
+.agent-node__tool i::before {
+  content: "\2715";
+  margin-right: 0.1rem;
+  font-size: 0.85em;
+}
+
+.agent-node__tool--denied {
+  border-color: color-mix(in srgb, var(--bad) 45%, transparent);
+}
+
+.agent-node__tool--running {
+  border-color: var(--info);
+  color: var(--info);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+/* The goal and the outcome, at either end of the flow. */
+.end-node {
+  width: 208px;
+  height: 100px;
+}
+
+.end-node--goal {
+  --tone: var(--accent);
+  --tone-soft: var(--accent-soft);
+}
+
+.end-node--goal.end-node--completed,
+.end-node--goal.end-node--failed,
+.end-node--goal.end-node--cancelled,
+.end-node--goal.end-node--pending {
+  --tone: var(--muted);
+  --tone-soft: var(--surface-2);
+}
+
+.end-node__text {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.end-node__foot {
+  margin-top: auto;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.7333rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Edges: a handoff carries its task as a label; an outcome edge takes the run's colour. */
+.graph .react-flow__edge.flow-edge .react-flow__edge-path {
+  stroke-width: 1.75;
+}
+
+.graph .react-flow__edge.flow-edge--completed .react-flow__edge-path {
+  stroke: var(--good);
+}
+
+.graph .react-flow__edge.flow-edge--failed .react-flow__edge-path {
+  stroke: var(--bad);
+}
+
+.graph .react-flow__edge.flow-edge--cancelled .react-flow__edge-path,
+.graph .react-flow__edge.flow-edge--pending .react-flow__edge-path,
+.graph .react-flow__edge.flow-edge--running .react-flow__edge-path {
+  stroke-dasharray: 5 4;
+}
+
+.graph .react-flow__edge.flow-edge--ghost .react-flow__edge-path {
+  stroke-dasharray: 5 4;
+  opacity: 0.7;
+}
+
+.graph .react-flow__edge.flow-edge .react-flow__edge-textbg {
+  fill: var(--surface);
+}
+
+.graph .react-flow__edge.flow-edge .react-flow__edge-text {
+  fill: var(--muted);
+  font-size: 0.7333rem;
+}
+
+.graph .react-flow__edge.flow-edge marker path {
+  fill: var(--border-strong);
+}
+
+.graph__legend {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.75rem;
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  color: var(--muted);
+  font-size: 0.6667rem;
+  pointer-events: none;
+}
+
+.graph__legend-item {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.graph__legend-item::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.graph__legend-item--thinking::before {
+  background: var(--accent);
+}
+
+.graph__legend-item--waiting::before {
+  background: var(--warn);
+}
+
+.graph__legend-item--completed::before {
+  background: var(--good);
+}
+
+.graph__legend-item--errored::before {
+  background: var(--bad);
 }
 
 .agent-detail {
@@ -2657,6 +2960,124 @@ button.md__tag:hover {
 
 .agent-detail h3 {
   font-size: 1rem;
+}
+
+.agent-detail__head {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.agent-detail__close {
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.agent-detail__close:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.agent-detail__state {
+  display: inline-block;
+  margin: 0 0 0.6rem;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.7333rem;
+  font-weight: 600;
+}
+
+.agent-detail__state--thinking,
+.agent-detail__state--calling {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.agent-detail__state--executing {
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.agent-detail__state--waiting {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.agent-detail__state--completed {
+  background: var(--good-soft);
+  color: var(--good);
+}
+
+.agent-detail__section {
+  margin-top: 0.8rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+}
+
+.agent-detail__section h4 {
+  margin: 0 0 0.35rem;
+  color: var(--muted);
+  font-size: 0.7333rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.agent-detail__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8rem;
+}
+
+.agent-detail__list li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.agent-detail__list li>span {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.agent-detail__call {
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--good);
+}
+
+.agent-detail__call--denied {
+  border-left-color: var(--bad);
+}
+
+.agent-detail__args {
+  margin-left: 0.4rem;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.7333rem;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.agent-detail__stream-text {
+  max-height: 14rem;
+  margin-top: 0.35rem;
+  padding: 0.5rem;
+  overflow: auto;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
 }
 
 .agent-detail__role {
@@ -2873,13 +3294,32 @@ button.md__tag:hover {
   background: var(--surface-3);
 }
 
+.log__detail {
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.log__prose {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0.6rem 1.25rem 0.5rem 4rem;
+  border-bottom: 1px dashed var(--border);
+  background: var(--surface);
+  font-size: 0.8667rem;
+}
+
+.log__prose>.md {
+  flex: 1;
+  max-width: 48rem;
+}
+
 .log__payload {
   margin: 0;
   padding: 0.5rem 1.25rem 0.6rem 4rem;
   max-height: 24rem;
   overflow: auto;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg);
   color: var(--text);
   font-size: 0.7333rem;
   line-height: 1.45;
@@ -3710,7 +4150,5 @@ input[type="radio"] {
   }
 }
 .log__capture {
-  float: right;
-  margin: 0 0 0.4rem 0.6rem;
-  font-family: var(--font-ui, system-ui);
+  flex: none;
 }
