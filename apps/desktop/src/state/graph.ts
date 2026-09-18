@@ -31,9 +31,9 @@ export const NODE_HEIGHT = 136;
 export const END_WIDTH = 204;
 export const END_HEIGHT = 82;
 /** Wide enough that a handoff label at LABEL_CHARS sits clear of both cards. */
-const COLUMN_GAP = 150;
+const COLUMN_GAP = 110;
 /** The most of a handoff task an edge label shows; the inspector has the rest. */
-const LABEL_CHARS = 22;
+const LABEL_CHARS = 16;
 const ROW_GAP = 22;
 /** Workers per column; a dozen in one column zoomed the camera out past legibility. */
 export const WORKERS_PER_COLUMN = 4;

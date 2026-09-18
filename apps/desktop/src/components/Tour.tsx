@@ -42,6 +42,9 @@ function measure(target: string | null): Box | null {
   const element = document.querySelector(`[data-tour="${target}"]`);
   if (!(element instanceof HTMLElement)) return null;
   if (element.closest("[hidden]") !== null) return null;
+  // A target further down a scrolling section (the keys, below the limits)
+  // is brought into the middle first, so the spotlight is not half off screen.
+  if (typeof element.scrollIntoView === "function") element.scrollIntoView({ block: "center" });
   const rect = element.getBoundingClientRect();
   if (rect.width === 0 && rect.height === 0) return null;
   return { top: rect.top - RING, left: rect.left - RING, width: rect.width + RING * 2, height: rect.height + RING * 2 };
