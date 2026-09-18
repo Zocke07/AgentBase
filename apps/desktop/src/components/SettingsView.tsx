@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState } from "react";
 import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
 import { openChatGPTAuthUrl } from "../lib/external";
+import { revealAvailable, revealFolder } from "../lib/folder";
 import { clearSecret, keychainAvailable, setSecret } from "../lib/keychain";
 import { restartApp, restartAvailable } from "../lib/shell";
 import { THEMES, useThemeStore, type Theme } from "../lib/theme";
@@ -38,6 +39,8 @@ export interface SettingsViewProps {
   onSaved: (settings: SettingsResponse) => void;
   /** Every space, for choosing where a chat command's runs happen. */
   spaces?: readonly SpaceResponse[];
+  /** Show the first-run tour again; absent where the shell has none. */
+  onReplayTour?: (() => void) | undefined;
 }
 
 interface Form {
@@ -122,7 +125,7 @@ function diff(opened: Form, form: Form): UpdateSettingsRequest {
   return patch;
 }
 
-export function SettingsView({ onSaved, spaces = [] }: SettingsViewProps) {
+export function SettingsView({ onSaved, spaces = [], onReplayTour }: SettingsViewProps) {
   const loadSettings = useCallback(() => api.getSettings(), []);
   const loadCatalogue = useCallback(() => api.listProviders(), []);
   const loadChannels = useCallback(() => api.getChannels(), []);
@@ -162,6 +165,7 @@ export function SettingsView({ onSaved, spaces = [] }: SettingsViewProps) {
             onSaved(reply);
             channels.reload();
           }}
+          onReplayTour={onReplayTour}
         />
       )}
     </div>
@@ -176,6 +180,7 @@ interface SettingsFormProps {
   channels: readonly ChannelStatusResponse[];
   /** Whether the last save has not been edited since; shown beside the button. */
   saved: boolean;
+  onReplayTour?: (() => void) | undefined;
   onEdited: () => void;
   onSaved: (settings: SettingsResponse) => void;
 }
@@ -187,6 +192,7 @@ function SettingsForm({
   catalogueError,
   channels,
   saved,
+  onReplayTour,
   onEdited,
   onSaved,
 }: SettingsFormProps) {
@@ -472,7 +478,7 @@ function SettingsForm({
       <h2 className="settings__group">Your account and this app</h2>
 
       {/* --- keys ---------------------------------------------------------- */}
-      <section className="settings__section" data-testid="keys">
+      <section className="settings__section" data-testid="keys" data-tour="keys">
         <h2>Keys</h2>
         <p className="settings__hint">
           Keys live in the operating system&apos;s keychain and are read once, when AgentSpace starts. They
@@ -604,6 +610,8 @@ function SettingsForm({
 
       <AppearanceSection />
 
+      <AboutSection version={loaded.version} dataDir={loaded.data_dir} onReplayTour={onReplayTour} />
+
       {errorFor(FORM) !== null && (
         <p className="editor__error editor__error--form" role="alert" data-testid="error-form">
           {errorFor(FORM)}
@@ -617,6 +625,65 @@ function SettingsForm({
         </button>
       </div>
     </form>
+  );
+}
+
+/** The version that answered, where its data lives, and the tour again. */
+function AboutSection({
+  version,
+  dataDir,
+  onReplayTour,
+}: {
+  version: string;
+  dataDir: string;
+  onReplayTour: (() => void) | undefined;
+}) {
+  const [opening, setOpening] = useState<string | null>(null);
+  const open = async () => {
+    setOpening(null);
+    try {
+      await revealFolder(dataDir);
+    } catch (failure) {
+      setOpening(failure instanceof Error ? failure.message : String(failure));
+    }
+  };
+
+  return (
+    <section className="settings__section about" data-testid="about">
+      <h2>About AgentSpace</h2>
+      <dl className="about__facts">
+        <dt>Version</dt>
+        <dd data-testid="about-version">{version}</dd>
+        <dt>Data folder</dt>
+        <dd>
+          <code className="settings__folder-path" data-testid="about-data-dir">
+            {dataDir}
+          </code>
+          {revealAvailable() && (
+            <button type="button" className="button button--small" onClick={() => void open()}>
+              Open folder
+            </button>
+          )}
+        </dd>
+      </dl>
+      <p className="settings__hint">
+        The database, every space&apos;s folder and a fetched ChatGPT runtime live in the data folder;
+        keys live in the OS keychain. Release notes for this version are on the project&apos;s GitHub
+        releases page under <code>v{version}</code>.
+      </p>
+      {opening !== null && (
+        <p className="field-error" role="alert">
+          {opening}
+        </p>
+      )}
+      {onReplayTour !== undefined && (
+        <div className="card__actions">
+          <button type="button" className="button button--small" onClick={onReplayTour}>
+            Replay the tour
+          </button>
+        </div>
+      )}
+    </section>
   );
 }
 

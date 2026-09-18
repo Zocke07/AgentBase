@@ -1,4 +1,4 @@
-import type { Run, SpaceResponse } from "@agentspace/schemas";
+import type { Run, SettingsResponse, SpaceResponse } from "@agentspace/schemas";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -398,5 +398,53 @@ describe("spaces", () => {
       expect(screen.getByTestId("run-panel")).toBeDefined();
     });
     expect(mocked.getRunHistory).toHaveBeenCalledWith("run-lab");
+  });
+});
+
+describe("the first-run tour", () => {
+  const settingsWith = (completed: boolean | undefined): SettingsResponse => ({
+    settings: {
+      provider: "anthropic",
+      model: "claude-opus-5",
+      auto_approve: [],
+      max_steps_per_agent: 20,
+      max_agents_per_run: 5,
+      max_run_seconds: 600,
+      ...(completed === undefined ? {} : { onboarding_completed: completed }),
+    },
+    configured_secrets: [],
+    known_secrets: [],
+    supported_providers: ["anthropic"],
+    model_is_priced: true,
+    version: "0.4.0",
+    data_dir: "D:\\data",
+  });
+
+  it("opens once on the sidecar's word and records being skipped", async () => {
+    const user = userEvent.setup();
+    mocked.getSettings.mockResolvedValue(settingsWith(false));
+    mocked.updateSettings.mockResolvedValue(settingsWith(true));
+    render(<App />);
+
+    expect(await screen.findByTestId("tour-card")).toBeDefined();
+    await user.click(screen.getByRole("button", { name: "Skip the tour" }));
+
+    expect(mocked.updateSettings).toHaveBeenCalledWith({ onboarding_completed: true });
+    await waitFor(() => {
+      expect(screen.queryByTestId("tour-card")).toBeNull();
+    });
+  });
+
+  it("stays away once completed, and from a sidecar that does not carry the flag", async () => {
+    mocked.getSettings.mockResolvedValue(settingsWith(true));
+    const { unmount } = render(<App />);
+    await screen.findByRole("button", { name: /Space: Main/ });
+    expect(screen.queryByTestId("tour-card")).toBeNull();
+    unmount();
+
+    mocked.getSettings.mockResolvedValue(settingsWith(undefined));
+    render(<App />);
+    await screen.findByRole("button", { name: /Space: Main/ });
+    expect(screen.queryByTestId("tour-card")).toBeNull();
   });
 });

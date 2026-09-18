@@ -82,7 +82,7 @@ export function SpaceSwitcher({ spaces, currentId, onSelect, onCreated }: SpaceS
   };
 
   return (
-    <div className="switcher" ref={root} data-testid="space-switcher">
+    <div className="switcher" ref={root} data-testid="space-switcher" data-tour="space">
       <button
         type="button"
         className="switcher__current"

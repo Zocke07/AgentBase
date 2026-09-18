@@ -15,6 +15,7 @@ import { Rail, type Section } from "./components/Rail";
 import { RunsView } from "./components/RunsView";
 import { SettingsView } from "./components/SettingsView";
 import { SpaceSettingsView } from "./components/SpaceSettingsView";
+import { Tour } from "./components/Tour";
 import * as api from "./lib/api";
 import { SECTION_ORDER } from "./lib/sections";
 import { connectWithRetry, type SidecarStatus } from "./lib/sidecar";
@@ -58,6 +59,10 @@ export function App() {
   } | null>(null);
   // Bumped when a run changes a memory's status, so the vault reloads its inbox.
   const [memoryNonce, setMemoryNonce] = useState(0);
+  // The first-run tour. Null defers to the sidecar's flag, so it opens once
+  // on the sidecar's word and only a settings document that carries the flag
+  // (not an older sidecar, not a bare test fixture) can open it.
+  const [tourOpen, setTourOpen] = useState<boolean | null>(null);
   // Memories waiting in the inbox, reported by the vault for the rail's badge.
   const [inboxCount, setInboxCount] = useState(0);
   // Set when a request failed to reach the sidecar after startup; the window
@@ -236,6 +241,22 @@ export function App() {
   const memoryChanged = useCallback(() => {
     setMemoryNonce((current) => current + 1);
   }, []);
+
+  const tourShowing = tourOpen ?? settings?.settings.onboarding_completed === false;
+
+  const closeTour = useCallback(() => {
+    setTourOpen(false);
+    if (settings?.settings.onboarding_completed === true) return;
+    void api
+      .updateSettings({ onboarding_completed: true })
+      .then(setSettings)
+      .catch(() => undefined);
+  }, [settings]);
+
+  const demoRun = useCallback(async () => {
+    const run = await api.startDebugRun();
+    openRun(run.id);
+  }, [openRun]);
 
   // Ctrl/Cmd and a digit jumps to a section, in rail order.
   useEffect(() => {
@@ -474,11 +495,15 @@ export function App() {
                   setSettings(reply);
                   refreshWorkspace();
                 }}
+                onReplayTour={() => {
+                  setTourOpen(true);
+                }}
               />
             </ErrorBoundary>
           </div>
         </div>
       </div>
+      <Tour open={tourShowing} section={section} onSection={setSection} onClose={closeTour} onDemo={demoRun} />
     </div>
   );
 }

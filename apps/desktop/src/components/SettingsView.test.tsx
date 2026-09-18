@@ -478,3 +478,26 @@ describe("channels", () => {
     });
   });
 });
+
+describe("about", () => {
+  it("shows the version that answered and where its data lives, and replays the tour", async () => {
+    const onReplayTour = vi.fn();
+    render(<SettingsView onSaved={vi.fn()} onReplayTour={onReplayTour} />);
+    await loaded();
+
+    const about = screen.getByTestId("about");
+    expect(screen.getByTestId("about-version").textContent).toBe("0.4.0");
+    expect(screen.getByTestId("about-data-dir").textContent).toBe("D:\\data");
+    expect(about.textContent).toContain("v0.4.0");
+
+    await userEvent.click(screen.getByRole("button", { name: "Replay the tour" }));
+    expect(onReplayTour).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers no replay where the shell has no tour", async () => {
+    view();
+    await loaded();
+
+    expect(screen.queryByRole("button", { name: "Replay the tour" })).toBeNull();
+  });
+});

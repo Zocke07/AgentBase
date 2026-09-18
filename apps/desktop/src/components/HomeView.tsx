@@ -226,6 +226,7 @@ export function HomeView({
               }
             }}
             data-testid="goal-input"
+            data-tour="goal"
           />
           {retrieval !== null && (
             <fieldset className="new-run__retrieval" data-testid="retrieval-preview">

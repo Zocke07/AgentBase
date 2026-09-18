@@ -4792,6 +4792,128 @@ button.md__tag:hover {
   white-space: nowrap;
 }
 
+/* --- about ---------------------------------------------------------------- */
+
+.about__facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.4rem 1rem;
+  margin: 0;
+  font-size: 0.8667rem;
+}
+
+.about__facts dt {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.about__facts dd {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+  margin: 0;
+}
+
+/* --- the first-run tour --------------------------------------------------- */
+
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+
+/* The spotlight is a hole: its shadow is the veil over everything else. */
+.tour__spotlight {
+  position: fixed;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 9999px color-mix(in srgb, var(--bg) 62%, transparent);
+  outline: 2px solid var(--accent);
+  transition:
+    top 160ms ease,
+    left 160ms ease,
+    width 160ms ease,
+    height 160ms ease;
+}
+
+.tour__veil {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg) 62%, transparent);
+}
+
+.tour__card {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem 1.1rem 0.9rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  pointer-events: auto;
+}
+
+.tour__card--centred {
+  top: 50%;
+  left: 50%;
+  width: min(26rem, calc(100vw - 2rem));
+  transform: translate(-50%, -50%);
+}
+
+.tour__count {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.7333rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tour__title {
+  font-size: 1.0625rem;
+}
+
+.tour__body {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.8667rem;
+  line-height: 1.5;
+}
+
+.tour__actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin-top: 0.3rem;
+}
+
+.tour__spacer {
+  flex: 1;
+}
+
+.tour__skip {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.tour__skip:hover {
+  color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour__spotlight {
+    transition: none;
+  }
+}
+
 /* --- schedules ------------------------------------------------------------ */
 
 .schedules__head {

@@ -95,6 +95,7 @@ export function Rail({
         className={`rail__item${section === id ? " rail__item--active" : ""}`}
         aria-current={section === id ? "page" : undefined}
         title={`${label} (Ctrl/Cmd+${String(shortcut)})`}
+        data-tour={`rail-${id}`}
         onClick={() => {
           onSelect(id);
         }}
