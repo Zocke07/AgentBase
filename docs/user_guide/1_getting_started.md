@@ -119,10 +119,15 @@ allowances to a ChatGPT plan and an API account. AgentSpace does not silently
 replace an unavailable model; the run reports the provider error so you can
 choose another model or return to API-key access.
 
-The ChatGPT credential is stored by the bundled OpenAI Codex runtime in the OS
-credential store. OAuth tokens are never returned to the AgentSpace webview or
-written to its database. The runtime is used only to obtain one model decision;
-AgentSpace still executes every tool through its own approval gate. OpenAI's
+The first **Sign in with ChatGPT** downloads the OpenAI Codex App Server
+runtime (about 113 MB on macOS, 138 MB on Windows) from PyPI into AgentSpace's
+data folder. The download is refused unless its size and SHA-256 checksum match
+the build AgentSpace was released with, and it happens once; later launches
+reuse it. Settings shows the progress, and API-key access never needs it. The
+ChatGPT credential is then stored by that runtime in the OS credential store.
+OAuth tokens are never returned to the AgentSpace webview or written to its
+database. The runtime is used only to obtain one model decision; AgentSpace
+still executes every tool through its own approval gate. OpenAI's
 [authentication guide](https://learn.chatgpt.com/docs/auth) documents ChatGPT
 subscription and API-key access as Codex's two sign-in methods, and its
 [App Server guide](https://learn.chatgpt.com/docs/app-server) documents the

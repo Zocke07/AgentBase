@@ -15,7 +15,7 @@ and disconnects their stored keys.
 
 - Phases 0 through 9 and the spaces redesign are implemented. Do not restart
   Phase 0 or replace completed work from an earlier phase.
-- The current release line is **0.3.0**. It includes the Windows installer and
+- The current release line is **0.3.1**. It includes the Windows installer and
   an ad-hoc signed, unnotarized Apple Silicon macOS app archive. An incomplete
   first 0.2.0 Mac archive made Gatekeeper report that the app was damaged; the
   corrected bundle has a complete code seal. Check the release page and
@@ -70,7 +70,9 @@ second chronological log here.
   claims; executed tool calls are separate evidence.
 - API keys, ChatGPT OAuth tokens and the Discord token live in the OS keychain.
   API keys reach the sidecar over stdin at launch; ChatGPT OAuth is owned by the
-  pinned Codex runtime and only safe account status reaches the local API. Never
+  pinned Codex runtime, which is fetched from the wheel `uv.lock` pins on the
+  first sign-in (never frozen into the sidecar), and only safe account status
+  reaches the local API. Never
   put secrets in SQLite, files, logs or argv. The webview can set/delete keys,
   not read them; API key changes require an app restart.
 - Spawn-time key reads use the native `keyring` crate directly so a macOS

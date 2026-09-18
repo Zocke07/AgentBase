@@ -179,6 +179,7 @@ cannot store secrets in the OS keychain.
 | `GET /settings/providers` | Providers and the model names priced by this build. |
 | `POST /settings/verify` | Check local provider configuration without calling a model. |
 | `GET /auth/chatgpt` | Safe ChatGPT connection status; never an OAuth token. |
+| `POST /auth/chatgpt/runtime` | Fetch the pinned Codex App Server runtime once; the status reports its progress. |
 | `POST /auth/chatgpt/login` | Start ChatGPT browser sign-in. |
 | `POST /auth/chatgpt/login/cancel` | Cancel the active sign-in attempt. |
 | `POST /auth/chatgpt/logout` | Remove the ChatGPT session from the credential store. |

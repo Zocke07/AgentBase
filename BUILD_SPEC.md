@@ -322,7 +322,10 @@ resumes with zero gaps and zero duplicates.
 same selected model id, normalized response contract, AgentSpace orchestrator,
 tool catalogue, approval gate, event log, usage ledger and run limits. ChatGPT
 access uses the pinned Codex App Server as a credential and inference transport
-only. It receives one structured model decision per provider call, runs in an
+only. *(2026-09-18: the App Server executable is fetched from the pinned wheel
+on the first sign-in and kept in the data directory, verified by size and
+SHA-256, rather than frozen into the sidecar, whose one-file form unpacked it
+on every launch. The pin itself is unchanged: `uv.lock` names the wheel.)* It receives one structured model decision per provider call, runs in an
 empty read-only directory with its own tools disabled, and never owns the agent
 loop or executes an AgentSpace tool. OAuth tokens stay in the OS credential
 store and are not returned by the local API. AgentSpace applies the selected

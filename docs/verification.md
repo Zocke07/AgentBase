@@ -1,8 +1,48 @@
 # Verification and remaining work
 
-Updated 2026-09-17. This is the current record; the
+Updated 2026-09-18. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
 superseded gaps. A test result below is scoped to what was actually executed.
+
+## 0.3.1: the Codex runtime is fetched, not frozen
+
+Checked on Apple Silicon macOS on 2026-09-18. The 0.3.0 sidecar carried the
+Codex App Server runtime through `--collect-all codex_cli_bin`; measured
+launch-to-healthy for three sidecar variants on the same machine, three runs
+each, was 2.1 to 2.3 s for that 133 MB build, about 1.75 s for a 111 MB build
+without the unused `codex-code-mode-host`, and 1.0 to 1.1 s for a 22 MB build
+with no runtime. The `codex` binary itself is already arm64-only and stripped,
+so nothing smaller than fetching it separately was available.
+
+The sidecar now excludes `codex_cli_bin` and freezes at **22,131,376 bytes**,
+SHA-256 `ad441a7ba41a3c1799e57b5e39e09d93089b8d997599311b4d2f5a41efe54ef2`;
+`AgentSpace_0.3.1_aarch64-apple-darwin.app.zip` is **24,427,920 bytes**,
+SHA-256 `c0c453c8dbdf0554f45bb19a55b3950755729ef6eb3d235af239c89d79a56d07`,
+down from 135 MB. `just build-installer`, `just package-macos`,
+`just verify-build` (**17 release checks passed**, four Windows-only skipped)
+and `just check-tauri` passed.
+Unit tests drive the installer against an in-process ASGI server with a
+fake wheel: fetch, size and SHA-256 verification, unpacking only the members
+the SDK uses with the wheel's own executable bits, atomic commit, reuse
+without a second request, refusal of a hash mismatch, a short or oversized
+body, an HTTP error, an unsafe member path and a wheel with no executable,
+one shared task for concurrent callers, the development-checkout shortcut,
+and an unsupported platform. A pinning test keeps `codex_runtime.json` equal
+to the wheels in `uv.lock`. The frozen-sidecar tests now assert that
+`/auth/chatgpt` reports the runtime as `missing` and that the binary stays
+under 60 MB. The Settings tests cover fetch-then-sign-in with progress and a
+refused download.
+
+Live, with the frozen binary on a scratch data directory: `POST
+/auth/chatgpt/runtime` fetched the real 112,690,061-byte macOS wheel from
+PyPI in 15 s, the status went `preparing` then `disconnected` with the runtime
+`ready`, the install held `bin/codex`, `codex-path/rg` and `codex-resources`
+(217 MB, no wheel or helper binary left behind), `POST /auth/chatgpt/login`
+through the fetched runtime returned a real `auth.openai.com` authorization
+URL and was cancelled, and a relaunch reported the runtime ready with no
+download. No account was signed in. `just ci` passed with **790 backend
+tests** (11 skipped, the three archive checks waiting for the packaged
+build) and **334 frontend tests**.
 
 ## 0.3.0: memory inbox, incremental retrieval and the inspector
 

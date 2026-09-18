@@ -75,8 +75,16 @@ pool, budget wrapper, orchestrator, tools, events and limits do not branch on
 authentication method.
 
 ChatGPT access is implemented with a process-wide, pinned Codex App Server
-runtime under `<data dir>/codex`. It is a credential and inference transport,
-not an agent framework. Each call starts an ephemeral read-only thread with
+runtime with its `CODEX_HOME` under `<data dir>/codex`. The App Server
+executable is not frozen into the sidecar: `providers/codex_runtime.py`
+carries a manifest of the `openai-codex-cli-bin` wheels `uv.lock` pins
+(`just codex-manifest` regenerates it, and a test keeps the two equal),
+fetches this platform's wheel into `<data dir>/codex-runtime/<version>/<tag>/`
+on the first sign-in, verifies the size and SHA-256 before unpacking only the
+members the SDK uses, and hands the executable to the SDK through
+`CodexConfig.codex_bin`. A checkout with the wheel installed uses it directly,
+so tests and `just dev-app` stay offline. It is a credential and inference
+transport, not an agent framework. Each call starts an ephemeral read-only thread with
 approvals denied and Codex tools disabled, supplies the AgentSpace conversation
 and tool schemas as data, and requests one structured decision. A requested
 tool is converted to the normal `ToolCall`; the hand-written AgentSpace loop

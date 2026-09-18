@@ -1,6 +1,6 @@
 [project]
 name = "agentspace"
-version = "0.3.0"
+version = "0.3.1"
 description = "Local-first autonomous agent co-working space: FastAPI sidecar."
 requires-python = "==3.12.*"
 dependencies = [
