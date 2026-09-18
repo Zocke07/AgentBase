@@ -6,6 +6,7 @@ import type {
   ChatGPTAuthResponse,
   ChatGPTLoginResponse,
   CreateAgentRequest,
+  CreateScheduleRequest,
   CreateSpaceRequest,
   Event,
   KnowledgeGraph,
@@ -22,11 +23,14 @@ import type {
   MemoryStatus,
   ProviderCatalogueResponse,
   Run,
+  SchedulePreview,
+  ScheduleResponse,
   SettingsResponse,
   SearchFilters,
   SpaceResponse,
   ToolResponse,
   UpdateAgentRequest,
+  UpdateScheduleRequest,
   UpdateSettingsRequest,
   UpdateSpaceRequest,
   VerifyResponse,
@@ -181,6 +185,30 @@ export const deleteSpace = (id: string): Promise<void> =>
 /** Add fresh copies of the three built-in roles to a space's roster. */
 export const seedSpace = (id: string): Promise<AgentDef[]> =>
   request<AgentDef[]>(`/spaces/${id}/seed`, { method: "POST" });
+
+// --- schedules --------------------------------------------------------------
+
+/** One space's schedules, by name. */
+export const listSchedules = (spaceId: string): Promise<ScheduleResponse[]> =>
+  request<ScheduleResponse[]>(`/schedules${query({ space_id: spaceId })}`);
+
+export const createSchedule = (body: CreateScheduleRequest): Promise<ScheduleResponse> =>
+  request<ScheduleResponse>("/schedules", { method: "POST", ...asJson(body) });
+
+/** A PATCH: fields left out are untouched. A cadence or enabled change recomputes the next time. */
+export const updateSchedule = (id: string, body: UpdateScheduleRequest): Promise<ScheduleResponse> =>
+  request<ScheduleResponse>(`/schedules/${id}`, { method: "PATCH", ...asJson(body) });
+
+export const deleteSchedule = (id: string): Promise<void> =>
+  requestNoContent(`/schedules/${id}`, { method: "DELETE" });
+
+/** Start the schedule's run now, leaving its next time as it was. */
+export const runScheduleNow = (id: string): Promise<Run> =>
+  request<Run>(`/schedules/${id}/run`, { method: "POST" });
+
+/** The cadence in words and its next few times, before it is saved. */
+export const previewSchedule = (cadence: CreateScheduleRequest["cadence"]): Promise<SchedulePreview> =>
+  request<SchedulePreview>("/schedules/preview", { method: "POST", ...asJson({ cadence }) });
 
 // --- knowledge -------------------------------------------------------------
 

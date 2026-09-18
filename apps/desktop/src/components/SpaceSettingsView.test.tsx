@@ -20,6 +20,7 @@ vi.mock("../lib/api", async (importOriginal) => ({
   listProviders: vi.fn(),
   updateSpace: vi.fn(),
   deleteSpace: vi.fn(),
+  listSchedules: vi.fn(),
 }));
 
 const mocked = vi.mocked(api);
@@ -59,6 +60,7 @@ const settings: SettingsResponse = {
 };
 
 beforeEach(() => {
+  mocked.listSchedules.mockResolvedValue([]);
   mocked.listProviders.mockResolvedValue({
     providers: [{ name: "ollama", requires_key: false, free_text_model: true }],
     models: { ollama: [] },

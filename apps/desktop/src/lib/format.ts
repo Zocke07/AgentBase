@@ -26,6 +26,19 @@ export function clockDate(iso: string): string {
   );
 }
 
+/** `Tue 22 Sep, 09:00` in the viewer's zone: a moment a schedule names, ahead or behind. */
+export function whenLabel(iso: string): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return "-";
+  return at.toLocaleString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 /** `27s`, `1m 32s`, `1h 23m`: a span between two of the log's own timestamps. */
 export function formatDuration(milliseconds: number): string {
   const total = Math.max(0, Math.round(milliseconds / 1000));

@@ -12,6 +12,8 @@ import { ApiError } from "../lib/api";
 import { revealFolder, revealAvailable } from "../lib/folder";
 import { useFetched } from "../state/useFetched";
 
+import { Schedules } from "./Schedules";
+
 /**
  * One space's settings: name, description, the folder (shown and opened,
  * never changed), the rules with Inherit as the first choice of each, and a
@@ -26,6 +28,8 @@ export interface SpaceSettingsViewProps {
   settings: SettingsResponse | null;
   /** The space changed, or was archived or deleted; the shell re-reads the list. */
   onChanged: (space: SpaceResponse | null) => void;
+  /** Open the run a schedule last started. */
+  onOpenRun?: ((runId: string) => void) | undefined;
 }
 
 interface Form {
@@ -84,7 +88,7 @@ function diff(opened: Form, form: Form): UpdateSpaceRequest {
   return patch;
 }
 
-export function SpaceSettingsView({ space, settings, onChanged }: SpaceSettingsViewProps) {
+export function SpaceSettingsView({ space, settings, onChanged, onOpenRun }: SpaceSettingsViewProps) {
   const loadCatalogue = useCallback(() => api.listProviders(), []);
   const catalogue = useFetched(loadCatalogue, EMPTY_CATALOGUE);
   // Held above the form: a save reloads the space list, the row's
@@ -94,21 +98,25 @@ export function SpaceSettingsView({ space, settings, onChanged }: SpaceSettingsV
 
   return (
     <div className="settings">
-      <SpaceForm
-        // Start the form from the row being edited, and again when it changes underneath.
-        key={`${space.id}:${space.updated_at}`}
-        space={space}
-        settings={settings}
-        catalogue={catalogue.data}
-        saved={saved}
-        onEdited={() => {
-          setSaved(false);
-        }}
-        onChanged={(changed) => {
-          setSaved(changed !== null);
-          onChanged(changed);
-        }}
-      />
+      <div className="settings__form">
+        <SpaceForm
+          // Start the form from the row being edited, and again when it changes underneath.
+          key={`${space.id}:${space.updated_at}`}
+          space={space}
+          settings={settings}
+          catalogue={catalogue.data}
+          saved={saved}
+          onEdited={() => {
+            setSaved(false);
+          }}
+          onChanged={(changed) => {
+            setSaved(changed !== null);
+            onChanged(changed);
+          }}
+        />
+        <Schedules key={space.id} space={space} settings={settings} onOpenRun={onOpenRun} />
+        {!space.is_default && <DangerZone space={space} onChanged={onChanged} />}
+      </div>
     </div>
   );
 }
@@ -129,8 +137,6 @@ function SpaceForm({
   const [form, setForm] = useState<Form>(opened);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
   const [saving, setSaving] = useState(false);
-  const [dangerBusy, setDangerBusy] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [opening, setOpening] = useState<string | null>(null);
 
   const set = <K extends keyof Form>(key: K, value: Form[K]) => {
@@ -168,32 +174,6 @@ function SpaceForm({
     }
   };
 
-  const setArchived = async (archived: boolean) => {
-    setDangerBusy(true);
-    setErrors({});
-    try {
-      onChanged(await api.updateSpace(space.id, { archived }));
-    } catch (failure) {
-      setErrors({ [FORM]: failure instanceof Error ? failure.message : String(failure) });
-    } finally {
-      setDangerBusy(false);
-    }
-  };
-
-  const remove = async () => {
-    setDangerBusy(true);
-    setErrors({});
-    try {
-      await api.deleteSpace(space.id);
-      onChanged(null);
-    } catch (failure) {
-      setConfirmingDelete(false);
-      setErrors({ [FORM]: failure instanceof Error ? failure.message : String(failure) });
-    } finally {
-      setDangerBusy(false);
-    }
-  };
-
   const open = async () => {
     setOpening(null);
     try {
@@ -205,7 +185,7 @@ function SpaceForm({
 
   return (
     <form
-      className="settings__form"
+      className="settings__stack"
       onSubmit={(event) => {
         event.preventDefault();
         void save();
@@ -437,60 +417,105 @@ function SpaceForm({
         </button>
       </div>
 
-      {!space.is_default && (
-        <section className="settings__section settings__section--danger" data-testid="danger-zone">
-          <h2>Archive or delete</h2>
-          <p className="settings__hint">
-            Archiving keeps every run this space has had and takes it out of the switcher. Deleting
-            is only allowed for a space with no runs (delete them one by one from Runs first, or
-            archive instead) and removes its agents.
-          </p>
-          <div className="card__actions">
+    </form>
+  );
+}
+
+/** Archive or delete, kept apart from the form so a click here never submits it. */
+function DangerZone({
+  space,
+  onChanged,
+}: {
+  space: SpaceResponse;
+  onChanged: (space: SpaceResponse | null) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const setArchived = async (archived: boolean) => {
+    setBusy(true);
+    setError(null);
+    try {
+      onChanged(await api.updateSpace(space.id, { archived }));
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : String(failure));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.deleteSpace(space.id);
+      onChanged(null);
+    } catch (failure) {
+      setConfirmingDelete(false);
+      setError(failure instanceof Error ? failure.message : String(failure));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="settings__section settings__section--danger" data-testid="danger-zone">
+      <h2>Archive or delete</h2>
+      <p className="settings__hint">
+        Archiving keeps every run this space has had and takes it out of the switcher. Deleting
+        is only allowed for a space with no runs (delete them one by one from Runs first, or
+        archive instead) and removes its agents and schedules.
+      </p>
+      {error !== null && (
+        <p className="editor__error editor__error--form" role="alert" data-testid="error-form">
+          {error}
+        </p>
+      )}
+      <div className="card__actions">
+        <button
+          type="button"
+          className="button"
+          disabled={busy}
+          onClick={() => void setArchived(space.archived !== true)}
+        >
+          {space.archived === true ? "Unarchive" : "Archive this space"}
+        </button>
+        {confirmingDelete ? (
+          <span className="roster__confirm">
+            <span>Delete {space.name} and its agents?</span>
             <button
               type="button"
-              className="button"
-              disabled={dangerBusy}
-              onClick={() => void setArchived(space.archived !== true)}
+              className="button button--small button--danger"
+              disabled={busy}
+              onClick={() => void remove()}
             >
-              {space.archived === true ? "Unarchive" : "Archive this space"}
+              Delete
             </button>
-            {confirmingDelete ? (
-              <span className="roster__confirm">
-                <span>Delete {space.name} and its agents?</span>
-                <button
-                  type="button"
-                  className="button button--small button--danger"
-                  disabled={dangerBusy}
-                  onClick={() => void remove()}
-                >
-                  Delete
-                </button>
-                <button
-                  type="button"
-                  className="button button--small"
-                  onClick={() => {
-                    setConfirmingDelete(false);
-                  }}
-                >
-                  Keep
-                </button>
-              </span>
-            ) : (
-              <button
-                type="button"
-                className="button button--danger"
-                disabled={dangerBusy}
-                onClick={() => {
-                  setConfirmingDelete(true);
-                }}
-              >
-                Delete this space…
-              </button>
-            )}
-          </div>
-        </section>
-      )}
-    </form>
+            <button
+              type="button"
+              className="button button--small"
+              onClick={() => {
+                setConfirmingDelete(false);
+              }}
+            >
+              Keep
+            </button>
+          </span>
+        ) : (
+          <button
+            type="button"
+            className="button button--danger"
+            disabled={busy}
+            onClick={() => {
+              setConfirmingDelete(true);
+            }}
+          >
+            Delete this space…
+          </button>
+        )}
+      </div>
+    </section>
   );
 }
 

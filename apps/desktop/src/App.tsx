@@ -454,6 +454,7 @@ export function App() {
                 <SpaceSettingsView
                   space={space}
                   settings={settings}
+                  onOpenRun={openRun}
                   onChanged={(changed) => {
                     void loadSpaces().then(() => {
                       if (changed === null) setSection("home");
