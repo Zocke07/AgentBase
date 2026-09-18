@@ -10,7 +10,6 @@ can reset their zone.
 from __future__ import annotations
 
 import asyncio
-import sys
 import time
 from datetime import UTC, datetime, timedelta, tzinfo
 from typing import TYPE_CHECKING, Any
@@ -173,13 +172,18 @@ def test_a_cadence_is_described_in_one_sentence() -> None:
     assert describe(IntervalCadence(kind="interval", every_hours=48)) == "Every 2 days"
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="the C library's zone cannot be reset here")
 def test_the_local_zone_reads_the_offset_of_the_wall_time_it_is_given(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The reason `LocalZone` exists: `datetime.now().astimezone()` would not."""
+    # `tzset` does not exist on Windows, where the C library's zone cannot be
+    # reset from inside the process; looked up rather than named so the
+    # cross-platform typecheck does not see an attribute Windows lacks.
+    tzset = getattr(time, "tzset", None)
+    if tzset is None:
+        pytest.skip("the C library's zone cannot be reset here")
     monkeypatch.setenv("TZ", "Europe/Amsterdam")
-    time.tzset()
+    tzset()
     try:
         zone = LocalZone()
         winter = datetime(2026, 1, 15, 9, 0, tzinfo=zone)
@@ -194,7 +198,7 @@ def test_the_local_zone_reads_the_offset_of_the_wall_time_it_is_given(
         assert next_occurrence(cadence, eve, zone) == _utc(2026, 3, 29, 7, 0)
     finally:
         monkeypatch.delenv("TZ")
-        time.tzset()
+        tzset()
 
 
 # --- the store -------------------------------------------------------------------
