@@ -244,7 +244,11 @@ def _with_workspace_policy(
     """
     if runtime is None:
         return None
-    return replace(runtime, workspace_auto_approve=tuple(workspace.auto_approve))
+    return replace(
+        runtime,
+        workspace_auto_approve=tuple(workspace.auto_approve),
+        workspace_tool_policies=dict(workspace.tool_policies),
+    )
 
 
 async def _finish(

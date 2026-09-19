@@ -8,11 +8,11 @@ agent holding only some of them.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from agentspace.tools.builtin import build_registry
-from agentspace.tools.catalogue import effective_auto_approve
+from agentspace.tools.catalogue import ToolPolicy, effective_auto_approve
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
@@ -35,6 +35,9 @@ class ToolRuntime:
     #: The workspace's pre-authorized risk levels, frozen at run start like the
     #: rest of the run's rules.
     workspace_auto_approve: tuple[RiskLevel, ...] = ()
+    #: The workspace's per-tool answers, frozen the same way. A tool absent
+    #: here is `ToolPolicy.ASK`: its risk level decides.
+    workspace_tool_policies: Mapping[str, ToolPolicy] = field(default_factory=dict)
 
     @classmethod
     def build(
@@ -43,6 +46,7 @@ class ToolRuntime:
         approvals: ApprovalService,
         workspace_auto_approve: Iterable[RiskLevel] = (),
         tools: Mapping[str, Tool] | None = None,
+        workspace_tool_policies: Mapping[str, ToolPolicy] | None = None,
     ) -> ToolRuntime:
         """Assemble a runtime over the built-in tools. ``tools`` is injectable for tests."""
         return cls(
@@ -50,6 +54,7 @@ class ToolRuntime:
             sandbox=sandbox,
             approvals=approvals,
             workspace_auto_approve=tuple(workspace_auto_approve),
+            workspace_tool_policies=dict(workspace_tool_policies or {}),
         )
 
     def get(self, name: str) -> Tool | None:
@@ -70,3 +75,20 @@ class ToolRuntime:
         if not levels:
             return frozenset(self.workspace_auto_approve)
         return effective_auto_approve(levels, self.workspace_auto_approve)
+
+    def policy_for(self, tool: str, definition_levels: Iterable[RiskLevel]) -> ToolPolicy:
+        """The workspace's answer for one tool, as this agent's definition leaves it.
+
+        A definition that names levels narrows even an app-wide ``allow``: the
+        tool then runs unasked only if its risk is among them. That keeps one
+        rule for every layer, that a lower one can only make the answer
+        stricter; ``deny`` is already as strict as it gets.
+        """
+        policy = self.workspace_tool_policies.get(tool, ToolPolicy.ASK)
+        if policy is not ToolPolicy.ALLOW:
+            return policy
+        levels = frozenset(definition_levels)
+        implementation = self.tools.get(tool)
+        if levels and (implementation is None or implementation.risk not in levels):
+            return ToolPolicy.ASK
+        return policy

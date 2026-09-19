@@ -24,7 +24,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from agentspace.events.types import EventType
-from agentspace.tools.catalogue import RiskLevel
+from agentspace.tools.catalogue import RiskLevel, ToolPolicy
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -37,6 +37,7 @@ __all__ = [
     "ApprovalDecision",
     "ApprovalNotPendingError",
     "ApprovalRecord",
+    "ApprovalScope",
     "ApprovalService",
     "ApprovalStatus",
     "ApprovalStore",
@@ -51,6 +52,14 @@ class ApprovalStatus(StrEnum):
     APPROVED = "approved"
     DENIED = "denied"
     EXPIRED = "expired"
+
+
+class ApprovalScope(StrEnum):
+    """How far a person's answer reaches: this one call, or every call to
+    the tool for the rest of the run."""
+
+    CALL = "call"
+    RUN = "run"
 
 
 class ApprovalNotPendingError(Exception):
@@ -69,6 +78,7 @@ class ApprovalRecord:
     status: ApprovalStatus
     created_at: datetime
     resolved_at: datetime | None = None
+    scope: ApprovalScope = ApprovalScope.CALL
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,6 +179,19 @@ class ApprovalStore:
                 return record
         return None
 
+    async def find_allowed_for_run(self, run_id: str, tool: str) -> ApprovalRecord | None:
+        """The earliest yes in this run that was given for the whole run, for this tool."""
+        return await asyncio.to_thread(self._find_allowed_for_run_sync, run_id, tool)
+
+    def _find_allowed_for_run_sync(self, run_id: str, tool: str) -> ApprovalRecord | None:
+        with self._db.read() as connection:
+            row = connection.execute(
+                "SELECT * FROM approvals WHERE run_id = ? AND tool = ? AND status = ?"
+                " AND scope = ? ORDER BY created_at, rowid LIMIT 1",
+                (run_id, tool, str(ApprovalStatus.APPROVED), str(ApprovalScope.RUN)),
+            ).fetchone()
+        return _record(row) if row is not None else None
+
     def _list_pending_sync(self, run_id: str | None) -> list[ApprovalRecord]:
         with self._db.read() as connection:
             if run_id is None:
@@ -184,22 +207,37 @@ class ApprovalStore:
                 ).fetchall()
         return [_record(row) for row in rows]
 
-    async def settle(self, approval_id: str, status: ApprovalStatus) -> ApprovalRecord:
+    async def settle(
+        self,
+        approval_id: str,
+        status: ApprovalStatus,
+        scope: ApprovalScope = ApprovalScope.CALL,
+    ) -> ApprovalRecord:
         """Move a pending approval to a terminal status.
 
         Conditional on the row still being pending, in one statement, so two
-        concurrent resolutions cannot both succeed.
+        concurrent resolutions cannot both succeed. ``scope`` is recorded with
+        a yes so the gate can find it again for the rest of the run.
 
         :raises ApprovalNotPendingError: unknown, or already settled.
         """
-        return await asyncio.to_thread(self._settle_sync, approval_id, status)
+        return await asyncio.to_thread(self._settle_sync, approval_id, status, scope)
 
-    def _settle_sync(self, approval_id: str, status: ApprovalStatus) -> ApprovalRecord:
+    def _settle_sync(
+        self, approval_id: str, status: ApprovalStatus, scope: ApprovalScope
+    ) -> ApprovalRecord:
         resolved_at = datetime.now(UTC).isoformat()
         with self._db.write() as connection:
             cursor = connection.execute(
-                "UPDATE approvals SET status = ?, resolved_at = ? WHERE id = ? AND status = ?",
-                (str(status), resolved_at, approval_id, str(ApprovalStatus.PENDING)),
+                "UPDATE approvals SET status = ?, resolved_at = ?, scope = ?"
+                " WHERE id = ? AND status = ?",
+                (
+                    str(status),
+                    resolved_at,
+                    str(scope),
+                    approval_id,
+                    str(ApprovalStatus.PENDING),
+                ),
             )
             if cursor.rowcount == 0:
                 existing = connection.execute(
@@ -254,6 +292,7 @@ def _record(row: Any) -> ApprovalRecord:
             if row["resolved_at"] is not None
             else None
         ),
+        scope=ApprovalScope(row["scope"]),
     )
 
 
@@ -293,6 +332,7 @@ class ApprovalService:
         risk: RiskLevel,
         auto_approve: Iterable[RiskLevel],
         deadline: float | None = None,
+        policy: ToolPolicy = ToolPolicy.ASK,
     ) -> ApprovalDecision:
         """Obtain a decision for one prepared call, blocking if a human is needed.
 
@@ -301,8 +341,14 @@ class ApprovalService:
             narrowing rule has one implementation and it is not here.
         :param deadline: seconds this may block before expiring, normally the
             run's remaining wall-clock budget. ``None`` waits indefinitely.
+        :param policy: the per-tool answer, already narrowed by the definition
+            (:meth:`~agentspace.tools.runtime.ToolRuntime.policy_for`). It is
+            read before the risk level: a refusal is a refusal whatever the
+            level, and an allowance runs the call unasked.
         """
-        if risk in frozenset(auto_approve):
+        if policy is ToolPolicy.DENY:
+            return await self._deny_by_policy(run_id, agent, prepared, risk)
+        if policy is ToolPolicy.ALLOW or risk in frozenset(auto_approve):
             return await self._auto_approve(run_id, agent, prepared, risk)
 
         # A denial sticks for the run: the same call from any agent is denied
@@ -313,6 +359,12 @@ class ApprovalService:
         )
         if precedent is not None:
             return await self._deny_by_precedent(run_id, agent, prepared, risk, precedent)
+
+        # A yes given for the run sticks too, for every call to that tool:
+        # the person said not to ask again about it, and is not asked.
+        allowance = await self._store.find_allowed_for_run(run_id, prepared.tool_name)
+        if allowance is not None:
+            return await self._allow_by_precedent(run_id, agent, prepared, risk, allowance)
 
         record = await self._store.create(
             run_id, prepared.tool_name, prepared.raw_arguments, risk
@@ -335,6 +387,9 @@ class ApprovalService:
 
         status = await self._wait(record.id, deadline)
 
+        # The settled row carries how far the answer reaches; the log says so.
+        settled = await self._store.get(record.id)
+        scope = settled.scope if settled is not None else ApprovalScope.CALL
         await self._events.append(
             run_id,
             EventType.APPROVAL_RESOLVED,
@@ -343,6 +398,7 @@ class ApprovalService:
                 "tool": prepared.tool_name,
                 "status": str(status),
                 "automatic": False,
+                **({"scope": str(scope)} if scope is ApprovalScope.RUN else {}),
             },
             agent_id=agent,
         )
@@ -428,6 +484,107 @@ class ApprovalService:
             ),
             approval_id=settled.id,
             automatic=True,
+        )
+
+    async def _deny_by_policy(
+        self, run_id: str, agent: str, prepared: Prepared, risk: RiskLevel
+    ) -> ApprovalDecision:
+        """Refuse a call to a tool the policy never allows, and say so.
+
+        Recorded like an automatic approval, so "what did the policy refuse"
+        is answered from the same rows, and marked as the policy's doing.
+        """
+        record = await self._store.create(
+            run_id, prepared.tool_name, prepared.raw_arguments, risk
+        )
+        await self._events.append(
+            run_id,
+            EventType.APPROVAL_REQUESTED,
+            {
+                "approval_id": record.id,
+                "tool": prepared.tool_name,
+                "args": prepared.raw_arguments,
+                "risk": str(risk),
+                "prompt": approval_prompt(agent, prepared),
+                "summary": prepared.summary,
+                "automatic": True,
+                "policy": str(ToolPolicy.DENY),
+            },
+            agent_id=agent,
+        )
+        settled = await self._store.settle(record.id, ApprovalStatus.DENIED)
+        await self._events.append(
+            run_id,
+            EventType.APPROVAL_RESOLVED,
+            {
+                "approval_id": settled.id,
+                "tool": prepared.tool_name,
+                "status": str(settled.status),
+                "automatic": True,
+                "policy": str(ToolPolicy.DENY),
+            },
+            agent_id=agent,
+        )
+        return ApprovalDecision(
+            allowed=False,
+            status=ApprovalStatus.DENIED,
+            reason=(
+                f"The app's policy never allows {prepared.tool_name}, so the request "
+                f"to {prepared.summary} was refused without asking. Do not try this "
+                f"tool again: continue without it, or finish and say what you could "
+                f"not do."
+            ),
+            approval_id=record.id,
+        )
+
+    async def _allow_by_precedent(
+        self,
+        run_id: str,
+        agent: str,
+        prepared: Prepared,
+        risk: RiskLevel,
+        precedent: ApprovalRecord,
+    ) -> ApprovalDecision:
+        """Allow a call to a tool the user allowed for the rest of this run."""
+        record = await self._store.create(
+            run_id, prepared.tool_name, prepared.raw_arguments, risk
+        )
+        await self._events.append(
+            run_id,
+            EventType.APPROVAL_REQUESTED,
+            {
+                "approval_id": record.id,
+                "tool": prepared.tool_name,
+                "args": prepared.raw_arguments,
+                "risk": str(risk),
+                "prompt": approval_prompt(agent, prepared),
+                "summary": prepared.summary,
+                "automatic": True,
+                "precedent": precedent.id,
+            },
+            agent_id=agent,
+        )
+        settled = await self._store.settle(record.id, ApprovalStatus.APPROVED)
+        await self._events.append(
+            run_id,
+            EventType.APPROVAL_RESOLVED,
+            {
+                "approval_id": settled.id,
+                "tool": prepared.tool_name,
+                "status": str(settled.status),
+                "automatic": True,
+                "precedent": precedent.id,
+            },
+            agent_id=agent,
+        )
+        return ApprovalDecision(
+            allowed=True,
+            status=ApprovalStatus.APPROVED,
+            reason=(
+                f"The user allowed {prepared.tool_name} for the rest of this run, "
+                f"so this call ran without asking again."
+            ),
+            approval_id=record.id,
         )
 
     async def _deny_by_precedent(
@@ -538,16 +695,26 @@ class ApprovalService:
         finally:
             self._waiters.pop(approval_id, None)
 
-    async def resolve(self, approval_id: str, *, approved: bool) -> ApprovalRecord:
+    async def resolve(
+        self,
+        approval_id: str,
+        *,
+        approved: bool,
+        scope: ApprovalScope = ApprovalScope.CALL,
+    ) -> ApprovalRecord:
         """Settle an approval and wake whatever is waiting on it.
 
         The row is updated first; the durable state decides and the in-memory
-        waiter follows it.
+        waiter follows it. A yes with ``scope`` ``RUN`` also answers every
+        later call to the tool in this run; a no is for this call and its
+        arguments, as before, and a no cannot be given for a run.
 
         :raises ApprovalNotPendingError: unknown, or already settled.
         """
         status = ApprovalStatus.APPROVED if approved else ApprovalStatus.DENIED
-        record = await self._store.settle(approval_id, status)
+        record = await self._store.settle(
+            approval_id, status, scope if approved else ApprovalScope.CALL
+        )
 
         waiter = self._waiters.get(approval_id)
         if waiter is not None and not waiter.done():

@@ -75,7 +75,7 @@ ends on the demo run; **Skip the tour** or Esc closes it for good, and
 | **Agents** | Create and edit this space's agent definitions. |
 | **Knowledge** | The space folder as a Markdown vault, and the memory inbox. |
 | **Usage** | What this month's model calls cost and carried, by day, model, space and run. |
-| **Space settings** | Name, description, folder, model, limits and schedules for this space. |
+| **Space settings** | Name, description, folder, model, limits, approval answers and schedules for this space. |
 | **Settings**, at the bottom | App defaults, keys, shared budget, Discord, theme and the About box. |
 
 The header shows the selected space's provider and model, the shared monthly

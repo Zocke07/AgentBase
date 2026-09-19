@@ -97,6 +97,22 @@ def test_seeding_an_existing_space_adds_the_roles_it_lacks(client: TestClient) -
     assert client.post(f"/spaces/{empty['id']}/seed").json() == []
 
 
+def test_a_space_narrows_the_per_tool_answers_and_can_inherit_again(client: TestClient) -> None:
+    lab = _create(client, "Lab")
+    assert lab["tool_policies"] is None
+
+    set_ = client.patch(f"/spaces/{lab['id']}", json={"tool_policies": {"http_get": "deny"}})
+    assert set_.status_code == 200, set_.text
+    assert set_.json()["tool_policies"] == {"http_get": "deny"}
+
+    bad = client.patch(f"/spaces/{lab['id']}", json={"tool_policies": {"teleport": "deny"}})
+    assert bad.status_code == 400
+    assert bad.json()["detail"]["field"] == "tool_policies"
+
+    back = client.patch(f"/spaces/{lab['id']}", json={"tool_policies": None})
+    assert back.json()["tool_policies"] is None
+
+
 def test_a_rule_can_be_set_and_set_back_to_inherit(client: TestClient) -> None:
     lab = _create(client, "Lab")
 

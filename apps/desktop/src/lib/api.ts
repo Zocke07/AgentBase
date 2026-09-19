@@ -385,8 +385,13 @@ export const listTools = (): Promise<ToolResponse[]> => request<ToolResponse[]>(
 export const listApprovals = (runId?: string): Promise<ApprovalResponse[]> =>
   request<ApprovalResponse[]>(runId === undefined ? "/approvals" : `/approvals?run_id=${runId}`);
 
-export const resolveApproval = (id: string, approved: boolean): Promise<ApprovalResponse> =>
-  request<ApprovalResponse>(`/approvals/${id}`, { method: "POST", ...asJson({ approved }) });
+/** Answer one approval; a yes with scope "run" also answers every later call to that tool in the run. */
+export const resolveApproval = (
+  id: string,
+  approved: boolean,
+  scope: "call" | "run" = "call",
+): Promise<ApprovalResponse> =>
+  request<ApprovalResponse>(`/approvals/${id}`, { method: "POST", ...asJson({ approved, scope }) });
 
 // --- settings and budget ----------------------------------------------------
 

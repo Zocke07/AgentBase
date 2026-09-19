@@ -35,6 +35,7 @@ export interface ApprovalResponse {
   status: string;
   created_at: string;
   resolved_at?: string | null;
+  scope?: "call" | "run";
 }
 
 export interface BudgetResponse {
@@ -403,6 +404,7 @@ export interface ProviderEntry {
 /** A decision on one approval. A misspelled field must not be read as a denial. */
 export interface ResolveApprovalRequest {
   approved: boolean;
+  scope?: "call" | "run";
 }
 
 /** How much damage a tool call can do. Policy is a *set* of levels, never a threshold. */
@@ -493,6 +495,7 @@ export interface SpaceResponse {
   provider?: string | null;
   model?: string | null;
   auto_approve?: RiskLevel[] | null;
+  tool_policies?: Record<string, ToolPolicy> | null;
   max_steps_per_agent?: number | null;
   max_agents_per_run?: number | null;
   max_run_seconds?: number | null;
@@ -502,6 +505,15 @@ export interface SpaceResponse {
   folder: string;
   is_default: boolean;
 }
+
+/**
+ * What the gate does with a call to one tool, by name, before its risk level is read.
+ *
+ * ``ASK`` is the default and means the risk-level rule decides; ``ALLOW``
+ * runs the call without asking; ``DENY`` refuses it without asking. A tool
+ * absent from a policy is ``ASK``.
+ */
+export type ToolPolicy = "ask" | "allow" | "deny";
 
 /** One catalogue entry, as the agent editor renders it. */
 export interface ToolResponse {
@@ -564,6 +576,7 @@ export interface UpdateSettingsRequest {
   max_agents_per_run?: number | null;
   max_run_seconds?: number | null;
   auto_approve?: RiskLevel[] | null;
+  tool_policies?: Record<string, ToolPolicy> | null;
   discord_enabled?: boolean | null;
   channel_identities?: ChannelIdentity[] | null;
   channel_approvals?: "dashboard_only" | "originator" | null;
@@ -578,6 +591,7 @@ export interface UpdateSpaceRequest {
   provider?: string | null;
   model?: string | null;
   auto_approve?: RiskLevel[] | null;
+  tool_policies?: Record<string, ToolPolicy> | null;
   max_steps_per_agent?: number | null;
   max_agents_per_run?: number | null;
   max_run_seconds?: number | null;
@@ -663,6 +677,7 @@ export interface WorkspaceSettings {
   monthly_cap_micros?: number;
   ollama_base_url?: string;
   auto_approve?: RiskLevel[];
+  tool_policies?: Record<string, ToolPolicy>;
   max_steps_per_agent?: number;
   max_agents_per_run?: number;
   max_run_seconds?: number;

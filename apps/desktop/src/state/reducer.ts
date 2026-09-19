@@ -73,6 +73,12 @@ export interface ApprovalRecord {
   readonly prompt: string;
   readonly status: ApprovalStatus;
   readonly automatic: boolean;
+  /** An automatic answer that rests on the person's own earlier one in this run. */
+  readonly precedent: boolean;
+  /** An automatic answer the app-wide or space policy gave for this tool by name. */
+  readonly policy: boolean;
+  /** How far the person's yes reached: this call, or the tool for the rest of the run. */
+  readonly scope: "call" | "run";
   readonly seq: number;
 }
 
@@ -485,6 +491,9 @@ export function reduce(state: RunView, event: Event): RunView {
         prompt: text(payload, "prompt") ?? "",
         status: "pending",
         automatic: flag(payload, "automatic"),
+        precedent: text(payload, "precedent") !== null,
+        policy: text(payload, "policy") !== null,
+        scope: "call",
         seq,
       };
       // A policy's yes is not a question: nobody waits on an automatic one,
@@ -615,6 +624,9 @@ function settle(
       ...approval,
       status,
       automatic: approval.automatic || flag(payload, "automatic"),
+      precedent: approval.precedent || text(payload, "precedent") !== null,
+      policy: approval.policy || text(payload, "policy") !== null,
+      scope: text(payload, "scope") === "run" ? "run" : approval.scope,
     };
     return updated;
   }

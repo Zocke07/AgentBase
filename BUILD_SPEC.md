@@ -407,7 +407,12 @@ calling it even when its system prompt explicitly instructs it to.
 - Approval prompts must be **human-legible**, not raw JSON:
   `Agent "researcher" wants to delete report.docx: Allow / Deny`.
 - A policy setting for unattended operation: pre-authorize a named risk subset so overnight
-  runs can progress. Default is manual-approve-everything.
+  runs can progress. Default is manual-approve-everything. *(2026-09-19, at the maintainer's
+  request: beside the risk subset, an answer per tool by name, ask / always allow / never
+  allow, read before the level; a space can only make one stricter and a definition that
+  names levels narrows an allow outside them. The dialog gained **Allow for this run**, a yes
+  recorded with scope `run` that answers every later call to that tool in the run. A no is
+  never for a run: "never allow" is a Settings decision. Default is still ask-everything.)*
 
 **Accept when:** an agent instructed to write outside the workspace root is blocked at the
 sandbox layer, and this is visible in the event log as `tool.denied`.

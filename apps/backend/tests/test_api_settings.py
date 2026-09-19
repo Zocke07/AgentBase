@@ -431,6 +431,31 @@ def test_the_approval_policy_can_actually_be_set(client: TestClient) -> None:
     assert client.get("/settings").json()["settings"]["auto_approve"] == ["low", "medium"]
 
 
+def test_per_tool_answers_can_be_set_and_name_only_real_tools(client: TestClient) -> None:
+    """The per-tool map replaces the stored one whole; `ask` is dropped as
+    the absence of an answer, and a tool that does not exist is a 400 on
+    the field, not a silent no-op."""
+    response = client.patch(
+        "/settings",
+        json={
+            "tool_policies": {"write_file": "allow", "run_shell": "deny", "read_file": "ask"}
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["settings"]["tool_policies"] == {
+        "write_file": "allow",
+        "run_shell": "deny",
+    }
+
+    bad = client.patch("/settings", json={"tool_policies": {"teleport": "allow"}})
+    assert bad.status_code == 400
+    assert bad.json()["detail"]["field"] == "tool_policies"
+    assert "teleport" in bad.json()["detail"]["message"]
+
+    cleared = client.patch("/settings", json={"tool_policies": {}})
+    assert cleared.json()["settings"]["tool_policies"] == {}
+
+
 def test_the_approval_policy_can_be_turned_back_off(client: TestClient) -> None:
     """An empty list is a meaningful value, not an omission.
 

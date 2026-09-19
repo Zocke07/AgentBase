@@ -18,8 +18,9 @@ import { awaitingPerson, type ApprovalRecord } from "../state/reducer";
 export interface ApprovalPanelProps {
   /** Every approval this run has raised, oldest first. */
   approvals: readonly ApprovalRecord[];
-  /** Resolve one. Rejects if somebody else already answered it (a 409). */
-  onResolve: (id: string, approved: boolean) => Promise<void>;
+  /** Resolve one. Rejects if somebody else already answered it (a 409). A yes
+      with scope "run" also answers every later call to the tool in this run. */
+  onResolve: (id: string, approved: boolean, scope?: "call" | "run") => Promise<void>;
   /** Why an answer cannot be given here (`"finished"`, `"replay"`), or null when it can. */
   readOnly: "finished" | "replay" | "loading" | null;
 }
@@ -43,11 +44,11 @@ export function ApprovalPanel({ approvals, onResolve, readOnly }: ApprovalPanelP
     return null;
   }
 
-  const answer = async (approved: boolean) => {
+  const answer = async (approved: boolean, scope: "call" | "run" = "call") => {
     setBusy(current.id);
     setError(null);
     try {
-      await onResolve(current.id, approved);
+      await onResolve(current.id, approved, scope);
     } catch (failure) {
       setError({ id: current.id, message: failure instanceof Error ? failure.message : String(failure) });
     } finally {
@@ -98,10 +99,13 @@ export function ApprovalPanel({ approvals, onResolve, readOnly }: ApprovalPanelP
                   <span className="approval-history__tool">{approval.tool}</span>
                   {approval.automatic && (
                     <span className="approval-history__auto">
-                      {/* A policy only ever says yes; an automatic no is the
-                          person's own earlier answer, repeated for the run. */}
-                      {approval.status === "denied" ? "by your earlier answer" : "by policy"}
+                      {/* An automatic answer is either the person's own earlier
+                          one, repeated for the run, or the policy's. */}
+                      {approval.precedent ? "by your earlier answer" : "by policy"}
                     </span>
+                  )}
+                  {!approval.automatic && approval.scope === "run" && (
+                    <span className="approval-history__auto">for the rest of the run</span>
                   )}
                 </li>
               ))}
@@ -147,12 +151,23 @@ export function ApprovalPanel({ approvals, onResolve, readOnly }: ApprovalPanelP
             >
               Allow
             </button>
+            <button
+              type="button"
+              className="button button--allow-run"
+              disabled={busy !== null}
+              title={`Allow this call and every later ${current.tool} call in this run without asking`}
+              onClick={() => void answer(true, "run")}
+            >
+              Allow for this run
+            </button>
           </div>
         )}
 
         <p className="approval__note">
           Denying stops this call, not the run. The supervisor may delegate the
-          work again and ask a second time.
+          work again and ask a second time. <b>Allow for this run</b> also answers
+          every later {current.tool} call in this run; to answer for every run,
+          set the tool in Settings.
         </p>
       </div>
     </section>

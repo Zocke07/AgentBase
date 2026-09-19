@@ -7,6 +7,8 @@ import type {
   RiskLevel,
   SettingsResponse,
   SpaceResponse,
+  ToolPolicy,
+  ToolResponse,
   UpdateSettingsRequest,
   VerifyResponse,
   WorkspaceSettings,
@@ -54,6 +56,8 @@ interface Form {
   max_agents_per_run: string;
   max_run_seconds: string;
   auto_approve: RiskLevel[];
+  /** Per-tool answers; a tool absent here is "ask", decided by the risk levels. */
+  tool_policies: Record<string, ToolPolicy>;
   discord_enabled: boolean;
   channel_identities: ChannelIdentity[];
   channel_approvals: "dashboard_only" | "originator";
@@ -68,6 +72,14 @@ const FORM = "__form__";
 
 const EMPTY_CATALOGUE: ProviderCatalogueResponse = { providers: [], models: {} };
 const NO_CHANNELS: ChannelStatusResponse[] = [];
+const NO_TOOLS: ToolResponse[] = [];
+
+/** The three answers a tool can have, in the order the select lists them. */
+const TOOL_POLICIES: readonly { value: ToolPolicy; label: string }[] = [
+  { value: "ask", label: "Ask, by risk level" },
+  { value: "allow", label: "Always allow" },
+  { value: "deny", label: "Never allow" },
+];
 
 function fromSettings(settings: WorkspaceSettings): Form {
   return {
@@ -80,6 +92,7 @@ function fromSettings(settings: WorkspaceSettings): Form {
     max_agents_per_run: String(settings.max_agents_per_run ?? ""),
     max_run_seconds: String(settings.max_run_seconds ?? ""),
     auto_approve: [...(settings.auto_approve ?? [])],
+    tool_policies: { ...(settings.tool_policies ?? {}) },
     discord_enabled: settings.discord_enabled ?? false,
     channel_identities: [...(settings.channel_identities ?? [])],
     channel_approvals: settings.channel_approvals ?? "dashboard_only",
@@ -115,6 +128,9 @@ function diff(opened: Form, form: Form): UpdateSettingsRequest {
     if (form[key] !== opened[key]) patch[key] = Number(form[key]);
   }
   if (form.auto_approve.join() !== opened.auto_approve.join()) patch.auto_approve = form.auto_approve;
+  if (JSON.stringify(form.tool_policies) !== JSON.stringify(opened.tool_policies)) {
+    patch.tool_policies = form.tool_policies;
+  }
   if (form.discord_enabled !== opened.discord_enabled) patch.discord_enabled = form.discord_enabled;
   if (JSON.stringify(form.channel_identities) !== JSON.stringify(opened.channel_identities)) {
     patch.channel_identities = form.channel_identities;
@@ -129,9 +145,11 @@ export function SettingsView({ onSaved, spaces = [], onReplayTour }: SettingsVie
   const loadSettings = useCallback(() => api.getSettings(), []);
   const loadCatalogue = useCallback(() => api.listProviders(), []);
   const loadChannels = useCallback(() => api.getChannels(), []);
+  const loadTools = useCallback(() => api.listTools(), []);
   const current = useFetched<SettingsResponse | null>(loadSettings, null);
   const catalogue = useFetched(loadCatalogue, EMPTY_CATALOGUE);
   const channels = useFetched(loadChannels, NO_CHANNELS);
+  const tools = useFetched(loadTools, NO_TOOLS);
   // The reply to a save is the whole settings document; the form starts from it next.
   const [replied, setReplied] = useState<SettingsResponse | null>(null);
   const [saved, setSaved] = useState(false);
@@ -155,6 +173,7 @@ export function SettingsView({ onSaved, spaces = [], onReplayTour }: SettingsVie
           catalogue={catalogue.data}
           catalogueError={catalogue.error}
           channels={channels.data}
+          tools={tools.data}
           saved={saved}
           onEdited={() => {
             setSaved(false);
@@ -178,6 +197,8 @@ interface SettingsFormProps {
   catalogue: ProviderCatalogueResponse;
   catalogueError: string | null;
   channels: readonly ChannelStatusResponse[];
+  /** The tool catalogue, for the per-tool answers. */
+  tools: readonly ToolResponse[];
   /** Whether the last save has not been edited since; shown beside the button. */
   saved: boolean;
   onReplayTour?: (() => void) | undefined;
@@ -191,6 +212,7 @@ function SettingsForm({
   catalogue,
   catalogueError,
   channels,
+  tools,
   saved,
   onReplayTour,
   onEdited,
@@ -271,9 +293,11 @@ function SettingsForm({
             <select
               value={form.provider}
               onChange={(changed) => {
-                // A model belongs to a provider; changing one clears the other.
+                // A model belongs to a provider, so the choice moves with it:
+                // the provider's first listed model, or blank where the
+                // list is free text (Ollama), so one change is one click.
                 set("provider", changed.target.value);
-                set("model", "");
+                set("model", catalogue.models[changed.target.value]?.[0] ?? "");
               }}
               aria-invalid={errorFor("provider") !== null}
               data-testid="setting-provider"
@@ -472,6 +496,52 @@ function SettingsForm({
             ))}
           </div>
           <FieldError field="auto_approve" message={errorFor("auto_approve")} />
+        </fieldset>
+
+        <fieldset className="editor__tools" data-testid="setting-tool-policies">
+          <legend>Answers by tool</legend>
+          <p className="editor__hint">
+            An answer here comes before the risk levels above: <b>Always allow</b> runs the tool
+            without asking whatever its level, <b>Never allow</b> refuses it without asking, and{" "}
+            <b>Ask</b> leaves it to the levels. A space or an agent can make an answer stricter,
+            never looser. From the dialog, <b>Allow for this run</b> is the same yes for one run.
+          </p>
+          {tools.length === 0 ? (
+            <p className="editor__hint">The tool catalogue has not loaded.</p>
+          ) : (
+            <table className="policy-table">
+              <tbody>
+                {tools.map((tool) => (
+                  <tr key={tool.name}>
+                    <th scope="row">
+                      <code>{tool.name}</code>
+                      <span className={`risk risk--${tool.risk}`}>{tool.risk}</span>
+                    </th>
+                    <td className="policy-table__description">{tool.description}</td>
+                    <td>
+                      <select
+                        value={form.tool_policies[tool.name] ?? "ask"}
+                        aria-label={`Answer for ${tool.name}`}
+                        data-testid={`setting-policy-${tool.name}`}
+                        onChange={(changed) => {
+                          const { [tool.name]: _dropped, ...rest } = form.tool_policies;
+                          const chosen = changed.target.value as ToolPolicy;
+                          set("tool_policies", chosen === "ask" ? rest : { ...rest, [tool.name]: chosen });
+                        }}
+                      >
+                        {TOOL_POLICIES.map((choice) => (
+                          <option key={choice.value} value={choice.value}>
+                            {choice.label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <FieldError field="tool_policies" message={errorFor("tool_policies")} />
         </fieldset>
       </section>
 

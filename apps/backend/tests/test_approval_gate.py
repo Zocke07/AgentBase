@@ -14,7 +14,7 @@ import pytest
 
 from agentspace.events.types import EventType
 from agentspace.orchestrator import execute_run
-from agentspace.tools.approval import ApprovalStatus, approval_prompt
+from agentspace.tools.approval import ApprovalScope, ApprovalStatus, approval_prompt
 from agentspace.tools.builtin.filesystem import WriteFileTool
 from agentspace.tools.catalogue import RiskLevel
 from agentspace.tools.sandbox import Sandbox
@@ -794,3 +794,233 @@ async def _wait_for_approval(
             await asyncio.sleep(0.005)
 
     return await asyncio.wait_for(poll(), timeout=limit_seconds)
+
+
+# --- per-tool answers, and a yes that holds for a run -------------------------
+
+
+async def test_a_tool_the_policy_never_allows_is_refused_without_asking(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+    db: Database,
+    workspace: Path,
+) -> None:
+    """ "Never allow" is an answer given once, in Settings, for every run: the
+    call is refused the way an earlier denial refuses it, recorded and
+    marked as the policy's doing, and nobody waits on the gate."""
+    await settings.update({"tool_policies": {"write_file": "deny"}})
+    runtime, service = tool_runtime(store, db, workspace)
+
+    rebuilt = await asyncio.wait_for(
+        writer_run(
+            store,
+            settings,
+            agents,
+            ledger,
+            secrets,
+            runtime,
+            [
+                says("Writing.", call("write_file", "w1", path="notes.txt", content="no")),
+                says("Fine.", call("finish", "w2", result="Not written.")),
+            ],
+        ),
+        timeout=10,
+    )
+
+    writer = rebuilt.agent("filewriter")
+    assert writer.approvals_resolved == [("write_file", "denied")]
+    assert writer.denied_tools == ["write_file"]
+    assert not (workspace / "notes.txt").exists()
+    (run,) = await store.list_runs()
+    events = await store.read(run.id)
+    requested = [e.payload for e in events if e.type is EventType.APPROVAL_REQUESTED]
+    denied = [e.payload for e in events if e.type is EventType.TOOL_DENIED]
+    assert requested[0]["automatic"] is True and requested[0]["policy"] == "deny"
+    assert "never allows write_file" in denied[0]["reason"]
+    assert await service.store.list_pending(run.id) == []
+
+
+async def test_a_tool_the_policy_always_allows_runs_without_asking(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+    db: Database,
+    workspace: Path,
+) -> None:
+    """An app-wide yes for one tool, whatever its level; the risk-level rule
+    is not consulted, so a medium-risk write runs unasked while the level
+    policy still asks about everything."""
+    await settings.update({"tool_policies": {"write_file": "allow"}})
+    runtime, _ = tool_runtime(store, db, workspace)
+
+    rebuilt = await asyncio.wait_for(
+        writer_run(
+            store,
+            settings,
+            agents,
+            ledger,
+            secrets,
+            runtime,
+            [
+                says("Writing.", call("write_file", "w1", path="notes.txt", content="yes")),
+                says("Done.", call("finish", "w2", result="Written.")),
+            ],
+        ),
+        timeout=10,
+    )
+
+    writer = rebuilt.agent("filewriter")
+    assert writer.approvals_resolved == [("write_file", "approved")]
+    assert (workspace / "notes.txt").read_text(encoding="utf-8") == "yes"
+
+
+async def test_a_definition_narrows_an_app_wide_allow(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+    db: Database,
+    workspace: Path,
+) -> None:
+    """The one rule for every layer: a definition that names levels makes
+    an app-wide allow for a tool outside them into a question again."""
+    await settings.update({"tool_policies": {"write_file": "allow"}})
+    runtime, service = tool_runtime(store, db, workspace)
+    await agents.create(
+        {
+            "name": "careful",
+            "role": "Writes, but asks",
+            "system_prompt": ESCAPE_PROMPT,
+            "allowed_tools": ["write_file"],
+            "auto_approve": ["low"],
+        }
+    )
+    script = [
+        says("Delegating.", call("spawn_agent", "s1", agent="careful", task="Save it")),
+        says("Writing.", call("write_file", "w1", path="notes.txt", content="asked")),
+        says("Done.", call("finish", "w2", result="Written.")),
+        says("Done.", call("finish", "s2", result="Handled.")),
+    ]
+    run = await store.create_run(goal="Save the report", origin="ui")
+    task = asyncio.create_task(
+        execute_run(
+            store,
+            settings,
+            agents,
+            ledger,
+            secrets,
+            run.id,
+            "Save the report",
+            provider=ScriptedProvider(script),
+            runtime=runtime,
+        )
+    )
+
+    # It asks: the definition narrowed the allow to low-risk calls.
+    first = await _wait_for_approval(service)
+    await service.resolve(first, approved=True)
+    await asyncio.wait_for(task, timeout=10)
+    assert (workspace / "notes.txt").read_text(encoding="utf-8") == "asked"
+
+
+async def test_a_yes_for_the_run_answers_every_later_call_to_that_tool(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+    db: Database,
+    workspace: Path,
+) -> None:
+    """ "Allow for the rest of this run": the next write, with different
+    arguments, runs on the earlier answer and names it; a read, which is
+    another tool, is still a question."""
+    runtime, service = tool_runtime(store, db, workspace)
+
+    task = asyncio.create_task(
+        writer_run(
+            store,
+            settings,
+            agents,
+            ledger,
+            secrets,
+            runtime,
+            [
+                says("Writing.", call("write_file", "w1", path="notes.txt", content="one")),
+                says("Again.", call("write_file", "w2", path="other.txt", content="two")),
+                says("Reading.", call("read_file", "w3", path="notes.txt")),
+                says("Done.", call("finish", "w4", result="Written twice.")),
+            ],
+        )
+    )
+
+    first = await _wait_for_approval(service)
+    await service.resolve(first, approved=True, scope=ApprovalScope.RUN)
+    third = await _wait_for_approval(service, after=first)
+    third_record = await service.store.get(third)
+    assert third_record is not None and third_record.tool == "read_file"
+    await service.resolve(third, approved=True)
+    rebuilt = await asyncio.wait_for(task, timeout=10)
+
+    writer = rebuilt.agent("filewriter")
+    assert writer.approvals_resolved == [
+        ("write_file", "approved"),
+        ("write_file", "approved"),
+        ("read_file", "approved"),
+    ]
+    assert (workspace / "other.txt").read_text(encoding="utf-8") == "two"
+
+    (run,) = await store.list_runs()
+    events = await store.read(run.id)
+    requested = [e.payload for e in events if e.type is EventType.APPROVAL_REQUESTED]
+    resolved = [e.payload for e in events if e.type is EventType.APPROVAL_RESOLVED]
+    assert resolved[0]["scope"] == "run"
+    assert requested[1]["automatic"] is True and requested[1]["precedent"] == first
+    assert resolved[1]["precedent"] == first
+    assert requested[2].get("automatic", False) is False
+    assert (await service.store.get(first)).scope is ApprovalScope.RUN  # type: ignore[union-attr]
+
+
+async def test_a_no_is_never_for_the_run(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+    db: Database,
+    workspace: Path,
+) -> None:
+    """A denial is for the one call and its arguments, whatever scope was
+    sent: "never allow" for a tool is a Settings decision, not a dialog one."""
+    runtime, service = tool_runtime(store, db, workspace)
+
+    task = asyncio.create_task(
+        writer_run(
+            store,
+            settings,
+            agents,
+            ledger,
+            secrets,
+            runtime,
+            [
+                says("Writing.", call("write_file", "w1", path="notes.txt", content="one")),
+                says("Again.", call("write_file", "w2", path="other.txt", content="two")),
+                says("Done.", call("finish", "w3", result="Tried.")),
+            ],
+        )
+    )
+
+    first = await _wait_for_approval(service)
+    await service.resolve(first, approved=False, scope=ApprovalScope.RUN)
+    second = await _wait_for_approval(service, after=first)
+    await service.resolve(second, approved=True)
+    await asyncio.wait_for(task, timeout=10)
+
+    assert (await service.store.get(first)).scope is ApprovalScope.CALL  # type: ignore[union-attr]
+    assert (workspace / "other.txt").read_text(encoding="utf-8") == "two"

@@ -24,6 +24,7 @@ vi.mock("../lib/api", async (importOriginal) => ({
   getSettings: vi.fn(),
   updateSettings: vi.fn(),
   listProviders: vi.fn(),
+  listTools: vi.fn(),
   verifySettings: vi.fn(),
   getChannels: vi.fn(),
   getChatGPTAuth: vi.fn(),
@@ -87,6 +88,11 @@ beforeEach(() => {
     models: { anthropic: ["claude-opus-5", "claude-sonnet-5"], ollama: [], openai: ["gpt-4o"] },
   });
   mocked.verifySettings.mockResolvedValue({ ok: true, provider: "anthropic", model: "claude-opus-5" });
+  mocked.listTools.mockResolvedValue([
+    { name: "read_file", description: "Read a file", risk: "low", available: true },
+    { name: "write_file", description: "Write a file", risk: "medium", available: true },
+    { name: "run_shell", description: "Run a command", risk: "high", available: true },
+  ]);
   mocked.getChannels.mockResolvedValue([
     { channel: "discord", enabled: false, configured: false, running: false, failures: 0, last_error: null, refused: [] },
   ]);
@@ -144,6 +150,19 @@ describe("saving", () => {
     });
   });
 
+  it("saves an answer for one tool, and drops it again when set back to ask", async () => {
+    const user = userEvent.setup();
+    view();
+    await loaded();
+
+    await user.selectOptions(screen.getByTestId("setting-policy-write_file"), "allow");
+    await user.selectOptions(screen.getByTestId("setting-policy-run_shell"), "deny");
+    await user.selectOptions(screen.getByTestId("setting-policy-write_file"), "ask");
+    await user.click(screen.getByRole("button", { name: "Save settings" }));
+
+    expect(mocked.updateSettings).toHaveBeenCalledWith({ tool_policies: { run_shell: "deny" } });
+  });
+
   it("converts the cap from dollars to integer micros", async () => {
     /* Money is integer micros end to end (§5 Phase 3). The field takes dollars
        because that is what a person thinks in; the conversion rounds to whole
@@ -189,9 +208,10 @@ describe("the model", () => {
     await loaded();
 
     await user.selectOptions(screen.getByTestId("setting-provider"), "openai");
-    // A placeholder first: changing the provider clears the model, and the
-    // user has to choose one rather than inherit whatever was first.
-    expect([...screen.getByTestId<HTMLSelectElement>("setting-model").options].map((o) => o.value)).toEqual(["", "gpt-4o"]);
+    // The provider's first listed model comes with it, so one change is one
+    // click; it is still a choice the person can see and change.
+    expect(screen.getByTestId<HTMLSelectElement>("setting-model").value).toBe("gpt-4o");
+    expect([...screen.getByTestId<HTMLSelectElement>("setting-model").options].map((o) => o.value)).toEqual(["gpt-4o"]);
 
     await user.selectOptions(screen.getByTestId("setting-provider"), "ollama");
     expect(screen.getByTestId("setting-model").tagName).toBe("INPUT");

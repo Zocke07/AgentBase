@@ -12,15 +12,18 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Mapping
 
 __all__ = [
     "CATALOGUE",
     "RiskLevel",
     "ToolDeclaration",
+    "ToolPolicy",
     "effective_auto_approve",
+    "effective_tool_policies",
     "is_registered",
     "lookup",
+    "stricter",
     "tool_names",
 ]
 
@@ -31,6 +34,32 @@ class RiskLevel(StrEnum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
+
+
+class ToolPolicy(StrEnum):
+    """What the gate does with a call to one tool, by name, before its risk level is read.
+
+    ``ASK`` is the default and means the risk-level rule decides; ``ALLOW``
+    runs the call without asking; ``DENY`` refuses it without asking. A tool
+    absent from a policy is ``ASK``.
+    """
+
+    ASK = "ask"
+    ALLOW = "allow"
+    DENY = "deny"
+
+
+#: Strictness, for narrowing: a space may move a tool along this order, never back.
+_STRICTNESS: Final[dict[ToolPolicy, int]] = {
+    ToolPolicy.ALLOW: 0,
+    ToolPolicy.ASK: 1,
+    ToolPolicy.DENY: 2,
+}
+
+
+def stricter(left: ToolPolicy, right: ToolPolicy) -> ToolPolicy:
+    """The stricter of two policies for one tool."""
+    return left if _STRICTNESS[left] >= _STRICTNESS[right] else right
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,6 +137,23 @@ def is_registered(name: str) -> bool:
 
 def lookup(name: str) -> ToolDeclaration | None:
     return _BY_NAME.get(name)
+
+
+def effective_tool_policies(
+    requested: Mapping[str, ToolPolicy],
+    policy: Mapping[str, ToolPolicy],
+) -> dict[str, ToolPolicy]:
+    """Narrow the workspace's per-tool policies by a space's.
+
+    Each tool ends up with the stricter of the two answers, so a space can
+    turn an allowed tool into a question or a refusal and a question into a
+    refusal, and can never widen what the app-wide policy permits. A tool
+    neither names stays absent, which reads as ``ASK``.
+    """
+    merged = dict(policy)
+    for tool, wanted in requested.items():
+        merged[tool] = stricter(wanted, policy.get(tool, ToolPolicy.ASK))
+    return merged
 
 
 def effective_auto_approve(

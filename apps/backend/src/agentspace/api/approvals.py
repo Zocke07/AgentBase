@@ -7,12 +7,12 @@ before the window connected.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 
-from agentspace.tools.approval import ApprovalNotPendingError
+from agentspace.tools.approval import ApprovalNotPendingError, ApprovalScope
 
 if TYPE_CHECKING:
     from agentspace.tools.approval import ApprovalRecord, ApprovalService
@@ -28,6 +28,9 @@ class ResolveApprovalRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     approved: bool
+    #: How far a yes reaches: this call, or every call to the tool for the
+    #: rest of the run. Ignored for a no, which is always for the one call.
+    scope: Literal["call", "run"] = "call"
 
 
 class ApprovalResponse(BaseModel):
@@ -41,6 +44,7 @@ class ApprovalResponse(BaseModel):
     status: str
     created_at: str
     resolved_at: str | None = None
+    scope: Literal["call", "run"] = "call"
 
 
 def _service(request: Request) -> ApprovalService:
@@ -58,6 +62,7 @@ def _response(record: ApprovalRecord) -> ApprovalResponse:
         status=str(record.status),
         created_at=record.created_at.isoformat(),
         resolved_at=record.resolved_at.isoformat() if record.resolved_at else None,
+        scope="run" if record.scope is ApprovalScope.RUN else "call",
     )
 
 
@@ -91,7 +96,9 @@ async def resolve_approval(
         raise HTTPException(status_code=404, detail=f"No approval with id {approval_id!r}.")
 
     try:
-        record = await service.resolve(approval_id, approved=body.approved)
+        record = await service.resolve(
+            approval_id, approved=body.approved, scope=ApprovalScope(body.scope)
+        )
     except ApprovalNotPendingError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 

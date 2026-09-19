@@ -44,7 +44,7 @@ and disconnects their stored keys.
   space is seeded from (`store/builtins.py`); 010 retires them from the
   default space only while untouched. The prompts assume scripts and config
   files the app does not ship; the user guide says which.
-- The latest recorded database migration is 010 (investment roster). Existing workspace files are
+- The latest recorded database migration is 011 (per-tool answers on spaces, approval scope). Existing workspace files are
   adopted into the default space once; new spaces get their own folders. Each
   space folder is also an Obsidian-compatible Markdown vault. The Knowledge
   section provides notes, properties, tags, links, backlinks, unresolved links,
@@ -114,7 +114,12 @@ second chronological log here.
   mid-run does not change that run.
 - Approval rules can only narrow app-wide permission. Space `null` inherits;
   space `[]` asks for everything. Definition `[]` inherits. A denial of the
-  same tool and original arguments persists for that run.
+  same tool and original arguments persists for that run. Per-tool answers
+  (`tool_policies`: ask, allow, deny) are read before the risk level; a space
+  can only make one stricter, and a definition that names levels turns an
+  allow outside them back into a question. A yes given "for this run"
+  (`approvals.scope = 'run'`) answers every later call to that tool in the
+  run; a no is never for a run.
 - Budget arithmetic uses integer micros. Check before a call; persist spend
   before yielding its streamed completion. Deleting a finished run keeps its
   spend with `run_id` cleared, preserving the app-wide budget total.

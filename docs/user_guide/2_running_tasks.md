@@ -73,8 +73,9 @@ The graph and log can show activity even when no text is streaming.
 
 A fresh install asks before every file, shell or network tool call, including
 reads. **Approval needed** appears in a panel above the graph, with the risk
-level, the requested action, the agent's name and **Deny / Allow** buttons.
-The graph, log and replay controls stay available while you consider it.
+level, the requested action, the agent's name and **Deny / Allow / Allow for
+this run** buttons. The graph, log and replay controls stay available while
+you consider it.
 
 | Tool | Risk | Effect |
 |---|---|---|
@@ -96,6 +97,13 @@ continue. If any agent in the same run repeats the same tool and arguments,
 the earlier denial is applied automatically and recorded **by your earlier
 answer**. Different arguments can produce a new question. A denial does not
 carry over to another run.
+
+**Allow for this run** allows the call and every later call to the same tool
+in this run, whatever its arguments, from any agent. Each of those later
+calls is still recorded, marked **by your earlier answer**, and the answer
+that started it is marked **for the rest of the run** in the panel's history.
+Another tool still asks, and the next run starts with no answers. To answer
+for every run, use **Answers by tool** in Settings (below).
 
 An unanswered request expires when the run reaches its time limit. Cancelling
 the run also ends its waiting approvals. If the app closes while a question
@@ -171,6 +179,25 @@ Space and agent settings can narrow this permission. A space's own policy
 with nothing ticked asks for everything; an agent definition with nothing
 ticked inherits the space's effective policy. Automatic decisions are still
 recorded in the log, with approvals marked **by policy**.
+
+### Answers by tool
+
+Beneath the risk levels, **Answers by tool** lists every tool with one of
+three answers. **Ask, by risk level** is the default: the levels above
+decide. **Always allow** runs that tool without asking whatever its level.
+**Never allow** refuses it without asking; the agent is told the app's
+policy never allows the tool, and the refusal is recorded like a denial.
+An answer here comes before the levels, so a **low** tick with `read_file`
+set to **Never allow** still refuses reads.
+
+A space can make an answer stricter in **Space settings → Answers by tool**:
+an always-allowed tool can be made to ask or be refused there, and a tool
+that asks can be refused. A space cannot loosen an answer. An agent
+definition's own **Calls this agent may make without asking** narrows an
+**Always allow** the same way: if the definition names risk levels and the
+tool's level is not among them, that agent is asked. The surest way to keep
+a tool away from an agent altogether is still to leave it out of the agent's
+allowed tools.
 
 ## Schedule a run
 

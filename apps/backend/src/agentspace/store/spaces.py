@@ -21,7 +21,13 @@ from typing import TYPE_CHECKING, Any, Final
 from pydantic import BaseModel, ConfigDict, Field
 
 from agentspace.providers.factory import SUPPORTED_PROVIDERS
-from agentspace.tools.catalogue import RiskLevel, effective_auto_approve
+from agentspace.tools.catalogue import (
+    RiskLevel,
+    ToolPolicy,
+    effective_auto_approve,
+    effective_tool_policies,
+    is_registered,
+)
 
 if TYPE_CHECKING:
     import sqlite3
@@ -111,6 +117,8 @@ class Space(BaseModel):
     model: str | None = None
     #: ``None`` inherits the app-wide policy; a list narrows it.
     auto_approve: tuple[RiskLevel, ...] | None = None
+    #: ``None`` inherits the app-wide per-tool answers; a map makes them stricter.
+    tool_policies: dict[str, ToolPolicy] | None = None
     max_steps_per_agent: int | None = Field(default=None, ge=1)
     max_agents_per_run: int | None = Field(default=None, ge=1)
     max_run_seconds: int | None = Field(default=None, ge=1)
@@ -134,6 +142,10 @@ class Space(BaseModel):
             changes["auto_approve"] = list(
                 effective_auto_approve(self.auto_approve, tuple(workspace.auto_approve))
             )
+        if self.tool_policies is not None:
+            changes["tool_policies"] = effective_tool_policies(
+                self.tool_policies, workspace.tool_policies
+            )
         for limit in ("max_steps_per_agent", "max_agents_per_run", "max_run_seconds"):
             value = getattr(self, limit)
             if value is not None:
@@ -148,8 +160,9 @@ class Space(BaseModel):
 
 
 _SELECT: Final[str] = (
-    "SELECT id, name, description, provider, model, auto_approve, max_steps_per_agent,"
-    " max_agents_per_run, max_run_seconds, archived, created_at, updated_at FROM spaces"
+    "SELECT id, name, description, provider, model, auto_approve, tool_policies,"
+    " max_steps_per_agent, max_agents_per_run, max_run_seconds, archived, created_at,"
+    " updated_at FROM spaces"
 )
 
 _LIMITS: Final[tuple[str, ...]] = (
@@ -161,6 +174,7 @@ _LIMITS: Final[tuple[str, ...]] = (
 
 def _row_to_space(row: sqlite3.Row) -> Space:
     approve = row["auto_approve"]
+    policies = row["tool_policies"]
     return Space(
         id=row["id"],
         name=row["name"],
@@ -171,6 +185,11 @@ def _row_to_space(row: sqlite3.Row) -> Space:
             None
             if approve is None
             else tuple(RiskLevel(level) for level in json.loads(approve))
+        ),
+        tool_policies=(
+            None
+            if policies is None
+            else {name: ToolPolicy(policy) for name, policy in json.loads(policies).items()}
         ),
         max_steps_per_agent=row["max_steps_per_agent"],
         max_agents_per_run=row["max_agents_per_run"],
@@ -339,6 +358,13 @@ def _validated_columns(fields: dict[str, Any], *, creating: bool) -> dict[str, A
         columns["auto_approve"] = (
             None if levels is None else json.dumps([str(level) for level in levels])
         )
+    if "tool_policies" in fields:
+        policies = _validated_tool_policies(fields["tool_policies"])
+        columns["tool_policies"] = (
+            None
+            if policies is None
+            else json.dumps({name: str(policy) for name, policy in policies.items()})
+        )
     for limit in _LIMITS:
         if limit in fields:
             columns[limit] = _validated_limit(fields[limit], limit)
@@ -376,6 +402,32 @@ def _validated_provider(value: Any) -> str | None:
             field="provider",
         )
     return provider
+
+
+def _validated_tool_policies(value: Any) -> dict[str, ToolPolicy] | None:
+    """A map of tool name to answer, or null to inherit. `ask` entries are dropped:
+    a space says nothing about a tool by leaving it out."""
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise SpaceValidationError(
+            "tool_policies must map tool names to ask, allow or deny, or be null to inherit.",
+            field="tool_policies",
+        )
+    policies: dict[str, ToolPolicy] = {}
+    for name, entry in value.items():
+        if not is_registered(str(name)):
+            raise SpaceValidationError(f"Unknown tool: {name}.", field="tool_policies")
+        try:
+            policy = ToolPolicy(str(entry).strip())
+        except ValueError:
+            raise SpaceValidationError(
+                f"{entry!r} is not a tool policy. Valid answers: ask, allow, deny.",
+                field="tool_policies",
+            ) from None
+        if policy is not ToolPolicy.ASK:
+            policies[str(name)] = policy
+    return policies
 
 
 def _validated_auto_approve(value: Any) -> tuple[RiskLevel, ...] | None:

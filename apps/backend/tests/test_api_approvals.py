@@ -172,6 +172,28 @@ def test_an_approval_can_be_allowed_or_denied(
     assert client.get("/approvals").json() == []
 
 
+def test_a_yes_can_be_given_for_the_rest_of_the_run(client: TestClient) -> None:
+    """The dialog's third button: the answer is recorded with its reach, and
+    a no sent with the same reach stays a no for the one call."""
+    created = a_pending_approval(client)
+    response = client.post(
+        f"/approvals/{created['id']}", json={"approved": True, "scope": "run"}
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "approved"
+    assert response.json()["scope"] == "run"
+
+    other = a_pending_approval(client, tool="run_shell")
+    denied = client.post(f"/approvals/{other['id']}", json={"approved": False, "scope": "run"})
+    assert denied.json()["status"] == "denied"
+    assert denied.json()["scope"] == "call"
+
+    bad = client.post(
+        f"/approvals/{created['id']}", json={"approved": True, "scope": "forever"}
+    )
+    assert bad.status_code == 422
+
+
 def test_resolving_an_unknown_approval_is_a_404(client: TestClient) -> None:
     response = client.post("/approvals/does-not-exist", json={"approved": True})
 

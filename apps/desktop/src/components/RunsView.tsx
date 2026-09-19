@@ -232,8 +232,8 @@ export function RunsView({
     }
   };
 
-  const resolveApproval = useCallback(async (id: string, approved: boolean) => {
-    await api.resolveApproval(id, approved);
+  const resolveApproval = useCallback(async (id: string, approved: boolean, scope: "call" | "run" = "call") => {
+    await api.resolveApproval(id, approved, scope);
     // No local state change: the answer arrives over the stream as events (§2).
   }, []);
 

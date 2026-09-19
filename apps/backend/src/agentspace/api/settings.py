@@ -28,7 +28,7 @@ from agentspace.providers.pricing import MODELS_BY_PROVIDER, PRICES, format_micr
 from agentspace.secrets import SECRET_KEYS
 from agentspace.store.settings import ChannelApprovalPolicy, OpenAIAccess, WorkspaceSettings
 from agentspace.store.spaces import SpaceArchivedError, SpaceNotFoundError
-from agentspace.tools.catalogue import RiskLevel
+from agentspace.tools.catalogue import RiskLevel, ToolPolicy
 
 if TYPE_CHECKING:
     from agentspace.budget.ledger import BudgetLedger
@@ -92,6 +92,8 @@ class UpdateSettingsRequest(BaseModel):
     # An empty list is meaningful (it turns pre-authorization off), and
     # `exclude_none` keeps it distinguishable from "not sent".
     auto_approve: list[RiskLevel] | None = None
+    #: The whole map replaces the stored one; `{}` clears every per-tool answer.
+    tool_policies: dict[str, ToolPolicy] | None = None
 
     # `channel_identities: []` revokes everyone and must not read as "not sent".
     discord_enabled: bool | None = None

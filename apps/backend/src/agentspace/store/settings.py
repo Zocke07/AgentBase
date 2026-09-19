@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, Final, Literal
 from pydantic import BaseModel, Field, field_validator
 
 from agentspace.channels.identity import ChannelIdentity, IdentityDirectory
-from agentspace.tools.catalogue import RiskLevel
+from agentspace.tools.catalogue import RiskLevel, ToolPolicy, is_registered
 
 if TYPE_CHECKING:
     from agentspace.store.db import Database
@@ -86,6 +86,12 @@ class WorkspaceSettings(BaseModel):
     #: only narrow it (:func:`~agentspace.tools.catalogue.effective_auto_approve`).
     auto_approve: list[RiskLevel] = Field(default_factory=lambda: list(DEFAULT_AUTO_APPROVE))
 
+    #: Per-tool answers that come before the risk-level rule: a tool set to
+    #: ``allow`` runs without asking, one set to ``deny`` is refused without
+    #: asking, and one absent (or ``ask``) is decided by `auto_approve`. A
+    #: space can only make these stricter (`effective_tool_policies`).
+    tool_policies: dict[str, ToolPolicy] = Field(default_factory=dict)
+
     # `ge=1`: a limit of zero is a run that cannot do anything, not a stricter setting.
     max_steps_per_agent: int = Field(default=DEFAULT_MAX_STEPS_PER_AGENT, ge=1)
     max_agents_per_run: int = Field(default=DEFAULT_MAX_AGENTS_PER_RUN, ge=1)
@@ -111,6 +117,21 @@ class WorkspaceSettings(BaseModel):
     #: than in the webview's storage so it survives an upgrade with the rest of
     #: the data and comes back exactly when "start over" deletes that data.
     onboarding_completed: bool = False
+
+    @field_validator("tool_policies")
+    @classmethod
+    def _tool_policies_name_real_tools(
+        cls, policies: dict[str, ToolPolicy]
+    ) -> dict[str, ToolPolicy]:
+        """A policy for a tool that does not exist would be a silent no-op."""
+        unknown = sorted(name for name in policies if not is_registered(name))
+        if unknown:
+            msg = f"Unknown tool{'s' if len(unknown) > 1 else ''}: {', '.join(unknown)}."
+            raise ValueError(msg)
+        # `ask` is the absence of an answer; storing it would only clutter the row.
+        return {
+            name: policy for name, policy in policies.items() if policy is not ToolPolicy.ASK
+        }
 
     @field_validator("channel_identities")
     @classmethod

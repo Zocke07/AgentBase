@@ -20,7 +20,7 @@ from agentspace.store.spaces import (
     SpaceNotFoundError,
     SpaceValidationError,
 )
-from agentspace.tools.catalogue import RiskLevel
+from agentspace.tools.catalogue import RiskLevel, ToolPolicy
 
 if TYPE_CHECKING:
     from agentspace.store.agents import AgentDefStore
@@ -55,6 +55,7 @@ class UpdateSpaceRequest(BaseModel):
     provider: str | None = None
     model: str | None = None
     auto_approve: list[RiskLevel] | None = None
+    tool_policies: dict[str, ToolPolicy] | None = None
     max_steps_per_agent: int | None = Field(default=None, ge=1)
     max_agents_per_run: int | None = Field(default=None, ge=1)
     max_run_seconds: int | None = Field(default=None, ge=1)

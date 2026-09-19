@@ -3,6 +3,8 @@ import type {
   RiskLevel,
   SettingsResponse,
   SpaceResponse,
+  ToolPolicy,
+  ToolResponse,
   UpdateSpaceRequest,
 } from "@agentspace/schemas";
 import { useCallback, useState } from "react";
@@ -39,6 +41,8 @@ interface Form {
   model: string;
   /** Null: inherit. A list: this space's own policy. */
   auto_approve: RiskLevel[] | null;
+  /** Null: inherit every per-tool answer. A map: this space's stricter answers. */
+  tool_policies: Record<string, ToolPolicy> | null;
   max_steps_per_agent: string;
   max_agents_per_run: string;
   max_run_seconds: string;
@@ -53,6 +57,24 @@ const LIMIT_LABEL: Record<(typeof LIMITS)[number], string> = {
 };
 const FORM = "__form__";
 const EMPTY_CATALOGUE: ProviderCatalogueResponse = { providers: [], models: {} };
+const NO_TOOLS: ToolResponse[] = [];
+
+const POLICY_WORD: Record<ToolPolicy, string> = {
+  ask: "ask, by risk level",
+  allow: "always allow",
+  deny: "never allow",
+};
+
+/**
+ * The answers a space may give for one tool: the app-wide one, and every
+ * stricter one. A space narrows, never widens, so an app-wide refusal leaves
+ * only "inherit".
+ */
+function stricterChoices(appWide: ToolPolicy): ToolPolicy[] {
+  if (appWide === "allow") return ["ask", "deny"];
+  if (appWide === "ask") return ["deny"];
+  return [];
+}
 
 /** A limit as typed: blank for inherit, whether the row said null or nothing. */
 function limitText(value: number | null | undefined): string {
@@ -66,6 +88,7 @@ function fromSpace(space: SpaceResponse): Form {
     provider: space.provider ?? "",
     model: space.model ?? "",
     auto_approve: space.auto_approve === undefined || space.auto_approve === null ? null : [...space.auto_approve],
+    tool_policies: space.tool_policies === undefined || space.tool_policies === null ? null : { ...space.tool_policies },
     max_steps_per_agent: limitText(space.max_steps_per_agent),
     max_agents_per_run: limitText(space.max_agents_per_run),
     max_run_seconds: limitText(space.max_run_seconds),
@@ -82,6 +105,9 @@ function diff(opened: Form, form: Form): UpdateSpaceRequest {
   if (JSON.stringify(form.auto_approve) !== JSON.stringify(opened.auto_approve)) {
     patch.auto_approve = form.auto_approve;
   }
+  if (JSON.stringify(form.tool_policies) !== JSON.stringify(opened.tool_policies)) {
+    patch.tool_policies = form.tool_policies;
+  }
   for (const limit of LIMITS) {
     if (form[limit] !== opened[limit]) patch[limit] = form[limit].trim() === "" ? null : Number(form[limit]);
   }
@@ -90,7 +116,9 @@ function diff(opened: Form, form: Form): UpdateSpaceRequest {
 
 export function SpaceSettingsView({ space, settings, onChanged, onOpenRun }: SpaceSettingsViewProps) {
   const loadCatalogue = useCallback(() => api.listProviders(), []);
+  const loadTools = useCallback(() => api.listTools(), []);
   const catalogue = useFetched(loadCatalogue, EMPTY_CATALOGUE);
+  const tools = useFetched(loadTools, NO_TOOLS);
   // Held above the form: a save reloads the space list, the row's
   // `updated_at` changes, and the form remounts from it, which would lose a
   // "saved" note kept inside it before it was read.
@@ -105,6 +133,7 @@ export function SpaceSettingsView({ space, settings, onChanged, onOpenRun }: Spa
           space={space}
           settings={settings}
           catalogue={catalogue.data}
+          tools={tools.data}
           saved={saved}
           onEdited={() => {
             setSaved(false);
@@ -125,11 +154,13 @@ function SpaceForm({
   space,
   settings,
   catalogue,
+  tools,
   saved,
   onEdited,
   onChanged,
 }: SpaceSettingsViewProps & {
   catalogue: ProviderCatalogueResponse;
+  tools: readonly ToolResponse[];
   saved: boolean;
   onEdited: () => void;
 }) {
@@ -401,6 +432,60 @@ function SpaceForm({
             app-wide policy does not include still stops for you.
           </p>
           <FieldError field="auto_approve" message={errorFor("auto_approve")} />
+        </fieldset>
+
+        <fieldset className="editor__tools" data-testid="space-tool-policies">
+          <legend>Answers by tool</legend>
+          <p className="editor__hint">
+            The app-wide answer for each tool, and what this space makes of it. A space can only
+            make an answer stricter: an always-allowed tool can be made to ask or be refused here,
+            and a tool that asks can be refused.
+          </p>
+          {tools.length === 0 ? (
+            <p className="editor__hint">The tool catalogue has not loaded.</p>
+          ) : (
+            <table className="policy-table">
+              <tbody>
+                {tools.map((tool) => {
+                  const appWide: ToolPolicy = inherited?.tool_policies?.[tool.name] ?? "ask";
+                  const choices = stricterChoices(appWide);
+                  const own = form.tool_policies?.[tool.name];
+                  return (
+                    <tr key={tool.name}>
+                      <th scope="row">
+                        <code>{tool.name}</code>
+                        <span className={`risk risk--${tool.risk}`}>{tool.risk}</span>
+                      </th>
+                      <td className="policy-table__description">{tool.description}</td>
+                      <td>
+                        <select
+                          value={own ?? ""}
+                          aria-label={`Answer for ${tool.name}`}
+                          data-testid={`space-policy-${tool.name}`}
+                          disabled={choices.length === 0}
+                          onChange={(changed) => {
+                            const { [tool.name]: _dropped, ...rest } = form.tool_policies ?? {};
+                            const chosen = changed.target.value;
+                            const next = chosen === "" ? rest : { ...rest, [tool.name]: chosen as ToolPolicy };
+                            // Nothing of its own left: back to inheriting outright.
+                            set("tool_policies", Object.keys(next).length === 0 ? null : next);
+                          }}
+                        >
+                          <option value="">Inherit ({POLICY_WORD[appWide]})</option>
+                          {choices.map((choice) => (
+                            <option key={choice} value={choice}>
+                              {choice === "ask" ? "Ask, by risk level" : "Never allow"}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+          <FieldError field="tool_policies" message={errorFor("tool_policies")} />
         </fieldset>
       </section>
 

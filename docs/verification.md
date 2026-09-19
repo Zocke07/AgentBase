@@ -4,7 +4,7 @@ Updated 2026-09-19. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
 superseded gaps. A test result below is scoped to what was actually executed.
 
-## After 0.4.0: the Obsidian button only where Obsidian is, and the investment roster
+## After 0.4.0: the Obsidian button, the investment roster, the canvas, panels and per-tool answers
 
 On 2026-09-19 the maintainer clicked **Open in Obsidian** on a Mac without
 Obsidian and got the launcher's exit status as the error. The shell now has
@@ -39,6 +39,41 @@ was regenerated for one docstring. **Not exercised:** a run of the pipeline
 against a model, which needs the config files and scripts the prompts assume
 and the user guide lists; and the migration against the maintainer's own
 0.4.0 database, which happens at the next launch of a build carrying it.
+
+Later that day, three more of the maintainer's requests. The run canvas's
+handoff labels moved into React Flow's HTML label layer (`HandoffEdge` in
+`RunGraph.tsx`): every forward handoff turned on one vertical run between
+the columns and a label at a path's centre was crossed by its siblings, so a
+forward label now sits over the last stretch into its card and a return
+label under the card it leaves, each with the whole task as its tooltip, and
+cut-short card text carries its full text as a title. The run list, the
+canvas and the inspector gained drag handles (`Splitter.tsx`, sizes kept per
+browser by `useStoredSize`). And the gate gained per-tool answers: the
+settings' `tool_policies` (ask / allow / deny, validated against the
+catalogue), a space's stricter copy (migration 011 adds `spaces.tool_policies`
+and `approvals.scope`), `ToolRuntime.policy_for` (an allow narrowed by a
+definition's levels), `ApprovalService` refusing by policy or allowing by a
+run-wide precedent, `POST /approvals/{id}` taking `scope`, and the dialog's
+**Allow for this run**. Executed: `just check`; **777 backend tests** pass
+(`test_approval_gate.py` gained five: refusal without asking, an allow
+running unasked, a definition narrowing an allow, a run-wide yes answering
+a later write but not a read, and a no never being for a run;
+`test_tool_runtime_policy.py`, the settings, spaces and approvals API tests
+cover the rest); **424 frontend tests** (39 files) pass, with the reducer
+keeping `policy`, `precedent` and `scope` apart, the dialog's third button,
+the Settings table dropping an answer set back to ask, and the space table
+offering only stricter answers. Exercised in Chrome against the scratch
+sidecar (migrated 9 to 11 on a database with runs): a seeded three-worker
+run showed every handoff label clear of the lines, the three handles were
+dragged with real mouse events, clamped so the log kept its minimum, and
+the sizes survived a reload; the Settings table showed `read_file` allowed
+and `run_shell` refused after a PATCH, the space table offered ask or deny
+for the allowed tool, deny alone for the asking ones and nothing for the
+refused one; a slow demo run's dialog showed Deny, Allow and Allow for this
+run. **Not exercised:** the gate against a live model (the demo run's
+approval events bypass the store, so its third button answers a 404); a
+space's stricter answer changing what a real run does, covered by
+`test_per_tool_answers_only_get_stricter` and the API tests only.
 
 ## 0.4.0: scheduled runs, Usage, the tour, and two layout fixes
 

@@ -363,6 +363,31 @@ def test_the_approval_policy_only_narrows() -> None:
     assert nothing.auto_approve == []
 
 
+def test_per_tool_answers_only_get_stricter() -> None:
+    """A space can turn an app-wide allow into a question or a refusal and a
+    question into a refusal, and can never widen; a tool it does not name
+    keeps the app-wide answer."""
+    from agentspace.tools.catalogue import ToolPolicy
+
+    workspace = WorkspaceSettings(
+        tool_policies={"write_file": ToolPolicy.ALLOW, "run_shell": ToolPolicy.DENY}
+    )
+    effective = _space(
+        tool_policies={
+            "write_file": ToolPolicy.ASK,
+            "run_shell": ToolPolicy.ALLOW,
+            "http_get": ToolPolicy.DENY,
+        }
+    ).apply_to(workspace)
+
+    # `ask` is the absence of an answer, so the narrowed allow is simply gone.
+    assert effective.tool_policies == {
+        "run_shell": ToolPolicy.DENY,
+        "http_get": ToolPolicy.DENY,
+    }
+    assert _space().apply_to(workspace).tool_policies == workspace.tool_policies
+
+
 def test_the_starter_roles_seed_a_space_as_deletable_copies(
     db: Database,
 ) -> None:

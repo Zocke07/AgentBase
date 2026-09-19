@@ -2469,6 +2469,19 @@ button.md__tag:hover {
   font-weight: 600;
 }
 
+/* The run-wide yes: the same green, outlined, so the one-call yes stays the
+   obvious answer and this one reads as the wider one. */
+.button--allow-run {
+  border-color: var(--good);
+  color: var(--good);
+  background: transparent;
+  font-weight: 600;
+}
+
+.button--allow-run:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--good) 12%, transparent);
+}
+
 .button--allow:hover:not(:disabled) {
   filter: brightness(1.08);
 }
@@ -5487,4 +5500,42 @@ input[type="radio"] {
 }
 .log__capture {
   flex: none;
+}
+
+/* --- answers by tool (Settings, Space settings) ----------------------------- */
+
+.policy-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8667rem;
+}
+
+.policy-table th,
+.policy-table td {
+  padding: 0.4rem 0.5rem;
+  border-top: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.policy-table th {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.policy-table__description {
+  color: var(--muted);
+}
+
+.policy-table select {
+  min-width: 11rem;
+}
+
+@media (max-width: 720px) {
+  .policy-table__description {
+    display: none;
+  }
 }

@@ -18,6 +18,7 @@ import { SpaceSettingsView } from "./SpaceSettingsView";
 vi.mock("../lib/api", async (importOriginal) => ({
   ...(await importOriginal<typeof api>()),
   listProviders: vi.fn(),
+  listTools: vi.fn(),
   updateSpace: vi.fn(),
   deleteSpace: vi.fn(),
   listSchedules: vi.fn(),
@@ -47,6 +48,7 @@ const settings: SettingsResponse = {
     provider: "ollama",
     model: "qwen3:4b",
     auto_approve: ["low"],
+    tool_policies: { write_file: "allow", run_shell: "deny" },
     max_steps_per_agent: 20,
     max_agents_per_run: 5,
     max_run_seconds: 600,
@@ -61,6 +63,11 @@ const settings: SettingsResponse = {
 
 beforeEach(() => {
   mocked.listSchedules.mockResolvedValue([]);
+  mocked.listTools.mockResolvedValue([
+    { name: "read_file", description: "Read a file", risk: "low", available: true },
+    { name: "write_file", description: "Write a file", risk: "medium", available: true },
+    { name: "run_shell", description: "Run a command", risk: "high", available: true },
+  ]);
   mocked.listProviders.mockResolvedValue({
     providers: [{ name: "ollama", requires_key: false, free_text_model: true }],
     models: { ollama: [] },
@@ -110,6 +117,49 @@ describe("what is sent", () => {
     });
     // Ticked but not in the app-wide policy: the page says it will still ask.
     expect(screen.getByTestId("space-auto-medium").closest("label")?.textContent).toContain("still asks");
+  });
+
+  it("offers only stricter answers for a tool, and inherits again once none is left", async () => {
+    /* The app allows write_file, asks about read_file and refuses run_shell:
+       write_file can be made to ask or be refused here, read_file can only
+       be refused, and run_shell has nothing left to narrow. */
+    const user = userEvent.setup();
+    render(<SpaceSettingsView space={lab} settings={settings} onChanged={vi.fn()} />);
+    const options = (name: string) =>
+      [...screen.getByTestId<HTMLSelectElement>(`space-policy-${name}`).options].map((o) => o.value);
+
+    await waitFor(() => {
+      expect(options("write_file")).toEqual(["", "ask", "deny"]);
+    });
+    expect(options("read_file")).toEqual(["", "deny"]);
+    expect(screen.getByTestId<HTMLSelectElement>("space-policy-run_shell").disabled).toBe(true);
+    expect(screen.getByTestId("space-policy-run_shell").textContent).toContain("never allow");
+
+    await user.selectOptions(screen.getByTestId("space-policy-write_file"), "ask");
+    await user.click(screen.getByRole("button", { name: "Save space" }));
+    await waitFor(() => {
+      expect(mocked.updateSpace).toHaveBeenLastCalledWith("space-lab", { tool_policies: { write_file: "ask" } });
+    });
+  });
+
+  it("goes back to inheriting outright once no answer of its own is left", async () => {
+    const user = userEvent.setup();
+    render(
+      <SpaceSettingsView
+        space={{ ...lab, tool_policies: { write_file: "ask" } }}
+        settings={settings}
+        onChanged={vi.fn()}
+      />,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId<HTMLSelectElement>("space-policy-write_file").value).toBe("ask");
+    });
+
+    await user.selectOptions(screen.getByTestId("space-policy-write_file"), "");
+    await user.click(screen.getByRole("button", { name: "Save space" }));
+    await waitFor(() => {
+      expect(mocked.updateSpace).toHaveBeenLastCalledWith("space-lab", { tool_policies: null });
+    });
   });
 
   it("shows the inherited values as placeholders, never as the space's own", () => {

@@ -25,6 +25,9 @@ const pending: ApprovalRecord = {
   prompt: 'Agent "escaper" wants to overwrite notes.txt (36 characters): Allow / Deny',
   status: "pending",
   automatic: false,
+  precedent: false,
+  policy: false,
+  scope: "call",
   seq: 12,
 };
 
@@ -119,11 +122,23 @@ describe("the history", () => {
   });
 
   it("marks a repeat the person's earlier answer settled, not a policy", () => {
-    panel([denied, { ...denied, id: "ap-1b", seq: 9, automatic: true }, pending]);
+    panel([denied, { ...denied, id: "ap-1b", seq: 9, automatic: true, precedent: true }, pending]);
 
     const history = screen.getByTestId("approval-history").textContent;
     expect(history).toContain("by your earlier answer");
     expect(history).not.toContain("by policy");
+  });
+
+  it("marks a refusal the policy made, and a yes given for the run", () => {
+    panel([
+      { ...denied, id: "ap-p", seq: 3, automatic: true, policy: true },
+      { ...denied, id: "ap-r", seq: 5, status: "approved", scope: "run" },
+      pending,
+    ]);
+
+    const history = screen.getByTestId("approval-history").textContent;
+    expect(history).toContain("by policy");
+    expect(history).toContain("for the rest of the run");
   });
 });
 
@@ -134,7 +149,7 @@ describe("answering", () => {
 
     await user.click(screen.getByRole("button", { name: "Allow" }));
 
-    expect(onResolve).toHaveBeenCalledWith("ap-1", true);
+    expect(onResolve).toHaveBeenCalledWith("ap-1", true, "call");
   });
 
   it("denies the outstanding call", async () => {
@@ -143,7 +158,17 @@ describe("answering", () => {
 
     await user.click(screen.getByRole("button", { name: "Deny" }));
 
-    expect(onResolve).toHaveBeenCalledWith("ap-1", false);
+    expect(onResolve).toHaveBeenCalledWith("ap-1", false, "call");
+  });
+
+  it("can allow the tool for the rest of the run", async () => {
+    const user = userEvent.setup();
+    const { onResolve } = panel([pending]);
+
+    await user.click(screen.getByRole("button", { name: "Allow for this run" }));
+
+    expect(onResolve).toHaveBeenCalledWith("ap-1", true, "run");
+    expect(screen.getByText(/every later write_file call in this run/).textContent).toContain("Settings");
   });
 
   it("focuses Deny when a question appears", () => {

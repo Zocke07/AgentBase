@@ -136,6 +136,15 @@
             "title": "Run Id",
             "type": "string"
           },
+          "scope": {
+            "default": "call",
+            "enum": [
+              "call",
+              "run"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
           "status": {
             "title": "Status",
             "type": "string"
@@ -1752,6 +1761,15 @@
           "approved": {
             "title": "Approved",
             "type": "boolean"
+          },
+          "scope": {
+            "default": "call",
+            "enum": [
+              "call",
+              "run"
+            ],
+            "title": "Scope",
+            "type": "string"
           }
         },
         "required": [
@@ -2308,6 +2326,20 @@
             ],
             "title": "Provider"
           },
+          "tool_policies": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/ToolPolicy"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Policies"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
@@ -2324,6 +2356,16 @@
         ],
         "title": "SpaceResponse",
         "type": "object"
+      },
+      "ToolPolicy": {
+        "description": "What the gate does with a call to one tool, by name, before its risk level is read.\n\n``ASK`` is the default and means the risk-level rule decides; ``ALLOW``\nruns the call without asking; ``DENY`` refuses it without asking. A tool\nabsent from a policy is ``ASK``.",
+        "enum": [
+          "ask",
+          "allow",
+          "deny"
+        ],
+        "title": "ToolPolicy",
+        "type": "string"
       },
       "ToolResponse": {
         "description": "One catalogue entry, as the agent editor renders it.",
@@ -2768,6 +2810,20 @@
               }
             ],
             "title": "Provider"
+          },
+          "tool_policies": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/ToolPolicy"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Policies"
           }
         },
         "title": "UpdateSettingsRequest",
@@ -2883,6 +2939,20 @@
               }
             ],
             "title": "Provider"
+          },
+          "tool_policies": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/ToolPolicy"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Policies"
           }
         },
         "title": "UpdateSpaceRequest",
@@ -3370,6 +3440,13 @@
             "default": "anthropic",
             "title": "Provider",
             "type": "string"
+          },
+          "tool_policies": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ToolPolicy"
+            },
+            "title": "Tool Policies",
+            "type": "object"
           }
         },
         "title": "WorkspaceSettings",

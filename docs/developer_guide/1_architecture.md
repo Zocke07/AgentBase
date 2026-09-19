@@ -69,9 +69,18 @@ space does not rewrite a running or historical run.
 Model and run limits resolve from the app defaults through space overrides and,
 where applicable, agent definitions. Approval policy can only narrow: a space's
 `null` means inherit, while `[]` means ask for everything. An agent definition's
-`[]` means inherit. Model credentials, OpenAI's access mode, the monthly cap,
-and the Discord connection are app-wide. `channel_space_id` selects the space
-receiving Discord commands.
+`[]` means inherit. Beside the risk levels sit per-tool answers
+(`tool_policies`, `tools/catalogue.py`'s `ToolPolicy`): the gate reads a
+tool's answer before its level, `deny` refuses without asking, `allow` runs
+without asking, and a tool absent from the map is `ask`. A space's map is
+merged by `effective_tool_policies`, which keeps the stricter answer per tool,
+and `ToolRuntime.policy_for` turns an `allow` back into `ask` for a definition
+whose named levels exclude the tool's. The runtime snapshots both maps at run
+start. A person's yes with `scope = 'run'` (`approvals.scope`, migration 011)
+is found again by `ApprovalStore.find_allowed_for_run` the way a denial is
+found by `find_denied`; a no is stored for the one call. Model credentials,
+OpenAI's access mode, the monthly cap, and the Discord connection are
+app-wide. `channel_space_id` selects the space receiving Discord commands.
 
 ### Schedules
 

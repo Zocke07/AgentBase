@@ -364,6 +364,7 @@ class Agent:
             risk=tool.risk,
             auto_approve=runtime.auto_approve_for(self._spec.auto_approve),
             deadline=self._run.remaining_seconds(),
+            policy=runtime.policy_for(call.name, self._spec.auto_approve),
         )
 
         if not decision.allowed:

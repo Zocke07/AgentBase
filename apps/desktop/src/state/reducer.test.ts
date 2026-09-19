@@ -256,6 +256,28 @@ describe("approvals", () => {
     expect(state.approvals[0]).toMatchObject({ status: "approved", automatic: true });
   });
 
+  it("tells a policy's answer from a repeat of the person's, and keeps a yes given for the run", () => {
+    /* Three automatic shapes reach the log: a refusal the per-tool policy
+       made (`policy`), a repeat of the person's own answer (`precedent`), and
+       the person's yes that was given for the rest of the run (`scope`). The
+       history names each differently, so the fold keeps them apart. */
+    const log = new LogBuilder();
+    const state = reduceAll([
+      log.add("approval.requested", { approval_id: "a1", tool: "run_shell", risk: "high", prompt: "Run?", automatic: true, policy: "deny" }, "w"),
+      log.add("approval.resolved", { approval_id: "a1", tool: "run_shell", status: "denied", automatic: true, policy: "deny" }, "w"),
+      log.add("approval.requested", { approval_id: "a2", tool: "write_file", risk: "medium", prompt: "Write?" }, "w"),
+      log.add("approval.resolved", { approval_id: "a2", tool: "write_file", status: "approved", automatic: false, scope: "run" }, "w"),
+      log.add("approval.requested", { approval_id: "a3", tool: "write_file", risk: "medium", prompt: "Write again?", automatic: true, precedent: "a2" }, "w"),
+      log.add("approval.resolved", { approval_id: "a3", tool: "write_file", status: "approved", automatic: true, precedent: "a2" }, "w"),
+    ]);
+
+    expect(state.approvals.map((a) => [a.id, a.automatic, a.policy, a.precedent, a.scope])).toEqual([
+      ["a1", true, true, false, "call"],
+      ["a2", false, false, false, "run"],
+      ["a3", true, false, true, "call"],
+    ]);
+  });
+
   it("does not treat a policy's question as one a person must answer", () => {
     /* The gate emits `approval.requested {automatic: true}` and then, as a
        separate event, `approval.resolved`. Between the two the call is not
