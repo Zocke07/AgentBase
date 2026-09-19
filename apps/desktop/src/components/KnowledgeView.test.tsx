@@ -12,8 +12,16 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../lib/api";
+import * as folder from "../lib/folder";
 
 import { KnowledgeView } from "./KnowledgeView";
+
+vi.mock("../lib/folder", () => ({
+  obsidianAvailable: vi.fn(),
+  openInObsidian: vi.fn(),
+  revealAvailable: () => false,
+  revealFolder: vi.fn(),
+}));
 
 vi.mock("../lib/api", async (importOriginal) => ({
   ...(await importOriginal<typeof api>()),
@@ -112,6 +120,8 @@ const memoryIndex: MemoryIndex = {
 };
 
 beforeEach(() => {
+  vi.mocked(folder.obsidianAvailable).mockResolvedValue(false);
+  vi.mocked(folder.openInObsidian).mockResolvedValue(undefined);
   mocked.listKnowledge.mockResolvedValue(index);
   mocked.getKnowledgeNote.mockResolvedValue(note);
   mocked.saveKnowledgeNote.mockImplementation((_spaceId, path, content) =>
@@ -462,5 +472,29 @@ describe("the vault as an editor", () => {
     await waitFor(() => {
       expect(mocked.getKnowledgeNote).toHaveBeenCalledWith("space-lab", "scratch/orphan.md");
     });
+  });
+
+  it("offers Open in Obsidian only where the shell found Obsidian", async () => {
+    render(<KnowledgeView space={space} />);
+    await screen.findByRole("button", { name: /Storage decision/ });
+
+    await waitFor(() => {
+      expect(folder.obsidianAvailable).toHaveBeenCalled();
+    });
+    expect(screen.queryByRole("button", { name: "Open in Obsidian" })).toBeNull();
+  });
+
+  it("opens the vault through the shell and shows its refusal in words", async () => {
+    const user = userEvent.setup();
+    vi.mocked(folder.obsidianAvailable).mockResolvedValue(true);
+    vi.mocked(folder.openInObsidian).mockRejectedValue(
+      new Error("Obsidian did not open the folder. Open it as a vault from Obsidian's own vault picker instead: /data/spaces/space-lab"),
+    );
+    render(<KnowledgeView space={space} />);
+
+    await user.click(await screen.findByRole("button", { name: "Open in Obsidian" }));
+
+    expect(folder.openInObsidian).toHaveBeenCalledWith("/data/spaces/space-lab");
+    expect((await screen.findByRole("alert")).textContent).toContain("Obsidian's own vault picker");
   });
 });

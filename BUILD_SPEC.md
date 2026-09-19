@@ -717,7 +717,10 @@ content or require Obsidian to be installed.
 - Add **Open in Obsidian** through a narrow Rust command. It accepts only an
   existing directory under AgentSpace's data root, constructs the documented
   `obsidian://open?path=` URI itself, and does not grant a general URL opener to
-  the webview.
+  the webview. *(2026-09-19: the button is offered only when the shell finds
+  Obsidian where its installer puts it; on a machine without it the link has
+  no handler and the launcher's exit status was reaching the user as the
+  error. The folder is a vault regardless, which Obsidian's picker opens.)*
 - Rebuild the index from the live folder when it is used. An edit made outside
   AgentSpace is visible on the next list, search or run without a watcher,
   reindex job or stale database.

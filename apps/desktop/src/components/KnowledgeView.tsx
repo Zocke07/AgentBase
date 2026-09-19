@@ -21,10 +21,11 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 
 import * as api from "../lib/api";
-import { openInObsidian, revealAvailable } from "../lib/folder";
+import { obsidianAvailable, openInObsidian } from "../lib/folder";
 import { fuzzyFilter } from "../lib/fuzzy";
 import { forceLayout } from "../lib/graphLayout";
 import { countWords, toggleTaskLine } from "../lib/markdown";
+import { useFetched } from "../state/useFetched";
 
 import { KnowledgeEvaluationView } from "./KnowledgeEvaluation";
 import { Markdown } from "./Markdown";
@@ -103,6 +104,9 @@ export function KnowledgeView({
   const [error, setError] = useState<string | null>(null);
   const [switcher, setSwitcher] = useState(false);
   const [linksOpen, setLinksOpen] = useState(true);
+  // Asked once: the shell looks for Obsidian on disk, and outside it the
+  // answer is no without a round trip.
+  const obsidian = useFetched(obsidianAvailable, false).data;
   // A note asked for while another has unsaved changes waits for a decision.
   const [pendingOpen, setPendingOpen] = useState<{ path: string; heading: string | null } | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
@@ -848,10 +852,11 @@ export function KnowledgeView({
             </button>
           </div>
           <div className="knowledge__actions">
-            {revealAvailable() && (
+            {obsidian && (
               <button
                 type="button"
                 className="button button--small"
+                title="Open this space's folder as a vault in Obsidian"
                 onClick={() => {
                   void openInObsidian(space.folder).catch((failure: unknown) => {
                     setError(asMessage(failure));

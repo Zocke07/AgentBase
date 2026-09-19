@@ -4,6 +4,23 @@ Updated 2026-09-19. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
 superseded gaps. A test result below is scoped to what was actually executed.
 
+## After 0.4.0: the Obsidian button only where Obsidian is
+
+On 2026-09-19 the maintainer clicked **Open in Obsidian** on a Mac without
+Obsidian and got the launcher's exit status as the error. The shell now has
+an `obsidian_available` command that looks for Obsidian where its installer
+puts it (`/Applications` and `~/Applications` on macOS, `%LOCALAPPDATA%`'s
+`Programs\Obsidian` and `Obsidian` on Windows), the Knowledge toolbar offers
+the button only when it answers yes, and a failed open reports what still
+works (the folder in Obsidian's own picker) while the launcher's error goes
+to the shell's stderr. Executed: `cargo test` (3, including the candidate
+paths per platform), `cargo clippy --all-targets -D warnings`, `cargo fmt
+--check`, `just check`, and `KnowledgeView.test.tsx` (18, two new: the
+button absent when the shell says no, and the shell's refusal shown in
+words). **Not exercised:** a Mac or Windows machine with Obsidian installed,
+so the positive path (button shown, vault opened) rests on the earlier 0.3.x
+check of the URI and on the path list.
+
 ## 0.4.0: scheduled runs, Usage, the tour, and two layout fixes
 
 Phase 13, on 2026-09-19, in seven commits after 0.3.3. The sidecar gained

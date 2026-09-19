@@ -130,6 +130,46 @@ fn obsidian_vault_url(path: &std::path::Path) -> Result<tauri::Url, String> {
     tauri::Url::parse(&format!("obsidian://open?path={encoded}")).map_err(|error| error.to_string())
 }
 
+/// Where Obsidian's own installer puts it. The vault button is offered only
+/// when one of these exists: without Obsidian the `obsidian://` link has no
+/// handler and the launcher fails with an exit status nobody can act on. An
+/// install elsewhere loses only the shortcut; the folder is a vault that
+/// Obsidian's picker opens.
+fn obsidian_candidates() -> Vec<PathBuf> {
+    #[cfg(target_os = "macos")]
+    {
+        let mut found = vec![PathBuf::from("/Applications/Obsidian.app")];
+        if let Some(home) = std::env::var_os("HOME") {
+            found.push(PathBuf::from(home).join("Applications/Obsidian.app"));
+        }
+        found
+    }
+    #[cfg(target_os = "windows")]
+    {
+        // The per-user installer, in its current and its older location.
+        let mut found = Vec::new();
+        if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+            let local = PathBuf::from(local);
+            found.push(local.join("Programs").join("Obsidian").join("Obsidian.exe"));
+            found.push(local.join("Obsidian").join("Obsidian.exe"));
+        }
+        found
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        Vec::new()
+    }
+}
+
+/// Whether Obsidian is installed where the Knowledge section can expect the
+/// vault link to work.
+#[tauri::command]
+fn obsidian_available() -> bool {
+    obsidian_candidates()
+        .iter()
+        .any(|candidate| candidate.exists())
+}
+
 /// Open a validated space folder as a vault through Obsidian's documented URI.
 #[tauri::command]
 fn open_obsidian_vault(app: AppHandle, path: String) -> Result<(), String> {
@@ -139,7 +179,16 @@ fn open_obsidian_vault(app: AppHandle, path: String) -> Result<(), String> {
     let url = obsidian_vault_url(&wanted)?;
     app.opener()
         .open_url(url.as_str(), None::<&str>)
-        .map_err(|error| error.to_string())
+        .map_err(|error| {
+            // The launcher's exit status is for the log; the message says
+            // what still works.
+            eprintln!("[obsidian] {error}");
+            format!(
+                "Obsidian did not open the folder. Open it as a vault from Obsidian's own \
+                 vault picker instead: {}",
+                wanted.display()
+            )
+        })
 }
 
 /// Open the OAuth page returned by Codex App Server. The webview cannot use
@@ -333,6 +382,7 @@ pub fn run() {
             sidecar_instance,
             keychain_service,
             reveal_folder,
+            obsidian_available,
             open_obsidian_vault,
             open_auth_url,
             restart_app
@@ -355,7 +405,20 @@ pub fn run() {
 mod tests {
     use std::path::Path;
 
-    use super::{auth_url_is_allowed, obsidian_vault_url};
+    use super::{auth_url_is_allowed, obsidian_candidates, obsidian_vault_url};
+
+    #[test]
+    fn obsidian_is_looked_for_where_its_installer_puts_it() {
+        let candidates = obsidian_candidates();
+        if cfg!(target_os = "macos") {
+            assert!(candidates.contains(&std::path::PathBuf::from("/Applications/Obsidian.app")));
+            assert!(candidates.iter().all(|path| path.ends_with("Obsidian.app")));
+        } else if cfg!(target_os = "windows") {
+            assert!(candidates.iter().all(|path| path.ends_with("Obsidian.exe")));
+        } else {
+            assert!(candidates.is_empty());
+        }
+    }
 
     #[test]
     fn obsidian_vault_url_keeps_the_exact_path_as_one_query_value() {

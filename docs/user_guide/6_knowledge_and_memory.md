@@ -9,11 +9,14 @@ UTF-8 Markdown file in the selected space's folder. AgentSpace does not import
 the note into a proprietary format, so you can edit the same file in the
 built-in source editor, Obsidian, VS Code or another text editor.
 
-**Open in Obsidian** asks the desktop shell to open the space folder through
-Obsidian's URI handler. If Obsidian is not installed, the operating system may
-report that no application handles the link; the built-in editor still works.
-AgentSpace validates the folder before opening it and does not give the webview
-a general URL-opening permission.
+**Open in Obsidian** appears in the toolbar only when Obsidian is installed
+where its installer puts it (`Applications` on macOS, its per-user program
+folder on Windows). It asks the desktop shell to open the space folder through
+Obsidian's URI handler; AgentSpace validates the folder first and does not give
+the webview a general URL-opening permission. If Obsidian lives somewhere else,
+or the link does not open, use **Open folder** in Space settings to find the
+folder and add it from Obsidian's own vault picker. The built-in editor works
+either way.
 
 Use folders to keep a larger vault scannable. A useful starting shape is:
 
