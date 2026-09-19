@@ -4,6 +4,7 @@ import type { ApprovalResponse, Event } from "@agentspace/schemas";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import * as api from "../lib/api";
+import type { RunOrigin } from "../lib/api";
 import { captureText } from "../state/describe";
 import { hasMore, unfinished, useRunList } from "../state/runList";
 import { useRunStore } from "../state/runStore";
@@ -129,6 +130,8 @@ export function RunsView({
   const reloadRuns = useRunList((state) => state.load);
   const ensureRuns = useRunList((state) => state.ensure);
   const loadMore = useRunList((state) => state.loadMore);
+  const origin = useRunList((state) => state.origin);
+  const setOrigin = useRunList((state) => state.setOrigin);
 
   useEffect(() => {
     ensureRuns();
@@ -259,6 +262,23 @@ export function RunsView({
             New run
           </button>
         </header>
+        <label className="runs-view__filter">
+          <span className="sr-only">Show</span>
+          <select
+            value={origin ?? ""}
+            aria-label="Which runs to list"
+            data-testid="runs-origin"
+            onChange={(changed) => {
+              const chosen = changed.target.value;
+              setOrigin(chosen === "" ? undefined : (chosen as RunOrigin));
+            }}
+          >
+            <option value="">All runs</option>
+            <option value="ui">Started by you</option>
+            <option value="schedule">Scheduled</option>
+            <option value="discord">From Discord</option>
+          </select>
+        </label>
 
         {runsError !== null && (
           <p className="field-error" role="alert">
@@ -288,7 +308,11 @@ export function RunsView({
               </button>
             </li>
           )}
-          {runs.length === 0 && <li className="run-list__empty">{runsLoaded ? "No runs yet." : "Loading…"}</li>}
+          {runs.length === 0 && (
+            <li className="run-list__empty">
+              {!runsLoaded ? "Loading…" : origin === undefined ? "No runs yet." : "No runs of this kind yet."}
+            </li>
+          )}
         </ul>
       </aside>
 

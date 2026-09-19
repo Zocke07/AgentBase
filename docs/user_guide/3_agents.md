@@ -63,7 +63,7 @@ fields and save the definition.
 | **Name** | Unique within this space. Use lowercase letters, digits, `-` or `_`, starting with a letter, up to 40 characters. |
 | **Role** | A one-line description the supervisor uses when choosing a worker. |
 | **System prompt** | Instructions for the worker's task and behavior. The app supplies the coordination instructions. |
-| **Provider / Model** | Inherit the current space's defaults, or choose a model for this agent. |
+| **Provider / Model** | Inherit the space's provider and model, or choose a model for this agent. |
 | **Max steps** | A saved ceiling on this agent's turns. Blank selects the lower of 20 and the current app-wide step limit; it is not a value that grows automatically when settings change. |
 | **Tools this agent may call** | The tools the agent is permitted to request. An agent with no file, shell or network tools can still reason and report back. |
 | **Calls this agent may make without asking** | Optional restriction on automatic approvals. Nothing ticked inherits the space policy; selected levels are intersected with that policy. |

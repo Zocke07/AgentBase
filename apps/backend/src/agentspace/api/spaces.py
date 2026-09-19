@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from agentspace.store.agents import AgentDef
+from agentspace.store.settings import default_model_for
 from agentspace.store.spaces import (
     DEFAULT_SPACE_ID,
     DefaultSpaceProtectedError,
@@ -24,6 +25,7 @@ from agentspace.tools.catalogue import RiskLevel, ToolPolicy
 
 if TYPE_CHECKING:
     from agentspace.store.agents import AgentDefStore
+    from agentspace.store.settings import SettingsStore
     from agentspace.store.spaces import SpaceStore
 
 __all__ = ["router"]
@@ -40,6 +42,10 @@ class CopyFrom(BaseModel):
 class CreateSpaceRequest(BaseModel):
     name: str = Field(min_length=1, max_length=60)
     description: str = ""
+    #: The space's provider (``None`` inherits the app-wide one) and its model.
+    #: A space always has a model: left out, it starts with the provider's default.
+    provider: str | None = None
+    model: str | None = None
     #: How the roster starts: empty, fresh copies of the three starter roles,
     #: or copies of another space's definitions.
     seed: Literal["empty", "builtins"] | CopyFrom = "builtins"
@@ -85,6 +91,40 @@ def _reject(message: str, field: str | None) -> HTTPException:
     return HTTPException(status_code=400, detail={"message": message, "field": field})
 
 
+def _settings(request: Request) -> SettingsStore:
+    store: SettingsStore = request.app.state.settings
+    return store
+
+
+async def _with_model(request: Request, changes: dict[str, Any], current: Space | None) -> None:
+    """Give ``changes`` a model where it would otherwise leave the space without one.
+
+    A space always names its model, since the app-wide one is only a
+    fallback that follows the provider. A create without a model, a PATCH
+    that sets the model to null, or one that changes the provider without
+    naming a model, all land on the effective provider's default; Ollama has
+    none, and a space there keeps whatever it had until one is typed.
+    """
+    provider_changing = "provider" in changes
+    model_changing = "model" in changes and changes["model"] is not None
+    if model_changing or (
+        current is not None and not provider_changing and "model" not in changes
+    ):
+        return
+    provider = (
+        changes.get("provider")
+        if provider_changing
+        else (current.provider if current else None)
+    )
+    if provider is None:
+        provider = (await _settings(request).get()).provider
+    fallback = default_model_for(provider)
+    if fallback is not None:
+        changes["model"] = fallback
+    elif current is None:
+        changes["model"] = None
+
+
 def _respond(store: SpaceStore, space: Space) -> SpaceResponse:
     return SpaceResponse(
         **space.model_dump(),
@@ -117,8 +157,14 @@ async def create_space(request: Request, body: CreateSpaceRequest) -> SpaceRespo
     a space the user can see and fix.
     """
     store = _spaces(request)
+    fields: dict[str, Any] = {"name": body.name, "description": body.description}
+    if body.provider is not None:
+        fields["provider"] = body.provider
+    if body.model is not None:
+        fields["model"] = body.model
+    await _with_model(request, fields, None)
     try:
-        space = await store.create({"name": body.name, "description": body.description})
+        space = await store.create(fields)
     except SpaceValidationError as exc:
         raise _reject(str(exc), exc.field) from exc
 
@@ -144,6 +190,7 @@ async def update_space(
 
     store = _spaces(request)
     try:
+        await _with_model(request, changes, await store.require(space_id))
         return _respond(store, await store.update(space_id, changes))
     except SpaceNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

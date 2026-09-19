@@ -681,7 +681,10 @@ every step.
   policy stay on the app page as the defaults every space inherits, since Inherit has to
   inherit from somewhere the user can see. The opener plugin is used from Rust only, behind
   one command that refuses any path outside the data directory; none of its JavaScript
-  commands are granted to the webview.)*
+  commands are granted to the webview. 2026-09-19: the model left the app page at the
+  maintainer's request: Settings chooses the provider, every space names its model, with
+  no Inherit, and an agent may pick its own; migration 012 gave existing spaces the model
+  they were inheriting. Limits and the approval policy still inherit from the app page.)*
 - **Windowed event log.** Long runs render only the rows in view. Deferred from the frontend
   pass as "nothing larger than 291 events has been measured"; the redesign touches every row
   anyway, and the Home screen's cards mean the log is no longer the first thing loaded.

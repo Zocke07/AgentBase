@@ -632,6 +632,18 @@
             "title": "Goal",
             "type": "string"
           },
+          "max_run_seconds": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Run Seconds"
+          },
           "missed": {
             "default": "run_on_launch",
             "enum": [
@@ -668,11 +680,33 @@
             "title": "Description",
             "type": "string"
           },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
           "name": {
             "maxLength": 60,
             "minLength": 1,
             "title": "Name",
             "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
           },
           "seed": {
             "anyOf": [
@@ -1956,6 +1990,18 @@
             ],
             "title": "Last Run Id"
           },
+          "max_run_seconds": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Run Seconds"
+          },
           "missed": {
             "default": "run_on_launch",
             "enum": [
@@ -2600,6 +2646,18 @@
               }
             ],
             "title": "Goal"
+          },
+          "max_run_seconds": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Run Seconds"
           },
           "missed": {
             "anyOf": [
@@ -4083,7 +4141,7 @@
     },
     "/runs": {
       "get": {
-        "description": "Recent runs, newest first: what the run picker reads.",
+        "description": "Recent runs, newest first: what the run picker reads. ``origin`` keeps\nonly the runs started from the window, by a schedule, or from Discord.",
         "operationId": "list_runs_runs_get",
         "parameters": [
           {
@@ -4112,6 +4170,27 @@
                 }
               ],
               "title": "Space Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "origin",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "ui",
+                    "discord",
+                    "schedule"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Origin"
             }
           }
         ],

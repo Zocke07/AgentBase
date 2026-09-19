@@ -132,11 +132,14 @@ export interface CreateScheduleRequest {
   cadence: DailyCadence | WeeklyCadence | IntervalCadence;
   missed?: "run_on_launch" | "skip";
   enabled?: boolean;
+  max_run_seconds?: number | null;
 }
 
 export interface CreateSpaceRequest {
   name: string;
   description?: string;
+  provider?: string | null;
+  model?: string | null;
   seed?: "empty" | "builtins" | CopyFrom;
 }
 
@@ -441,6 +444,7 @@ export interface ScheduleResponse {
   last_run_at?: string | null;
   last_run_id?: string | null;
   last_outcome?: string | null;
+  max_run_seconds?: number | null;
   created_at: string;
   updated_at: string;
   summary: string;
@@ -555,6 +559,7 @@ export interface UpdateScheduleRequest {
   cadence?: DailyCadence | WeeklyCadence | IntervalCadence | null;
   missed?: "run_on_launch" | "skip" | null;
   enabled?: boolean | null;
+  max_run_seconds?: number | null;
 }
 
 /**

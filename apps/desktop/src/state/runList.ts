@@ -2,6 +2,7 @@ import type { Run } from "@agentspace/schemas";
 import { create } from "zustand";
 
 import * as api from "../lib/api";
+import type { RunOrigin } from "../lib/api";
 
 /**
  * The run list: the `runs` table, newest first, shared by the Home screen and
@@ -12,6 +13,8 @@ export interface RunListState {
   readonly runs: readonly Run[];
   /** The space whose runs these are. `undefined` is every run. */
   readonly spaceId: string | undefined;
+  /** Only runs started this way; `undefined` is every run, whoever started it. */
+  readonly origin: RunOrigin | undefined;
   /** How many rows the sidecar was last asked for; grows with `loadMore`. */
   readonly limit: number;
   readonly error: string | null;
@@ -22,6 +25,8 @@ export interface RunListState {
   /** Ask for another page and re-read. */
   loadMore: () => void;
   setSpace: (spaceId: string) => void;
+  /** Narrow to one origin, or widen to all; re-reads from the first page. */
+  setOrigin: (origin: RunOrigin | undefined) => void;
   reset: () => void;
 }
 
@@ -35,6 +40,7 @@ let token = 0;
 export const useRunList = create<RunListState>()((set, get) => ({
   runs: NO_RUNS,
   spaceId: undefined,
+  origin: undefined,
   limit: PAGE,
   error: null,
   loading: false,
@@ -45,7 +51,7 @@ export const useRunList = create<RunListState>()((set, get) => ({
     const mine = token;
     set({ loading: true, error: null });
     try {
-      const runs = await api.listRuns(get().limit, get().spaceId);
+      const runs = await api.listRuns(get().limit, get().spaceId, get().origin);
       if (mine === token) set({ runs, error: null, loading: false, loaded: true });
     } catch (failure) {
       if (mine === token) {
@@ -78,9 +84,16 @@ export const useRunList = create<RunListState>()((set, get) => ({
     void get().load();
   },
 
+  setOrigin: (origin) => {
+    if (get().origin === origin) return;
+    token += 1;
+    set({ origin, runs: NO_RUNS, limit: PAGE, error: null, loading: false, loaded: false });
+    if (get().spaceId !== undefined) void get().load();
+  },
+
   reset: () => {
     token += 1;
-    set({ runs: NO_RUNS, spaceId: undefined, limit: PAGE, error: null, loading: false, loaded: false });
+    set({ runs: NO_RUNS, spaceId: undefined, origin: undefined, limit: PAGE, error: null, loading: false, loaded: false });
   },
 }));
 

@@ -265,7 +265,28 @@ describe("the picker", () => {
     await user.click(await screen.findByRole("button", { name: "Load more" }));
 
     await waitFor(() => {
-      expect(mocked.listRuns).toHaveBeenLastCalledWith(100, "space-main");
+      expect(mocked.listRuns).toHaveBeenLastCalledWith(100, "space-main", undefined);
+    });
+  });
+
+  it("narrows the list to one origin, from the first page, and widens it again", async () => {
+    /* One list with a filter, not three: the sidecar does the narrowing so
+       the pages stay whole, and a filter change starts from the first page. */
+    const user = userEvent.setup();
+    mocked.listRuns.mockResolvedValue([row("completed", "run-1")]);
+    render(<Harness onRunChanged={vi.fn()} pendingApprovals={[]} />);
+    await screen.findByTestId("run-row-run-1");
+
+    mocked.listRuns.mockResolvedValue([]);
+    await user.selectOptions(screen.getByTestId("runs-origin"), "schedule");
+    await waitFor(() => {
+      expect(mocked.listRuns).toHaveBeenLastCalledWith(50, "space-main", "schedule");
+    });
+    expect(await screen.findByText("No runs of this kind yet.")).toBeDefined();
+
+    await user.selectOptions(screen.getByTestId("runs-origin"), "");
+    await waitFor(() => {
+      expect(mocked.listRuns).toHaveBeenLastCalledWith(50, "space-main", undefined);
     });
   });
 });

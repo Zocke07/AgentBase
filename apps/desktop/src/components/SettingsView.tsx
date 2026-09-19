@@ -47,7 +47,6 @@ export interface SettingsViewProps {
 
 interface Form {
   provider: string;
-  model: string;
   openai_access: "api_key" | "chatgpt";
   ollama_base_url: string;
   /** Dollars, as typed. */
@@ -84,7 +83,6 @@ const TOOL_POLICIES: readonly { value: ToolPolicy; label: string }[] = [
 function fromSettings(settings: WorkspaceSettings): Form {
   return {
     provider: settings.provider ?? "",
-    model: settings.model ?? "",
     openai_access: settings.openai_access ?? "api_key",
     ollama_base_url: settings.ollama_base_url ?? "",
     cap: ((settings.monthly_cap_micros ?? 0) / MICROS_PER_DOLLAR).toFixed(2),
@@ -119,7 +117,6 @@ function dollarsToMicros(dollars: string): number | null {
 function diff(opened: Form, form: Form): UpdateSettingsRequest {
   const patch: UpdateSettingsRequest = {};
   if (form.provider !== opened.provider) patch.provider = form.provider;
-  if (form.model !== opened.model) patch.model = form.model;
   if (form.openai_access !== opened.openai_access) patch.openai_access = form.openai_access;
   if (form.ollama_base_url !== opened.ollama_base_url) patch.ollama_base_url = form.ollama_base_url;
   const cap = dollarsToMicros(form.cap);
@@ -233,7 +230,6 @@ function SettingsForm({
 
   const providerEntry = catalogue.providers.find((entry) => entry.name === form.provider);
   const freeText = providerEntry?.free_text_model ?? false;
-  const knownModels = catalogue.models[form.provider] ?? [];
 
   const patch = diff(opened, form);
   const dirty = Object.keys(patch).length > 0;
@@ -279,9 +275,13 @@ function SettingsForm({
           the user's rather than any space's. */}
       <h2 className="settings__group">Defaults for every space</h2>
 
-      {/* --- model --------------------------------------------------------- */}
+      {/* --- provider ------------------------------------------------------ */}
       <section className="settings__section">
-        <h2>Model</h2>
+        <h2>Provider</h2>
+        <p className="settings__hint">
+          Whose models runs use, and so which key. Each space chooses its model in Space settings,
+          and an agent can pick its own; nothing about the model is chosen here.
+        </p>
         {catalogueError !== null && (
           <p className="settings__error" role="alert">
             {catalogueError}
@@ -293,11 +293,7 @@ function SettingsForm({
             <select
               value={form.provider}
               onChange={(changed) => {
-                // A model belongs to a provider, so the choice moves with it:
-                // the provider's first listed model, or blank where the
-                // list is free text (Ollama), so one change is one click.
                 set("provider", changed.target.value);
-                set("model", catalogue.models[changed.target.value]?.[0] ?? "");
               }}
               aria-invalid={errorFor("provider") !== null}
               data-testid="setting-provider"
@@ -310,41 +306,6 @@ function SettingsForm({
               ))}
             </select>
             <FieldError field="provider" message={errorFor("provider")} />
-          </label>
-
-          <label className="editor__field">
-            <span>Model</span>
-            {freeText ? (
-              <input
-                value={form.model}
-                placeholder="the name you pulled, e.g. qwen3:4b"
-                onChange={(changed) => {
-                  set("model", changed.target.value);
-                }}
-                aria-invalid={errorFor("model") !== null}
-                data-testid="setting-model"
-              />
-            ) : (
-              <select
-                value={form.model}
-                onChange={(changed) => {
-                  set("model", changed.target.value);
-                }}
-                aria-invalid={errorFor("model") !== null}
-                data-testid="setting-model"
-              >
-                {form.model !== "" && !knownModels.includes(form.model) && (
-                  <option value={form.model}>{form.model} (not in this provider&apos;s list)</option>
-                )}
-                {form.model === "" && <option value="">choose a model</option>}
-                {knownModels.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            )}
-            <FieldError field="model" message={errorFor("model")} />
           </label>
         </div>
 
@@ -393,7 +354,7 @@ function SettingsForm({
               <span className="editor__tool-description">Your personal monthly plan</span>
             </label>
             <p className="settings__hint">
-              Both modes use the same OpenAI provider, model setting, agent loop, tool approvals,
+              Both modes use the same OpenAI provider, the spaces' model choices, agent loop, tool approvals,
               event log, and limits. Subscription calls count at the model&apos;s API-equivalent price
               only for AgentSpace&apos;s safety cap; they are not API charges.
             </p>
@@ -417,7 +378,7 @@ function SettingsForm({
               {verified === "checking"
                 ? "Checking…"
                 : verified.ok
-                  ? `Ready: ${verified.provider ?? ""} · ${verified.model ?? ""}`
+                  ? `Ready: ${verified.provider ?? ""}`
                   : (verified.reason ?? "The current settings cannot build a provider.")}
             </p>
           )}

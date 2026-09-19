@@ -129,7 +129,9 @@ describe("loading", () => {
     view();
     await loaded();
 
-    expect(screen.getByTestId<HTMLSelectElement>("setting-model").value).toBe("claude-opus-5");
+    expect(screen.getByTestId<HTMLSelectElement>("setting-provider").value).toBe("anthropic");
+    // The model is each space's, not chosen here.
+    expect(screen.queryByTestId("setting-model")).toBeNull();
     expect(screen.getByTestId<HTMLInputElement>("setting-cap").value).toBe("20.00");
     expect(screen.getByTestId<HTMLInputElement>("setting-max-steps").value).toBe("20");
   });
@@ -141,10 +143,11 @@ describe("saving", () => {
     const { onSaved } = view();
     await loaded();
 
-    await user.selectOptions(screen.getByTestId("setting-model"), "claude-sonnet-5");
+    await user.clear(screen.getByTestId("setting-max-steps"));
+    await user.type(screen.getByTestId("setting-max-steps"), "30");
     await user.click(screen.getByRole("button", { name: "Save settings" }));
 
-    expect(mocked.updateSettings).toHaveBeenCalledWith({ model: "claude-sonnet-5" });
+    expect(mocked.updateSettings).toHaveBeenCalledWith({ max_steps_per_agent: 30 });
     await waitFor(() => {
       expect(onSaved).toHaveBeenCalled();
     });
@@ -201,20 +204,20 @@ describe("saving", () => {
   });
 });
 
-describe("the model", () => {
-  it("offers the chosen provider's models, and a text box for a free-text provider", async () => {
+describe("the provider", () => {
+  it("chooses the provider alone, and shows the Ollama address for a local one", async () => {
+    /* The model moved to the spaces: Settings names whose models run, and
+       so which key; each space names the model, an agent its own. */
     const user = userEvent.setup();
     view();
     await loaded();
 
     await user.selectOptions(screen.getByTestId("setting-provider"), "openai");
-    // The provider's first listed model comes with it, so one change is one
-    // click; it is still a choice the person can see and change.
-    expect(screen.getByTestId<HTMLSelectElement>("setting-model").value).toBe("gpt-4o");
-    expect([...screen.getByTestId<HTMLSelectElement>("setting-model").options].map((o) => o.value)).toEqual(["gpt-4o"]);
+    expect(screen.queryByTestId("setting-model")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Save settings" }));
+    expect(mocked.updateSettings).toHaveBeenCalledWith({ provider: "openai" });
 
     await user.selectOptions(screen.getByTestId("setting-provider"), "ollama");
-    expect(screen.getByTestId("setting-model").tagName).toBe("INPUT");
     expect(screen.getByTestId("setting-ollama-url")).toBeDefined();
   });
 
@@ -224,13 +227,11 @@ describe("the model", () => {
     await loaded();
 
     await user.selectOptions(screen.getByTestId("setting-provider"), "openai");
-    await user.selectOptions(screen.getByTestId("setting-model"), "gpt-4o");
     await user.click(screen.getByTestId("setting-openai-chatgpt"));
     await user.click(screen.getByRole("button", { name: "Save settings" }));
 
     expect(mocked.updateSettings).toHaveBeenCalledWith({
       provider: "openai",
-      model: "gpt-4o",
       openai_access: "chatgpt",
     });
     expect(screen.getByTestId("openai-access").textContent).toContain("same OpenAI provider");

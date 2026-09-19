@@ -46,7 +46,13 @@ and disconnects their stored keys.
   space is seeded from (`store/builtins.py`); 010 retires them from the
   default space only while untouched. The prompts assume scripts and config
   files the app does not ship; the user guide says which.
-- The latest recorded database migration is 011 (per-tool answers on spaces, approval scope). Existing workspace files are
+- Settings chooses the provider only; every space names its own model
+  (`spaces.model`, filled by migration 012 for existing rows), an agent may
+  pick its own, and the app-wide `settings.model` remains as the fallback
+  that follows the provider and is not shown. A schedule may carry its own
+  `max_run_seconds`, laid over the space's for its runs alone. `GET /runs`
+  takes `origin`.
+- The latest recorded database migration is 012 (space models, schedule time limits). Existing workspace files are
   adopted into the default space once; new spaces get their own folders. Each
   space folder is also an Obsidian-compatible Markdown vault. The Knowledge
   section provides notes, properties, tags, links, backlinks, unresolved links,

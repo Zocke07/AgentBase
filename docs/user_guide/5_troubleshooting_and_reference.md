@@ -35,7 +35,7 @@ whether the space or an individual agent selects a different provider from
 the app default.
 
 **ChatGPT subscription says disconnected or connecting.**
-In **Settings → Model**, select **openai** and **ChatGPT subscription**, then
+In **Settings → Provider**, select **openai** and **ChatGPT subscription**, then
 click **Connect ChatGPT**. Complete the OpenAI page in the browser and return
 to the app. If the page did not open, retry and allow the browser window. Use
 **Cancel** to discard a stuck attempt, or **Sign out** and connect again. The
@@ -50,7 +50,7 @@ wait for its usage allowance to reset, or switch **OpenAI access** back to
 **API key**.
 
 **Check says Ready, but a real run fails.**
-**Settings → Model → Check** checks the saved local configuration. It does
+**Settings → Provider → Check** checks the saved local configuration. It does
 not authenticate with the provider or send a model request. Read the run's
 error for an invalid key, unavailable model, provider limit or network
 problem. Save changed settings before checking them.
@@ -195,7 +195,7 @@ cannot store secrets in the OS keychain.
 | `POST /auth/chatgpt/logout` | Remove the ChatGPT session from the credential store. |
 | `GET /budget` | Shared monthly spend and cap. |
 | `GET /usage` | A month of model calls from the ledger, by model, space, day and run; `period` is `YYYY-MM`, `space_id` narrows. |
-| `GET`, `POST /schedules` | List (by `space_id`) or create a schedule: a goal a space runs at set times while the app is open. |
+| `GET`, `POST /schedules` | List (by `space_id`) or create a schedule: a goal a space runs at set times while the app is open, optionally with its own `max_run_seconds`. |
 | `PATCH`, `DELETE /schedules/{id}` | Change, switch off or remove a schedule. |
 | `POST /schedules/{id}/run` | Start the schedule's run now, leaving its next time as it was. |
 | `POST /schedules/preview` | A cadence in words and its next three times, before saving. |
@@ -212,7 +212,7 @@ cannot store secrets in the OS keychain.
 | `POST /spaces/{id}/knowledge/evaluate` | Score retrieval against expected note paths. |
 | `GET /spaces/{id}/knowledge/graph` | Resolved note-link nodes and edges. |
 | `GET /agents` | Agent definitions; use `space_id` to select a roster. |
-| `GET /runs` | Run history; use `space_id` to select a space. |
+| `GET /runs` | Run history; use `space_id` to select a space and `origin` (`ui`, `schedule`, `discord`) to keep runs started one way. |
 | `GET /channels` | Discord connection state, errors and refused accounts. |
 | `GET /tools` | Registered tools and risk levels. |
 

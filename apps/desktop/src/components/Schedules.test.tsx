@@ -120,8 +120,22 @@ describe("Schedules", () => {
     await screen.findByTestId("schedule-sched-1");
 
     const note = screen.getByTestId("schedules-policy");
-    expect(note.textContent).toContain("can call low-risk tools without asking");
+    expect(note.textContent).toContain("calls low-risk tools without asking");
     expect(note.textContent).toContain("up to 900 seconds");
+    expect(note.textContent).toContain("stops at 20 steps per agent, 5 agents and 900 seconds");
+  });
+
+  it("reads the answers by tool into the unattended readout, the stricter one per tool", async () => {
+    const own: SpaceResponse = { ...lab, tool_policies: { run_shell: "deny", http_get: "ask" } };
+    const settings = settingsWith([]);
+    settings.settings.tool_policies = { write_file: "allow", http_get: "allow" };
+    render(<Schedules space={own} settings={settings} />);
+    await screen.findByTestId("schedule-sched-1");
+
+    const note = screen.getByTestId("schedules-policy").textContent;
+    expect(note).toContain("runs write_file without asking whatever the level");
+    expect(note).toContain("is refused run_shell");
+    expect(note).not.toContain("http_get");
   });
 
   it("turns a schedule off and on, and runs it now", async () => {
@@ -186,6 +200,7 @@ describe("Schedules", () => {
       cadence: { kind: "weekly", at: "07:30", weekdays: [5, 6] },
       missed: "skip",
       enabled: true,
+      max_run_seconds: null,
     });
     await waitFor(() => {
       expect(screen.queryByTestId("schedule-editor")).toBeNull();
@@ -209,6 +224,14 @@ describe("Schedules", () => {
 
     await userEvent.clear(hours);
     await userEvent.type(hours, "12");
+    // A time limit of its own for the overnight run; a bad one is refused first.
+    const seconds = within(editor).getByTestId("schedule-seconds");
+    await userEvent.type(seconds, "0");
+    await userEvent.click(screen.getByRole("button", { name: "Save schedule" }));
+    expect(screen.getByRole("alert").textContent).toContain("whole number of seconds");
+    expect(mocked.updateSchedule).not.toHaveBeenCalled();
+    await userEvent.clear(seconds);
+    await userEvent.type(seconds, "7200");
     await userEvent.click(screen.getByRole("button", { name: "Save schedule" }));
     expect(mocked.updateSchedule).toHaveBeenCalledWith("sched-1", {
       name: "Morning digest",
@@ -216,6 +239,7 @@ describe("Schedules", () => {
       cadence: { kind: "interval", every_hours: 12 },
       missed: "run_on_launch",
       enabled: true,
+      max_run_seconds: 7200,
     });
   });
 

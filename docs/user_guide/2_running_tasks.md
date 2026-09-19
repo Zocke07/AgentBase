@@ -21,6 +21,11 @@ Home's task box.
 
 ## Watch the work
 
+The list on the left holds every run in this space, newest first. **Show**
+above it narrows the list to the runs you started here, the ones a schedule
+started, or the ones that came from Discord; a card says **from schedule** or
+**from discord** either way.
+
 The run view shows its status and counts of agents, tool calls, denials,
 tokens, errors and cost. The sentence above the canvas describes what is
 happening now. The canvas reads left to right as a workflow: the **Goal**
@@ -226,10 +231,20 @@ Two things to know before relying on one:
   week runs the schedule once on opening, not seven times.
 - **Nobody is there to approve.** A tool call the space's policy does not
   pre-authorize waits for you up to the run's time limit and then fails. The
-  Schedules section says what the space can call without asking; tick the
-  risk levels you trust under **Limits and approvals** (see
-  [Run without answering every call](#run-without-answering-every-call))
+  readout at the top of the Schedules section says, in one paragraph, what an
+  unattended run in this space will do on its own (the risk levels it may
+  call, the tools always allowed or refused) and where it stops (steps per
+  agent, agents per run, seconds per run). Tick the risk levels you trust or
+  set the tools the work needs to **Always allow** under **Limits and
+  approvals** (see [Run without answering every call](#run-without-answering-every-call))
   before scheduling work that writes files or fetches pages.
+
+Set these per space, not app-wide: the space is the unit you schedule in,
+and keeping the app defaults conservative means a run you start by hand
+elsewhere still stops to ask. A schedule can also carry its own **Time limit
+for its runs**, so an overnight pipeline gets the hours it needs while runs
+you start in the same space keep the space's limit; the row says when a
+schedule has one.
 
 A schedule whose previous run is still going skips that time, and one whose
 space is archived turns itself off.

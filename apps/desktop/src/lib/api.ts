@@ -314,8 +314,11 @@ export const evaluateKnowledge = (
 
 // --- runs -------------------------------------------------------------------
 
-export const listRuns = (limit = 50, spaceId?: string): Promise<Run[]> =>
-  request<Run[]>(`/runs${query({ limit, space_id: spaceId })}`);
+/** Where a run was started from, as the `runs` table records it. */
+export type RunOrigin = Run["origin"];
+
+export const listRuns = (limit = 50, spaceId?: string, origin?: RunOrigin): Promise<Run[]> =>
+  request<Run[]>(`/runs${query({ limit, space_id: spaceId, origin })}`);
 
 export const getRun = (runId: string): Promise<Run> => request<Run>(`/runs/${runId}`);
 

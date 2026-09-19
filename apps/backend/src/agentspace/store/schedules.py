@@ -292,13 +292,15 @@ class Schedule(BaseModel):
     last_run_id: str | None = None
     #: What the scheduler did last time this was due, in words.
     last_outcome: str | None = None
+    #: A time limit for this schedule's runs alone; ``None`` inherits the space's.
+    max_run_seconds: int | None = Field(default=None, ge=1)
     created_at: datetime
     updated_at: datetime
 
 
 _SELECT: Final[str] = (
     "SELECT id, space_id, name, goal, cadence, missed, enabled, next_run_at, last_run_at,"
-    " last_run_id, last_outcome, created_at, updated_at FROM schedules"
+    " last_run_id, last_outcome, max_run_seconds, created_at, updated_at FROM schedules"
 )
 
 
@@ -319,6 +321,7 @@ def _row_to_schedule(row: sqlite3.Row) -> Schedule:
         last_run_at=_when(row["last_run_at"]),
         last_run_id=row["last_run_id"],
         last_outcome=row["last_outcome"],
+        max_run_seconds=row["max_run_seconds"],
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]),
     )
@@ -373,6 +376,15 @@ def _validated_columns(fields: dict[str, Any], *, creating: bool) -> dict[str, A
 
     if "enabled" in fields:
         columns["enabled"] = 1 if bool(fields["enabled"]) else 0
+
+    if "max_run_seconds" in fields:
+        limit = fields["max_run_seconds"]
+        if limit is not None and (not isinstance(limit, int) or limit < 1):
+            raise ScheduleValidationError(
+                "a time limit is a whole number of seconds, 1 or more, or null to inherit",
+                "max_run_seconds",
+            )
+        columns["max_run_seconds"] = limit
 
     return columns
 

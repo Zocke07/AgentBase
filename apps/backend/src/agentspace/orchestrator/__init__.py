@@ -81,6 +81,7 @@ async def execute_run(
     knowledge: KnowledgeStore | None = None,
     excluded_citations: frozenset[str] = frozenset(),
     on_registered: Callable[[Run], None] | None = None,
+    max_run_seconds: int | None = None,
 ) -> None:
     """Drive one run from `run.started` to a terminal event.
 
@@ -95,10 +96,14 @@ async def execute_run(
     :param space: the space the run happens in; its rules are laid over the
         app-wide settings before anything reads them. ``None`` runs under the
         app-wide rules with the default space's roster.
+    :param max_run_seconds: a time limit for this run alone, a schedule's,
+        laid over the space's; the other limits and the policy are untouched.
     """
     workspace = await settings.get()
     if space is not None:
         workspace = space.apply_to(workspace)
+    if max_run_seconds is not None:
+        workspace = workspace.model_copy(update={"max_run_seconds": max_run_seconds})
     limits = RunLimits.from_settings(workspace)
 
     hits: tuple[SearchHit, ...] = ()

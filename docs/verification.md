@@ -4,7 +4,7 @@ Updated 2026-09-19. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
 superseded gaps. A test result below is scoped to what was actually executed.
 
-## After 0.4.1: the summary handle, full-screen canvas
+## After 0.4.1: the summary handle, full-screen canvas, the model on the space, the runs filter, schedule limits
 
 On 2026-09-19, after 0.4.1: the supervisor's account gained a drag handle
 (a height given makes it scroll, unfolded), the canvas gained a **Full
@@ -15,6 +15,37 @@ handles offered, the canvas handle withdrawn while expanded), **425 frontend
 tests**, ESLint and `tsc`. In Chrome against the scratch sidecar: the
 summary dragged from 197 to 137 px and scrolled with its fold gone; the
 canvas filled the 1440 by 900 viewport at scale 1 and returned on Esc.
+
+Then three more, at the maintainer's request, on 2026-09-19. **The model
+moved to the spaces**: Settings chooses the provider only, every space names
+its model (no Inherit; `api/spaces.py` fills the provider's default from
+`DEFAULT_MODELS` on a create without one, a model set to null, or a change of
+provider), the app-wide `model` stays as an unshown fallback that follows the
+provider, and migration 012 gave each existing space the model it was
+inheriting (an inheriting space the app-wide one, a space on its own provider
+that provider's default, an Ollama space nothing). **The run list narrows by
+origin** (`GET /runs?origin=`, a Show select above the list). **Schedules**
+carry their own `max_run_seconds` (also migration 012), laid over the space's
+by the launcher for that run alone, and the section's readout says in one
+paragraph what an unattended run will do on its own (levels, always-allowed
+and refused tools) and where it stops. Executed: `just check`; **782 backend
+tests** pass (new: the space model rules over the API, the settings fallback
+following the provider, migration 012 on a version-11 database with three
+kinds of space, the origin filter, a schedule's limit reaching the launcher
+and a bad one refused); **428 frontend tests** pass (Settings without a model,
+a space refusing a blank model and moving it with the provider, the origin
+filter re-reading from the first page, the readout merging the stricter
+tool answer, the schedule editor's time limit). In Chrome against the scratch
+sidecar, migrated 11 to 12: both spaces read `claude-opus-5`, Settings showed
+no model select, Space settings offered "Inherit (anthropic)" and the model
+list without Inherit, the readout read "runs read_file without asking
+whatever the level, is refused run_shell; everything else asks and, with
+nobody to answer, waits up to 600 seconds, then the run fails. It stops at 20
+steps per agent, 5 agents and 600 seconds, unless a schedule sets its own
+time limit below.", and the Scheduled filter listed the three scheduled runs
+alone. **Not exercised:** a scheduled run actually outlasting the space's
+limit under its own (the limit reaches `RunLimits` through
+`execute_run`, covered by the launcher test only).
 
 ## 0.4.1: the investment roster, per-tool answers, the Runs panels and the Obsidian button
 

@@ -431,6 +431,23 @@ def test_the_approval_policy_can_actually_be_set(client: TestClient) -> None:
     assert client.get("/settings").json()["settings"]["auto_approve"] == ["low", "medium"]
 
 
+def test_the_app_wide_model_follows_the_provider(client: TestClient) -> None:
+    """Settings no longer chooses a model, only a provider; the fallback model
+    a space without one would inherit moves with the provider so it can
+    never name another provider's model. A model sent explicitly still wins."""
+    moved = client.patch("/settings", json={"provider": "openai"})
+    assert moved.status_code == 200, moved.text
+    assert moved.json()["settings"]["model"] == "gpt-5.5"
+
+    explicit = client.patch(
+        "/settings", json={"provider": "anthropic", "model": "claude-sonnet-5"}
+    )
+    assert explicit.json()["settings"]["model"] == "claude-sonnet-5"
+
+    same = client.patch("/settings", json={"provider": "anthropic"})
+    assert same.json()["settings"]["model"] == "claude-sonnet-5"
+
+
 def test_per_tool_answers_can_be_set_and_name_only_real_tools(client: TestClient) -> None:
     """The per-tool map replaces the stored one whole; `ask` is dropped as
     the absence of an answer, and a tool that does not exist is a 400 on

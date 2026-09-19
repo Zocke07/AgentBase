@@ -4,6 +4,7 @@ import type {
   ScheduleResponse,
   SettingsResponse,
   SpaceResponse,
+  ToolPolicy,
 } from "@agentspace/schemas";
 import { useCallback, useEffect, useState } from "react";
 
@@ -40,6 +41,8 @@ interface Draft {
   everyHours: string;
   missed: Missed;
   enabled: boolean;
+  /** A time limit for this schedule's runs, as typed; blank inherits the space's. */
+  seconds: string;
 }
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
@@ -55,6 +58,7 @@ const BLANK: Draft = {
   everyHours: "6",
   missed: "run_on_launch",
   enabled: true,
+  seconds: "",
 };
 
 function fromSchedule(schedule: ScheduleResponse): Draft {
@@ -68,6 +72,7 @@ function fromSchedule(schedule: ScheduleResponse): Draft {
     everyHours: cadence.kind === "interval" ? String(cadence.every_hours) : BLANK.everyHours,
     missed: schedule.missed ?? "run_on_launch",
     enabled: schedule.enabled ?? true,
+    seconds: schedule.max_run_seconds === null || schedule.max_run_seconds === undefined ? "" : String(schedule.max_run_seconds),
   };
 }
 
@@ -98,6 +103,28 @@ function effectiveAutoApprove(space: SpaceResponse, settings: SettingsResponse |
   return own === null ? [...appWide] : own.filter((level) => appWide.includes(level));
 }
 
+/** Strictness, for narrowing: a space may move a tool along this order, never back. */
+const STRICTNESS: Record<ToolPolicy, number> = { allow: 0, ask: 1, deny: 2 };
+
+/**
+ * The per-tool answers a run in this space gets: the app-wide ones with the
+ * space's laid over them, each tool keeping the stricter answer, the way the
+ * sidecar merges them.
+ */
+function effectiveToolPolicies(space: SpaceResponse, settings: SettingsResponse | null): Record<string, ToolPolicy> {
+  const merged: Record<string, ToolPolicy> = { ...(settings?.settings.tool_policies ?? {}) };
+  for (const [tool, wanted] of Object.entries(space.tool_policies ?? {})) {
+    const above = merged[tool] ?? "ask";
+    merged[tool] = STRICTNESS[wanted] >= STRICTNESS[above] ? wanted : above;
+  }
+  return merged;
+}
+
+/** "write_file and http_get" from a list of names. */
+function names(tools: string[]): string {
+  return tools.length <= 1 ? tools.join("") : `${tools.slice(0, -1).join(", ")} and ${tools[tools.length - 1] ?? ""}`;
+}
+
 export function Schedules({ space, settings, onOpenRun }: SchedulesProps) {
   const load = useCallback(() => api.listSchedules(space.id), [space.id]);
   const schedules = useFetched(load, NO_SCHEDULES);
@@ -109,7 +136,13 @@ export function Schedules({ space, settings, onOpenRun }: SchedulesProps) {
   const [error, setError] = useState<string | null>(null);
 
   const allowed = effectiveAutoApprove(space, settings);
+  const policies = effectiveToolPolicies(space, settings);
+  const always = Object.keys(policies).filter((tool) => policies[tool] === "allow");
+  const never = Object.keys(policies).filter((tool) => policies[tool] === "deny");
   const runSeconds = space.max_run_seconds ?? settings?.settings.max_run_seconds ?? null;
+  const steps = space.max_steps_per_agent ?? settings?.settings.max_steps_per_agent ?? null;
+  const agentsPerRun = space.max_agents_per_run ?? settings?.settings.max_agents_per_run ?? null;
+  const unattended = allowed.length > 0 || always.length > 0;
 
   const act = async (id: string, work: () => Promise<string | null>) => {
     setBusyId(id);
@@ -153,20 +186,39 @@ export function Schedules({ space, settings, onOpenRun }: SchedulesProps) {
           This space is archived, so its schedules will not run.
         </p>
       )}
-      {allowed.length === 0 ? (
-        <p className="schedules__warning" role="status" data-testid="schedules-policy">
-          This space asks before every tool call. A scheduled run with nobody at the window waits
-          {runSeconds !== null && ` up to ${String(runSeconds)} seconds`} for each answer and then
-          fails. To let it work unattended, tick the risk levels you trust under Limits and approvals
-          above.
+      {/* What a run with nobody at the window will do here, read the way the
+          sidecar reads it: levels, then answers by tool, then the limits. */}
+      <div className={unattended ? "schedules__readout" : "schedules__readout schedules__readout--warn"} data-testid="schedules-policy">
+        <p>
+          <b>Unattended, a run here</b>{" "}
+          {unattended
+            ? `${[
+                allowed.length > 0 ? `calls ${allowed.join("- and ")}-risk tools without asking` : "",
+                always.length > 0 ? `runs ${names(always)} without asking whatever the level` : "",
+                never.length > 0 ? `is refused ${names(never)}` : "",
+              ]
+                .filter((part) => part !== "")
+                .join(", ")}; everything else asks and, with nobody to answer, waits${
+                runSeconds !== null ? ` up to ${String(runSeconds)} seconds` : ""
+              }, then the run fails.`
+            : `asks before every tool call${never.length > 0 ? ` (and is refused ${names(never)})` : ""} and, with nobody to answer, each question waits${
+                runSeconds !== null ? ` up to ${String(runSeconds)} seconds` : ""
+              }, then the run fails.`}
+          {steps !== null && agentsPerRun !== null && runSeconds !== null && (
+            <>
+              {" "}
+              It stops at {String(steps)} steps per agent, {String(agentsPerRun)} agents and{" "}
+              {String(runSeconds)} seconds, unless a schedule sets its own time limit below.
+            </>
+          )}
         </p>
-      ) : (
-        <p className="settings__hint" data-testid="schedules-policy">
-          Unattended runs here can call {allowed.join(" and ")}-risk tools without asking; anything
-          above that waits for you{runSeconds !== null && ` up to ${String(runSeconds)} seconds`} and
-          then fails.
-        </p>
-      )}
+        {!unattended && (
+          <p>
+            To let it work on its own, tick the risk levels you trust or set the tools it needs to
+            Always allow, under Limits and approvals above.
+          </p>
+        )}
+      </div>
 
       {schedules.error !== null && (
         <p className="field-error" role="alert">
@@ -245,6 +297,9 @@ export function Schedules({ space, settings, onOpenRun }: SchedulesProps) {
                     )}
                     {row.last_outcome !== null && row.last_outcome !== undefined && (
                       <span className="schedule__outcome"> · {row.last_outcome}</span>
+                    )}
+                    {row.max_run_seconds !== null && row.max_run_seconds !== undefined && (
+                      <span className="schedule__limit"> · its runs get {String(row.max_run_seconds)} seconds</span>
                     )}
                   </p>
                 </div>
@@ -399,6 +454,11 @@ function ScheduleEditor({
       setErrors({ [shaped.field]: shaped.error });
       return;
     }
+    const seconds = draft.seconds.trim();
+    if (seconds !== "" && (!/^\d+$/.test(seconds) || Number(seconds) < 1)) {
+      setErrors({ max_run_seconds: "A whole number of seconds, 1 or more, or blank to use the space's limit." });
+      return;
+    }
     setSaving(true);
     try {
       const body = {
@@ -407,6 +467,7 @@ function ScheduleEditor({
         cadence: shaped.cadence,
         missed: draft.missed,
         enabled: draft.enabled,
+        max_run_seconds: seconds === "" ? null : Number(seconds),
       };
       const saved =
         existing === null
@@ -569,6 +630,25 @@ function ScheduleEditor({
           <span>Skip it and wait for the next time</span>
         </label>
       </fieldset>
+
+      <label className="editor__field schedule-editor__limit">
+        <span>Time limit for its runs (seconds)</span>
+        <input
+          type="text"
+          inputMode="numeric"
+          value={draft.seconds}
+          placeholder="the space's limit"
+          onChange={(changed) => {
+            set("seconds", changed.target.value);
+          }}
+          aria-invalid={errorFor("max_run_seconds") !== null}
+          data-testid="schedule-seconds"
+        />
+        <span className="editor__hint">
+          Only this schedule's runs get this long; runs you start here keep the space's limit.
+        </span>
+        <FieldError message={errorFor("max_run_seconds")} />
+      </label>
 
       <label className="editor__checkbox">
         <input

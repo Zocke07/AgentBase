@@ -26,7 +26,12 @@ from agentspace.providers.factory import (
 )
 from agentspace.providers.pricing import MODELS_BY_PROVIDER, PRICES, format_micros, is_priced
 from agentspace.secrets import SECRET_KEYS
-from agentspace.store.settings import ChannelApprovalPolicy, OpenAIAccess, WorkspaceSettings
+from agentspace.store.settings import (
+    ChannelApprovalPolicy,
+    OpenAIAccess,
+    WorkspaceSettings,
+    default_model_for,
+)
 from agentspace.store.spaces import SpaceArchivedError, SpaceNotFoundError
 from agentspace.tools.catalogue import RiskLevel, ToolPolicy
 
@@ -194,6 +199,13 @@ async def update_settings(request: Request, body: UpdateSettingsRequest) -> Sett
         raise _reject(
             f"unknown provider {changes['provider']!r}. Supported: {supported}.", "provider"
         )
+    if "provider" in changes and "model" not in changes:
+        # The app-wide model is the fallback a space without one inherits, and
+        # since spaces name their own it is no longer chosen here: it follows
+        # the provider, so it can never name a model of another provider.
+        current = await _settings_store(request).get()
+        if changes["provider"] != current.provider:
+            changes["model"] = default_model_for(changes["provider"]) or ""
 
     if "channel_space_id" in changes:
         wanted = changes["channel_space_id"].strip()

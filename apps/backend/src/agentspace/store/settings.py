@@ -26,10 +26,12 @@ __all__ = [
     "DEFAULT_MAX_AGENTS_PER_RUN",
     "DEFAULT_MAX_RUN_SECONDS",
     "DEFAULT_MAX_STEPS_PER_AGENT",
+    "DEFAULT_MODELS",
     "DEFAULT_MONTHLY_CAP_MICROS",
     "OpenAIAccess",
     "SettingsStore",
     "WorkspaceSettings",
+    "default_model_for",
 ]
 
 #: The default monthly spending cap, $20.00 in micros: not "unlimited", so
@@ -40,6 +42,21 @@ DEFAULT_MONTHLY_CAP_MICROS: Final[int] = 20_000_000
 #: Default provider and model for a fresh install.
 DEFAULT_PROVIDER: Final[str] = "anthropic"
 DEFAULT_MODEL: Final[str] = "claude-opus-5"
+
+#: The model a space starts with on each provider, and the one the app-wide
+#: fallback follows when the provider changes. Ollama's is typed by the user,
+#: so it has none. Migration 012 carries the same table for existing rows.
+DEFAULT_MODELS: Final[dict[str, str | None]] = {
+    "anthropic": DEFAULT_MODEL,
+    "openai": "gpt-5.5",
+    "ollama": None,
+}
+
+
+def default_model_for(provider: str) -> str | None:
+    """The model a space on ``provider`` starts with; ``None`` where it must be typed."""
+    return DEFAULT_MODELS.get(provider)
+
 
 #: Which credential transport the OpenAI provider uses. It is app-wide like
 #: credentials themselves; spaces and agent definitions still select only a

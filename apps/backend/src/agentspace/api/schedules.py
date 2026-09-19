@@ -47,6 +47,8 @@ class CreateScheduleRequest(BaseModel):
     cadence: Cadence
     missed: MissedPolicy = "run_on_launch"
     enabled: bool = True
+    #: A time limit for this schedule's runs; ``None`` inherits the space's.
+    max_run_seconds: int | None = Field(default=None, ge=1)
 
 
 class UpdateScheduleRequest(BaseModel):
@@ -59,6 +61,7 @@ class UpdateScheduleRequest(BaseModel):
     cadence: Cadence | None = None
     missed: MissedPolicy | None = None
     enabled: bool | None = None
+    max_run_seconds: int | None = Field(default=None, ge=1)
 
 
 class ScheduleResponse(Schedule):

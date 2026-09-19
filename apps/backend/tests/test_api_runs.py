@@ -5,6 +5,7 @@ bottom is one nobody scrolls.
 
 from __future__ import annotations
 
+import functools
 from typing import TYPE_CHECKING
 
 import pytest
@@ -53,6 +54,32 @@ def test_runs_are_listed_newest_first(client: TestClient) -> None:
     listed = [run["id"] for run in client.get("/runs").json()]
 
     assert listed == list(reversed(ids))
+
+
+def test_the_list_can_be_narrowed_to_one_origin(client: TestClient) -> None:
+    """Runs you started, runs a schedule started and runs from Discord are one
+    list with a filter, not three lists: the same rows, narrowed by `origin`."""
+    from agentspace.store.spaces import DEFAULT_SPACE_ID
+
+    mine = client.post("/debug/fake_run", params={"step_ms": 0}).json()["id"]
+    store = client.app.state.store  # type: ignore[attr-defined]
+    scheduled = client.portal.call(  # type: ignore[union-attr]
+        functools.partial(
+            store.create_run,
+            goal="nightly",
+            origin="schedule",
+            origin_ref="sched-1",
+            space_id=DEFAULT_SPACE_ID,
+        )
+    ).id
+
+    assert [run["id"] for run in client.get("/runs", params={"origin": "schedule"}).json()] == [
+        scheduled
+    ]
+    assert [run["id"] for run in client.get("/runs", params={"origin": "ui"}).json()] == [mine]
+    assert client.get("/runs", params={"origin": "discord"}).json() == []
+    assert len(client.get("/runs").json()) == 2
+    assert client.get("/runs", params={"origin": "carrier-pigeon"}).status_code == 422
 
 
 def test_the_list_carries_what_a_picker_renders(client: TestClient) -> None:

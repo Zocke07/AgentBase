@@ -235,3 +235,50 @@ def test_every_seeded_prompt_names_where_it_reads_or_writes(db: Database, name: 
     )
     # The house style: written as a code point so this file cannot fail the hygiene test itself.
     assert chr(0x2014) not in prompt
+
+
+def test_migration_012_gives_every_space_the_model_it_was_inheriting(
+    app_paths: AppPaths,
+) -> None:
+    """An inheriting space gets the app-wide model of the day; one on its own
+    provider gets that provider's default; an Ollama space stays typed."""
+    original = db_module.MIGRATIONS
+    db_module.MIGRATIONS = tuple(m for m in original if m.version <= 11)
+    before = Database(app_paths.db_path)
+    try:
+        before.connect()
+        assert before.schema_version == 11
+        with before.write() as connection:
+            connection.execute(
+                "INSERT INTO settings (key, value, updated_at) VALUES ('model', ?, 't')",
+                ('"claude-sonnet-5"',),
+            )
+            for space_id, provider in (("a", None), ("b", "openai"), ("c", "ollama")):
+                connection.execute(
+                    "INSERT INTO spaces (id, name, provider, created_at, updated_at)"
+                    " VALUES (?, ?, ?, 't', 't')",
+                    (space_id, space_id.upper(), provider),
+                )
+    finally:
+        before.close()
+        db_module.MIGRATIONS = original
+
+    after = Database(app_paths.db_path)
+    after.connect()
+    try:
+        with after.read() as connection:
+            rows = connection.execute("SELECT id, model FROM spaces ORDER BY id").fetchall()
+            columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(schedules)").fetchall()
+            }
+    finally:
+        after.close()
+
+    assert {row["id"]: row["model"] for row in rows} == {
+        DEFAULT_SPACE_ID: "claude-sonnet-5",
+        "a": "claude-sonnet-5",
+        "b": "gpt-5.5",
+        "c": None,
+    }
+    assert "max_run_seconds" in columns

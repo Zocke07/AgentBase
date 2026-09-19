@@ -144,6 +144,7 @@ class Scheduler:
                 space_id=schedule.space_id,
                 origin="schedule",
                 origin_ref=schedule.id,
+                max_run_seconds=schedule.max_run_seconds,
             )
         except SpaceArchivedError:
             outcome = "Turned off: its space is archived."

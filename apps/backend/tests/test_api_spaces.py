@@ -129,6 +129,33 @@ def test_a_rule_can_be_set_and_set_back_to_inherit(client: TestClient) -> None:
     assert inherited.json()["model"] == "gpt-5"
 
 
+def test_a_space_always_names_its_model(client: TestClient) -> None:
+    """Settings picks the provider; the model is the space's. A space made
+    without one starts on the provider's default, a model set to null lands
+    there again, and a change of provider brings that provider's default."""
+    lab = _create(client, "Lab")
+    assert lab["provider"] is None
+    assert lab["model"] == "claude-opus-5"
+
+    own = _create(client, "Own", provider="openai", model="gpt-5.4")
+    assert (own["provider"], own["model"]) == ("openai", "gpt-5.4")
+
+    moved = client.patch(f"/spaces/{lab['id']}", json={"provider": "openai"})
+    assert moved.json()["model"] == "gpt-5.5"
+
+    reset = client.patch(f"/spaces/{lab['id']}", json={"model": None})
+    assert reset.json()["model"] == "gpt-5.5"
+
+    back = client.patch(f"/spaces/{lab['id']}", json={"provider": None})
+    assert (back.json()["provider"], back.json()["model"]) == (None, "claude-opus-5")
+
+    # Ollama's model is typed, so a space moved there keeps what it had until then.
+    typed = client.patch(
+        f"/spaces/{lab['id']}", json={"provider": "ollama", "model": "qwen3:4b"}
+    )
+    assert typed.json()["model"] == "qwen3:4b"
+
+
 def test_refusals_name_the_field(client: TestClient) -> None:
     _create(client, "Lab")
     duplicate = client.post("/spaces", json={"name": "lab"})

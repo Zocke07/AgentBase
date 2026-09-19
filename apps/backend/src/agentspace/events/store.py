@@ -270,18 +270,31 @@ class EventStore:
         return run
 
     async def list_runs(
-        self, limit: int = DEFAULT_RUN_LIST_LIMIT, space_id: str | None = None
+        self,
+        limit: int = DEFAULT_RUN_LIST_LIMIT,
+        space_id: str | None = None,
+        origin: str | None = None,
     ) -> list[Run]:
-        """Recent runs, newest first, optionally narrowed to one space.
+        """Recent runs, newest first, optionally narrowed to one space and one origin.
 
         Reads the `runs` table, not the log: the log says what happened in a
         run, and a run created but never started has no events at all.
         """
-        return await asyncio.to_thread(self._list_runs_sync, limit, space_id)
+        return await asyncio.to_thread(self._list_runs_sync, limit, space_id, origin)
 
-    def _list_runs_sync(self, limit: int, space_id: str | None) -> list[Run]:
-        where = "" if space_id is None else " WHERE space_id = ?"
-        params: tuple[Any, ...] = (limit,) if space_id is None else (space_id, limit)
+    def _list_runs_sync(
+        self, limit: int, space_id: str | None, origin: str | None
+    ) -> list[Run]:
+        clauses: list[str] = []
+        params: list[Any] = []
+        if space_id is not None:
+            clauses.append("space_id = ?")
+            params.append(space_id)
+        if origin is not None:
+            clauses.append("origin = ?")
+            params.append(origin)
+        where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+        params.append(limit)
         with self._db.read() as connection:
             rows = connection.execute(
                 # `rowid` breaks ties between runs created in the same microsecond.

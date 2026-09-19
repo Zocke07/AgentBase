@@ -98,27 +98,31 @@ scripted run without calling a model or using a key.
    stored in the OS credential store and read when the app starts, so a
    change takes effect only after a restart, and a restart stops any run in
    progress. **Save settings** is separate from **Save key**.
-4. Under **Settings → Model**, choose **Provider** and **Model**, then click
-   **Save settings**. The defaults are Anthropic and `claude-opus-5`.
-5. Click **Check** under **Model**. A **Ready** result means the saved
+4. Under **Settings → Provider**, choose the provider, then click **Save
+   settings**. The default is Anthropic. The model is not chosen here: each
+   space names the model its runs use, under **Space settings → Model**, and
+   a new space starts on the provider's default (`claude-opus-5` for
+   Anthropic, `gpt-5.5` for OpenAI; an Ollama model is typed). An agent can
+   pick its own model in its definition.
+5. Click **Check** under **Provider**. A **Ready** result means the saved
    configuration can construct a provider. It does not contact the provider,
    authenticate the key remotely or spend money. Your first run checks the
    real connection.
 
-The model dropdown lists the cloud models whose prices this build knows. A
-model that is not in its price table is refused before a model call; an
-Anthropic dated snapshot such as `claude-haiku-4-5-20251001` is priced as its
-alias `claude-haiku-4-5`, so either id works in a space or agent override. Keys are
-shared by every space. AgentSpace displays their names and whether they are
-set, never their stored values.
+A space's model dropdown lists the cloud models whose prices this build
+knows. A model that is not in its price table is refused before a model call;
+an Anthropic dated snapshot such as `claude-haiku-4-5-20251001` is priced as
+its alias `claude-haiku-4-5`, so either id works in a space or agent. Keys
+are shared by every space. AgentSpace displays their names and whether they
+are set, never their stored values.
 
 Key entry works in the desktop app. A browser showing the development UI can
 only display which keys the sidecar received at startup.
 
 ### OpenAI with a ChatGPT subscription
 
-1. In **Settings → Model**, choose **openai**, keep the model you want, and
-   select **ChatGPT subscription** under **OpenAI access**.
+1. In **Settings → Provider**, choose **openai** and select **ChatGPT
+   subscription** under **OpenAI access**; the model stays each space's own.
 2. Click **Connect ChatGPT**. AgentSpace opens an OpenAI sign-in page in your
    browser. Complete sign-in with the ChatGPT account whose monthly plan you
    want to use, then return to AgentSpace.
@@ -166,9 +170,10 @@ provider loop.
    ollama pull qwen3:4b
    ```
 
-2. In **Settings → Model**, choose **ollama** and type `qwen3:4b` into **Model**.
-   Leave **Ollama address** at `http://127.0.0.1:11434` for the local daemon.
-3. Click **Save settings**, then start a small task from **Home**.
+2. In **Settings → Provider**, choose **ollama** and leave **Ollama address**
+   at `http://127.0.0.1:11434` for the local daemon. Click **Save settings**.
+3. In **Space settings → Model**, type `qwen3:4b` into **Model** and click
+   **Save space**, then start a small task from **Home**.
 
 Ollama needs no API key, and its calls add $0 to AgentSpace's budget. After the
 model is downloaded, local inference works offline. Model capability and
@@ -188,10 +193,11 @@ there before asking an agent to read them. File tools are confined to this
 folder; shell commands have broader access, as explained in
 [Approvals](2_running_tasks.md#approvals).
 
-A space starts by inheriting the app's model and limits. You can choose its
-own provider or model, or enter limits under **Limits and approvals**. **Inherit**
-for a model and a blank limit use the app default. Click **Save space** to
-apply changes to future runs.
+A space names its own model under **Model**; it starts on the app-wide
+provider's default, and you can change the model or choose another provider
+for the space. Limits are entered under **Limits and approvals**; a blank
+limit uses the app default. Click **Save space** to apply changes to future
+runs.
 
 There is one important difference between limits and approval policy:
 

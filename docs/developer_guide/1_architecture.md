@@ -66,8 +66,15 @@ Runs and agent definitions have `space_id`; a launcher snapshots the effective
 settings and that space's roster before the run starts. Renaming or editing a
 space does not rewrite a running or historical run.
 
-Model and run limits resolve from the app defaults through space overrides and,
-where applicable, agent definitions. Approval policy can only narrow: a space's
+Run limits resolve from the app defaults through space overrides and, where
+applicable, agent definitions. The provider is chosen app-wide and a space may
+override it; the model is the space's own (Settings no longer shows one; the
+app-wide `model` field is a fallback that `PATCH /settings` moves to the
+provider's default whenever the provider changes, and migration 012 gave every
+existing space the model it was inheriting). `api/spaces.py` fills a missing or
+nulled model with the effective provider's default from `DEFAULT_MODELS`. A
+schedule's `max_run_seconds` reaches `execute_run` through the launcher and
+replaces the space's for that run only. Approval policy can only narrow: a space's
 `null` means inherit, while `[]` means ask for everything. An agent definition's
 `[]` means inherit. Beside the risk levels sit per-tool answers
 (`tool_policies`, `tools/catalogue.py`'s `ToolPolicy`): the gate reads a

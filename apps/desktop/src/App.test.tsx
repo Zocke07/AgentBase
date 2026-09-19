@@ -331,7 +331,7 @@ describe("spaces", () => {
 
     await screen.findByRole("button", { name: /Space: Main/ });
     await waitFor(() => {
-      expect(mocked.listRuns).toHaveBeenCalledWith(50, "space-main");
+      expect(mocked.listRuns).toHaveBeenCalledWith(50, "space-main", undefined);
     });
     expect(mocked.listAgents).toHaveBeenCalledWith("space-main");
     expect(mocked.getBudget).toHaveBeenLastCalledWith("space-main");
@@ -351,7 +351,7 @@ describe("spaces", () => {
     await user.click(screen.getByRole("button", { name: "Lab" }));
 
     await waitFor(() => {
-      expect(mocked.listRuns).toHaveBeenLastCalledWith(50, "space-lab");
+      expect(mocked.listRuns).toHaveBeenLastCalledWith(50, "space-lab", undefined);
     });
     expect(mocked.listAgents).toHaveBeenLastCalledWith("space-lab");
     expect(mocked.getBudget).toHaveBeenLastCalledWith("space-lab");

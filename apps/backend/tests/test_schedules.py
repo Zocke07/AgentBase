@@ -404,6 +404,7 @@ async def test_a_tick_launches_what_is_due_as_a_scheduled_run_and_nothing_else(
             "space_id": DEFAULT_SPACE_ID,
             "origin": "schedule",
             "origin_ref": due.id,
+            "max_run_seconds": None,
         }
     ]
     moved = await schedules.require(due.id)
@@ -505,3 +506,22 @@ async def test_the_loop_fires_on_time_and_wakes_for_an_edit(
         assert [entry["origin_ref"] for entry in launcher.launched] == [created.id]
     finally:
         await scheduler.aclose()
+
+
+async def test_a_schedule_with_its_own_time_limit_hands_it_to_the_launcher(
+    schedules: ScheduleStore, scheduler: Scheduler, launcher: FakeLauncher, clock: Clock
+) -> None:
+    """The overnight pipeline's limit rides on the schedule, not the space:
+    attended runs there keep the space's, and the scheduled one gets its own."""
+    long = await schedules.create({**_fields(name="Nightly"), "max_run_seconds": 7200})
+    assert long.max_run_seconds == 7200
+    with pytest.raises(ScheduleValidationError):
+        await schedules.create({**_fields(name="Bad"), "max_run_seconds": 0})
+    back = await schedules.update(long.id, {"max_run_seconds": None})
+    assert back.max_run_seconds is None
+    await schedules.update(long.id, {"max_run_seconds": 3600})
+
+    clock.now = _utc(2026, 9, 18, 7, 0, 5)
+    fired = await scheduler.tick()
+    assert [entry.schedule_id for entry in fired] == [long.id]
+    assert launcher.launched[-1]["max_run_seconds"] == 3600

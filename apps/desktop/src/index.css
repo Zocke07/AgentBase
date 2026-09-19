@@ -3013,6 +3013,10 @@ button.md__tag:hover {
   font-size: 1rem;
 }
 
+.runs-view__filter select {
+  width: 100%;
+}
+
 /* Scrolls as a whole when the window is shorter than the panel's minimum
    rows - at Tauri's 600px floor with a claim block open, the log used to be
    clipped with no way to reach it. */
@@ -5282,6 +5286,40 @@ button.md__tag:hover {
   background: var(--warn-soft);
   color: var(--warn);
   font-size: 0.8rem;
+}
+
+/* What an unattended run here will do, in one paragraph; amber while it
+   could do nothing on its own. */
+.schedules__readout {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.schedules__readout p {
+  margin: 0;
+}
+
+.schedules__readout p + p {
+  margin-top: 0.35rem;
+}
+
+.schedules__readout--warn {
+  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.schedule__limit {
+  color: var(--muted);
+}
+
+.schedule-editor__limit input {
+  max-width: 12rem;
 }
 
 .schedules__empty {

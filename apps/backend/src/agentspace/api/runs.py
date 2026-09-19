@@ -214,9 +214,11 @@ async def list_runs(
     request: Request,
     limit: Annotated[int, Query(ge=1, le=MAX_RUN_LIST_LIMIT)] = DEFAULT_RUN_LIST_LIMIT,
     space_id: str | None = None,
+    origin: RunOrigin | None = None,
 ) -> list[Run]:
-    """Recent runs, newest first: what the run picker reads."""
-    return await _store(request).list_runs(limit, space_id)
+    """Recent runs, newest first: what the run picker reads. ``origin`` keeps
+    only the runs started from the window, by a schedule, or from Discord."""
+    return await _store(request).list_runs(limit, space_id, origin)
 
 
 @router.get("/runs/{run_id}")

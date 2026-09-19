@@ -78,11 +78,14 @@ class RunLauncher:
         origin_ref: str | None = None,
         excluded_citations: tuple[str, ...] = (),
         prologue: Callable[[RunRow], Awaitable[None]] | None = None,
+        max_run_seconds: int | None = None,
     ) -> RunRow:
         """Create the run, run ``prologue`` against it, then start it.
 
         :param space_id: where the run happens. ``None`` is the default space.
         :param prologue: appended to the log before the orchestrator emits anything.
+        :param max_run_seconds: a time limit for this run alone (a schedule's),
+            laid over the space's; ``None`` keeps the space's.
         :raises SpaceNotFoundError: for an id that is not a space.
         :raises SpaceArchivedError: an archived space starts no runs.
         """
@@ -98,7 +101,7 @@ class RunLauncher:
             await prologue(run)
 
         self.driving.add(run.id)
-        task = self.spawn(self._drive(run.id, goal, space, excluded_citations))
+        task = self.spawn(self._drive(run.id, goal, space, excluded_citations, max_run_seconds))
         run_id = run.id
 
         def finished(_task: asyncio.Task[None]) -> None:
@@ -167,6 +170,7 @@ class RunLauncher:
         goal: str,
         space: Space | None,
         excluded_citations: tuple[str, ...],
+        max_run_seconds: int | None,
     ) -> None:
         """Hand one run to the orchestrator, which writes every terminal event itself."""
         await execute_run(
@@ -185,6 +189,7 @@ class RunLauncher:
             knowledge=self.knowledge,
             excluded_citations=frozenset(excluded_citations),
             on_registered=self._apply_pending_cancel,
+            max_run_seconds=max_run_seconds,
         )
 
     def _apply_pending_cancel(self, run: Run) -> None:

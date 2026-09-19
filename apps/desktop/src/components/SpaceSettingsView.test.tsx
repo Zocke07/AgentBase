@@ -31,7 +31,7 @@ const lab: SpaceResponse = {
   name: "Lab",
   description: "",
   provider: null,
-  model: null,
+  model: "qwen3:4b",
   auto_approve: null,
   max_steps_per_agent: null,
   max_agents_per_run: null,
@@ -159,6 +159,40 @@ describe("what is sent", () => {
     await user.click(screen.getByRole("button", { name: "Save space" }));
     await waitFor(() => {
       expect(mocked.updateSpace).toHaveBeenLastCalledWith("space-lab", { tool_policies: null });
+    });
+  });
+
+  it("needs a model of the space's own, and moves it with the provider", async () => {
+    /* The model is the space's, not inherited: Settings only names the
+       provider. A blank one is refused before anything is sent; a change of
+       provider brings that provider's first listed model, or a box to type. */
+    const user = userEvent.setup();
+    mocked.listProviders.mockResolvedValue({
+      providers: [
+        { name: "ollama", requires_key: false, free_text_model: true },
+        { name: "anthropic", requires_key: true, free_text_model: false },
+      ],
+      models: { ollama: [], anthropic: ["claude-opus-5", "claude-sonnet-5"] },
+    });
+    render(<SpaceSettingsView space={lab} settings={settings} onChanged={vi.fn()} />);
+    // A box to type once the catalogue says Ollama's models are free text.
+    await waitFor(() => {
+      expect(screen.getByTestId("space-model").tagName).toBe("INPUT");
+    });
+    const model = screen.getByTestId<HTMLInputElement>("space-model");
+    expect(model.value).toBe("qwen3:4b");
+    expect(screen.getByTestId("space-provider").textContent).toContain("Inherit (ollama)");
+
+    await user.clear(model);
+    await user.click(screen.getByRole("button", { name: "Save space" }));
+    expect(screen.getByRole("alert").textContent).toContain("needs a model");
+    expect(mocked.updateSpace).not.toHaveBeenCalled();
+
+    await user.selectOptions(screen.getByTestId("space-provider"), "anthropic");
+    expect(screen.getByTestId<HTMLSelectElement>("space-model").value).toBe("claude-opus-5");
+    await user.click(screen.getByRole("button", { name: "Save space" }));
+    await waitFor(() => {
+      expect(mocked.updateSpace).toHaveBeenLastCalledWith("space-lab", { provider: "anthropic", model: "claude-opus-5" });
     });
   });
 

@@ -180,9 +180,11 @@ function SpaceForm({
   const patch = diff(opened, form);
   const dirty = Object.keys(patch).length > 0;
   const inherited = settings?.settings;
-  const providerEntry = catalogue.providers.find((entry) => entry.name === form.provider);
-  const knownModels = catalogue.models[form.provider] ?? [];
-  const freeText = providerEntry?.free_text_model ?? form.provider === "";
+  // The model belongs to the provider the space runs on: its own, or the app-wide one.
+  const effectiveProvider = form.provider === "" ? (inherited?.provider ?? "") : form.provider;
+  const providerEntry = catalogue.providers.find((entry) => entry.name === effectiveProvider);
+  const knownModels = catalogue.models[effectiveProvider] ?? [];
+  const freeText = providerEntry?.free_text_model ?? false;
 
   const save = async () => {
     setErrors({});
@@ -192,6 +194,10 @@ function SpaceForm({
         setErrors({ [limit]: "A whole number of 1 or more, or blank to inherit." });
         return;
       }
+    }
+    if (form.model.trim() === "") {
+      setErrors({ model: "A space needs a model: its runs use it unless an agent picks its own." });
+      return;
     }
     if (!dirty) return;
     setSaving(true);
@@ -286,8 +292,9 @@ function SpaceForm({
       <section className="settings__section">
         <h2>Model</h2>
         <p className="settings__hint">
-          Inherit uses the app-wide default
-          {inherited !== undefined && `: ${inherited.provider ?? "?"} · ${inherited.model ?? "?"}`}.
+          Runs in this space use this model unless an agent picks its own. The provider is the
+          app-wide one{inherited !== undefined && ` (${inherited.provider ?? "?"})`} unless this
+          space chooses another.
         </p>
         <div className="editor__row">
           <label className="editor__field">
@@ -295,12 +302,16 @@ function SpaceForm({
             <select
               value={form.provider}
               onChange={(changed) => {
-                set("provider", changed.target.value);
-                set("model", "");
+                // A model belongs to a provider, so the choice moves with it:
+                // the new provider's first listed model, or blank to type.
+                const provider = changed.target.value;
+                const next = provider === "" ? (inherited?.provider ?? "") : provider;
+                set("provider", provider);
+                set("model", catalogue.models[next]?.[0] ?? "");
               }}
               data-testid="space-provider"
             >
-              <option value="">Inherit</option>
+              <option value="">Inherit{inherited !== undefined && ` (${inherited.provider ?? "?"})`}</option>
               {catalogue.providers.map((entry) => (
                 <option key={entry.name} value={entry.name}>
                   {entry.name}
@@ -315,10 +326,11 @@ function SpaceForm({
               <input
                 type="text"
                 value={form.model}
-                placeholder={form.provider === "" ? "Inherit" : "model name"}
+                placeholder="the name you pulled, e.g. qwen3:4b"
                 onChange={(changed) => {
                   set("model", changed.target.value);
                 }}
+                aria-invalid={errorFor("model") !== null}
                 data-testid="space-model"
               />
             ) : (
@@ -327,9 +339,13 @@ function SpaceForm({
                 onChange={(changed) => {
                   set("model", changed.target.value);
                 }}
+                aria-invalid={errorFor("model") !== null}
                 data-testid="space-model"
               >
-                <option value="">Inherit</option>
+                {form.model !== "" && !knownModels.includes(form.model) && (
+                  <option value={form.model}>{form.model} (not in this provider&apos;s list)</option>
+                )}
+                {form.model === "" && <option value="">choose a model</option>}
                 {knownModels.map((model) => (
                   <option key={model} value={model}>
                     {model}
