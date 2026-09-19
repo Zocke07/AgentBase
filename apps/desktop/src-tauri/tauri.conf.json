@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "productName": "AgentSpace",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "identifier": "dev.agentspace.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",

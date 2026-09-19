@@ -1,7 +1,7 @@
 {
   "name": "@agentspace/schemas",
   "private": true,
-  "version": "0.4.2",
+  "version": "0.4.3",
   "type": "module",
   "description": "TypeScript types generated from the sidecar's OpenAPI schema. Do not hand-edit.",
   "exports": {

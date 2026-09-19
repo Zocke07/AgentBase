@@ -3570,7 +3570,7 @@
   },
   "info": {
     "title": "AgentSpace sidecar",
-    "version": "0.4.2"
+    "version": "0.4.3"
   },
   "openapi": "3.1.0",
   "paths": {

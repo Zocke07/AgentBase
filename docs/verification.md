@@ -4,7 +4,7 @@ Updated 2026-09-19. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
 superseded gaps. A test result below is scoped to what was actually executed.
 
-## After 0.4.2: the provider change moves space models, news-scanner reads, folder delete, a folding rail
+## 0.4.3: the provider change moves space models, news-scanner reads, folder delete, a folding rail
 
 On 2026-09-19 the maintainer saw the header read "openai · claude-haiku-4-5"
 after changing the app-wide provider: a space that inherits the provider was
