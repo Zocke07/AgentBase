@@ -207,6 +207,17 @@ describe("workflowEdges", () => {
   it("has nothing to join before an agent exists", () => {
     expect(workflowEdges(reduceAll([]))).toEqual([]);
   });
+
+  it("carries the whole task on a handoff edge for its tooltip, and says which way it goes", () => {
+    /* The label is what fits between the columns; the data is what the
+       label's tooltip shows and what places it (a forward label sits over
+       the stretch into its card, a return label beneath the cards). */
+    const handoff = workflowEdges(view()).find((edge) => edge.target === "researcher");
+
+    expect(handoff?.type).toBe("handoff");
+    expect(handoff?.data).toEqual({ forward: true, task: "Find the figures", count: 1 });
+    expect(handoff?.label).toBe("Find the figures");
+  });
 });
 
 describe("the camera", () => {

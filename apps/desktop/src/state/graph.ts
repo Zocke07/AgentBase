@@ -30,8 +30,8 @@ export const NODE_WIDTH = 224;
 export const NODE_HEIGHT = 136;
 export const END_WIDTH = 204;
 export const END_HEIGHT = 82;
-/** Wide enough that a handoff label at LABEL_CHARS sits clear of both cards. */
-const COLUMN_GAP = 110;
+/** Room for a handoff label at LABEL_CHARS over the last stretch into a card. */
+const COLUMN_GAP = 140;
 /** The most of a handoff task an edge label shows; the inspector has the rest. */
 const LABEL_CHARS = 16;
 const ROW_GAP = 22;
@@ -77,6 +77,16 @@ export interface OutcomeNodeData extends Record<string, unknown> {
 }
 
 export type WorkflowNode = Node<AgentNodeData> | Node<GoalNodeData> | Node<OutcomeNodeData>;
+
+export interface HandoffEdgeData extends Record<string, unknown> {
+  /** Supervisor to worker, drawn through the side ports; otherwise beneath the cards. */
+  forward: boolean;
+  /** The whole task, for the label's tooltip. */
+  task: string;
+  count: number;
+}
+
+export type HandoffEdge = Edge<HandoffEdgeData, "handoff">;
 
 /**
  * Place the goal first, the supervisor after it, the workers stacked in the
@@ -305,18 +315,22 @@ export function workflowEdges(view: RunView): Edge[] {
     // edge going the other way.
     const forward = pair.from === SUPERVISOR;
     const label = pair.count > 1 ? `${String(pair.count)} handoffs` : ellipsise(pair.task, LABEL_CHARS);
-    edges.push({
+    const edge: HandoffEdge = {
       id: `${pair.from}->${pair.to}`,
       source: pair.from,
       target: pair.to,
       sourceHandle: forward ? "out" : "back-out",
       targetHandle: forward ? "in" : "back-in",
-      type: "smoothstep",
+      type: "handoff",
       className: `flow-edge flow-edge--handoff${forward ? "" : " flow-edge--return"}${view.agents[pair.to] === undefined ? " flow-edge--ghost" : ""}`,
       animated: busy(pair.to),
       markerEnd: arrow,
+      // The whole task rides along for the label's tooltip; the label itself
+      // is what fits between the columns.
+      data: { forward, task: pair.task, count: pair.count },
       ...(label === "" ? {} : { label }),
-    });
+    };
+    edges.push(edge);
   }
 
   const last = supervisor === undefined ? view.agentOrder[view.agentOrder.length - 1] : SUPERVISOR;

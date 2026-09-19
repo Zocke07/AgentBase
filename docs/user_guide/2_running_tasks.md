@@ -28,12 +28,20 @@ card, the supervisor, the workers it handed work to, and the **Outcome**
 card. Each agent card carries a state pill (ready, thinking, model, tool,
 approval, done), a sentence for what it is doing, its model, and chips that
 sum what it did with each tool: a green count for executions, a red one for
-denials, and a pulsing chip while a call runs. Arrows carry the handoff task;
-a handoff back to the supervisor is drawn beneath the cards. Click a card to
-open the inspector beside the canvas: the agent's last message, whom it handed
-off to, every tool call with its result or the reason it was refused, and its
-system prompt and streamed output. Scroll to zoom and drag to pan; the camera
-frames the whole run again when a new agent appears unless you have moved it.
+denials, and a pulsing chip while a call runs. Arrows carry the handoff task
+as a short label beside the card it goes to; a handoff back to the supervisor
+is drawn beneath the cards, labelled under the card it leaves. Hover over any
+cut-short text on the canvas, a label, a role, the goal or the outcome, to
+read the whole of it. Click a card to open the inspector beside the canvas:
+the agent's last message, whom it handed off to, every tool call with its
+result or the reason it was refused, and its system prompt and streamed
+output. Scroll to zoom and drag to pan; the camera frames the whole run again
+when a new agent appears unless you have moved it.
+
+The panels are yours to size: drag the edge between the run list and the run,
+the edge between the canvas and the log, or the inspector's left edge. Each
+handle also takes the arrow keys, and double-click (or Home) puts a panel
+back to its default. The sizes are remembered in this window.
 
 The event log below the graph tells the story in order. Use **Agent** and
 **Type** to filter it, **Find** to search, and **show tokens** to include

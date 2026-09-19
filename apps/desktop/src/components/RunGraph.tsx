@@ -1,11 +1,15 @@
 import {
   Background,
   BackgroundVariant,
+  BaseEdge,
   Controls,
+  EdgeLabelRenderer,
+  getSmoothStepPath,
   Handle,
   Position,
   ReactFlow,
   useReactFlow,
+  type EdgeProps,
 } from "@xyflow/react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
@@ -18,6 +22,7 @@ import {
   workflowEdges,
   type AgentNodeData,
   type GoalNodeData,
+  type HandoffEdge as HandoffEdgeType,
   type OutcomeNodeData,
   type WorkflowNode,
 } from "../state/graph";
@@ -51,6 +56,9 @@ const STATE_WORD: Record<Activity, string> = {
 
 /** How many tool chips a card shows before folding the rest into "+n". */
 const CHIP_LIMIT = 3;
+
+/** The most of a summary a card's tooltip carries; the panel above has all of it. */
+const TOOLTIP_CHARS = 600;
 
 /**
  * A chip is a glance, not a name: the built-in tools shorten to the verb
@@ -103,7 +111,9 @@ function AgentCard({ data }: { data: AgentNodeData }) {
         <span className={`flow-node__icon flow-node__icon--${supervisor ? "supervisor" : "worker"}`} aria-hidden="true">
           {supervisor ? <SupervisorGlyph /> : <WorkerGlyph />}
         </span>
-        <span className="flow-node__title">{agent.name}</span>
+        <span className="flow-node__title" title={agent.name}>
+          {agent.name}
+        </span>
         {!ghost && (
           <span className={`flow-node__state flow-node__state--${agent.activity}`}>{STATE_WORD[agent.activity]}</span>
         )}
@@ -112,13 +122,17 @@ function AgentCard({ data }: { data: AgentNodeData }) {
         <div className="agent-node__role">handed off to, but never spawned</div>
       ) : (
         <>
-          <div className="agent-node__role">{agent.role ?? "-"}</div>
+          <div className="agent-node__role" title={agent.role ?? undefined}>
+            {agent.role ?? "-"}
+          </div>
           {agent.lastError !== null ? (
             <div className="agent-node__error" title={agent.lastError}>
               error · {ellipsise(agent.lastError, 44)}
             </div>
           ) : (
-            <div className="agent-node__activity">{activityLabel(agent)}</div>
+            <div className="agent-node__activity" title={activityLabel(agent)}>
+              {activityLabel(agent)}
+            </div>
           )}
           <div className="agent-node__foot">
             <span className="agent-node__meta" title={agent.model ?? "no model"}>
@@ -168,7 +182,9 @@ function GoalCard({ data }: { data: GoalNodeData }) {
         </span>
         <span className="flow-node__title">Goal</span>
       </div>
-      <div className="end-node__text">{data.goal ?? "Waiting for the run to start"}</div>
+      <div className="end-node__text" title={data.goal ?? undefined}>
+        {data.goal ?? "Waiting for the run to start"}
+      </div>
       <div className="end-node__foot">
         {data.channel !== null ? `from ${data.channel}` : "from this window"}
         {data.excerpts > 0 && ` · ${String(data.excerpts)} vault excerpt${data.excerpts === 1 ? "" : "s"}`}
@@ -205,7 +221,9 @@ function OutcomeCard({ data }: { data: OutcomeNodeData }) {
         <span className="flow-node__title">Outcome</span>
         <span className={`flow-node__state flow-node__state--${data.status}`}>{STATUS_LABEL[data.status]}</span>
       </div>
-      <div className="end-node__text">{text}</div>
+      <div className="end-node__text" title={data.claim === null ? undefined : ellipsise(data.claim.text, TOOLTIP_CHARS)}>
+        {text}
+      </div>
       <div className="end-node__foot">
         {data.agents} agent{data.agents === 1 ? "" : "s"} · {data.toolCalls} tool call
         {data.toolCalls === 1 ? "" : "s"}
@@ -257,6 +275,72 @@ function WorkerGlyph() {
 }
 
 const nodeTypes = { agent: AgentCard, goal: GoalCard, outcome: OutcomeCard };
+
+/** How far in from the target card a forward label's right edge sits. */
+const LABEL_INSET = 10;
+/** How far above its line a label sits, so the arrow stays legible beneath it. */
+const LABEL_LIFT = 11;
+
+/**
+ * A handoff edge with its label drawn in the HTML layer above every path.
+ * The forward handoffs out of the supervisor all turn on one vertical run
+ * between the columns, so a label put at a path's centre was crossed by its
+ * siblings' lines; a forward label sits over the last stretch into its own
+ * card instead, above the line. The return handoffs all meet beneath the
+ * supervisor, where their centres coincide, so a return label sits just
+ * under the card it leaves, beside its port. The whole task is the label's
+ * tooltip.
+ */
+function HandoffEdge({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  markerEnd,
+  style,
+  label,
+  data,
+}: EdgeProps<HandoffEdgeType>) {
+  const [path] = getSmoothStepPath({
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition,
+    targetPosition,
+  });
+  const forward = data?.forward ?? false;
+  const x = forward ? targetX - LABEL_INSET : sourceX + LABEL_INSET;
+  const y = forward ? targetY - LABEL_LIFT : sourceY + LABEL_LIFT;
+  const task = data?.task ?? "";
+  return (
+    <>
+      <BaseEdge
+        id={id}
+        path={path}
+        {...(markerEnd === undefined ? {} : { markerEnd })}
+        {...(style === undefined ? {} : { style })}
+      />
+      {label !== undefined && label !== "" && (
+        <EdgeLabelRenderer>
+          <div
+            className={`flow-edge__label nodrag nopan${forward ? " flow-edge__label--forward" : ""}`}
+            style={{ transform: `translate(${forward ? "-100%" : "0"}, -50%) translate(${String(x)}px, ${String(y)}px)` }}
+            title={task === "" ? undefined : task}
+            data-testid={`edge-label-${id}`}
+          >
+            {label}
+          </div>
+        </EdgeLabelRenderer>
+      )}
+    </>
+  );
+}
+
+const edgeTypes = { handoff: HandoffEdge };
 
 /**
  * Put the camera where {@link viewportFor} says, recomputed on pane resize as
@@ -331,6 +415,7 @@ export function RunGraph({ view, selectedAgent, onSelectAgent }: RunGraphProps) 
         nodes={nodes}
         edges={graphEdges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         // The canvas is a view of the log, not a diagram the user edits: dragging
         // a node would imply the layout means something the events do not say.
         nodesDraggable={false}

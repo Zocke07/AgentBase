@@ -1,17 +1,19 @@
 
 
 import type { ApprovalResponse, Event } from "@agentspace/schemas";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import * as api from "../lib/api";
 import { captureText } from "../state/describe";
 import { hasMore, unfinished, useRunList } from "../state/runList";
 import { useRunStore } from "../state/runStore";
 import { useRunStream } from "../state/useRunStream";
+import { useStoredSize } from "../state/useStoredSize";
 
 import { ErrorBoundary } from "./ErrorBoundary";
 import { RunCard } from "./RunCard";
 import { RunPanel } from "./RunPanel";
+import { Splitter } from "./Splitter";
 
 /**
  * The Runs section: pick a run, watch or replay it. Everything about the run
@@ -60,6 +62,10 @@ function connectionLabel(
 }
 
 /** A piece of state that belongs to one run: read as empty for any other. */
+/** The run list's width: the stylesheet's 19rem, and how far it may go. */
+const LIST_WIDTH_FALLBACK = 304;
+const LIST_WIDTH_MIN = 200;
+
 interface PerRun<T> {
   runId: string | null;
   value: T;
@@ -143,6 +149,9 @@ export function RunsView({
   const selectedRow = runs.find((run) => run.id === runId);
   // Keyed on the run it was written for, so switching runs drops it.
   const [captureNotice, setCaptureNotice] = useState<{ runId: string; text: string } | null>(null);
+  // The list's width is the viewer's to set; the stylesheet's applies until they do.
+  const [listWidth, setListWidth] = useStoredSize("runs.list");
+  const side = useRef<HTMLElement>(null);
 
   // A person's own note from an agent's words: written where automatic run
   // memories never go, so nothing app-owned overwrites it.
@@ -229,8 +238,21 @@ export function RunsView({
   }, []);
 
   return (
-    <div className="runs-view">
-      <aside className="runs-view__side">
+    <div
+      className="runs-view"
+      style={listWidth === null ? undefined : { gridTemplateColumns: `${String(listWidth)}px minmax(0, 1fr)` }}
+    >
+      <aside className="runs-view__side" ref={side}>
+        <Splitter
+          axis="x"
+          side="end"
+          value={listWidth}
+          measure={() => side.current?.offsetWidth ?? LIST_WIDTH_FALLBACK}
+          min={LIST_WIDTH_MIN}
+          max={() => Math.max(LIST_WIDTH_MIN, Math.round(window.innerWidth * 0.5))}
+          onChange={setListWidth}
+          label="Resize the run list"
+        />
         <header className="runs-view__head">
           <h2>Runs</h2>
           <button type="button" className="button button--small" onClick={onNewRun}>

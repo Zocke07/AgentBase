@@ -1,14 +1,17 @@
 import type { Event } from "@agentspace/schemas";
+import { useRef, type RefObject } from "react";
 
 import { ellipsise, formatCount, formatMicros, summariseArgs } from "../lib/format";
 import { activityLabel, nowLine } from "../state/describe";
 import type { AgentNode, Denial, Handoff, RunView, ToolCall } from "../state/reducer";
+import { useStoredSize } from "../state/useStoredSize";
 
 import { ApprovalPanel, type ApprovalPanelProps } from "./ApprovalPanel";
 import { EventLog } from "./EventLog";
 import { Markdown } from "./Markdown";
 import { RunGraph } from "./RunGraph";
 import { RunSummary, type RunSummaryProps } from "./RunSummary";
+import { Splitter } from "./Splitter";
 
 /**
  * Everything the dashboard shows about a run, in two halves. The projection
@@ -19,6 +22,13 @@ import { RunSummary, type RunSummaryProps } from "./RunSummary";
  * standing somewhere and live you were at the end. The approval panel's
  * question is projection; its action row is transport.
  */
+
+/** Bounds for the viewer's panel sizes, in pixels; the stylesheet's defaults apply until set. */
+const CANVAS_HEIGHT_MIN = 160;
+const CANVAS_HEIGHT_MAX = 1600;
+const LOG_HEIGHT_MIN = 144;
+const DETAIL_WIDTH_FALLBACK = 336;
+const DETAIL_WIDTH_MIN = 240;
 
 export interface RunPanelProps {
   view: RunView;
@@ -67,6 +77,21 @@ export function RunPanel({
   // aside and the log alike, so they cannot disagree about who is selected.
   const selected = selectedAgent === null ? null : (view.agents[selectedAgent] ?? null);
   const selectedName = selected === null ? null : selectedAgent;
+
+  // The canvas's height and the inspector's width are the viewer's to set.
+  const [canvasHeight, setCanvasHeight] = useStoredSize("runs.canvas");
+  const [detailWidth, setDetailWidth] = useStoredSize("runs.detail");
+  const projection = useRef<HTMLDivElement>(null);
+  const canvas = useRef<HTMLDivElement>(null);
+  const detail = useRef<HTMLElement>(null);
+  const canvasMax = () => {
+    // Leave the log its minimum, or the divider could push it out of reach.
+    const box = projection.current;
+    const pane = canvas.current;
+    if (box === null || pane === null) return CANVAS_HEIGHT_MAX;
+    const top = pane.getBoundingClientRect().top - box.getBoundingClientRect().top;
+    return Math.max(CANVAS_HEIGHT_MIN, Math.round(box.clientHeight - top - LOG_HEIGHT_MIN));
+  };
 
   return (
     <div
@@ -124,7 +149,16 @@ export function RunPanel({
         readOnly={approvalReadOnly}
       />
 
-      <div className="run-projection" data-testid="run-projection">
+      <div
+        className="run-projection"
+        data-testid="run-projection"
+        ref={projection}
+        style={
+          canvasHeight === null
+            ? undefined
+            : { gridTemplateRows: `auto auto minmax(${String(CANVAS_HEIGHT_MIN)}px, ${String(canvasHeight)}px) minmax(${String(LOG_HEIGHT_MIN)}px, 1fr)` }
+        }
+      >
         <RunSummary
           view={view}
           onOpenNote={onOpenNote}
@@ -140,7 +174,7 @@ export function RunPanel({
           {nowLine(view)}
         </p>
 
-        <div className="run-panel__canvas">
+        <div className="run-panel__canvas" ref={canvas}>
           <RunGraph view={view} selectedAgent={selectedName} onSelectAgent={onSelectAgent} />
 
           {selected !== null && selectedName !== null && (
@@ -152,8 +186,24 @@ export function RunPanel({
               onClose={() => {
                 onSelectAgent(null);
               }}
+              width={detailWidth}
+              onResize={setDetailWidth}
+              panelRef={detail}
+              measure={() => detail.current?.offsetWidth ?? DETAIL_WIDTH_FALLBACK}
+              max={() => Math.max(DETAIL_WIDTH_MIN, Math.round((canvas.current?.offsetWidth ?? 900) * 0.7))}
             />
           )}
+
+          <Splitter
+            axis="y"
+            side="end"
+            value={canvasHeight}
+            measure={() => canvas.current?.offsetHeight ?? CANVAS_HEIGHT_MIN}
+            min={CANVAS_HEIGHT_MIN}
+            max={canvasMax}
+            onChange={setCanvasHeight}
+            label="Resize the canvas"
+          />
         </div>
 
         <EventLog
@@ -180,12 +230,23 @@ function AgentDetail({
   denials,
   handoffs,
   onClose,
+  width,
+  onResize,
+  panelRef,
+  measure,
+  max,
 }: {
   agent: AgentNode;
   calls: readonly ToolCall[];
   denials: readonly Denial[];
   handoffs: readonly Handoff[];
   onClose: () => void;
+  /** The viewer's width for the panel, or null for the stylesheet's. */
+  width: number | null;
+  onResize: (width: number | null) => void;
+  panelRef: RefObject<HTMLElement | null>;
+  measure: () => number;
+  max: () => number;
 }) {
   const activity = [
     ...calls.map((call) => ({ seq: call.seq, kind: "call" as const, call, denial: null })),
@@ -193,7 +254,22 @@ function AgentDetail({
   ].sort((left, right) => left.seq - right.seq);
 
   return (
-    <aside className="agent-detail" data-testid="agent-detail">
+    <aside
+      className="agent-detail"
+      data-testid="agent-detail"
+      ref={panelRef}
+      style={width === null ? undefined : { width: `${String(width)}px` }}
+    >
+      <Splitter
+        axis="x"
+        side="start"
+        value={width}
+        measure={measure}
+        min={DETAIL_WIDTH_MIN}
+        max={max}
+        onChange={onResize}
+        label="Resize the agent detail"
+      />
       <header className="agent-detail__head">
         <div>
           <h3>{agent.name}</h3>

@@ -157,6 +157,20 @@ describe("RunGraph", () => {
     expect(chips[0]?.className).toContain("agent-node__tool--denied");
   });
 
+  it("keeps the whole of every cut-short text in a tooltip", () => {
+    /* A card shows what fits; hovering shows the rest. */
+    const { getByTestId } = graph();
+
+    expect(getByTestId("goal-node").querySelector(".end-node__text")?.getAttribute("title")).toBe(
+      "Summarise the quarterly report",
+    );
+    expect(getByTestId("outcome-node").querySelector(".end-node__text")?.getAttribute("title")).toContain(
+      "Quarterly report summarised",
+    );
+    const role = getByTestId("agent-node-researcher").querySelector(".agent-node__role");
+    expect(role?.getAttribute("title")).toBe(role?.textContent);
+  });
+
   it("says the outcome is still in progress while the run is", () => {
     const events = twoAgentRun();
     const { getByTestId } = render(
