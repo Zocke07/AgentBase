@@ -233,4 +233,5 @@ def test_every_seeded_prompt_names_where_it_reads_or_writes(db: Database, name: 
             "scores/",
         )
     )
-    assert "—" not in prompt
+    # The house style: written as a code point so this file cannot fail the hygiene test itself.
+    assert chr(0x2014) not in prompt
