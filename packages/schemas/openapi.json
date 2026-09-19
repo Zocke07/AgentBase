@@ -2357,6 +2357,18 @@
             ],
             "title": "Max Agents Per Run"
           },
+          "max_run_cost_micros": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Run Cost Micros"
+          },
           "max_run_seconds": {
             "anyOf": [
               {
@@ -2436,6 +2448,74 @@
           "is_default"
         ],
         "title": "SpaceResponse",
+        "type": "object"
+      },
+      "TextFile": {
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "size",
+          "updated_at",
+          "content"
+        ],
+        "title": "TextFile",
+        "type": "object"
+      },
+      "TextFileIndex": {
+        "properties": {
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/TextFileSummary"
+            },
+            "title": "Files",
+            "type": "array"
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "title": "TextFileIndex",
+        "type": "object"
+      },
+      "TextFileSummary": {
+        "description": "A plain-text file in the space folder, as the tree lists it.",
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "size",
+          "updated_at"
+        ],
+        "title": "TextFileSummary",
         "type": "object"
       },
       "ToolPolicy": {
@@ -2807,6 +2887,18 @@
             ],
             "title": "Max Agents Per Run"
           },
+          "max_run_cost_micros": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Run Cost Micros"
+          },
           "max_run_seconds": {
             "anyOf": [
               {
@@ -2973,6 +3065,18 @@
               }
             ],
             "title": "Max Agents Per Run"
+          },
+          "max_run_cost_micros": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Run Cost Micros"
           },
           "max_run_seconds": {
             "anyOf": [
@@ -3487,6 +3591,12 @@
             "title": "Max Agents Per Run",
             "type": "integer"
           },
+          "max_run_cost_micros": {
+            "default": 2000000,
+            "minimum": 0.0,
+            "title": "Max Run Cost Micros",
+            "type": "integer"
+          },
           "max_run_seconds": {
             "default": 600,
             "minimum": 1.0,
@@ -3543,6 +3653,25 @@
           }
         },
         "title": "WorkspaceSettings",
+        "type": "object"
+      },
+      "WriteFileRequest": {
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "path": {
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "content"
+        ],
+        "title": "WriteFileRequest",
         "type": "object"
       },
       "WriteNoteRequest": {
@@ -5174,6 +5303,181 @@
           }
         },
         "summary": "Evaluate Knowledge"
+      }
+    },
+    "/spaces/{space_id}/knowledge/file": {
+      "delete": {
+        "operationId": "delete_file_spaces__space_id__knowledge_file_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete File"
+      },
+      "get": {
+        "operationId": "get_file_spaces__space_id__knowledge_file_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TextFile"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get File"
+      },
+      "put": {
+        "description": "Create or overwrite a plain-text file; JSON that does not parse is refused.",
+        "operationId": "write_file_spaces__space_id__knowledge_file_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteFileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TextFile"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Write File"
+      }
+    },
+    "/spaces/{space_id}/knowledge/files": {
+      "get": {
+        "description": "The plain-text files beside the notes: configuration and data the agents use.",
+        "operationId": "list_files_spaces__space_id__knowledge_files_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TextFileIndex"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Files"
       }
     },
     "/spaces/{space_id}/knowledge/folder": {

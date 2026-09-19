@@ -19,6 +19,7 @@ wrongly is not a boundary.
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field
 from enum import Enum, auto
@@ -56,6 +57,27 @@ _NO_TOOL_NUDGE: Final[str] = (
     "You did not call a tool. Call `finish` with your result if the task is "
     "done, or call another tool to make progress. Do not reply with prose alone."
 )
+
+#: The most output tokens one model answer may carry. 4096 cut a tool call
+#: that wrote one large file to a broken half, which read as a missing
+#: argument and was retried at full context until the step limit; every
+#: model the price table lists accepts at least this.
+MAX_OUTPUT_TOKENS: Final[int] = 16_384
+
+#: The providers' words for "the answer hit the output limit".
+_CUT_OFF_STOPS: Final[frozenset[str]] = frozenset({"max_tokens", "length"})
+
+_CUT_OFF_NUDGE: Final[str] = (
+    "Your answer was cut off at the output limit of {limit} tokens, so what "
+    "you were writing could not be read{calls}. Do less in one answer: write a "
+    "smaller file, or a part of it, and continue in your next step. Do not "
+    "repeat the same oversized call."
+)
+
+#: How many times in a row the same call may fail the same way, or be made
+#: with the same arguments, before the agent is stopped: a model that repeats
+#: itself spends a full context window on each try and learns nothing from it.
+MAX_SAME_FAILURES: Final[int] = 3
 
 #: Every control call anywhere, so "you may not have this" (a denial) can be
 #: told from "this is not a thing" (an error).
@@ -139,6 +161,8 @@ class ToolReply:
     """
 
     content: str
+    #: The call did not do what was asked: refused, malformed, or it raised.
+    failed: bool = False
 
 
 class Agent:
@@ -176,14 +200,31 @@ class Agent:
         """Work the task until done, handed off, or out of steps."""
         messages: list[Message] = [Message(role=Role.USER, content=task)]
         last_text = ""
+        # The same failure, again and again, is how a model burns a step
+        # budget: the key is the tool and its message, and a success resets it.
+        last_failure: tuple[str, str] | None = None
+        same_failures = 0
 
         for step in range(1, self._spec.max_steps + 1):
             self._run.check_deadline()
+            await self._run.check_cost()
 
             await self._emit(EventType.AGENT_THINKING, {"step": step})
 
             completion = await self._call_model(messages, step)
             last_text = completion.text or last_text
+
+            if completion.stop_reason in _CUT_OFF_STOPS:
+                # A truncated answer's tool calls are half a call each: not
+                # run, and the model is told why rather than shown a missing
+                # argument it would only supply again.
+                await self._cut_off(completion, messages)
+                key = ("(answer)", "cut off at the output limit")
+                same_failures = same_failures + 1 if key == last_failure else 1
+                last_failure = key
+                if same_failures >= MAX_SAME_FAILURES:
+                    return await self._stuck(step, "the answer", key[1], same_failures)
+                continue
 
             if not completion.tool_calls:
                 # Prose with no call: keep it for context, then nudge.
@@ -207,8 +248,62 @@ class Agent:
                         tool_call_id=call.id,
                     )
                 )
+                # A failure counts by its message; a success by its arguments,
+                # since the identical call made again and again is a loop too.
+                key = (
+                    (call.name, outcome.content)
+                    if outcome.failed
+                    else (call.name, json.dumps(call.arguments, sort_keys=True, default=str))
+                )
+                same_failures = same_failures + 1 if key == last_failure else 1
+                last_failure = key
+                if same_failures >= MAX_SAME_FAILURES:
+                    why = (
+                        outcome.content
+                        if outcome.failed
+                        else "the same call with the same arguments, which had already answered"
+                    )
+                    return await self._stuck(step, call.name, why, same_failures)
 
         return await self._out_of_steps(last_text)
+
+    async def _cut_off(self, completion: Completion, messages: list[Message]) -> None:
+        """Record a truncated answer and tell the model what to do instead."""
+        messages.append(Message(role=Role.ASSISTANT, content=completion.text or "(cut off)"))
+        names = ", ".join(call.name for call in completion.tool_calls)
+        for call in completion.tool_calls:
+            await self._emit(
+                EventType.TOOL_ERROR,
+                {
+                    "tool": call.name,
+                    "call_id": call.id,
+                    "error": (
+                        f"{call.name} was not run: the answer was cut off at the output "
+                        f"limit of {MAX_OUTPUT_TOKENS} tokens before the call was complete."
+                    ),
+                },
+            )
+        messages.append(
+            Message(
+                role=Role.USER,
+                content=_CUT_OFF_NUDGE.format(
+                    limit=MAX_OUTPUT_TOKENS,
+                    calls=f", and the call to {names} did not happen" if names else "",
+                ),
+            )
+        )
+
+    async def _stuck(self, step: int, what: str, error: str, count: int) -> StepOutcome:
+        """Stop an agent that keeps failing the same way, and say so to the supervisor."""
+        result = (
+            f"{self._spec.name} stopped: {what} failed the same way {count} times in a "
+            f"row ({error}). It needs a different approach, not another try."
+        )
+        await self._mailbox.deliver(self._spec.name, self._supervisor, result)
+        await self._emit(
+            EventType.AGENT_COMPLETED, {"reason": "stuck", "steps": step, "error": error}
+        )
+        return StepOutcome(result=result, reason="stuck", steps=step)
 
     # --- the model ---------------------------------------------------------
 
@@ -230,7 +325,10 @@ class Agent:
         completion: Completion | None = None
         try:
             async for event in self._provider.stream(
-                messages, self._tools, system=self._spec.system_prompt
+                messages,
+                self._tools,
+                system=self._spec.system_prompt,
+                max_tokens=MAX_OUTPUT_TOKENS,
             ):
                 if isinstance(event, TextDelta):
                     await self._emit(EventType.LLM_TOKEN, {"text": event.text})
@@ -324,7 +422,7 @@ class Agent:
                 "reason": reason,
             },
         )
-        return ToolReply(reason)
+        return ToolReply(reason, failed=True)
 
     async def _catalogue_call(self, call: ToolCall) -> ToolReply:
         """Sandbox, then gate, then execute: a permitted tool's whole journey.
@@ -344,7 +442,7 @@ class Agent:
                 EventType.TOOL_ERROR,
                 {"tool": call.name, "call_id": call.id, "error": error},
             )
-            return ToolReply(error)
+            return ToolReply(error, failed=True)
 
         try:
             prepared = tool.prepare(call.arguments, runtime.sandbox)
@@ -355,7 +453,7 @@ class Agent:
                 EventType.TOOL_ERROR,
                 {"tool": call.name, "call_id": call.id, "error": str(exc)},
             )
-            return ToolReply(str(exc))
+            return ToolReply(str(exc), failed=True)
 
         decision = await runtime.approvals.request(
             run_id=self._run.id,
@@ -378,7 +476,7 @@ class Agent:
                     "reason": decision.reason,
                 },
             )
-            return ToolReply(decision.reason)
+            return ToolReply(decision.reason, failed=True)
 
         await self._emit(
             EventType.TOOL_APPROVED,
@@ -403,7 +501,7 @@ class Agent:
                 EventType.TOOL_ERROR,
                 {"tool": call.name, "call_id": call.id, "error": str(exc)},
             )
-            return ToolReply(str(exc))
+            return ToolReply(str(exc), failed=True)
         except Exception as exc:
             # An unplanned exception in a tool must not take the run with it.
             logger.exception("tool %s failed in run %s", call.name, self._run.id)
@@ -412,7 +510,7 @@ class Agent:
                 EventType.TOOL_ERROR,
                 {"tool": call.name, "call_id": call.id, "error": error},
             )
-            return ToolReply(error)
+            return ToolReply(error, failed=True)
 
         await self._emit(
             EventType.TOOL_RESULT,
@@ -433,7 +531,7 @@ class Agent:
                 "blocked_by": "sandbox",
             },
         )
-        return ToolReply(reason)
+        return ToolReply(reason, failed=True)
 
     async def _dispatch(self, call: ToolCall, step: int) -> StepOutcome | ToolReply:
         """Carry out one control call.
@@ -459,7 +557,7 @@ class Agent:
             EventType.TOOL_ERROR,
             {"tool": call.name, "call_id": call.id, "error": error},
         )
-        return ToolReply(error)
+        return ToolReply(error, failed=True)
 
     async def _finish(self, call: ToolCall, step: int) -> StepOutcome:
         result = _text_argument(call.arguments, "result")

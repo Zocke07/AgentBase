@@ -162,11 +162,23 @@ Choosing a different space or deleting run history does not reset spending.
 | **Steps per agent** | A worker stops and reports what it has. If the supervisor runs out before finishing, the run fails. |
 | **Agents per run** | A request for another agent is refused and the supervisor can continue with the agents it has. The count includes the supervisor. |
 | **Seconds per run** | The run fails and waiting approvals expire. Time spent waiting for approval counts. |
+| **Dollars per run** | The run fails once its model calls have cost this much, checked before each call from the ledger. The default is $2.00; 0 leaves only the monthly cap. |
 
 Set defaults in **Settings → Limits and approvals**, and overrides in
 **Space settings**. An agent's own **Max steps** can further restrict its
 turns. Local models may need more time or steps, but higher limits do not
 make a model capable of finishing every task.
+
+Two more guards need no setting. An answer the model could not finish
+within the output limit (16,384 tokens, typically a tool call that tried to
+write a very large file in one go) is not run as a broken call: the log says
+the call was cut off, and the model is told to do less in one answer. And an
+agent that fails the same way three times in a row, or makes the identical
+call three times in a row, is stopped with the reason **stopped after
+failing the same way three times**, since each retry costs a whole context
+window and learns nothing; the supervisor sees the reason and can finish
+without it, and if the supervisor itself is the one repeating, the run
+fails with that reason.
 
 ## Run without answering every call
 

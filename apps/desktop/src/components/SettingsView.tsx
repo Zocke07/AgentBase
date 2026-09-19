@@ -54,6 +54,8 @@ interface Form {
   max_steps_per_agent: string;
   max_agents_per_run: string;
   max_run_seconds: string;
+  /** Dollars per run, as typed; "0" lifts the ceiling. */
+  run_cap: string;
   auto_approve: RiskLevel[];
   /** Per-tool answers; a tool absent here is "ask", decided by the risk levels. */
   tool_policies: Record<string, ToolPolicy>;
@@ -89,6 +91,7 @@ function fromSettings(settings: WorkspaceSettings): Form {
     max_steps_per_agent: String(settings.max_steps_per_agent ?? ""),
     max_agents_per_run: String(settings.max_agents_per_run ?? ""),
     max_run_seconds: String(settings.max_run_seconds ?? ""),
+    run_cap: ((settings.max_run_cost_micros ?? 0) / MICROS_PER_DOLLAR).toFixed(2),
     auto_approve: [...(settings.auto_approve ?? [])],
     tool_policies: { ...(settings.tool_policies ?? {}) },
     discord_enabled: settings.discord_enabled ?? false,
@@ -124,6 +127,8 @@ function diff(opened: Form, form: Form): UpdateSettingsRequest {
   for (const key of ["max_steps_per_agent", "max_agents_per_run", "max_run_seconds"] as const) {
     if (form[key] !== opened[key]) patch[key] = Number(form[key]);
   }
+  const runCap = dollarsToMicros(form.run_cap);
+  if (form.run_cap !== opened.run_cap && runCap !== null) patch.max_run_cost_micros = runCap;
   if (form.auto_approve.join() !== opened.auto_approve.join()) patch.auto_approve = form.auto_approve;
   if (JSON.stringify(form.tool_policies) !== JSON.stringify(opened.tool_policies)) {
     patch.tool_policies = form.tool_policies;
@@ -423,6 +428,23 @@ function SettingsForm({
             }}
             testId="setting-max-seconds"
           />
+          <label className="editor__field editor__field--narrow">
+            <span>Dollars per run</span>
+            <input
+              inputMode="decimal"
+              value={form.run_cap}
+              onChange={(changed) => {
+                set("run_cap", changed.target.value);
+                setErrors(({ max_run_cost_micros: _cleared, ...rest }) => rest);
+              }}
+              aria-invalid={errorFor("max_run_cost_micros") !== null}
+              data-testid="setting-run-cap"
+            />
+            <span className="editor__hint">
+              A run that has spent this stops where it stands; 0 leaves only the monthly cap.
+            </span>
+            <FieldError field="max_run_cost_micros" message={errorFor("max_run_cost_micros")} />
+          </label>
         </div>
 
         <fieldset className="editor__tools">

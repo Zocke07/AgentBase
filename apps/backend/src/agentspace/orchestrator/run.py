@@ -14,9 +14,10 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from agentspace.events.types import EventType
+from agentspace.providers.pricing import format_micros
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Awaitable, Callable
 
     from agentspace.events.store import EventStore
     from agentspace.knowledge.store import SearchHit
@@ -27,9 +28,18 @@ __all__ = [
     "Mailbox",
     "Run",
     "RunCancelledError",
+    "RunCostExceededError",
     "RunDeadlineExceededError",
     "SpawnRefusedError",
 ]
+
+
+class RunCostExceededError(RuntimeError):
+    """The run spent what one run may; §5 Phase 3's cap, at the run's own scale."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
 
 
 class RunDeadlineExceededError(RuntimeError):
@@ -77,6 +87,9 @@ class Run:
     knowledge: tuple[SearchHit, ...] = ()
     #: Citations the user removed in the pre-run retrieval inspector.
     knowledge_exclusions: tuple[str, ...] = ()
+    #: What this run has spent so far, asked before each model call; ``None``
+    #: where no ledger is wired (tests of the loop alone), which means no ceiling.
+    spent_so_far: Callable[[], Awaitable[int]] | None = None
     started_at: float = field(default=0.0, init=False)
     _agents: list[str] = field(default_factory=list, init=False)
     #: Set by `request_cancel`, consumed by `check_deadline`: a flag, so the
@@ -167,6 +180,28 @@ class Run:
                 f"longer runs."
             )
             raise RunDeadlineExceededError(msg)
+
+    async def check_cost(self) -> None:
+        """Raise if the run has spent what `max_run_cost_micros` allows.
+
+        Asked before each model request, like the deadline, from the ledger's
+        rows for this run: an agent retrying an oversized call at a full
+        context window can spend a month's budget in an hour, and the step
+        limit alone does not see money.
+
+        :raises RunCostExceededError: with a reason fit to show a user.
+        """
+        ceiling = self.limits.max_run_cost_micros
+        if ceiling <= 0 or self.spent_so_far is None:
+            return
+        spent = await self.spent_so_far()
+        if spent >= ceiling:
+            msg = (
+                f"This run hit its cost limit of {format_micros(ceiling)} (spent "
+                f"{format_micros(spent)}). Raise the limit in settings to allow "
+                f"costlier runs."
+            )
+            raise RunCostExceededError(msg)
 
     @property
     def agent_names(self) -> tuple[str, ...]:

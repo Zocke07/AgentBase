@@ -24,6 +24,7 @@ __all__ = [
     "DEFAULT_AUTO_APPROVE",
     "DEFAULT_CHANNEL_APPROVALS",
     "DEFAULT_MAX_AGENTS_PER_RUN",
+    "DEFAULT_MAX_RUN_COST_MICROS",
     "DEFAULT_MAX_RUN_SECONDS",
     "DEFAULT_MAX_STEPS_PER_AGENT",
     "DEFAULT_MODELS",
@@ -78,6 +79,10 @@ DEFAULT_AUTO_APPROVE: Final[tuple[RiskLevel, ...]] = ()
 DEFAULT_MAX_STEPS_PER_AGENT: Final[int] = 20
 DEFAULT_MAX_AGENTS_PER_RUN: Final[int] = 5
 DEFAULT_MAX_RUN_SECONDS: Final[int] = 600
+#: The most one run may spend, in micros ($2.00); 0 turns the ceiling off.
+#: The monthly cap bounds the month; this bounds the one run that goes wrong.
+#: `orchestrator/limits.py` carries the same figure; a test compares them.
+DEFAULT_MAX_RUN_COST_MICROS: Final[int] = 2_000_000
 
 #: Who may answer the approval gate for a run that came from a chat channel.
 #: ``dashboard_only`` shows the question in chat and takes the answer at the
@@ -113,6 +118,8 @@ class WorkspaceSettings(BaseModel):
     max_steps_per_agent: int = Field(default=DEFAULT_MAX_STEPS_PER_AGENT, ge=1)
     max_agents_per_run: int = Field(default=DEFAULT_MAX_AGENTS_PER_RUN, ge=1)
     max_run_seconds: int = Field(default=DEFAULT_MAX_RUN_SECONDS, ge=1)
+    #: A ceiling on one run's spend, in micros; 0 means none beyond the monthly cap.
+    max_run_cost_micros: int = Field(default=DEFAULT_MAX_RUN_COST_MICROS, ge=0)
 
     # --- channels ---------------------------------------------------------------
 

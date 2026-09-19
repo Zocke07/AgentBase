@@ -46,7 +46,11 @@ interface Form {
   max_steps_per_agent: string;
   max_agents_per_run: string;
   max_run_seconds: string;
+  /** Dollars per run, as typed; blank inherits, "0" lifts the ceiling here. */
+  run_cap: string;
 }
+
+const MICROS_PER_DOLLAR = 1_000_000;
 
 const RISK_LEVELS: readonly RiskLevel[] = ["low", "medium", "high"];
 const LIMITS = ["max_steps_per_agent", "max_agents_per_run", "max_run_seconds"] as const;
@@ -92,7 +96,18 @@ function fromSpace(space: SpaceResponse): Form {
     max_steps_per_agent: limitText(space.max_steps_per_agent),
     max_agents_per_run: limitText(space.max_agents_per_run),
     max_run_seconds: limitText(space.max_run_seconds),
+    run_cap:
+      space.max_run_cost_micros === null || space.max_run_cost_micros === undefined
+        ? ""
+        : (space.max_run_cost_micros / MICROS_PER_DOLLAR).toFixed(2),
   };
+}
+
+/** Dollars typed by a person to whole micros; null when it is not a number. */
+function dollarsToMicros(dollars: string): number | null {
+  const parsed = Number(dollars.trim());
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return Math.round(parsed * MICROS_PER_DOLLAR);
 }
 
 /** The request for what differs between `opened` and `form`. Blank is inherit. */
@@ -110,6 +125,9 @@ function diff(opened: Form, form: Form): UpdateSpaceRequest {
   }
   for (const limit of LIMITS) {
     if (form[limit] !== opened[limit]) patch[limit] = form[limit].trim() === "" ? null : Number(form[limit]);
+  }
+  if (form.run_cap !== opened.run_cap) {
+    patch.max_run_cost_micros = form.run_cap.trim() === "" ? null : dollarsToMicros(form.run_cap);
   }
   return patch;
 }
@@ -197,6 +215,10 @@ function SpaceForm({
     }
     if (form.model.trim() === "") {
       setErrors({ model: "A space needs a model: its runs use it unless an agent picks its own." });
+      return;
+    }
+    if (form.run_cap.trim() !== "" && dollarsToMicros(form.run_cap) === null) {
+      setErrors({ max_run_cost_micros: "Dollars, 0 or more, or blank to inherit." });
       return;
     }
     if (!dirty) return;
@@ -379,6 +401,24 @@ function SpaceForm({
               <FieldError field={limit} message={errorFor(limit)} />
             </label>
           ))}
+          <label className="editor__field editor__field--narrow">
+            <span>Dollars per run</span>
+            <input
+              inputMode="decimal"
+              value={form.run_cap}
+              placeholder={
+                inherited === undefined
+                  ? "Inherit"
+                  : ((inherited.max_run_cost_micros ?? 0) / MICROS_PER_DOLLAR).toFixed(2)
+              }
+              onChange={(changed) => {
+                set("run_cap", changed.target.value);
+              }}
+              aria-invalid={errorFor("max_run_cost_micros") !== null}
+              data-testid="space-max_run_cost_micros"
+            />
+            <FieldError field="max_run_cost_micros" message={errorFor("max_run_cost_micros")} />
+          </label>
         </div>
 
         <fieldset className="editor__tools">

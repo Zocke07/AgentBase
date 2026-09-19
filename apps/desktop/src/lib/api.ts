@@ -29,6 +29,8 @@ import type {
   SearchFilters,
   SettingsResponse,
   SpaceResponse,
+  TextFile,
+  TextFileIndex,
   ToolResponse,
   UpdateAgentRequest,
   UpdateScheduleRequest,
@@ -233,6 +235,18 @@ export const saveKnowledgeNote = (
 
 export const deleteKnowledgeNote = (spaceId: string, path: string): Promise<void> =>
   requestNoContent(`/spaces/${spaceId}/knowledge/note${query({ path })}`, { method: "DELETE" });
+
+/** The plain-text files beside the notes, for the Files view. */
+export const listFiles = (spaceId: string): Promise<TextFileIndex> => request<TextFileIndex>(`/spaces/${spaceId}/knowledge/files`);
+
+export const getFile = (spaceId: string, path: string): Promise<TextFile> =>
+  request<TextFile>(`/spaces/${spaceId}/knowledge/file${query({ path })}`);
+
+export const writeFile = (spaceId: string, path: string, content: string): Promise<TextFile> =>
+  request<TextFile>(`/spaces/${spaceId}/knowledge/file`, { method: "PUT", ...asJson({ path, content }) });
+
+export const deleteFile = (spaceId: string, path: string): Promise<void> =>
+  requestNoContent(`/spaces/${spaceId}/knowledge/file${query({ path })}`, { method: "DELETE" });
 
 /** Delete a folder and everything in it; the sidecar copies it under `.agentspace/backups/` first. */
 export const deleteKnowledgeFolder = (spaceId: string, path: string): Promise<KnowledgeFolderDeleteResult> =>

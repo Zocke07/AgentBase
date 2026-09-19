@@ -122,7 +122,7 @@ describe("Schedules", () => {
     const note = screen.getByTestId("schedules-policy");
     expect(note.textContent).toContain("calls low-risk tools without asking");
     expect(note.textContent).toContain("up to 900 seconds");
-    expect(note.textContent).toContain("stops at 20 steps per agent, 5 agents and 900 seconds");
+    expect(note.textContent).toContain("stops at 20 steps per agent, 5 agents, 900 seconds");
   });
 
   it("reads the answers by tool into the unattended readout, the stricter one per tool", async () => {

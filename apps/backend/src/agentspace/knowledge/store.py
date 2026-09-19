@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import math
 import os
 import posixpath
@@ -63,6 +64,9 @@ __all__ = [
     "NoteSummary",
     "SearchFilters",
     "SearchHit",
+    "TextFile",
+    "TextFileIndex",
+    "TextFileSummary",
     "memory_markdown",
     "search_folder",
 ]
@@ -317,6 +321,35 @@ class KnowledgeMoveResult(BaseModel):
     backup_path: str
 
 
+#: The plain-text files the Files view may show and edit beside the notes:
+#: configuration and data the agents read and write. Anything else in the
+#: folder (images, archives, the SQLite of another tool) stays out of reach.
+TEXT_FILE_SUFFIXES: Final[frozenset[str]] = frozenset(
+    {".json", ".jsonl", ".csv", ".txt", ".yaml", ".yml", ".toml", ".ndjson", ".tsv"}
+)
+MAX_TEXT_FILE_CHARS: Final[int] = 1_000_000
+
+
+class TextFileSummary(BaseModel):
+    """A plain-text file in the space folder, as the tree lists it."""
+
+    model_config = ConfigDict(frozen=True)
+
+    path: str
+    size: int
+    updated_at: str
+
+
+class TextFile(TextFileSummary):
+    content: str
+
+
+class TextFileIndex(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    files: list[TextFileSummary]
+
+
 class KnowledgeFolderDeleteResult(BaseModel):
     """What deleting a folder removed, and where a copy went first."""
 
@@ -487,6 +520,113 @@ class KnowledgeStore:
             )
 
         return await asyncio.to_thread(delete)
+
+    # --- plain-text files beside the notes ------------------------------------
+
+    async def list_files(self, space_id: str) -> TextFileIndex:
+        """Every plain-text file in the folder that is not a note, hidden or a symlink."""
+        root = await self._root(space_id)
+
+        def scan() -> list[TextFileSummary]:
+            found: list[TextFileSummary] = []
+            for candidate in sorted(root.rglob("*")):
+                relative = candidate.relative_to(root)
+                if any(part.startswith(".") for part in relative.parts):
+                    continue
+                if candidate.is_symlink() or not candidate.is_file():
+                    continue
+                if candidate.suffix.casefold() not in TEXT_FILE_SUFFIXES:
+                    continue
+                stat = candidate.stat()
+                found.append(
+                    TextFileSummary(
+                        path=relative.as_posix(),
+                        size=stat.st_size,
+                        updated_at=datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat(),
+                    )
+                )
+                if len(found) >= MAX_NOTES:
+                    break
+            return found
+
+        return TextFileIndex(files=await asyncio.to_thread(scan))
+
+    async def get_file(self, space_id: str, path: str) -> TextFile:
+        _, resolved, shown = await self._resolve_file(space_id, path)
+
+        def read() -> TextFile:
+            if resolved.is_symlink() or not resolved.is_file():
+                raise NoteNotFoundError(f"There is no file at {shown}.")
+            stat = resolved.stat()
+            if stat.st_size > MAX_TEXT_FILE_CHARS * 4:
+                raise KnowledgePathError(f"{shown} is too large to edit here.")
+            content = resolved.read_text(encoding="utf-8", errors="replace")
+            return TextFile(
+                path=shown,
+                size=stat.st_size,
+                updated_at=datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat(),
+                content=content,
+            )
+
+        return await asyncio.to_thread(read)
+
+    async def write_file(self, space_id: str, path: str, content: str) -> TextFile:
+        """Write a plain-text file. JSON is parsed first, so a config the
+        agents read cannot be saved broken."""
+        if len(content) > MAX_TEXT_FILE_CHARS:
+            raise KnowledgePathError(
+                f"A file may contain at most {MAX_TEXT_FILE_CHARS} characters."
+            )
+        _, resolved, shown = await self._resolve_file(space_id, path)
+        if resolved.suffix.casefold() == ".json":
+            try:
+                json.loads(content)
+            except ValueError as exc:
+                raise KnowledgePathError(f"{shown} is not valid JSON: {exc}") from exc
+
+        def write() -> None:
+            if resolved.is_symlink():
+                raise KnowledgePathError(f"{shown} is a symlink and is not written through.")
+            resolved.parent.mkdir(parents=True, exist_ok=True)
+            _atomic_write(resolved, content)
+
+        await asyncio.to_thread(write)
+        return await self.get_file(space_id, shown)
+
+    async def delete_file(self, space_id: str, path: str) -> None:
+        root, resolved, shown = await self._resolve_file(space_id, path)
+
+        def delete() -> None:
+            if resolved.is_symlink() or not resolved.is_file():
+                raise NoteNotFoundError(f"There is no file at {shown}.")
+            _backup_files(root, [resolved], "delete-file")
+            resolved.unlink()
+
+        await asyncio.to_thread(delete)
+
+    async def _resolve_file(self, space_id: str, path: str) -> tuple[Path, Path, str]:
+        """Like `_resolve`, for a plain-text file: one of the listed suffixes, never hidden."""
+        root = await self._root(space_id)
+        try:
+            resolved = Sandbox(root).resolve_path(path)
+        except SandboxViolationError as exc:
+            raise KnowledgePathError(str(exc)) from exc
+        try:
+            relative = resolved.relative_to(root)
+        except ValueError as exc:  # pragma: no cover - Sandbox pins this
+            raise KnowledgePathError(f"{path!r} is outside this space.") from exc
+        if relative.suffix.casefold() not in TEXT_FILE_SUFFIXES:
+            allowed = ", ".join(sorted(TEXT_FILE_SUFFIXES))
+            raise KnowledgePathError(
+                f"Files edited here are plain text with one of these extensions: {allowed}. "
+                f"A Markdown note is edited as a note."
+            )
+        if any(part.startswith(".") for part in relative.parts):
+            raise KnowledgePathError(
+                "Hidden folders, including .obsidian and .agentspace, are managed by the "
+                "user and cannot be changed through Knowledge."
+            )
+        return root, resolved, relative.as_posix()
 
     async def move_note(
         self, space_id: str, source: str, target: str, *, update_links: bool = True

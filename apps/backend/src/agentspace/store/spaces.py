@@ -122,6 +122,8 @@ class Space(BaseModel):
     max_steps_per_agent: int | None = Field(default=None, ge=1)
     max_agents_per_run: int | None = Field(default=None, ge=1)
     max_run_seconds: int | None = Field(default=None, ge=1)
+    #: ``None`` inherits; 0 lifts the per-run cost ceiling for this space.
+    max_run_cost_micros: int | None = Field(default=None, ge=0)
     archived: bool = False
     created_at: datetime
     updated_at: datetime
@@ -146,7 +148,7 @@ class Space(BaseModel):
             changes["tool_policies"] = effective_tool_policies(
                 self.tool_policies, workspace.tool_policies
             )
-        for limit in ("max_steps_per_agent", "max_agents_per_run", "max_run_seconds"):
+        for limit in _LIMITS:
             value = getattr(self, limit)
             if value is not None:
                 changes[limit] = value
@@ -161,15 +163,19 @@ class Space(BaseModel):
 
 _SELECT: Final[str] = (
     "SELECT id, name, description, provider, model, auto_approve, tool_policies,"
-    " max_steps_per_agent, max_agents_per_run, max_run_seconds, archived, created_at,"
-    " updated_at FROM spaces"
+    " max_steps_per_agent, max_agents_per_run, max_run_seconds, max_run_cost_micros,"
+    " archived, created_at, updated_at FROM spaces"
 )
 
 _LIMITS: Final[tuple[str, ...]] = (
     "max_steps_per_agent",
     "max_agents_per_run",
     "max_run_seconds",
+    "max_run_cost_micros",
 )
+
+#: Limits that may be 0, meaning "no ceiling", rather than at least 1.
+_ZERO_MEANS_OFF: Final[frozenset[str]] = frozenset({"max_run_cost_micros"})
 
 
 def _row_to_space(row: sqlite3.Row) -> Space:
@@ -194,6 +200,7 @@ def _row_to_space(row: sqlite3.Row) -> Space:
         max_steps_per_agent=row["max_steps_per_agent"],
         max_agents_per_run=row["max_agents_per_run"],
         max_run_seconds=row["max_run_seconds"],
+        max_run_cost_micros=row["max_run_cost_micros"],
         archived=bool(row["archived"]),
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]),
@@ -462,9 +469,10 @@ def _validated_limit(value: Any, field: str) -> int | None:
         number = int(value)
     except (TypeError, ValueError):
         raise SpaceValidationError(f"{field} must be a whole number.", field=field) from None
-    if number < 1:
+    floor = 0 if field in _ZERO_MEANS_OFF else 1
+    if number < floor:
         raise SpaceValidationError(
-            f"{field} must be at least 1, or blank to inherit the app-wide default.",
+            f"{field} must be at least {floor}, or blank to inherit the app-wide default.",
             field=field,
         )
     return number

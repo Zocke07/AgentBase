@@ -93,6 +93,7 @@ class UpdateSettingsRequest(BaseModel):
     max_steps_per_agent: int | None = Field(default=None, ge=1)
     max_agents_per_run: int | None = Field(default=None, ge=1)
     max_run_seconds: int | None = Field(default=None, ge=1)
+    max_run_cost_micros: int | None = Field(default=None, ge=0)
 
     # An empty list is meaningful (it turns pre-authorization off), and
     # `exclude_none` keeps it distinguishable from "not sent".

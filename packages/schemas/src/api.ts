@@ -511,11 +511,30 @@ export interface SpaceResponse {
   max_steps_per_agent?: number | null;
   max_agents_per_run?: number | null;
   max_run_seconds?: number | null;
+  max_run_cost_micros?: number | null;
   archived?: boolean;
   created_at: string;
   updated_at: string;
   folder: string;
   is_default: boolean;
+}
+
+export interface TextFile {
+  path: string;
+  size: number;
+  updated_at: string;
+  content: string;
+}
+
+export interface TextFileIndex {
+  files: TextFileSummary[];
+}
+
+/** A plain-text file in the space folder, as the tree lists it. */
+export interface TextFileSummary {
+  path: string;
+  size: number;
+  updated_at: string;
 }
 
 /**
@@ -588,6 +607,7 @@ export interface UpdateSettingsRequest {
   max_steps_per_agent?: number | null;
   max_agents_per_run?: number | null;
   max_run_seconds?: number | null;
+  max_run_cost_micros?: number | null;
   auto_approve?: RiskLevel[] | null;
   tool_policies?: Record<string, ToolPolicy> | null;
   discord_enabled?: boolean | null;
@@ -608,6 +628,7 @@ export interface UpdateSpaceRequest {
   max_steps_per_agent?: number | null;
   max_agents_per_run?: number | null;
   max_run_seconds?: number | null;
+  max_run_cost_micros?: number | null;
   archived?: boolean | null;
 }
 
@@ -694,11 +715,17 @@ export interface WorkspaceSettings {
   max_steps_per_agent?: number;
   max_agents_per_run?: number;
   max_run_seconds?: number;
+  max_run_cost_micros?: number;
   discord_enabled?: boolean;
   channel_identities?: ChannelIdentity[];
   channel_approvals?: "dashboard_only" | "originator";
   channel_space_id?: string | null;
   onboarding_completed?: boolean;
+}
+
+export interface WriteFileRequest {
+  path: string;
+  content: string;
 }
 
 export interface WriteNoteRequest {

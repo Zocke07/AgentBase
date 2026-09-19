@@ -45,6 +45,22 @@ other files alike, after copying every file it held under
 `.agentspace/backups/`. Links into the deleted folder become unresolved
 links. The vault itself and hidden folders cannot be deleted this way.
 
+## Data files
+
+**Data files**, beside **Files** at the top of the browser, lists the
+plain-text files in the space folder that are not notes: `.json`, `.jsonl`,
+`.csv`, `.txt`, `.yaml`, `.yml`, `.toml`, `.ndjson` and `.tsv`. These are the
+configuration and data the agents read with `read_file` and write with
+`write_file`: the investment roster's `config/watchlist.json`, its
+`raw/news-*.json`, a `portfolio/positions.csv`. Open one to edit it as plain
+text and **Save file**; a `.json` file that does not parse is refused before
+it is written, so an agent never reads a broken config. **New file** takes a
+path inside the space; an empty list offers the roster's three config files
+as templates. **Delete…** asks first and keeps a copy under
+`.agentspace/backups/`. Hidden files, binaries and anything outside the
+space folder stay out of reach. An agent may change these files too, through
+the same `write_file` approval as any write.
+
 ## Links, properties and preview
 
 Link notes with Obsidian wikilinks such as `[[research/sqlite]]`,

@@ -39,9 +39,11 @@ without asking** lists narrow the app-wide policy (the collectors to low and
 medium risk, the analysts to low) and never widen it, so nothing runs
 unattended until you tick a level in Settings.
 
-Before the first collector run, create the configuration the prompts read.
-Open the space folder (**Space settings → Open folder**), make a `config`
-folder, and put two files in it. `config/watchlist.json` lists the tickers:
+Before the first collector run, create the configuration the prompts read,
+under **Knowledge → Data files**: the empty list offers `config/watchlist.json`,
+`config/sources.json` and `config/limits.json` as templates to edit and save,
+and JSON is checked before it is written. (The same files can be put in the
+space folder by hand, under a `config` folder.) `config/watchlist.json` lists the tickers:
 any JSON the prompt can read works, for example a `watchlist` array of
 objects with `ticker`, `company_name` and `aliases`, since the prompt says to
 take tickers only from this file. `config/sources.json` names the feeds and

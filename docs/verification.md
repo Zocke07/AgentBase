@@ -4,6 +4,37 @@ Updated 2026-09-19. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
 superseded gaps. A test result below is scoped to what was actually executed.
 
+## 0.4.4: guards on runaway runs, a per-run cost ceiling, data files in the app
+
+On 2026-09-19 the maintainer's first real `news-scanner` run spent 345k
+tokens and $0.45 on eight steps that all failed alike: every answer was 4096
+tokens out, the `write_file` call's JSON arrived truncated, `_parse_arguments`
+turned it into `{}`, the tool said "needs a 'path'", and Haiku retried the
+same oversized write at 68k tokens of context. Three guards followed.
+`MAX_OUTPUT_TOKENS` raised the request's output limit from 4096 to 16,384; an
+answer whose `stop_reason` is `max_tokens` or `length` no longer runs its
+tool calls but logs a `tool.error` naming the limit and tells the model to
+write less at a time; and an agent that fails the same way, or makes the
+identical call, three times in a row completes with reason `stuck`, which
+fails the run when the supervisor is the one repeating. A per-run cost
+ceiling (`max_run_cost_micros`, $2.00 by default, 0 off; a space's own via
+migration 014) is checked from the ledger before each model call like the
+deadline, and the Schedules readout names it. Migration 014 is the fourth
+column on `spaces` since 0.4.0. The Knowledge section gained **Data files**:
+the plain-text files beside the notes, listed, edited and deleted through
+new endpoints, JSON parsed before a write, three config templates offered
+when the list is empty. Executed: `just check`; **790 backend tests** (new:
+the cut-off answer not run and the nudge, the stuck agent after identical
+failures, the stuck supervisor failing the run, the identical successful
+call, the cost ceiling reached and the ceiling of zero, the file endpoints'
+list, write, JSON refusal, path refusals, read, delete with backup); **434
+frontend tests** (the Files panel's list, edit, JSON refusal, template and
+delete; the stuck phrase). In Chrome against the scratch sidecar, migrated
+to 14: a template was saved from the Data files tab, a second file typed
+and saved, and both listed with their sizes; Settings showed $2.00 per run.
+**Not exercised:** a real cut-off from a model, and a real run reaching the
+cost ceiling; both rest on the scripted provider.
+
 ## 0.4.3: the provider change moves space models, news-scanner reads, folder delete, a folding rail
 
 On 2026-09-19 the maintainer saw the header read "openai · claude-haiku-4-5"

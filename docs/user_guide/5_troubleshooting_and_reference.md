@@ -204,6 +204,7 @@ cannot store secrets in the OS keychain.
 | `GET`, `PUT`, `DELETE /spaces/{id}/knowledge/note` | Read, save or delete a Markdown note. |
 | `POST /spaces/{id}/knowledge/move` | Move or rename a note, rewriting links, with a backup. |
 | `DELETE /spaces/{id}/knowledge/folder` | Delete a folder and everything in it, with a backup; never the vault root or a hidden folder. |
+| `GET /spaces/{id}/knowledge/files`; `GET`, `PUT`, `DELETE .../knowledge/file` | The plain-text data files beside the notes: list, read, write (JSON checked) or delete one, with a backup. |
 | `PATCH /spaces/{id}/knowledge/pin` | Pin or unpin any note. |
 | `POST /spaces/{id}/knowledge/import` | Import Markdown files into the space, skipping or backing up conflicts. |
 | `POST /spaces/{id}/knowledge/search` | Local cited retrieval with optional folder, tag, type, date and status filters. |

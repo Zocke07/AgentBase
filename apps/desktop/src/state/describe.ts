@@ -70,6 +70,8 @@ function completionPhrase(reason: string | null): string {
       return "finished";
     case "max_steps":
       return "ran out of steps";
+    case "stuck":
+      return "stopped after failing the same way three times";
     default:
       return `stopped (${reason})`;
   }

@@ -62,6 +62,15 @@ describe("a sentence for every event", () => {
     expect(sentenceFor(allowlist)).toContain("researcher is not permitted to read ../../secrets");
   });
 
+  it("says why an agent stopped, in words", () => {
+    const log = new LogBuilder();
+    const steps = log.add("agent.completed", { reason: "max_steps", steps: 20 }, "researcher");
+    const stuck = log.add("agent.completed", { reason: "stuck", steps: 4, error: "write_file needs a 'path'" }, "researcher");
+
+    expect(sentenceFor(steps)).toBe("researcher ran out of steps after 20 steps.");
+    expect(sentenceFor(stuck)).toBe("researcher stopped after failing the same way three times after 4 steps.");
+  });
+
   it("words a terminal summary as the supervisor's claim, not as what happened", () => {
     /* Four live runs have announced work the log shows never happened. */
     const done = twoAgentRun().at(-1);

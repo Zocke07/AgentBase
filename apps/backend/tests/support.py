@@ -180,6 +180,7 @@ def says(
     input_tokens: int = 100,
     output_tokens: int = 50,
     thinking: str | None = None,
+    stop_reason: str | None = None,
 ) -> Completion:
     return Completion(
         provider="scripted",
@@ -187,7 +188,7 @@ def says(
         text=text,
         usage=TokenUsage(input_tokens=input_tokens, output_tokens=output_tokens),
         tool_calls=calls,
-        stop_reason="tool_use" if calls else "end_turn",
+        stop_reason=stop_reason or ("tool_use" if calls else "end_turn"),
         thinking=thinking,
     )
 

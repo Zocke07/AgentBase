@@ -96,6 +96,65 @@ def test_a_folder_can_be_deleted_with_a_copy_kept_first(client: TestClient) -> N
         )
 
 
+def test_plain_text_files_can_be_listed_written_read_and_deleted(client: TestClient) -> None:
+    """The configuration and data the agents read live beside the notes as
+    plain text; the Files view edits them, JSON checked before it is saved,
+    and a delete keeps a copy first. Notes, hidden files and binaries stay
+    out of this list."""
+    prefix = f"/spaces/{DEFAULT_SPACE_ID}/knowledge"
+    state = client.app.state  # type: ignore[attr-defined]
+    folder = state.spaces.folder_for(DEFAULT_SPACE_ID)
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "notes.md").write_text("# A note", encoding="utf-8")
+    (folder / ".obsidian").mkdir(exist_ok=True)
+    (folder / ".obsidian" / "app.json").write_text("{}", encoding="utf-8")
+    (folder / "chart.png").write_bytes(b"\x89PNG")
+
+    written = client.put(
+        f"{prefix}/file",
+        json={
+            "path": "config/watchlist.json",
+            "content": '{"watchlist": [{"ticker": "AAPL"}]}',
+        },
+    )
+    assert written.status_code == 200, written.text
+    assert written.json()["path"] == "config/watchlist.json"
+    assert (
+        (folder / "config" / "watchlist.json")
+        .read_text(encoding="utf-8")
+        .startswith('{"watchlist"')
+    )
+
+    broken = client.put(
+        f"{prefix}/file", json={"path": "config/sources.json", "content": "{not json"}
+    )
+    assert broken.status_code == 400
+    assert "not valid JSON" in broken.json()["detail"]["message"]
+
+    for path in ("notes.md", "../escape.json", ".obsidian/app.json", "chart.png"):
+        refused = client.put(f"{prefix}/file", json={"path": path, "content": "x"})
+        assert refused.status_code == 400, path
+
+    listed = client.get(f"{prefix}/files").json()["files"]
+    assert [entry["path"] for entry in listed] == ["config/watchlist.json"]
+
+    read = client.get(f"{prefix}/file", params={"path": "config/watchlist.json"}).json()
+    assert read["content"] == '{"watchlist": [{"ticker": "AAPL"}]}'
+    assert (
+        client.get(f"{prefix}/file", params={"path": "config/missing.json"}).status_code == 404
+    )
+
+    assert (
+        client.delete(f"{prefix}/file", params={"path": "config/watchlist.json"}).status_code
+        == 204
+    )
+    assert not (folder / "config" / "watchlist.json").exists()
+    backups = list(
+        (folder / ".agentspace" / "backups").glob("*-delete-file-*/config/watchlist.json")
+    )
+    assert len(backups) == 1
+
+
 def test_missing_space_and_invalid_paths_are_readable_errors(client: TestClient) -> None:
     assert client.get("/spaces/ghost/knowledge").status_code == 404
     rejected = client.put(

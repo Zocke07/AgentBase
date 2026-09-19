@@ -27,6 +27,7 @@ import { forceLayout } from "../lib/graphLayout";
 import { countWords, toggleTaskLine } from "../lib/markdown";
 import { useFetched } from "../state/useFetched";
 
+import { FilesPanel, type OpenFile } from "./FilesPanel";
 import { KnowledgeEvaluationView } from "./KnowledgeEvaluation";
 import { Markdown } from "./Markdown";
 import { MemoryInbox } from "./MemoryInbox";
@@ -57,7 +58,7 @@ export interface KnowledgeViewProps {
 }
 
 type ViewMode = "split" | "write" | "preview" | "graph" | "evaluate";
-type BrowserMode = "notes" | "memories";
+type BrowserMode = "notes" | "files" | "memories";
 type NoteFilter = "all" | "pinned" | "orphans" | "unresolved";
 type GraphScope = "vault" | "local";
 
@@ -107,6 +108,10 @@ export function KnowledgeView({
   // Asked once: the shell looks for Obsidian on disk, and outside it the
   // answer is no without a round trip.
   const obsidian = useFetched(obsidianAvailable, false).data;
+  // The data file open in the Files view, shared by its list and its editor;
+  // the nonce tells the list a save or delete happened in the editor.
+  const [openFile, setOpenFile] = useState<OpenFile | null>(null);
+  const [filesNonce, setFilesNonce] = useState(0);
   // A note asked for while another has unsaved changes waits for a decision.
   const [pendingOpen, setPendingOpen] = useState<{ path: string; heading: string | null } | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
@@ -658,6 +663,17 @@ export function KnowledgeView({
           <button
             type="button"
             role="tab"
+            aria-selected={browserMode === "files"}
+            onClick={() => {
+              setBrowserMode("files");
+              setHits(null);
+            }}
+          >
+            Data files
+          </button>
+          <button
+            type="button"
+            role="tab"
             aria-selected={browserMode === "memories"}
             onClick={() => {
               setBrowserMode("memories");
@@ -776,7 +792,9 @@ export function KnowledgeView({
           </div>
         )}
 
-        {browserMode === "memories" ? (
+        {browserMode === "files" ? (
+          <FilesPanel spaceId={space.id} part="list" open={openFile} onOpen={setOpenFile} reloadNonce={filesNonce} />
+        ) : browserMode === "memories" ? (
           <MemoryInbox
             memories={memories}
             busy={busy}
@@ -1041,7 +1059,18 @@ export function KnowledgeView({
           </div>
         )}
 
-        {mode === "graph" ? (
+        {browserMode === "files" ? (
+          <FilesPanel
+            spaceId={space.id}
+            part="editor"
+            open={openFile}
+            onOpen={setOpenFile}
+            onChanged={() => {
+              setFilesNonce((current) => current + 1);
+              void reload();
+            }}
+          />
+        ) : mode === "graph" ? (
           <KnowledgeGraphView
             graph={graph}
             scope={graphScope}

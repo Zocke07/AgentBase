@@ -127,6 +127,18 @@ class BudgetLedger:
                 ).fetchone()
         return int(row["total"])
 
+    async def run_spent_micros(self, run_id: str) -> int:
+        """Everything one run has spent so far, in micros, whatever the period."""
+        return await asyncio.to_thread(self._run_spent_micros_sync, run_id)
+
+    def _run_spent_micros_sync(self, run_id: str) -> int:
+        with self._db.read() as connection:
+            row = connection.execute(
+                "SELECT COALESCE(SUM(cost_micros), 0) AS total FROM spend WHERE run_id = ?",
+                (run_id,),
+            ).fetchone()
+        return int(row["total"])
+
     async def cap_micros(self) -> int:
         settings = await self._settings.get()
         return settings.monthly_cap_micros

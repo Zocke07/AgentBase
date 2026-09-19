@@ -25,6 +25,8 @@ from agentspace.knowledge.store import (
     MemoryStatus,
     NoteNotFoundError,
     SearchFilters,
+    TextFile,
+    TextFileIndex,
 )
 from agentspace.store.spaces import SpaceNotFoundError
 
@@ -185,6 +187,56 @@ async def delete_folder(
         raise _bad_path(exc) from exc
     except NoteNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+class WriteFileRequest(BaseModel):
+    path: str = Field(min_length=1)
+    content: str
+
+
+@router.get("/files")
+async def list_files(request: Request, space_id: str) -> TextFileIndex:
+    """The plain-text files beside the notes: configuration and data the agents use."""
+    try:
+        return await _store(request).list_files(space_id)
+    except SpaceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/file")
+async def get_file(request: Request, space_id: str, path: str = Query(...)) -> TextFile:
+    try:
+        return await _store(request).get_file(space_id, path)
+    except SpaceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KnowledgePathError as exc:
+        raise _bad_path(exc) from exc
+    except NoteNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.put("/file")
+async def write_file(request: Request, space_id: str, body: WriteFileRequest) -> TextFile:
+    """Create or overwrite a plain-text file; JSON that does not parse is refused."""
+    try:
+        return await _store(request).write_file(space_id, body.path, body.content)
+    except SpaceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KnowledgePathError as exc:
+        raise _bad_path(exc) from exc
+
+
+@router.delete("/file", status_code=204)
+async def delete_file(request: Request, space_id: str, path: str = Query(...)) -> Response:
+    try:
+        await _store(request).delete_file(space_id, path)
+    except SpaceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KnowledgePathError as exc:
+        raise _bad_path(exc) from exc
+    except NoteNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return Response(status_code=204)
 
 
 @router.post("/search")

@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "DEFAULT_MAX_AGENTS_PER_RUN",
+    "DEFAULT_MAX_RUN_COST_MICROS",
     "DEFAULT_MAX_RUN_SECONDS",
     "DEFAULT_MAX_STEPS_PER_AGENT",
     "RunLimits",
@@ -32,6 +33,11 @@ DEFAULT_MAX_AGENTS_PER_RUN: Final[int] = 5
 #: Ten minutes: so an unattended run cannot burn a month's budget overnight.
 DEFAULT_MAX_RUN_SECONDS: Final[int] = 600
 
+#: Two dollars, in micros: what one run may spend before it is stopped. The
+#: monthly cap bounds the month; this bounds the one run that goes wrong. 0
+#: turns it off.
+DEFAULT_MAX_RUN_COST_MICROS: Final[int] = 2_000_000
+
 
 @dataclass(frozen=True, slots=True)
 class RunLimits:
@@ -43,6 +49,8 @@ class RunLimits:
     max_steps_per_agent: int = DEFAULT_MAX_STEPS_PER_AGENT
     max_agents_per_run: int = DEFAULT_MAX_AGENTS_PER_RUN
     max_run_seconds: int = DEFAULT_MAX_RUN_SECONDS
+    #: In micros; 0 means the monthly cap is the only ceiling.
+    max_run_cost_micros: int = DEFAULT_MAX_RUN_COST_MICROS
 
     @classmethod
     def from_settings(cls, settings: WorkspaceSettings) -> RunLimits:
@@ -50,6 +58,7 @@ class RunLimits:
             max_steps_per_agent=settings.max_steps_per_agent,
             max_agents_per_run=settings.max_agents_per_run,
             max_run_seconds=settings.max_run_seconds,
+            max_run_cost_micros=settings.max_run_cost_micros,
         )
 
     def as_payload(self) -> dict[str, Any]:
@@ -58,4 +67,5 @@ class RunLimits:
             "max_steps_per_agent": self.max_steps_per_agent,
             "max_agents_per_run": self.max_agents_per_run,
             "max_run_seconds": self.max_run_seconds,
+            "max_run_cost_micros": self.max_run_cost_micros,
         }

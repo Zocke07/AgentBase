@@ -56,7 +56,16 @@ and disconnects their stored keys.
   inherits the provider to the new provider's default model, since a model
   belongs to a provider. The Knowledge tree can delete a folder (backed up
   first); the rail folds to icons (Ctrl/Cmd+B).
-- The latest recorded database migration is 013 (news-scanner reads its config). Existing workspace files are
+- Three guards on runaway runs, all in `orchestrator/agent.py`: model
+  answers may carry `MAX_OUTPUT_TOKENS` (16,384); an answer that hit the
+  output limit is not run as a broken call but reported and nudged; an agent
+  that fails the same way or makes the identical call `MAX_SAME_FAILURES`
+  (3) times in a row completes with reason `stuck`. `max_run_cost_micros`
+  (settings, spaces, migration 014; $2.00 by default, 0 off) fails a run
+  that has spent it, checked before each model call like the deadline.
+  Plain-text data files beside the notes are listed and edited through
+  `/knowledge/files` and `/knowledge/file` (JSON parsed before a write).
+- The latest recorded database migration is 014 (a space's run cost ceiling). Existing workspace files are
   adopted into the default space once; new spaces get their own folders. Each
   space folder is also an Obsidian-compatible Markdown vault. The Knowledge
   section provides notes, properties, tags, links, backlinks, unresolved links,

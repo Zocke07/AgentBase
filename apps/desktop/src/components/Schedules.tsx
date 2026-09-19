@@ -142,6 +142,7 @@ export function Schedules({ space, settings, onOpenRun }: SchedulesProps) {
   const runSeconds = space.max_run_seconds ?? settings?.settings.max_run_seconds ?? null;
   const steps = space.max_steps_per_agent ?? settings?.settings.max_steps_per_agent ?? null;
   const agentsPerRun = space.max_agents_per_run ?? settings?.settings.max_agents_per_run ?? null;
+  const runCap = space.max_run_cost_micros ?? settings?.settings.max_run_cost_micros ?? null;
   const unattended = allowed.length > 0 || always.length > 0;
 
   const act = async (id: string, work: () => Promise<string | null>) => {
@@ -207,8 +208,9 @@ export function Schedules({ space, settings, onOpenRun }: SchedulesProps) {
           {steps !== null && agentsPerRun !== null && runSeconds !== null && (
             <>
               {" "}
-              It stops at {String(steps)} steps per agent, {String(agentsPerRun)} agents and{" "}
-              {String(runSeconds)} seconds, unless a schedule sets its own time limit below.
+              It stops at {String(steps)} steps per agent, {String(agentsPerRun)} agents,{" "}
+              {String(runSeconds)} seconds{runCap !== null && runCap > 0 && ` or $${(runCap / 1_000_000).toFixed(2)} spent`},
+              unless a schedule sets its own time limit below.
             </>
           )}
         </p>

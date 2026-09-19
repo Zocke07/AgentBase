@@ -465,6 +465,148 @@ async def test_a_worker_hitting_the_step_limit_does_not_fail_the_run(
     assert rebuilt.outcome == "finished despite a stuck worker"
 
 
+async def test_a_cut_off_answer_is_not_run_as_a_broken_call(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+) -> None:
+    """A model that hit the output limit mid call sent half a call. Seen on
+    2026-09-19: the arguments parsed to nothing, the tool said "needs a
+    'path'", and the model retried the same oversized write at 68k tokens of
+    context, eight times. Now the call is not run, the log says why, and the
+    model is told to write less at a time."""
+    script = [
+        says("Delegating.", call("spawn_agent", "c1", agent="researcher", task="t")),
+        says("Writing everything.", call("write_file", "w1"), stop_reason="max_tokens"),
+        says("Smaller.", call("finish", "w2", result="wrote it in parts")),
+        says("Done.", call("finish", "c2", result="ok")),
+    ]
+
+    _, rebuilt = await drive(store, settings, agents, ledger, secrets, script)
+
+    researcher = rebuilt.agent("researcher")
+    assert researcher.finished_reason == "finished"
+    assert researcher.tool_errors == [
+        "write_file was not run: the answer was cut off at the output limit of 16384 "
+        "tokens before the call was complete."
+    ]
+    assert [name for name, _ in researcher.tool_calls] == ["finish"]
+
+
+async def test_an_agent_that_fails_the_same_way_three_times_is_stopped(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+) -> None:
+    """The same failure again is a model that has stopped learning from the
+    reply; each retry costs a full context window. Three in a row ends the
+    agent with a reason the supervisor can act on, well short of the step
+    limit, and a different failure in between starts the count over."""
+    await settings.update({"max_steps_per_agent": 12})
+    script = [
+        says("Delegating.", call("spawn_agent", "c1", agent="researcher", task="t")),
+        says("Trying.", call("write_file", "w1", content="no path")),
+        says("Trying.", call("read_file", "w2")),
+        says("Trying.", call("write_file", "w3", content="no path")),
+        says("Trying.", call("write_file", "w4", content="no path")),
+        says("Trying.", call("write_file", "w5", content="no path")),
+        says("Would go on.", call("write_file", "w6", content="no path")),
+        says("Done.", call("finish", "c2", result="gave up on the researcher")),
+    ]
+
+    _, rebuilt = await drive(store, settings, agents, ledger, secrets, script)
+
+    researcher = rebuilt.agent("researcher")
+    assert researcher.finished_reason == "stuck"
+    # The researcher may not write, so each write is a refusal, the same one
+    # every time. Four were refused, but the read between the first and the
+    # second started the count over; the third consecutive refusal stopped
+    # the agent, so the fifth write never happened.
+    assert researcher.denied_tools == ["write_file"] * 4
+    assert len(researcher.tool_errors) == 1
+    assert rebuilt.status == "completed"
+    assert rebuilt.outcome == "gave up on the researcher"
+
+
+async def test_an_agent_that_repeats_the_identical_call_is_stopped(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+) -> None:
+    """A call that succeeds and is made again with the same arguments is a
+    loop as surely as one that fails: the third identical one stops the agent."""
+    await settings.update({"max_steps_per_agent": 12})
+    script = [
+        says("Delegating.", call("spawn_agent", "c1", agent="researcher", task="t")),
+        says("Looking.", call("finish", "w1", result="first look")),
+        says("Delegating again.", call("spawn_agent", "c2", agent="researcher", task="t")),
+        says("Looking.", call("finish", "w2", result="second look")),
+        says("And again.", call("spawn_agent", "c3", agent="researcher", task="t")),
+        says("Looking.", call("finish", "w3", result="third look")),
+        says("Would go on.", call("spawn_agent", "c4", agent="researcher", task="t")),
+    ]
+
+    _, rebuilt = await drive(store, settings, agents, ledger, secrets, script)
+
+    assert rebuilt.agent("supervisor").finished_reason == "stuck"
+    # The supervisor giving up is the run giving up, as with its step limit.
+    assert rebuilt.status == "failed"
+    assert "the same call with the same arguments" in (rebuilt.outcome or "")
+
+
+async def test_a_run_that_spends_its_cost_limit_fails(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+) -> None:
+    """The per-run ceiling, checked from the ledger before each model call
+    like the deadline: a run that has spent it stops where it stands, and the
+    reason names the figures. The monthly cap is untouched by this."""
+    await settings.update({"max_run_cost_micros": 4_000_000})
+    script = [
+        says("Delegating.", call("spawn_agent", "c1", agent="researcher", task="t")),
+        # A million input tokens of claude-opus-5: $5.00, past the $4.00 ceiling.
+        says(
+            "Reading everything.", call("read_file", "w1", path="a.md"), input_tokens=1_000_000
+        ),
+        says("Would go on.", call("finish", "w2", result="never reached")),
+        says("Would finish.", call("finish", "c2", result="never reached")),
+    ]
+
+    _, rebuilt = await drive(store, settings, agents, ledger, secrets, script)
+
+    assert rebuilt.status == "failed"
+    assert "cost limit of $4.00" in (rebuilt.outcome or "")
+    assert "spent $5.00" in (rebuilt.outcome or "")
+
+
+async def test_a_cost_limit_of_zero_is_no_ceiling(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+) -> None:
+    await settings.update({"max_run_cost_micros": 0})
+    script = [
+        says("Delegating.", call("spawn_agent", "c1", agent="researcher", task="t")),
+        says("Reading.", call("finish", "w1", result="read"), input_tokens=1_000_000),
+        says("Done.", call("finish", "c2", result="ok"), input_tokens=1_000_000),
+    ]
+
+    _, rebuilt = await drive(store, settings, agents, ledger, secrets, script)
+
+    assert rebuilt.status == "completed"
+
+
 async def test_a_run_that_outlives_its_deadline_fails(
     store: EventStore,
     settings: SettingsStore,

@@ -22,6 +22,7 @@ from agentspace.orchestrator.run import (
     Mailbox,
     Run,
     RunCancelledError,
+    RunCostExceededError,
     RunDeadlineExceededError,
 )
 from agentspace.orchestrator.supervisor import SUPERVISOR_NAME, Supervisor
@@ -127,6 +128,7 @@ async def execute_run(
         space=space,
         knowledge=hits,
         knowledge_exclusions=tuple(sorted(excluded_citations)),
+        spent_so_far=lambda: ledger.run_spent_micros(run_id),
     )
 
     if live is not None:
@@ -227,6 +229,8 @@ async def _execute(
         await run.cancel(exc.reason)
     except RunDeadlineExceededError as exc:
         await run.fail(exc.reason)
+    except RunCostExceededError as exc:
+        await run.fail(exc.reason)
     except BudgetExceededError as exc:
         # The ledger already appended `budget.exceeded`; this is the terminal event.
         await run.fail(exc.reason)
@@ -280,6 +284,13 @@ async def _finish(
             except (OSError, ValueError):
                 logger.exception("could not save memory for run %s", run.id)
         await run.complete(outcome.result, memory_path)
+        return
+
+    if outcome.reason == "stuck":
+        # Its result already says what it kept doing; more steps would not help.
+        await run.fail(
+            f"{outcome.result} Anything its workers produced is in this run's event log."
+        )
         return
 
     await run.fail(

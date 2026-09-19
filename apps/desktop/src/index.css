@@ -5717,3 +5717,130 @@ input[type="radio"] {
     display: none;
   }
 }
+
+/* --- data files beside the notes ------------------------------------------ */
+
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+}
+
+.files__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.files__count,
+.files__why,
+.files__size {
+  color: var(--muted);
+  font-size: 0.7333rem;
+}
+
+.files__empty {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.files__empty ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1rem;
+}
+
+.files__list {
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.files__item {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8667rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.files__item:hover {
+  background: var(--surface-2);
+}
+
+.files__item--active {
+  background: var(--accent-soft, var(--surface-3));
+}
+
+.files__path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+}
+
+.files__placeholder {
+  margin: auto;
+  max-width: 32rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.file-editor {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-height: 0;
+  padding: 0.85rem 1.25rem;
+}
+
+.file-editor__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.file-editor__path {
+  font-size: 0.8667rem;
+}
+
+.file-editor__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.file-editor__text {
+  flex: 1;
+  min-height: 16rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.8667rem;
+  line-height: 1.5;
+  resize: vertical;
+  tab-size: 2;
+}
+
+.file-editor__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.7333rem;
+}
