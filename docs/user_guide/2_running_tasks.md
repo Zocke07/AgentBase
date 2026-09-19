@@ -39,9 +39,13 @@ output. Scroll to zoom and drag to pan; the camera frames the whole run again
 when a new agent appears unless you have moved it.
 
 The panels are yours to size: drag the edge between the run list and the run,
-the edge between the canvas and the log, or the inspector's left edge. Each
-handle also takes the arrow keys, and double-click (or Home) puts a panel
-back to its default. The sizes are remembered in this window.
+the lower edge of the supervisor's account, the edge between the canvas and
+the log, or the inspector's left edge. Each handle also takes the arrow keys,
+and double-click (or Home) puts a panel back to its default. An account
+given a height scrolls within it instead of folding. The sizes are remembered
+in this window. The canvas's controls include **Full screen**, which fills
+the window with the canvas and its inspector until Esc or the same button;
+the button beside it fits the whole run into view.
 
 The event log below the graph tells the story in order. Use **Agent** and
 **Type** to filter it, **Find** to search, and **show tokens** to include

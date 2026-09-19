@@ -501,10 +501,13 @@ function SettingsForm({
         <fieldset className="editor__tools" data-testid="setting-tool-policies">
           <legend>Answers by tool</legend>
           <p className="editor__hint">
-            An answer here comes before the risk levels above: <b>Always allow</b> runs the tool
-            without asking whatever its level, <b>Never allow</b> refuses it without asking, and{" "}
-            <b>Ask</b> leaves it to the levels. A space or an agent can make an answer stricter,
-            never looser. From the dialog, <b>Allow for this run</b> is the same yes for one run.
+            Two ways to say what runs without asking. The levels above answer by how risky a call
+            is; this table answers by tool, and its answer wins. On <b>Ask</b>, the levels decide.
+            On <b>Always allow</b>, the tool never asks, even with its level unticked. On{" "}
+            <b>Never allow</b>, it is refused every time, even with its level ticked. For example,
+            with <b>low</b> ticked, <code>write_file</code> on Always allow and <code>run_shell</code>{" "}
+            on Never allow: reads and writes run on their own, a shell command is refused, and a web
+            fetch (medium, unticked) still asks. A space can only make an answer stricter.
           </p>
           {tools.length === 0 ? (
             <p className="editor__hint">The tool catalogue has not loaded.</p>

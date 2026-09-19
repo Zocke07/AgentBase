@@ -24,6 +24,8 @@ export interface RunSummaryProps {
   onOpenMemory?: ((path: string) => void) | undefined;
   /** The memory's status changed here; the Knowledge section should reload its inbox. */
   onMemoryChanged?: (() => void) | undefined;
+  /** Never fold the summary: the panel around it has been given its own height and scrolls. */
+  unfolded?: boolean | undefined;
 }
 
 /** A summary taller than this starts folded; the whole canvas was scrolling off to make room for it. */
@@ -35,6 +37,7 @@ export function RunSummary({
   spaceId = null,
   onOpenMemory,
   onMemoryChanged,
+  unfolded,
 }: RunSummaryProps) {
   const denied = view.denials.length;
   const sandboxed = view.denials.filter((denial) => denial.blockedBy === "sandbox").length;
@@ -185,7 +188,7 @@ export function RunSummary({
               : "Why the run stopped"}
           </span>
           {/* Keyed by run so the fold starts closed on each run rather than carrying over. */}
-          <FoldedClaim key={view.runId ?? ""} text={view.claim.text} />
+          <FoldedClaim key={view.runId ?? ""} text={view.claim.text} unfolded={unfolded ?? false} />
           {view.claim.kind === "summary" && (
             <p className="claim__caveat">
               This is what the agent said it did. What it actually did is the{" "}
@@ -222,10 +225,11 @@ export function RunSummary({
  * claim, and the canvas and log beneath it are the evidence, which a long
  * summary used to push off the screen.
  */
-function FoldedClaim({ text }: { text: string }) {
+function FoldedClaim({ text, unfolded }: { text: string; unfolded: boolean }) {
   const body = useRef<HTMLDivElement>(null);
   const [overflows, setOverflows] = useState(false);
   const [open, setOpen] = useState(false);
+  const folded = overflows && !open && !unfolded;
 
   // Measured rather than counted: Markdown height depends on headings, lists
   // and wrapping, not on characters, and it changes when the panel is resized.
@@ -242,11 +246,11 @@ function FoldedClaim({ text }: { text: string }) {
   }, [text]);
 
   return (
-    <div className={`claim__body${overflows && !open ? " claim__body--folded" : ""}`}>
+    <div className={`claim__body${folded ? " claim__body--folded" : ""}`}>
       <div ref={body} className="claim__scroll">
         <Markdown source={text} className="claim__text" />
       </div>
-      {overflows && (
+      {overflows && !unfolded && (
         <button
           type="button"
           className="claim__fold"

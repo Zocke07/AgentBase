@@ -4,6 +4,18 @@ Updated 2026-09-19. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
 superseded gaps. A test result below is scoped to what was actually executed.
 
+## After 0.4.1: the summary handle, full-screen canvas
+
+On 2026-09-19, after 0.4.1: the supervisor's account gained a drag handle
+(a height given makes it scroll, unfolded), the canvas gained a **Full
+screen** control (fixed over the window, Esc leaves it, the run re-framed on
+entering and leaving), and the **Answers by tool** hint was rewritten around
+an example. Executed: `RunPanel.test.tsx` (full screen on and off, both
+handles offered, the canvas handle withdrawn while expanded), **425 frontend
+tests**, ESLint and `tsc`. In Chrome against the scratch sidecar: the
+summary dragged from 197 to 137 px and scrolled with its fold gone; the
+canvas filled the 1440 by 900 viewport at scale 1 and returned on Esc.
+
 ## 0.4.1: the investment roster, per-tool answers, the Runs panels and the Obsidian button
 
 On 2026-09-19 the maintainer clicked **Open in Obsidian** on a Mac without

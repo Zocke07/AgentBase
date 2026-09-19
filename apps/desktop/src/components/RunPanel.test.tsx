@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { reduceAll } from "../state/reducer";
@@ -102,5 +102,38 @@ describe("the agent inspector", () => {
 
     screen.getByRole("button", { name: "Close the agent detail" }).click();
     expect(onSelectAgent).toHaveBeenCalledWith(null);
+  });
+});
+
+describe("the panels", () => {
+  const props = () => {
+    const events = twoAgentRun();
+    return {
+      events,
+      view: reduceAll(events),
+      cursor: events.length,
+      selectedAgent: null,
+      onSelectAgent: vi.fn(),
+      onCursorChange: vi.fn(),
+      approvalReadOnly: null,
+      onResolveApproval: () => Promise.resolve(),
+    };
+  };
+
+  it("fills the window with the canvas until Esc, and offers the summary and canvas handles", () => {
+    render(<RunPanel {...props()} />);
+    const canvas = screen.getByTestId("run-graph").parentElement;
+    expect(canvas?.className).not.toContain("run-panel__canvas--expanded");
+    expect(screen.getByRole("separator", { name: "Resize the summary" })).toBeDefined();
+    expect(screen.getByRole("separator", { name: "Resize the canvas" })).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Full screen" }));
+    expect(canvas?.className).toContain("run-panel__canvas--expanded");
+    // The divider beneath the canvas means nothing while it fills the window.
+    expect(screen.queryByRole("separator", { name: "Resize the canvas" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Leave full screen" })).toBeDefined();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(canvas?.className).not.toContain("run-panel__canvas--expanded");
   });
 });

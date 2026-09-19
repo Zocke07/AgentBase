@@ -3329,6 +3329,14 @@ button.md__tag:hover {
   font-size: 0.8rem;
 }
 
+/* The summary's wrapper: auto-sized until the viewer drags its edge, then a
+   fixed height the summary scrolls within. */
+.run-panel__summary {
+  position: relative;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 /* --- graph ---------------------------------------------------------------- */
 
 .run-panel__canvas {
@@ -3336,6 +3344,16 @@ button.md__tag:hover {
   display: flex;
   min-height: 0;
   border-bottom: 1px solid var(--border);
+}
+
+/* Full screen: the canvas and its inspector over the whole window, above
+   the rail and the header, until Esc or the same button. */
+.run-panel__canvas--expanded {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  border-bottom: 0;
+  background: var(--bg);
 }
 
 .graph {

@@ -1,5 +1,5 @@
 import type { Event } from "@agentspace/schemas";
-import { useRef, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 
 import { ellipsise, formatCount, formatMicros, summariseArgs } from "../lib/format";
 import { activityLabel, nowLine } from "../state/describe";
@@ -24,6 +24,8 @@ import { Splitter } from "./Splitter";
  */
 
 /** Bounds for the viewer's panel sizes, in pixels; the stylesheet's defaults apply until set. */
+const SUMMARY_HEIGHT_MIN = 96;
+const SUMMARY_HEIGHT_MAX = 1200;
 const CANVAS_HEIGHT_MIN = 160;
 const CANVAS_HEIGHT_MAX = 1600;
 const LOG_HEIGHT_MIN = 144;
@@ -78,12 +80,27 @@ export function RunPanel({
   const selected = selectedAgent === null ? null : (view.agents[selectedAgent] ?? null);
   const selectedName = selected === null ? null : selectedAgent;
 
-  // The canvas's height and the inspector's width are the viewer's to set.
+  // The summary's and the canvas's heights and the inspector's width are the
+  // viewer's to set. A summary given a height scrolls within it, unfolded.
+  const [summaryHeight, setSummaryHeight] = useStoredSize("runs.summary");
   const [canvasHeight, setCanvasHeight] = useStoredSize("runs.canvas");
   const [detailWidth, setDetailWidth] = useStoredSize("runs.detail");
   const projection = useRef<HTMLDivElement>(null);
+  const summary = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLDivElement>(null);
   const detail = useRef<HTMLElement>(null);
+  // The canvas can fill the window; Esc brings it back.
+  const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    if (!expanded) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setExpanded(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [expanded]);
   const canvasMax = () => {
     // Leave the log its minimum, or the divider could push it out of reach.
     const box = projection.current;
@@ -159,13 +176,30 @@ export function RunPanel({
             : { gridTemplateRows: `auto auto minmax(${String(CANVAS_HEIGHT_MIN)}px, ${String(canvasHeight)}px) minmax(${String(LOG_HEIGHT_MIN)}px, 1fr)` }
         }
       >
-        <RunSummary
-          view={view}
-          onOpenNote={onOpenNote}
-          spaceId={spaceId}
-          onOpenMemory={onOpenMemory}
-          onMemoryChanged={onMemoryChanged}
-        />
+        <div
+          className="run-panel__summary"
+          ref={summary}
+          style={summaryHeight === null ? undefined : { height: `${String(summaryHeight)}px` }}
+        >
+          <RunSummary
+            view={view}
+            onOpenNote={onOpenNote}
+            spaceId={spaceId}
+            onOpenMemory={onOpenMemory}
+            onMemoryChanged={onMemoryChanged}
+            unfolded={summaryHeight !== null}
+          />
+          <Splitter
+            axis="y"
+            side="end"
+            value={summaryHeight}
+            measure={() => summary.current?.offsetHeight ?? SUMMARY_HEIGHT_MIN}
+            min={SUMMARY_HEIGHT_MIN}
+            max={() => SUMMARY_HEIGHT_MAX}
+            onChange={setSummaryHeight}
+            label="Resize the summary"
+          />
+        </div>
 
         {/* One sentence about the run at this cursor. Derived from the fold,
             so it is the same sentence live and on replay, and it is the
@@ -174,8 +208,16 @@ export function RunPanel({
           {nowLine(view)}
         </p>
 
-        <div className="run-panel__canvas" ref={canvas}>
-          <RunGraph view={view} selectedAgent={selectedName} onSelectAgent={onSelectAgent} />
+        <div className={`run-panel__canvas${expanded ? " run-panel__canvas--expanded" : ""}`} ref={canvas}>
+          <RunGraph
+            view={view}
+            selectedAgent={selectedName}
+            onSelectAgent={onSelectAgent}
+            expanded={expanded}
+            onToggleExpand={() => {
+              setExpanded((current) => !current);
+            }}
+          />
 
           {selected !== null && selectedName !== null && (
             <AgentDetail
@@ -194,16 +236,18 @@ export function RunPanel({
             />
           )}
 
-          <Splitter
-            axis="y"
-            side="end"
-            value={canvasHeight}
-            measure={() => canvas.current?.offsetHeight ?? CANVAS_HEIGHT_MIN}
-            min={CANVAS_HEIGHT_MIN}
-            max={canvasMax}
-            onChange={setCanvasHeight}
-            label="Resize the canvas"
-          />
+          {!expanded && (
+            <Splitter
+              axis="y"
+              side="end"
+              value={canvasHeight}
+              measure={() => canvas.current?.offsetHeight ?? CANVAS_HEIGHT_MIN}
+              min={CANVAS_HEIGHT_MIN}
+              max={canvasMax}
+              onChange={setCanvasHeight}
+              label="Resize the canvas"
+            />
+          )}
         </div>
 
         <EventLog

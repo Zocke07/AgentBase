@@ -2,6 +2,7 @@ import {
   Background,
   BackgroundVariant,
   BaseEdge,
+  ControlButton,
   Controls,
   EdgeLabelRenderer,
   getSmoothStepPath,
@@ -11,7 +12,7 @@ import {
   useReactFlow,
   type EdgeProps,
 } from "@xyflow/react";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { ellipsise } from "../lib/format";
 import { activityLabel, STATUS_LABEL } from "../state/describe";
@@ -43,6 +44,9 @@ export interface RunGraphProps {
   view: RunView;
   selectedAgent: string | null;
   onSelectAgent: (name: string | null) => void;
+  /** Whether the canvas fills the window; undefined where nothing can expand it. */
+  expanded?: boolean | undefined;
+  onToggleExpand?: (() => void) | undefined;
 }
 
 const STATE_WORD: Record<Activity, string> = {
@@ -234,6 +238,22 @@ function OutcomeCard({ data }: { data: OutcomeNodeData }) {
   );
 }
 
+function ExpandGlyph() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M3 3h6v2H5v4H3zm8 0h6v6h-2V5h-4zM3 11h2v4h4v2H3zm12 0h2v6h-6v-2h4z" />
+    </svg>
+  );
+}
+
+function CollapseGlyph() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M9 3v6H3V7h4V3zm2 0h2v4h4v2h-6zM3 11h6v6H7v-4H3zm8 0h6v2h-4v4h-2z" />
+    </svg>
+  );
+}
+
 function DoneGlyph() {
   return (
     <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -380,14 +400,20 @@ function Camera({ nodes, userMoved }: { nodes: WorkflowNode[]; userMoved: boolea
   return null;
 }
 
-export function RunGraph({ view, selectedAgent, onSelectAgent }: RunGraphProps) {
+export function RunGraph({ view, selectedAgent, onSelectAgent, expanded, onToggleExpand }: RunGraphProps) {
   const nodes = useMemo(() => layout(view, selectedAgent), [view, selectedAgent]);
   const graphEdges = useMemo(() => workflowEdges(view), [view]);
   // Set the first time the *user* moves the camera. React Flow reports a
   // programmatic `setViewport` with a null event, so the fit itself does not
   // count. State rather than a ref so `Camera` re-renders when it flips.
+  // Filling the window or leaving it is a new pane, so the run is framed in
+  // it again whatever the camera was before.
   const [userMoved, setUserMoved] = useState(false);
-  const moved = useRef(false);
+  const [seenExpanded, setSeenExpanded] = useState(expanded);
+  if (seenExpanded !== expanded) {
+    setSeenExpanded(expanded);
+    setUserMoved(false);
+  }
 
   if (view.goal === null && view.agentOrder.length === 0) {
     return (
@@ -433,15 +459,24 @@ export function RunGraph({ view, selectedAgent, onSelectAgent }: RunGraphProps) 
           onSelectAgent(null);
         }}
         onMoveStart={(event) => {
-          if (event !== null && !moved.current) {
-            moved.current = true;
-            setUserMoved(true);
-          }
+          if (event !== null) setUserMoved(true);
         }}
       >
         <Camera nodes={nodes} userMoved={userMoved} />
         <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} />
-        <Controls showInteractive={false} />
+        <Controls showInteractive={false}>
+          {onToggleExpand !== undefined && (
+            <ControlButton
+              onClick={onToggleExpand}
+              title={expanded ? "Leave full screen (Esc)" : "Full screen"}
+              aria-label={expanded ? "Leave full screen" : "Full screen"}
+              aria-pressed={expanded ?? false}
+              data-testid="graph-expand"
+            >
+              {expanded ? <CollapseGlyph /> : <ExpandGlyph />}
+            </ControlButton>
+          )}
+        </Controls>
       </ReactFlow>
       {legend}
     </div>
