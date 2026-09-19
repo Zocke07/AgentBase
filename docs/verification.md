@@ -4,7 +4,7 @@ Updated 2026-09-19. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
 superseded gaps. A test result below is scoped to what was actually executed.
 
-## After 0.4.0: the Obsidian button, the investment roster, the canvas, panels and per-tool answers
+## 0.4.1: the investment roster, per-tool answers, the Runs panels and the Obsidian button
 
 On 2026-09-19 the maintainer clicked **Open in Obsidian** on a Mac without
 Obsidian and got the launcher's exit status as the error. The shell now has

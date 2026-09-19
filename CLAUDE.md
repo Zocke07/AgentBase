@@ -15,9 +15,11 @@ and disconnects their stored keys.
 
 - Phases 0 through 9 and the spaces redesign are implemented. Do not restart
   Phase 0 or replace completed work from an earlier phase.
-- The current release line is **0.4.0**: Phase 13 (scheduled runs, the Usage
-  section, the first-run tour and About box, migration 009) over 0.3.3's run
-  canvas and vault and 0.3.2's packaging. It includes the Windows installer and an ad-hoc signed,
+- The current release line is **0.4.1**: the investment roster in the default
+  space (migration 010), per-tool approval answers and a run-wide yes
+  (migration 011), resizable Runs panels and relabelled handoffs, over
+  0.4.0's schedules, Usage and tour, 0.3.3's run canvas and vault and
+  0.3.2's packaging. It includes the Windows installer and an ad-hoc signed,
   unnotarized Apple Silicon macOS disk image (a zip until 0.3.1; the image's
   Applications link keeps the app out of Downloads, where Gatekeeper
   translocates it and Spotlight ignores it). An incomplete first 0.2.0 Mac
