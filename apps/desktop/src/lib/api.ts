@@ -9,9 +9,10 @@ import type {
   CreateScheduleRequest,
   CreateSpaceRequest,
   Event,
-  KnowledgeGraph,
   KnowledgeEvaluation,
   KnowledgeEvaluationCase,
+  KnowledgeFolderDeleteResult,
+  KnowledgeGraph,
   KnowledgeImportResult,
   KnowledgeIndex,
   KnowledgeMoveResult,
@@ -25,8 +26,8 @@ import type {
   Run,
   SchedulePreview,
   ScheduleResponse,
-  SettingsResponse,
   SearchFilters,
+  SettingsResponse,
   SpaceResponse,
   ToolResponse,
   UpdateAgentRequest,
@@ -232,6 +233,10 @@ export const saveKnowledgeNote = (
 
 export const deleteKnowledgeNote = (spaceId: string, path: string): Promise<void> =>
   requestNoContent(`/spaces/${spaceId}/knowledge/note${query({ path })}`, { method: "DELETE" });
+
+/** Delete a folder and everything in it; the sidecar copies it under `.agentspace/backups/` first. */
+export const deleteKnowledgeFolder = (spaceId: string, path: string): Promise<KnowledgeFolderDeleteResult> =>
+  request<KnowledgeFolderDeleteResult>(`/spaces/${spaceId}/knowledge/folder${query({ path })}`, { method: "DELETE" });
 
 export const searchKnowledge = (
   spaceId: string,

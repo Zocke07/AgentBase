@@ -23,6 +23,9 @@ export interface RailProps {
   onSpaceCreated: (space: SpaceResponse) => void;
   /** A count worth a glance beside a section's name: approvals waiting, memories to decide on. */
   badges?: Partial<Record<Section, number>> | undefined;
+  /** Icons only, with the names in tooltips; the toggle is at the rail's foot. */
+  collapsed?: boolean | undefined;
+  onToggleCollapsed?: (() => void) | undefined;
 }
 
 
@@ -93,6 +96,8 @@ export function Rail({
   onSelectSpace,
   onSpaceCreated,
   badges,
+  collapsed = false,
+  onToggleCollapsed,
 }: RailProps) {
   const entry = (id: Section, label: string, icon: ReactNode) => {
     const badge = badges?.[id] ?? 0;
@@ -121,7 +126,7 @@ export function Rail({
   };
 
   return (
-    <nav className="rail" aria-label="Sections" data-testid="rail">
+    <nav className={`rail${collapsed ? " rail--collapsed" : ""}`} aria-label="Sections" data-testid="rail">
       <div className="rail__brand">
         <span className="rail__logo" aria-hidden="true" />
         <span className="rail__name">AgentSpace</span>
@@ -132,6 +137,7 @@ export function Rail({
         currentId={currentSpaceId}
         onSelect={onSelectSpace}
         onCreated={onSpaceCreated}
+        compact={collapsed}
       />
 
       <div className="rail__sections">{SECTIONS.map(({ id, label, icon }) => entry(id, label, icon))}</div>
@@ -143,6 +149,22 @@ export function Rail({
           <svg viewBox="0 0 20 20" aria-hidden="true">
             <path d="M10 6.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm7.2 4.5.1-1-1.6-1.2a5.6 5.6 0 0 0-.5-1.2l.7-1.9-.7-.7-1.9.7a5.6 5.6 0 0 0-1.2-.5L10.9 2H9.1L8 3.7a5.6 5.6 0 0 0-1.2.5L4.9 3.5l-.7.7.7 1.9a5.6 5.6 0 0 0-.5 1.2L2.8 9v1l1.6 1.2c.1.4.3.8.5 1.2l-.7 1.9.7.7 1.9-.7c.4.2.8.4 1.2.5L9.1 18h1.8l1.1-1.7c.4-.1.8-.3 1.2-.5l1.9.7.7-.7-.7-1.9c.2-.4.4-.8.5-1.2z" />
           </svg>,
+        )}
+        {onToggleCollapsed !== undefined && (
+          <button
+            type="button"
+            className="rail__item rail__toggle"
+            title={`${collapsed ? "Show" : "Hide"} the sidebar (Ctrl/Cmd+B)`}
+            aria-label={collapsed ? "Show the sidebar" : "Hide the sidebar"}
+            aria-pressed={collapsed}
+            data-testid="rail-toggle"
+            onClick={onToggleCollapsed}
+          >
+            <svg viewBox="0 0 20 20" aria-hidden="true" className={collapsed ? "rail__toggle-icon--flipped" : ""}>
+              <path d="M12.5 4 6.5 10l6 6 1.4-1.4L9.3 10l4.6-4.6z" />
+            </svg>
+            <span>{collapsed ? "Show" : "Hide"} the sidebar</span>
+          </button>
         )}
       </div>
     </nav>

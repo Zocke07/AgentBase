@@ -11,6 +11,7 @@ from agentspace.knowledge.store import (
     KnowledgeConflictError,
     KnowledgeEvaluation,
     KnowledgeEvaluationCase,
+    KnowledgeFolderDeleteResult,
     KnowledgeGraph,
     KnowledgeImportResult,
     KnowledgeIndex,
@@ -169,6 +170,21 @@ async def delete_note(request: Request, space_id: str, path: str = Query(...)) -
     except NoteNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return Response(status_code=204)
+
+
+@router.delete("/folder")
+async def delete_folder(
+    request: Request, space_id: str, path: str = Query(...)
+) -> KnowledgeFolderDeleteResult:
+    """Delete a folder and its notes, after a copy under `.agentspace/backups/`."""
+    try:
+        return await _store(request).delete_folder(space_id, path)
+    except SpaceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KnowledgePathError as exc:
+        raise _bad_path(exc) from exc
+    except NoteNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/search")

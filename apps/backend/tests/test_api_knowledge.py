@@ -58,6 +58,44 @@ def test_crud_search_and_graph(client: TestClient) -> None:
     assert client.get(f"{prefix}/note", params={"path": "ideas/agents.md"}).status_code == 404
 
 
+def test_a_folder_can_be_deleted_with_a_copy_kept_first(client: TestClient) -> None:
+    """A folder goes with everything in it, after every file it held is copied
+    under `.agentspace/backups/`; the root and hidden folders are refused."""
+    prefix = f"/spaces/{DEFAULT_SPACE_ID}/knowledge"
+    for path, content in (
+        ("scratch/one.md", "# One\n\nSee [[keep/two]]."),
+        ("scratch/deeper/three.md", "# Three"),
+        ("keep/two.md", "# Two\n\nSee [[scratch/one]]."),
+    ):
+        assert (
+            client.put(f"{prefix}/note", json={"path": path, "content": content}).status_code
+            == 200
+        )
+    state = client.app.state  # type: ignore[attr-defined]
+    folder = state.spaces.folder_for(DEFAULT_SPACE_ID)
+    (folder / "scratch" / "config.json").write_text('{"tickers": ["AAPL"]}', encoding="utf-8")
+
+    deleted = client.delete(f"{prefix}/folder", params={"path": "scratch/"})
+    assert deleted.status_code == 200, deleted.text
+    body = deleted.json()
+    assert (body["path"], body["deleted_files"]) == ("scratch", 3)
+    assert not (folder / "scratch").exists()
+    backup = folder / body["backup_path"]
+    assert (backup / "scratch" / "one.md").read_text(encoding="utf-8").startswith("# One")
+    assert (backup / "scratch" / "config.json").is_file()
+
+    remaining = [note["path"] for note in client.get(prefix).json()["notes"]]
+    assert remaining == ["keep/two.md"]
+    two = client.get(f"{prefix}/note", params={"path": "keep/two.md"}).json()
+    assert two["unresolved_links"] == ["scratch/one"]
+
+    assert client.delete(f"{prefix}/folder", params={"path": "scratch"}).status_code == 404
+    for refused in ("", ".", ".obsidian", "../", ".agentspace/backups"):
+        assert client.delete(f"{prefix}/folder", params={"path": refused}).status_code == 400, (
+            refused
+        )
+
+
 def test_missing_space_and_invalid_paths_are_readable_errors(client: TestClient) -> None:
     assert client.get("/spaces/ghost/knowledge").status_code == 404
     rejected = client.put(

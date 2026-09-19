@@ -43,6 +43,7 @@ __all__ = [
     "KnowledgeEvaluation",
     "KnowledgeEvaluationCase",
     "KnowledgeEvaluationResult",
+    "KnowledgeFolderDeleteResult",
     "KnowledgeGraph",
     "KnowledgeImportResult",
     "KnowledgeIndex",
@@ -316,6 +317,16 @@ class KnowledgeMoveResult(BaseModel):
     backup_path: str
 
 
+class KnowledgeFolderDeleteResult(BaseModel):
+    """What deleting a folder removed, and where a copy went first."""
+
+    model_config = ConfigDict(frozen=True)
+
+    path: str
+    deleted_files: int
+    backup_path: str
+
+
 class KnowledgeImportResult(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -449,6 +460,33 @@ class KnowledgeStore:
             resolved.unlink()
 
         await asyncio.to_thread(delete)
+
+    async def delete_folder(self, space_id: str, path: str) -> KnowledgeFolderDeleteResult:
+        """Delete a folder of the vault with everything in it, after copying
+        every file it holds under `.agentspace/backups/`, the way a move or a
+        merge backs up what it changes. The vault root, hidden folders and
+        anything outside the space are refused; links into the folder are
+        left to resolve as unresolved, which the tree then shows.
+        """
+        root, resolved, shown = await self._resolve_folder(space_id, path)
+
+        def delete() -> KnowledgeFolderDeleteResult:
+            if not resolved.is_dir():
+                raise NoteNotFoundError(f"There is no folder at {shown}.")
+            files = [
+                candidate
+                for candidate in sorted(resolved.rglob("*"))
+                if candidate.is_file() and not candidate.is_symlink()
+            ]
+            backup = _backup_files(root, files, "delete-folder")
+            shutil.rmtree(resolved)
+            return KnowledgeFolderDeleteResult(
+                path=shown,
+                deleted_files=len(files),
+                backup_path=backup.relative_to(root).as_posix(),
+            )
+
+        return await asyncio.to_thread(delete)
 
     async def move_note(
         self, space_id: str, source: str, target: str, *, update_links: bool = True
@@ -863,6 +901,29 @@ class KnowledgeStore:
             raise KnowledgePathError(
                 "Hidden folders, including .obsidian, are managed by the user and cannot "
                 "be changed through Knowledge."
+            )
+        return root, resolved, relative.as_posix()
+
+    async def _resolve_folder(self, space_id: str, path: str) -> tuple[Path, Path, str]:
+        """Like `_resolve`, for a folder: no extension rule, and never the root."""
+        root = await self._root(space_id)
+        cleaned = path.strip().strip("/")
+        if cleaned in ("", "."):
+            raise KnowledgePathError(
+                "The vault itself cannot be deleted; delete the space instead."
+            )
+        try:
+            resolved = Sandbox(root).resolve_path(cleaned)
+        except SandboxViolationError as exc:
+            raise KnowledgePathError(str(exc)) from exc
+        try:
+            relative = resolved.relative_to(root)
+        except ValueError as exc:  # pragma: no cover - Sandbox pins this
+            raise KnowledgePathError(f"{path!r} is outside this space.") from exc
+        if any(part.startswith(".") for part in relative.parts):
+            raise KnowledgePathError(
+                "Hidden folders, including .obsidian and .agentspace, are managed by the "
+                "user and cannot be changed through Knowledge."
             )
         return root, resolved, relative.as_posix()
 

@@ -39,6 +39,12 @@ memory/
 holds notes you save from a run's event log; `daily/` and `templates/` are
 used by the **Daily note** and **From template** buttons. The rest is yours.
 
+A folder is deleted from the tree: the **✕** that appears beside a folder's
+name asks first, then removes the folder and everything in it, notes and
+other files alike, after copying every file it held under
+`.agentspace/backups/`. Links into the deleted folder become unresolved
+links. The vault itself and hidden folders cannot be deleted this way.
+
 ## Links, properties and preview
 
 Link notes with Obsidian wikilinks such as `[[research/sqlite]]`,

@@ -4,6 +4,33 @@ Updated 2026-09-19. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
 superseded gaps. A test result below is scoped to what was actually executed.
 
+## After 0.4.2: the provider change moves space models, news-scanner reads, folder delete, a folding rail
+
+On 2026-09-19 the maintainer saw the header read "openai · claude-haiku-4-5"
+after changing the app-wide provider: a space that inherits the provider was
+keeping a model of the old one. `PATCH /settings` now moves every such space
+to the new provider's default model (a space with a provider of its own is
+untouched; Ollama's model is typed, so those become blank), and the
+catalogue names each provider's default so the space page picks the same
+one. Their first real run of `news-scanner` stopped on "cannot run without
+access to configuration files": 010 shipped it with `http_get` and
+`write_file` only, so it could not read `config/`; migration 013 adds
+`read_file`, guarded on the allowlist still being what 010 wrote. The
+Knowledge tree gained a folder delete (a second click, a copy of every file
+under `.agentspace/backups/` first, `DELETE .../knowledge/folder`, the root
+and hidden folders refused) and the rail a fold to icons (a button beneath
+Settings, Ctrl/Cmd+B, remembered in the browser). Executed: `just check`;
+**784 backend tests** (new: the provider change over the API and the
+catalogue's defaults, the folder delete with its backup and refusals, the
+roster's widened scanner); **430 frontend tests** (the rail folding from
+its button and the shortcut, the folder delete's confirmation and toast).
+In Chrome against the scratch sidecar, migrated to 13: the scanner's
+allowlist read `["http_get","read_file","write_file"]`; a provider change to
+openai moved both inheriting spaces to `gpt-5.5` and back to `claude-opus-5`
+with the header following; the rail folded to 56 px with the space's
+initial; a seeded `scratch/` folder was deleted from the tree after the
+confirmation and its copy appeared under `.agentspace/backups/`.
+
 ## 0.4.2: the model on the space, the runs filter, schedule limits, the summary handle, full-screen canvas
 
 On 2026-09-19, after 0.4.1: the supervisor's account gained a drag handle

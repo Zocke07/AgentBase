@@ -306,8 +306,9 @@ function SpaceForm({
                 // the new provider's first listed model, or blank to type.
                 const provider = changed.target.value;
                 const next = provider === "" ? (inherited?.provider ?? "") : provider;
+                const entry = catalogue.providers.find((candidate) => candidate.name === next);
                 set("provider", provider);
-                set("model", catalogue.models[next]?.[0] ?? "");
+                set("model", entry?.default_model ?? catalogue.models[next]?.[0] ?? "");
               }}
               data-testid="space-provider"
             >

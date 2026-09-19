@@ -77,6 +77,7 @@ ends on the demo run; **Skip the tour** or Esc closes it for good, and
 | **Usage** | What this month's model calls cost and carried, by day, model, space and run. |
 | **Space settings** | Name, description, folder, model, limits, approval answers and schedules for this space. |
 | **Settings**, at the bottom | App defaults, keys, shared budget, Discord, theme and the About box. |
+| **Hide the sidebar**, beneath Settings | Folds the rail to icons (Ctrl/Cmd+B does the same); the names stay in tooltips and the space's initial stands in for its name. |
 
 The header shows the selected space's provider and model, the shared monthly
 budget, and any approvals waiting across spaces. Switching spaces changes

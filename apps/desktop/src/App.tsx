@@ -25,6 +25,7 @@ import { useRoster } from "./state/roster";
 import { unfinished, useRunList } from "./state/runList";
 import { useRunStore } from "./state/runStore";
 import { currentSpace, useSpaces } from "./state/spaces";
+import { useStoredFlag } from "./state/useStoredFlag";
 
 /**
  * The shell: a rail of sections on the left, the section on the right, and a
@@ -259,11 +260,19 @@ export function App() {
     openRun(run.id);
   }, [openRun]);
 
-  // Ctrl/Cmd and a digit jumps to a section, in rail order.
+  // The sidebar folds to icons on request, remembered in this browser.
+  const [railCollapsed, setRailCollapsed] = useStoredFlag("rail.collapsed");
+
+  // Ctrl/Cmd and a digit jumps to a section, in rail order; Ctrl/Cmd+B folds the sidebar.
   useEffect(() => {
     if (status.kind !== "ready") return undefined;
     const onKey = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
+      if (event.key === "b" || event.key === "B") {
+        event.preventDefault();
+        setRailCollapsed(!railCollapsed);
+        return;
+      }
       const digit = Number.parseInt(event.key, 10);
       if (Number.isNaN(digit)) return;
       const target = SECTION_ORDER[digit - 1];
@@ -275,7 +284,7 @@ export function App() {
     return () => {
       document.removeEventListener("keydown", onKey);
     };
-  }, [status.kind]);
+  }, [status.kind, railCollapsed, setRailCollapsed]);
 
   // The provider and model a run in this space would use.
   const effectiveProvider = space?.provider ?? settings?.settings.provider ?? null;
@@ -317,10 +326,14 @@ export function App() {
   }
 
   return (
-    <div className="app">
+    <div className={`app${railCollapsed ? " app--rail-collapsed" : ""}`}>
       <Rail
         section={section}
         onSelect={setSection}
+        collapsed={railCollapsed}
+        onToggleCollapsed={() => {
+          setRailCollapsed(!railCollapsed);
+        }}
         spaces={spaces}
         currentSpaceId={spaceId}
         onSelectSpace={switchSpace}

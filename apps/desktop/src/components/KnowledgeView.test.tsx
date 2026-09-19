@@ -29,6 +29,7 @@ vi.mock("../lib/api", async (importOriginal) => ({
   getKnowledgeNote: vi.fn(),
   saveKnowledgeNote: vi.fn(),
   deleteKnowledgeNote: vi.fn(),
+  deleteKnowledgeFolder: vi.fn(),
   searchKnowledge: vi.fn(),
   getKnowledgeGraph: vi.fn(),
   moveKnowledgeNote: vi.fn(),
@@ -369,7 +370,8 @@ describe("the vault as an editor", () => {
     render(<KnowledgeView space={space} />);
     await screen.findByRole("button", { name: /Storage decision/ });
 
-    const folder = screen.getByRole("button", { name: /decisions/ });
+    // The fold button, not the folder's delete beside it.
+    const folder = screen.getByRole("button", { name: /^decisions/ });
     expect(folder).toHaveProperty("ariaExpanded", "true");
     await user.click(folder);
     expect(screen.queryByRole("button", { name: /Storage decision/ })).toBeNull();
@@ -472,6 +474,33 @@ describe("the vault as an editor", () => {
     await waitFor(() => {
       expect(mocked.getKnowledgeNote).toHaveBeenCalledWith("space-lab", "scratch/orphan.md");
     });
+  });
+
+  it("deletes a folder after a second click, and says where the copy went", async () => {
+    const user = userEvent.setup();
+    mocked.deleteKnowledgeFolder.mockResolvedValue({
+      path: "decisions",
+      deleted_files: 1,
+      backup_path: ".agentspace/backups/20260919T000000Z-delete-folder-abcd1234",
+    });
+    render(<KnowledgeView space={space} />);
+    await user.click(await screen.findByRole("button", { name: /Storage decision/ }));
+
+    await user.click(screen.getByRole("button", { name: "Delete the folder decisions" }));
+    expect(screen.getByTestId("folder-confirm").textContent).toContain("decisions/");
+    expect(mocked.deleteKnowledgeFolder).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Keep" }));
+    expect(screen.queryByTestId("folder-confirm")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Delete the folder decisions" }));
+    await user.click(screen.getByRole("button", { name: "Delete folder" }));
+
+    await waitFor(() => {
+      expect(mocked.deleteKnowledgeFolder).toHaveBeenCalledWith("space-lab", "decisions");
+    });
+    // The open note was inside: the editor lets go of it.
+    expect(screen.queryByLabelText("Markdown source")).toBeNull();
+    expect((await screen.findByText(/a copy is at/)).textContent).toContain("delete-folder-abcd1234");
   });
 
   it("offers Open in Obsidian only where the shell found Obsidian", async () => {

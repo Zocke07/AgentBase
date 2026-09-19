@@ -18,7 +18,7 @@ and `config/limits.json` for the collectors to read.
 
 | Agent | Model | What it does | Tools |
 |---|---|---|---|
-| `news-scanner` | Haiku | Collects news and social discussion about watchlist tickers into `raw/news-*.json`. No analysis. | `http_get`, `write_file` |
+| `news-scanner` | Haiku | Collects news and social discussion about watchlist tickers into `raw/news-*.json`. No analysis. | `http_get`, `read_file`, `write_file` |
 | `research-librarian` | Sonnet | Writes durable concept and company notes under `knowledge/`, sourced to filings. | `read_file`, `list_dir`, `search_knowledge`, `write_file`, `propose_memory` |
 | `market-movers` | Haiku | Collects prices, volume and gainers/losers into `raw/movers-*.json`. Numbers only. | `http_get`, `read_file`, `write_file` |
 | `event-calendar` | Haiku | Builds a 30-day calendar of earnings, macro releases, corporate events and personnel changes. | `http_get`, `read_file`, `write_file` |
@@ -38,6 +38,20 @@ no built-in can run a shell command. Their **Calls this agent may make
 without asking** lists narrow the app-wide policy (the collectors to low and
 medium risk, the analysts to low) and never widen it, so nothing runs
 unattended until you tick a level in Settings.
+
+Before the first collector run, create the configuration the prompts read.
+Open the space folder (**Space settings → Open folder**), make a `config`
+folder, and put two files in it. `config/watchlist.json` lists the tickers:
+any JSON the prompt can read works, for example a `watchlist` array of
+objects with `ticker`, `company_name` and `aliases`, since the prompt says to
+take tickers only from this file. `config/sources.json` names the feeds and
+their URL templates, for example a Google News RSS template with `{ticker}`
+in it for `news-scanner`, a Stooq template for `market-movers`, and any keyed
+endpoint with its key in the query string for `event-calendar`; a note field
+per source is fine, the agent reads the file as text. The agents read these
+with `read_file`, so the files must be inside the space folder, not on the
+web. `config/limits.json` holds the hard risk rules `portfolio-review` and
+`risk-manager` restate.
 
 Two things the prompts assume that AgentSpace does not provide: scripts
 (`scripts/compute_movers.py`, `compute_portfolio.py`, `check_limits.py`,

@@ -253,6 +253,25 @@ describe("switching sections", () => {
     expect(screen.getByTestId("home").closest("[hidden]")).not.toBeNull();
   });
 
+  it("folds the sidebar to icons from its button or Ctrl/Cmd+B, and remembers it", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByTestId("run-list");
+    const rail = screen.getByTestId("rail");
+    expect(rail.className).not.toContain("rail--collapsed");
+
+    await user.click(screen.getByRole("button", { name: "Hide the sidebar" }));
+    expect(rail.className).toContain("rail--collapsed");
+    expect(rail.parentElement?.className).toContain("app--rail-collapsed");
+    // The names are gone from the row; the tooltip still names it.
+    expect(screen.getByRole("button", { name: "Agents" }).getAttribute("title")).toContain("Agents");
+    expect(localStorage.getItem("agentspace.flag.rail.collapsed")).toBe("1");
+
+    await user.keyboard("{Control>}b{/Control}");
+    expect(rail.className).not.toContain("rail--collapsed");
+    expect(localStorage.getItem("agentspace.flag.rail.collapsed")).toBe("0");
+  });
+
   it("fetches the run list and the roster once, however many sections show them", async () => {
     /* Home and Runs both show the runs; Home and Agents both show the roster.
        Two copies of a list one of them edits disagree the moment it does, and

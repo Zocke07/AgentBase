@@ -203,6 +203,7 @@ cannot store secrets in the OS keychain.
 | `GET /spaces/{id}/knowledge` | Markdown notes, vault statistics and what the incremental index did. |
 | `GET`, `PUT`, `DELETE /spaces/{id}/knowledge/note` | Read, save or delete a Markdown note. |
 | `POST /spaces/{id}/knowledge/move` | Move or rename a note, rewriting links, with a backup. |
+| `DELETE /spaces/{id}/knowledge/folder` | Delete a folder and everything in it, with a backup; never the vault root or a hidden folder. |
 | `PATCH /spaces/{id}/knowledge/pin` | Pin or unpin any note. |
 | `POST /spaces/{id}/knowledge/import` | Import Markdown files into the space, skipping or backing up conflicts. |
 | `POST /spaces/{id}/knowledge/search` | Local cited retrieval with optional folder, tag, type, date and status filters. |

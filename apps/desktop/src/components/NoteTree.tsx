@@ -12,6 +12,8 @@ export interface NoteTreeProps {
   notes: readonly NoteSummary[];
   activePath: string | null;
   onOpen: (path: string) => void;
+  /** Ask to delete a folder and everything in it; absent where folders cannot be deleted. */
+  onDeleteFolder?: ((path: string, notes: number) => void) | undefined;
 }
 
 interface Folder {
@@ -50,7 +52,7 @@ function countNotes(folder: Folder): number {
   return folder.notes.length + folder.folders.reduce((total, child) => total + countNotes(child), 0);
 }
 
-export function NoteTree({ notes, activePath, onOpen }: NoteTreeProps) {
+export function NoteTree({ notes, activePath, onOpen, onDeleteFolder }: NoteTreeProps) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   const tree = buildTree(notes);
 
@@ -69,19 +71,34 @@ export function NoteTree({ notes, activePath, onOpen }: NoteTreeProps) {
         const open = !collapsed.has(child.path);
         return (
           <li key={`folder:${child.path}`} className="tree__item">
-            <button
-              type="button"
-              className="tree__folder"
-              style={{ paddingLeft: `${String(0.5 + depth * 0.85)}rem` }}
-              aria-expanded={open}
-              onClick={() => {
-                toggle(child.path);
-              }}
-            >
-              <span className={`tree__chevron${open ? " tree__chevron--open" : ""}`} aria-hidden="true" />
-              <span className="tree__name">{child.name}</span>
-              <span className="tree__count">{countNotes(child)}</span>
-            </button>
+            <div className="tree__folder-row">
+              <button
+                type="button"
+                className="tree__folder"
+                style={{ paddingLeft: `${String(0.5 + depth * 0.85)}rem` }}
+                aria-expanded={open}
+                onClick={() => {
+                  toggle(child.path);
+                }}
+              >
+                <span className={`tree__chevron${open ? " tree__chevron--open" : ""}`} aria-hidden="true" />
+                <span className="tree__name">{child.name}</span>
+                <span className="tree__count">{countNotes(child)}</span>
+              </button>
+              {onDeleteFolder !== undefined && (
+                <button
+                  type="button"
+                  className="tree__folder-delete"
+                  aria-label={`Delete the folder ${child.path}`}
+                  title={`Delete ${child.path}/ and everything in it`}
+                  onClick={() => {
+                    onDeleteFolder(child.path, countNotes(child));
+                  }}
+                >
+                  {"✕"}
+                </button>
+              )}
+            </div>
             {open && <ul className="tree__group">{renderFolder(child, depth + 1)}</ul>}
           </li>
         );

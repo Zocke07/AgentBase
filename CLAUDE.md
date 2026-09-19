@@ -51,8 +51,11 @@ and disconnects their stored keys.
   pick its own, and the app-wide `settings.model` remains as the fallback
   that follows the provider and is not shown. A schedule may carry its own
   `max_run_seconds`, laid over the space's for its runs alone. `GET /runs`
-  takes `origin`.
-- The latest recorded database migration is 012 (space models, schedule time limits). Existing workspace files are
+  takes `origin`. A change of the app-wide provider moves every space that
+  inherits the provider to the new provider's default model, since a model
+  belongs to a provider. The Knowledge tree can delete a folder (backed up
+  first); the rail folds to icons (Ctrl/Cmd+B).
+- The latest recorded database migration is 013 (news-scanner reads its config). Existing workspace files are
   adopted into the default space once; new spaces get their own folders. Each
   space folder is also an Obsidian-compatible Markdown vault. The Knowledge
   section provides notes, properties, tags, links, backlinks, unresolved links,

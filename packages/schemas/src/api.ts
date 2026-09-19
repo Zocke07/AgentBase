@@ -250,6 +250,13 @@ export interface KnowledgeEvaluationResult {
   recall_at_k: number;
 }
 
+/** What deleting a folder removed, and where a copy went first. */
+export interface KnowledgeFolderDeleteResult {
+  path: string;
+  deleted_files: number;
+  backup_path: string;
+}
+
 export interface KnowledgeGraph {
   nodes: KnowledgeNode[];
   edges: KnowledgeEdge[];
@@ -402,6 +409,7 @@ export interface ProviderEntry {
   name: string;
   requires_key: boolean;
   free_text_model: boolean;
+  default_model?: string | null;
 }
 
 /** A decision on one approval. A misspelled field must not be read as a denial. */

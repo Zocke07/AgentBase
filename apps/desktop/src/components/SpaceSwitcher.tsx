@@ -16,11 +16,13 @@ export interface SpaceSwitcherProps {
   onSelect: (id: string) => void;
   /** A space was created; the shell reloads the list and may switch to it. */
   onCreated: (space: SpaceResponse) => void;
+  /** The rail is icons only: show the space's initial, with the name in the tooltip. */
+  compact?: boolean | undefined;
 }
 
 type Seed = CreateSpaceRequest["seed"];
 
-export function SpaceSwitcher({ spaces, currentId, onSelect, onCreated }: SpaceSwitcherProps) {
+export function SpaceSwitcher({ spaces, currentId, onSelect, onCreated, compact = false }: SpaceSwitcherProps) {
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
@@ -82,17 +84,21 @@ export function SpaceSwitcher({ spaces, currentId, onSelect, onCreated }: SpaceS
   };
 
   return (
-    <div className="switcher" ref={root} data-testid="space-switcher" data-tour="space">
+    <div className={`switcher${compact ? " switcher--compact" : ""}`} ref={root} data-testid="space-switcher" data-tour="space">
       <button
         type="button"
         className="switcher__current"
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`Space: ${current?.name ?? "loading"}`}
+        title={compact ? `Space: ${current?.name ?? "…"}` : undefined}
         onClick={() => {
           setOpen((was) => !was);
         }}
       >
+        <span className="switcher__initial" aria-hidden="true">
+          {(current?.name ?? "…").slice(0, 1).toLocaleUpperCase()}
+        </span>
         <span className="switcher__label">Space</span>
         <span className="switcher__name">{current?.name ?? "…"}</span>
         <svg viewBox="0 0 20 20" aria-hidden="true" className="switcher__chevron">

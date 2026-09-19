@@ -285,6 +285,33 @@ export function KnowledgeView({
     }
   };
 
+  // A folder asked to be deleted waits for a second click, like a note.
+  const [folderAsked, setFolderAsked] = useState<{ path: string; notes: number } | null>(null);
+  const removeFolder = async () => {
+    if (folderAsked === null) return;
+    const { path } = folderAsked;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await api.deleteKnowledgeFolder(space.id, path);
+      if (note?.path.startsWith(`${path}/`)) {
+        setNote(null);
+        setPath("");
+        setContent("");
+        setBaseline("");
+      }
+      setFolderAsked(null);
+      await reload();
+      setToast(
+        `${path}/ was deleted (${String(result.deleted_files)} file${result.deleted_files === 1 ? "" : "s"}); a copy is at ${result.backup_path}.`,
+      );
+    } catch (failure) {
+      setError(asMessage(failure));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const remove = async () => {
     if (note === null) return;
     setBusy(true);
@@ -809,7 +836,40 @@ export function KnowledgeView({
         ) : (
           <div className="knowledge__notes">
             {visibleNotes.length > 0 && (
-              <NoteTree notes={visibleNotes} activePath={note?.path ?? null} onOpen={requestOpen} />
+              <>
+                {folderAsked !== null && (
+                  <div className="knowledge__folder-confirm" role="alertdialog" aria-label="Delete a folder" data-testid="folder-confirm">
+                    <p>
+                      Delete <b>{folderAsked.path}/</b> and everything in it
+                      {folderAsked.notes > 0 && ` (${String(folderAsked.notes)} note${folderAsked.notes === 1 ? "" : "s"})`}? A copy
+                      goes under .agentspace/backups first.
+                    </p>
+                    <div className="roster__confirm">
+                      <button type="button" className="button button--small button--danger" disabled={busy} onClick={() => void removeFolder()}>
+                        Delete folder
+                      </button>
+                      <button
+                        type="button"
+                        className="button button--small"
+                        disabled={busy}
+                        onClick={() => {
+                          setFolderAsked(null);
+                        }}
+                      >
+                        Keep
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <NoteTree
+                  notes={visibleNotes}
+                  activePath={note?.path ?? null}
+                  onOpen={requestOpen}
+                  onDeleteFolder={(path, notes) => {
+                    setFolderAsked({ path, notes });
+                  }}
+                />
+              </>
             )}
             {index !== null && index.notes.length === 0 && (
               <p className="knowledge__empty">Create a note or open this space as an Obsidian vault.</p>

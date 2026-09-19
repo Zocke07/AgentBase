@@ -377,6 +377,75 @@ pre {
   letter-spacing: -0.02em;
 }
 
+/* --- the folded rail: icons only, names in tooltips ------------------------ */
+
+.app--rail-collapsed {
+  --rail-width: 3.75rem;
+}
+
+.rail--collapsed {
+  padding-right: 0.5rem;
+  padding-left: 0.5rem;
+}
+
+.rail--collapsed .rail__brand {
+  justify-content: center;
+  padding: 0.25rem 0;
+}
+
+.rail--collapsed .rail__name,
+.rail--collapsed .rail__item > span:not(.rail__badge),
+.rail--collapsed .switcher__label,
+.rail--collapsed .switcher__name,
+.rail--collapsed .switcher__chevron {
+  display: none;
+}
+
+.rail--collapsed .rail__item {
+  position: relative;
+  justify-content: center;
+  padding: 0.55rem 0;
+}
+
+.rail--collapsed .rail__badge {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.2rem;
+}
+
+.rail__toggle-icon--flipped {
+  transform: scaleX(-1);
+}
+
+.switcher__initial {
+  display: none;
+}
+
+.rail--collapsed .switcher--compact .switcher__current {
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem 0;
+}
+
+.rail--collapsed .switcher--compact .switcher__initial {
+  display: inline-flex;
+  width: 1.6rem;
+  height: 1.6rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.rail--collapsed .switcher__menu {
+  right: auto;
+  left: 0;
+  width: 14rem;
+}
+
 /* --- the space switcher --------------------------------------------------- */
 
 .switcher {
@@ -868,6 +937,57 @@ pre {
   font-size: 0.8267rem;
   text-align: left;
   cursor: pointer;
+}
+
+.tree__folder-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.tree__folder-row > .tree__folder {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The folder's delete: there on hover and focus, otherwise out of the way. */
+.tree__folder-delete {
+  flex: none;
+  width: 1.4rem;
+  height: 1.4rem;
+  margin-right: 0.25rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.tree__folder-row:hover .tree__folder-delete,
+.tree__folder-delete:focus-visible,
+.tree__folder-row:focus-within .tree__folder-delete {
+  opacity: 1;
+}
+
+.tree__folder-delete:hover {
+  background: var(--bad-soft, color-mix(in srgb, var(--bad) 14%, transparent));
+  color: var(--bad);
+}
+
+.knowledge__folder-confirm {
+  margin: 0 0 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--bad) 45%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bad) 8%, var(--surface));
+  font-size: 0.8rem;
+}
+
+.knowledge__folder-confirm p {
+  margin: 0 0 0.4rem;
 }
 
 .tree__folder {
@@ -2589,6 +2709,8 @@ button.md__tag:hover {
   font-size: 0.7333rem;
   font-weight: 500;
   vertical-align: middle;
+  /* A badge is one word; "built-" on one line and "in" on the next is not. */
+  white-space: nowrap;
 }
 
 /* --- cards ---------------------------------------------------------------- */

@@ -21,7 +21,12 @@ if TYPE_CHECKING:
 
 #: What 010 seeds: name, model, allowed tools, step ceiling, narrowed levels.
 ROSTER: Final[dict[str, tuple[str, tuple[str, ...], int, tuple[str, ...]]]] = {
-    "news-scanner": ("claude-haiku-4-5", ("http_get", "write_file"), 20, ("low", "medium")),
+    "news-scanner": (
+        "claude-haiku-4-5",
+        ("http_get", "read_file", "write_file"),
+        20,
+        ("low", "medium"),
+    ),
     "research-librarian": (
         "claude-sonnet-5",
         ("read_file", "list_dir", "search_knowledge", "write_file", "propose_memory"),

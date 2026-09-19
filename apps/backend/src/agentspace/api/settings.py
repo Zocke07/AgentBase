@@ -221,12 +221,24 @@ async def update_settings(request: Request, body: UpdateSettingsRequest) -> Sett
                     "channel_space_id",
                 )
 
+    before = await _settings_store(request).get()
     try:
         updated = await _settings_store(request).update(changes)
     except ValidationError as exc:
         raise _reject_validation(exc) from exc
     except ValueError as exc:
         raise _reject(str(exc), None) from exc
+
+    # A model belongs to a provider. A space that inherits the provider was
+    # naming a model of the old one, which the new one cannot run, so each
+    # such space moves to the new provider's default; a space with a provider
+    # of its own is untouched. Ollama's model is typed, so those become blank.
+    if updated.provider != before.provider:
+        fallback = default_model_for(updated.provider)
+        spaces = _spaces(request)
+        for space in await spaces.list_all():
+            if space.provider is None:
+                await spaces.update(space.id, {"model": fallback})
 
     # A channel just enabled has to connect now; this product has no restart button.
     if changes.keys() & _CHANNEL_SETTINGS:
@@ -244,6 +256,8 @@ class ProviderEntry(BaseModel):
     requires_key: bool
     #: True when the model name is typed rather than picked (Ollama).
     free_text_model: bool
+    #: The model a space on this provider starts with; ``None`` where it is typed.
+    default_model: str | None = None
 
 
 class ProviderCatalogueResponse(BaseModel):
@@ -266,6 +280,7 @@ async def list_providers() -> ProviderCatalogueResponse:
                 name=name,
                 requires_key=secret is not None,
                 free_text_model=f"{name}/*" in PRICES,
+                default_model=default_model_for(name),
             )
             for name, secret in sorted(SUPPORTED_PROVIDERS.items())
         ],

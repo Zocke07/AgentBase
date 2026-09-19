@@ -448,6 +448,30 @@ def test_the_app_wide_model_follows_the_provider(client: TestClient) -> None:
     assert same.json()["settings"]["model"] == "claude-sonnet-5"
 
 
+def test_a_provider_change_moves_inheriting_spaces_to_its_default_model(
+    client: TestClient,
+) -> None:
+    """A space that inherits the provider was naming a model of the old one,
+    which the new one cannot run; it moves to the new provider's default. A
+    space with a provider of its own is left alone."""
+    from agentspace.store.spaces import DEFAULT_SPACE_ID
+
+    own = client.post("/spaces", json={"name": "Own", "provider": "anthropic"}).json()
+    assert client.get("/spaces").json()[0]["model"] == "claude-opus-5"
+
+    client.patch("/settings", json={"provider": "openai"})
+    spaces = {space["id"]: space for space in client.get("/spaces").json()}
+    assert spaces[DEFAULT_SPACE_ID]["model"] == "gpt-5.5"
+    assert spaces[own["id"]]["model"] == "claude-opus-5"
+
+    client.patch("/settings", json={"provider": "ollama"})
+    assert client.get(f"/spaces/{DEFAULT_SPACE_ID}").json()["model"] is None
+
+    catalogue = client.get("/settings/providers").json()
+    defaults = {entry["name"]: entry["default_model"] for entry in catalogue["providers"]}
+    assert defaults == {"anthropic": "claude-opus-5", "openai": "gpt-5.5", "ollama": None}
+
+
 def test_per_tool_answers_can_be_set_and_name_only_real_tools(client: TestClient) -> None:
     """The per-tool map replaces the stored one whole; `ask` is dropped as
     the absence of an answer, and a tool that does not exist is a 400 on

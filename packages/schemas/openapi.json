@@ -1077,6 +1077,30 @@
         "title": "KnowledgeEvaluationResult",
         "type": "object"
       },
+      "KnowledgeFolderDeleteResult": {
+        "description": "What deleting a folder removed, and where a copy went first.",
+        "properties": {
+          "backup_path": {
+            "title": "Backup Path",
+            "type": "string"
+          },
+          "deleted_files": {
+            "title": "Deleted Files",
+            "type": "integer"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "deleted_files",
+          "backup_path"
+        ],
+        "title": "KnowledgeFolderDeleteResult",
+        "type": "object"
+      },
       "KnowledgeGraph": {
         "properties": {
           "edges": {
@@ -1767,6 +1791,17 @@
       "ProviderEntry": {
         "description": "One selectable provider.",
         "properties": {
+          "default_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Model"
+          },
           "free_text_model": {
             "title": "Free Text Model",
             "type": "boolean"
@@ -5139,6 +5174,55 @@
           }
         },
         "summary": "Evaluate Knowledge"
+      }
+    },
+    "/spaces/{space_id}/knowledge/folder": {
+      "delete": {
+        "description": "Delete a folder and its notes, after a copy under `.agentspace/backups/`.",
+        "operationId": "delete_folder_spaces__space_id__knowledge_folder_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeFolderDeleteResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Folder"
       }
     },
     "/spaces/{space_id}/knowledge/graph": {
