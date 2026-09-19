@@ -178,7 +178,7 @@ not prove that the daemon is running or the model can finish a task.
 ## Create and configure spaces
 
 Open the space switcher, select **New space…**, enter a name, and choose
-whether to start with **the three built-in roles**, **no agents**, or
+whether to start with **the three starter roles**, **no agents**, or
 **copies of the current space's agents**. Click **Create space**. Copies have
 their own definitions; later edits to the originals do not update them.
 

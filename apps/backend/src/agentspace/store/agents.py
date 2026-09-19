@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any, Final
 from pydantic import BaseModel, ConfigDict, Field
 
 from agentspace.providers.factory import SUPPORTED_PROVIDERS
-from agentspace.store.builtins import BUILTIN_ROLES
+from agentspace.store.builtins import STARTER_ROLES
 from agentspace.store.spaces import DEFAULT_SPACE_ID, SpaceNotFoundError
 from agentspace.tools.catalogue import RiskLevel, is_registered, tool_names
 
@@ -241,7 +241,7 @@ class AgentDefStore:
         return _row_to_def(row)
 
     async def seed_builtins(self, space_id: str) -> list[AgentDef]:
-        """Fresh copies of the seeded roles on ``space_id``'s roster, with `is_builtin` 0."""
+        """Fresh copies of the starter roles on ``space_id``'s roster, with `is_builtin` 0."""
         return await asyncio.to_thread(self._seed_builtins_sync, space_id)
 
     def _seed_builtins_sync(self, space_id: str) -> list[AgentDef]:
@@ -261,7 +261,7 @@ class AgentDefStore:
                     auto_approve=(),
                     enabled=True,
                 )
-                for role in BUILTIN_ROLES
+                for role in STARTER_ROLES
                 if not _name_taken(connection, role["name"], space_id, excluding=None)
             ]
             rows = [

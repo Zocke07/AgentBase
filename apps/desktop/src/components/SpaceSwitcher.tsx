@@ -166,7 +166,7 @@ export function SpaceSwitcher({ spaces, currentId, onSelect, onCreated }: SpaceS
                 <legend>Start with</legend>
                 {(
                   [
-                    ["builtins", "the three built-in roles"],
+                    ["builtins", "the three starter roles (researcher, writer, reviewer)"],
                     ["empty", "no agents"],
                     ["copy", `copies of ${current?.name ?? "this space"}'s agents`],
                   ] as const

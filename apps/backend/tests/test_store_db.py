@@ -385,8 +385,20 @@ def test_upgrade_preserves_an_existing_populated_database(app_paths: AppPaths) -
         # Seeding happens on *upgrade*, not only on a fresh install. A user
         # who has been running since v1 must end up with a usable roster, or
         # migration 003 lands them an empty registry and no way to fill it
-        # except the API they have not been told about.
-        assert [row["name"] for row in seeded] == ["researcher", "reviewer", "writer"]
+        # except the API they have not been told about. Since 010 that
+        # roster is the investment pipeline.
+        assert [row["name"] for row in seeded] == [
+            "bear-architect",
+            "bull-architect",
+            "decision",
+            "event-calendar",
+            "market-movers",
+            "news-scanner",
+            "portfolio-review",
+            "research-librarian",
+            "review-analyst",
+            "risk-manager",
+        ]
     finally:
         upgraded.close()
 
@@ -496,6 +508,6 @@ def test_agent_name_is_unique_within_a_space(db: Database) -> None:
         connection.execute(
             "INSERT INTO agent_defs (id, space_id, name, role, system_prompt, allowed_tools,"
             " max_steps, auto_approve, is_builtin, enabled, created_at, updated_at)"
-            " VALUES ('x', '5c1e5a2e-0d4b-4c93-9a7f-3b2e8d1c6f00', 'researcher', 'r', 'p',"
+            " VALUES ('x', '5c1e5a2e-0d4b-4c93-9a7f-3b2e8d1c6f00', 'decision', 'r', 'p',"
             " '[]', 5, '[]', 0, 1, 't', 't')"
         )

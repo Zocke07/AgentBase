@@ -4,7 +4,7 @@ Updated 2026-09-19. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
 superseded gaps. A test result below is scoped to what was actually executed.
 
-## After 0.4.0: the Obsidian button only where Obsidian is
+## After 0.4.0: the Obsidian button only where Obsidian is, and the investment roster
 
 On 2026-09-19 the maintainer clicked **Open in Obsidian** on a Mac without
 Obsidian and got the launcher's exit status as the error. The shell now has
@@ -20,6 +20,25 @@ button absent when the shell says no, and the shell's refusal shown in
 words). **Not exercised:** a Mac or Windows machine with Obsidian installed,
 so the positive path (button shown, vault opened) rests on the earlier 0.3.x
 check of the URI and on the path list.
+
+The same day, at the maintainer's request, migration 010 made the default
+space's built-ins the ten definitions of the investment research pipeline
+(`store/010_investment_roster.sql`), with the three generic roles kept as
+the starter roles a new space is seeded from. Executed:
+`test_investment_roster.py` (15) covers the fresh roster's models, tools,
+step ceilings and narrowed approval lists, the no-shell and collectors-only
+fetch properties, the bear prompt mirroring the bull, an upgrade from a
+version-9 database in which an edited writer survives as a deletable row, an
+untouched researcher and reviewer are retired, and a user's own `decision`
+agent keeps its row while the shipped one is skipped, and an untouched
+researcher moved to another space staying there, deletable. The rest of the
+backend suite passes with the shared `agents` fixture seeding the starter
+roles beside the roster (764 passed, 11 skipped, the DNS-bound sandbox and
+tools files deselected here), `just check` passes and the OpenAPI snapshot
+was regenerated for one docstring. **Not exercised:** a run of the pipeline
+against a model, which needs the config files and scripts the prompts assume
+and the user guide lists; and the migration against the maintainer's own
+0.4.0 database, which happens at the next launch of a build carrying it.
 
 ## 0.4.0: scheduled runs, Usage, the tour, and two layout fixes
 

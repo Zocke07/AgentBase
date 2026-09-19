@@ -31,7 +31,7 @@ risk levels to proceed automatically.
 2. [Running tasks](2_running_tasks.md): start a run, read the graph and log,
    answer approvals, replay, cancel, delete, schedule runs, and follow cost,
    tokens and context in Usage.
-3. [Agents](3_agents.md): the built-in roles, your own definitions, tool
+3. [Agents](3_agents.md): the built-in roster, the starter roles, your own definitions, tool
    permissions, and moving or copying agents between spaces.
 4. [Integrations](4_integrations.md): connect Discord, allow accounts and
    choose where chat tasks run.

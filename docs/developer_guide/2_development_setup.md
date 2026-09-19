@@ -215,8 +215,8 @@ its own space's folder, not the whole `spaces/` directory.
 
 For a fresh-install check, use a separate temporary `AGENTSPACE_DATA_DIR` and
 retain any development files you need. Deleting `.dev/data` removes all its
-history and space files; migrations then recreate Main and its three built-in
-agents at next launch. `just clean-dev` deletes it along with the package
+history and space files; migrations then recreate Main and its built-in
+roster at next launch. `just clean-dev` deletes it along with the package
 caches; `just clean` deletes every git-ignored file including `.venv`,
 `node_modules` and `target/`.
 

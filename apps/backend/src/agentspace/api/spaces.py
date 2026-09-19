@@ -40,7 +40,7 @@ class CopyFrom(BaseModel):
 class CreateSpaceRequest(BaseModel):
     name: str = Field(min_length=1, max_length=60)
     description: str = ""
-    #: How the roster starts: empty, fresh copies of the three seeded roles,
+    #: How the roster starts: empty, fresh copies of the three starter roles,
     #: or copies of another space's definitions.
     seed: Literal["empty", "builtins"] | CopyFrom = "builtins"
 
@@ -166,7 +166,7 @@ async def delete_space(request: Request, space_id: str) -> Response:
 
 @router.post("/spaces/{space_id}/seed", status_code=201)
 async def seed_space(request: Request, space_id: str) -> list[AgentDef]:
-    """Add the seeded roles an existing roster lacks. Safe to press twice."""
+    """Add the starter roles an existing roster lacks. Safe to press twice."""
     try:
         return await _agents(request).seed_builtins(space_id)
     except SpaceNotFoundError as exc:

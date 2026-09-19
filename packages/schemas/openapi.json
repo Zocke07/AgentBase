@@ -5493,7 +5493,7 @@
     },
     "/spaces/{space_id}/seed": {
       "post": {
-        "description": "Add the seeded roles an existing roster lacks. Safe to press twice.",
+        "description": "Add the starter roles an existing roster lacks. Safe to press twice.",
         "operationId": "seed_space_spaces__space_id__seed_post",
         "parameters": [
           {

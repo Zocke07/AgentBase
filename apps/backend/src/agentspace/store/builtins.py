@@ -1,25 +1,26 @@
-"""The three seeded roles, as data a new space can be seeded from.
+"""The three starter roles a new space can be seeded from.
 
-Migrations 003 and 004 seed and widen them once; a space created later needs
-them in Python, and a test asserts the two copies match. Only the content is
-here; ids are minted per copy.
+Migrations 003 and 004 seeded and widened these on the first roster as the
+built-ins; migration 010 retired them from the default space in favour of
+the investment roster, so this Python copy is now the only one. A space
+seeded with them gets editable, deletable rows; ids are minted per copy.
 """
 
 from __future__ import annotations
 
 from typing import Final, TypedDict
 
-__all__ = ["BUILTIN_ROLES", "BuiltinRole"]
+__all__ = ["STARTER_ROLES", "StarterRole"]
 
 
-class BuiltinRole(TypedDict):
+class StarterRole(TypedDict):
     name: str
     role: str
     system_prompt: str
     allowed_tools: tuple[str, ...]
 
 
-BUILTIN_ROLES: Final[tuple[BuiltinRole, ...]] = (
+STARTER_ROLES: Final[tuple[StarterRole, ...]] = (
     {
         "name": "researcher",
         "role": "Gathers facts and figures, and reports them without embellishment",

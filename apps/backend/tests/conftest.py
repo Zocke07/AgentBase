@@ -8,6 +8,7 @@ package.
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING
 
 import pytest
@@ -20,6 +21,7 @@ from agentspace.secrets import SecretStore
 from agentspace.store.agents import AgentDefStore
 from agentspace.store.db import Database
 from agentspace.store.settings import SettingsStore
+from agentspace.store.spaces import DEFAULT_SPACE_ID
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -103,8 +105,17 @@ def settings(db: Database) -> SettingsStore:
 
 @pytest.fixture
 def agents(db: Database, settings: SettingsStore) -> AgentDefStore:
-    """The agent registry, seeded with the built-ins by migration 003."""
-    return AgentDefStore(db, settings)
+    """The agent registry, with the starter roles beside the shipped roster.
+
+    The scripted runs across the suite spawn `researcher` and `writer`.
+    Migration 010 retired those from the default space, so they are seeded
+    here as the deletable copies a user would add; the ten investment
+    definitions are there too. A test about the shipped roster reads the
+    database, not this fixture.
+    """
+    registry = AgentDefStore(db, settings)
+    asyncio.run(registry.seed_builtins(DEFAULT_SPACE_ID))
+    return registry
 
 
 @pytest.fixture

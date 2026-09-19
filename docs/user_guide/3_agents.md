@@ -8,18 +8,50 @@ Choose a space, then open **Agents** in the left rail. Its enabled definitions
 are the workers the supervisor can delegate to. The supervisor itself is
 part of the orchestrator and is not a row you edit here.
 
-A fresh install starts with three built-ins in the default space:
+A fresh install's default space, **Main**, holds a ten-agent investment
+research pipeline. Every one of them is a built-in: editable, disableable
+and movable, but not deletable. They pass work to each other through files
+in the space folder (`config/`, `raw/`, `knowledge/`, `portfolio/`,
+`theses/`, `risk/`, `decisions/`, `scores/`), so read each system prompt
+before the first run and create `config/watchlist.json`, `config/sources.json`
+and `config/limits.json` for the collectors to read.
 
-| Agent | Role | Allowed tools |
-|---|---|---|
-| `researcher` | Gather facts and report them plainly. | `read_file`, `list_dir` |
-| `writer` | Turn findings into clear prose. | `read_file`, `write_file` |
-| `reviewer` | Check work against the requested task. | `read_file`, `list_dir` |
+| Agent | Model | What it does | Tools |
+|---|---|---|---|
+| `news-scanner` | Haiku | Collects news and social discussion about watchlist tickers into `raw/news-*.json`. No analysis. | `http_get`, `write_file` |
+| `research-librarian` | Sonnet | Writes durable concept and company notes under `knowledge/`, sourced to filings. | `read_file`, `list_dir`, `search_knowledge`, `write_file`, `propose_memory` |
+| `market-movers` | Haiku | Collects prices, volume and gainers/losers into `raw/movers-*.json`. Numbers only. | `http_get`, `read_file`, `write_file` |
+| `event-calendar` | Haiku | Builds a 30-day calendar of earnings, macro releases, corporate events and personnel changes. | `http_get`, `read_file`, `write_file` |
+| `portfolio-review` | Haiku | Describes the book from `portfolio/computed.json`. Never recommends. | `read_file`, `list_dir`, `write_file` |
+| `bull-architect` | Sonnet | Argues the strongest evidence-based case that named tickers rise, as scored predictions in `theses/bull-*.jsonl`. | `read_file`, `list_dir`, `search_knowledge`, `write_file` |
+| `bear-architect` | Sonnet | The mirror: the strongest case that they fall, in `theses/bear-*.jsonl`. | same |
+| `risk-manager` | Sonnet | Holds a veto: restates the script's hard-rule results verbatim and adds judgement. | `read_file`, `list_dir`, `write_file` |
+| `decision` | Opus | Arbitrates bull, bear and risk into a dated recommendation table for you to approve. Executes nothing. | `read_file`, `list_dir`, `write_file` |
+| `review-analyst` | Sonnet | Scores predictions against outcomes and diagnoses misses without hindsight. | `read_file`, `list_dir`, `write_file`, `propose_memory` |
 
-These original built-ins can be edited, disabled and moved, but cannot be
-deleted. A new space seeded from the built-in roles receives editable,
-deletable copies. An empty space can add them with **Start from the built-in
-roles** on Home, or you can define your own agents.
+Each definition names its provider and model (Anthropic's Haiku, Sonnet or
+Opus), so the pipeline's cost shape does not depend on the app-wide default:
+what runs often is cheap, reasoning is mid-tier, and Opus runs once per
+decision. Change a model in the agent's editor if you use another provider.
+The prompts treat fetched pages and files under `raw/` as untrusted text, and
+no built-in can run a shell command. Their **Calls this agent may make
+without asking** lists narrow the app-wide policy (the collectors to low and
+medium risk, the analysts to low) and never widen it, so nothing runs
+unattended until you tick a level in Settings.
+
+Two things the prompts assume that AgentSpace does not provide: scripts
+(`scripts/compute_movers.py`, `compute_portfolio.py`, `check_limits.py`,
+`score_predictions.py`, `fetch_keyed.py`) that do the arithmetic and the
+header-requiring fetches, and a `portfolio/positions.csv` you export by
+hand. Arithmetic is deliberately never done by a model. Until those exist,
+an agent that finds its input missing is told to say so and stop.
+
+A new space is seeded with three **starter roles** instead: `researcher`
+(`read_file`, `list_dir`, `search_knowledge`, `propose_memory`), `writer`
+(`read_file`, `write_file`, `search_knowledge`, `propose_memory`) and
+`reviewer` (as the researcher). These copies are editable and deletable. An
+empty space can add them with **Start from the starter roles** on Home, and
+so can the default space, or you can define your own agents.
 
 ## Create or edit an agent
 
@@ -59,8 +91,8 @@ name if that name is already used in the destination and is deletable even
 when its source is a built-in.
 
 Use the list's **Delete** control and confirmation to remove a definition.
-Attempting to delete an original built-in reports that it is protected;
-disable it instead if you do not want the supervisor using it.
+Attempting to delete one of the default space's built-ins reports that it is
+protected; disable it instead if you do not want the supervisor using it.
 
 ## Custom tools
 

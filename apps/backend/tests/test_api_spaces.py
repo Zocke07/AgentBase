@@ -33,7 +33,7 @@ def _create(client: TestClient, name: str, **extra: object) -> dict[str, Any]:
 # --- the space itself -----------------------------------------------------------
 
 
-def test_a_fresh_install_has_one_space_with_the_old_roster(client: TestClient) -> None:
+def test_a_fresh_install_has_one_space_with_the_shipped_roster(client: TestClient) -> None:
     spaces = client.get("/spaces").json()
     assert [space["name"] for space in spaces] == ["Main"]
     assert spaces[0]["id"] == DEFAULT_SPACE_ID
@@ -41,11 +41,22 @@ def test_a_fresh_install_has_one_space_with_the_old_roster(client: TestClient) -
     assert spaces[0]["folder"].endswith(DEFAULT_SPACE_ID)
 
     roster = client.get("/agents", params={"space_id": DEFAULT_SPACE_ID}).json()
-    assert [agent["name"] for agent in roster] == ["researcher", "reviewer", "writer"]
+    assert [agent["name"] for agent in roster] == [
+        "bear-architect",
+        "bull-architect",
+        "decision",
+        "event-calendar",
+        "market-movers",
+        "news-scanner",
+        "portfolio-review",
+        "research-librarian",
+        "review-analyst",
+        "risk-manager",
+    ]
     assert all(agent["space_id"] == DEFAULT_SPACE_ID for agent in roster)
 
 
-def test_a_new_space_starts_with_copies_of_the_built_in_roles_by_default(
+def test_a_new_space_starts_with_copies_of_the_starter_roles_by_default(
     client: TestClient,
 ) -> None:
     lab = _create(client, "Lab")
@@ -57,7 +68,7 @@ def test_a_new_space_starts_with_copies_of_the_built_in_roles_by_default(
     assert client.delete(f"/agents/{roster[0]['id']}").status_code == 204
     # And the default space's built-ins are untouched.
     originals = client.get("/agents", params={"space_id": DEFAULT_SPACE_ID}).json()
-    assert len(originals) == 3
+    assert len(originals) == 10
 
 
 def test_a_space_may_start_empty_or_as_a_copy_of_another(client: TestClient) -> None:
@@ -175,12 +186,8 @@ def test_an_agent_can_be_moved_and_copied_between_spaces(client: TestClient) -> 
     moved = client.patch(f"/agents/{poet['id']}", json={"space_id": lab["id"]})
     assert moved.status_code == 200
     assert moved.json()["space_id"] == lab["id"]
-    assert [
+    assert "poet" not in [
         a["name"] for a in client.get("/agents", params={"space_id": DEFAULT_SPACE_ID}).json()
-    ] == [
-        "researcher",
-        "reviewer",
-        "writer",
     ]
 
     copied = client.post(f"/agents/{poet['id']}/copy", json={"space_id": DEFAULT_SPACE_ID})

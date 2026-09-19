@@ -158,7 +158,7 @@ the app data folder and stored credentials in place.
 
 To erase runs, definitions, settings and space files, quit the app and delete
 its app data folder listed above. Copy any files you want to retain first.
-The next launch creates a fresh default space and its three built-in roles.
+The next launch creates a fresh default space and its built-in roster.
 
 To remove a key while keeping the app, use **Settings → Keys → Clear** and
 restart. After uninstalling, remove entries through Credential Manager or

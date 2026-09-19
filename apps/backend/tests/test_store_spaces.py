@@ -6,7 +6,7 @@ asserts every row survives with a space.
 
 from __future__ import annotations
 
-import json
+import asyncio
 from typing import TYPE_CHECKING
 
 import pytest
@@ -125,16 +125,16 @@ def test_a_populated_v5_database_upgrades_with_every_row_in_the_default_space(
         assert [tuple(row) for row in events] == [("run-a", 1), ("run-a", 2), ("run-a", 3)]
         assert [tuple(row) for row in approvals] == [("ap-1", "run-a", "approved")]
         assert [tuple(row) for row in spend] == [("run-a", 0)]
-        # The three built-ins from 003 and the user's own row, all in the
-        # default space, the user's disabled row still disabled.
-        assert [
+        # The user's own row, still disabled, and the investment roster 010
+        # seeded, all in the default space; the untouched generic roles from
+        # 003 retired there (test_investment_roster.py covers the edited case).
+        rows = [
             (row["name"], row["space_id"], row["is_builtin"], row["enabled"]) for row in defs
-        ] == [
-            ("poet", DEFAULT_SPACE_ID, 0, 0),
-            ("researcher", DEFAULT_SPACE_ID, 1, 1),
-            ("reviewer", DEFAULT_SPACE_ID, 1, 1),
-            ("writer", DEFAULT_SPACE_ID, 1, 1),
         ]
+        assert ("poet", DEFAULT_SPACE_ID, 0, 0) in rows
+        assert not {name for name, *_ in rows} & {"researcher", "reviewer", "writer"}
+        assert all(row[1:] == (DEFAULT_SPACE_ID, 1, 1) for row in rows if row[0] != "poet")
+        assert len(rows) == 11
     finally:
         upgraded.close()
 
@@ -164,14 +164,14 @@ def test_the_same_agent_name_may_exist_in_two_spaces(db: Database) -> None:
         )
         connection.execute(
             "INSERT INTO agent_defs (id, space_id, name, role, system_prompt, allowed_tools,"
-            " created_at, updated_at) VALUES ('w2', 'other', 'writer', 'r', 'p', '[]',"
+            " created_at, updated_at) VALUES ('d2', 'other', 'decision', 'r', 'p', '[]',"
             " '2026-09-01T00:00:00+00:00', '2026-09-01T00:00:00+00:00')"
         )
     with db.read() as connection:
-        writers = connection.execute(
-            "SELECT space_id FROM agent_defs WHERE name = 'writer' ORDER BY space_id"
+        deciders = connection.execute(
+            "SELECT space_id FROM agent_defs WHERE name = 'decision' ORDER BY space_id"
         ).fetchall()
-    assert [row["space_id"] for row in writers] == [DEFAULT_SPACE_ID, "other"]
+    assert [row["space_id"] for row in deciders] == [DEFAULT_SPACE_ID, "other"]
 
 
 def test_the_migration_names_the_same_default_space_as_the_store() -> None:
@@ -363,28 +363,22 @@ def test_the_approval_policy_only_narrows() -> None:
     assert nothing.auto_approve == []
 
 
-def test_the_python_copy_of_the_built_in_roles_matches_what_the_migrations_seeded(
+def test_the_starter_roles_seed_a_space_as_deletable_copies(
     db: Database,
 ) -> None:
-    """Two copies of three roles (SQL for the first roster, Python for every
-    later one) checked against each other rather than trusted."""
-    from agentspace.store.builtins import BUILTIN_ROLES
+    """The generic three live in Python only since migration 010 retired them
+    from the default space; a space seeded with them gets its own rows."""
+    from agentspace.store.agents import AgentDefStore
+    from agentspace.store.builtins import STARTER_ROLES
+    from agentspace.store.settings import SettingsStore
 
-    with db.read() as connection:
-        rows = connection.execute(
-            "SELECT name, role, system_prompt, allowed_tools FROM agent_defs"
-            " WHERE is_builtin = 1 ORDER BY name"
-        ).fetchall()
-    seeded = {
-        row["name"]: (
-            row["role"],
-            row["system_prompt"],
-            tuple(json.loads(row["allowed_tools"])),
-        )
-        for row in rows
-    }
-    in_python = {
+    store = AgentDefStore(db, SettingsStore(db))
+    seeded = asyncio.run(store.seed_builtins(DEFAULT_SPACE_ID))
+
+    assert {d.name: (d.role, d.system_prompt, d.allowed_tools) for d in seeded} == {
         role["name"]: (role["role"], role["system_prompt"], role["allowed_tools"])
-        for role in BUILTIN_ROLES
+        for role in STARTER_ROLES
     }
-    assert in_python == seeded
+    assert all(not d.is_builtin for d in seeded)
+    # Pressing it again adds nothing.
+    assert asyncio.run(store.seed_builtins(DEFAULT_SPACE_ID)) == []

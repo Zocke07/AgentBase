@@ -238,8 +238,8 @@ def _fields(**overrides: Any) -> dict[str, Any]:
     return fields
 
 
-def test_migration_009_is_the_latest_and_adds_the_table(db: Database) -> None:
-    assert LATEST_SCHEMA_VERSION == 9
+def test_migration_009_adds_the_table(db: Database) -> None:
+    assert LATEST_SCHEMA_VERSION >= 9
     with db.read() as connection:
         columns = {
             row["name"] for row in connection.execute("PRAGMA table_info(schedules)").fetchall()

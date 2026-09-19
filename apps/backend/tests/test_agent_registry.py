@@ -45,8 +45,21 @@ if TYPE_CHECKING:
 
 anyio_tests = pytest.mark.anyio
 
-#: The definitions migration 003 seeds.
-BUILTINS = ("researcher", "reviewer", "writer")
+#: The default roster as migration 010 leaves it: the investment pipeline,
+#: sorted as `GET /agents` lists it. The `agents` fixture adds the three
+#: starter roles beside these for the scripted runs; the client does not.
+BUILTINS = (
+    "bear-architect",
+    "bull-architect",
+    "decision",
+    "event-calendar",
+    "market-movers",
+    "news-scanner",
+    "portfolio-review",
+    "research-librarian",
+    "review-analyst",
+    "risk-manager",
+)
 
 
 @pytest.fixture
@@ -78,20 +91,21 @@ def test_a_fresh_install_has_a_usable_roster(client: TestClient) -> None:
     assert all(agent["enabled"] for agent in body)
 
 
-def test_seeded_agents_can_read_but_none_can_write_or_run_shell(
+def test_seeded_agents_never_run_a_shell_and_only_collectors_fetch(
     client: TestClient,
 ) -> None:
-    """What the built-ins ship able to touch, now that tools exist.
+    """What the built-ins ship able to touch.
 
     Phase 5's version of this test asserted every built-in had an *empty*
-    allowlist, which was the honest value while nothing was implemented.
-    Migration 004 widened them, so the assertion moves to the thing that should
-    stay true regardless: a fresh install ships nothing that can run a shell
-    command, and only the writer can write.
-
-    Stated as a property rather than as a list of expected allowlists, because
-    the list is a product decision that may reasonably change and the property
-    is a safety one that should not.
+    allowlist, which was the honest value while nothing was implemented;
+    migration 004 widened them, and migration 010 replaced them with the
+    investment roster, whose collectors fetch public pages and whose
+    analysts write files. The property that should stay true regardless: a
+    fresh install ships nothing that can run a shell command, the network is
+    reachable only from the three collectors (the agents that read untrusted
+    text get nothing more), and no seeded row skips the dialog for a
+    high-risk call. A definition's `auto_approve` can only narrow the
+    app-wide policy, so a seeded list is not a grant.
     """
     agents = client.get("/agents").json()
     builtins = [agent for agent in agents if agent["is_builtin"]]
@@ -99,14 +113,10 @@ def test_seeded_agents_can_read_but_none_can_write_or_run_shell(
 
     for agent in builtins:
         assert "run_shell" not in agent["allowed_tools"], agent["name"]
-        assert "http_get" not in agent["allowed_tools"], agent["name"]
-        # Nothing is pre-approved: §5 Phase 6's default is
-        # manual-approve-everything, and a seeded row that pre-authorized its
-        # own calls would be a definition escalating its own privileges.
-        assert agent["auto_approve"] == [], agent["name"]
+        assert "high" not in agent["auto_approve"], agent["name"]
 
-    writers = [agent for agent in builtins if "write_file" in agent["allowed_tools"]]
-    assert [agent["name"] for agent in writers] == ["writer"]
+    fetchers = [agent["name"] for agent in builtins if "http_get" in agent["allowed_tools"]]
+    assert sorted(fetchers) == ["event-calendar", "market-movers", "news-scanner"]
 
 
 def test_a_builtin_edited_before_the_upgrade_keeps_its_allowlist(db: Database) -> None:
@@ -121,10 +131,10 @@ def test_a_builtin_edited_before_the_upgrade_keeps_its_allowlist(db: Database) -
     import json
     import sqlite3
 
-    # Simulate a Phase 5 database whose researcher was edited before upgrading.
+    # Simulate a database whose news-scanner was edited before upgrading.
     with db.write() as connection:
         connection.execute(
-            "UPDATE agent_defs SET allowed_tools = ? WHERE name = 'researcher'",
+            "UPDATE agent_defs SET allowed_tools = ? WHERE name = 'news-scanner'",
             (json.dumps(["read_file"]),),
         )
 
@@ -134,14 +144,14 @@ def test_a_builtin_edited_before_the_upgrade_keeps_its_allowlist(db: Database) -
         try:
             connection.execute(
                 'UPDATE agent_defs SET allowed_tools = \'["read_file","list_dir"]\''
-                " WHERE name = 'researcher' AND allowed_tools = '[]'"
+                " WHERE name = 'news-scanner' AND allowed_tools = '[]'"
             )
         except sqlite3.Error:  # pragma: no cover
             raise
 
     with db.read() as connection:
         row = connection.execute(
-            "SELECT allowed_tools FROM agent_defs WHERE name = 'researcher'"
+            "SELECT allowed_tools FROM agent_defs WHERE name = 'news-scanner'"
         ).fetchone()
 
     assert json.loads(row["allowed_tools"]) == ["read_file"]
@@ -149,27 +159,27 @@ def test_a_builtin_edited_before_the_upgrade_keeps_its_allowlist(db: Database) -
 
 def test_a_builtin_is_editable(client: TestClient) -> None:
     """§5 Phase 5: built-ins are "editable but not deletable"."""
-    researcher = _by_name(client, "researcher")
+    scanner = _by_name(client, "news-scanner")
 
     response = client.patch(
-        f"/agents/{researcher['id']}", json={"system_prompt": "You research quietly."}
+        f"/agents/{scanner['id']}", json={"system_prompt": "You scan quietly."}
     )
 
     assert response.status_code == 200
-    assert response.json()["system_prompt"] == "You research quietly."
+    assert response.json()["system_prompt"] == "You scan quietly."
     assert response.json()["is_builtin"] is True
 
 
 def test_a_builtin_is_not_deletable(client: TestClient) -> None:
     """`is_builtin = 1` guards the delete path *only*."""
-    researcher = _by_name(client, "researcher")
+    scanner = _by_name(client, "news-scanner")
 
-    response = client.delete(f"/agents/{researcher['id']}")
+    response = client.delete(f"/agents/{scanner['id']}")
 
     assert response.status_code == 409
     assert "cannot be deleted" in response.json()["detail"]
     # And it is still there.
-    assert client.get(f"/agents/{researcher['id']}").status_code == 200
+    assert client.get(f"/agents/{scanner['id']}").status_code == 200
 
 
 def test_a_user_defined_agent_is_deletable(client: TestClient) -> None:
@@ -196,7 +206,7 @@ def test_a_caller_cannot_mint_a_builtin(client: TestClient) -> None:
 @pytest.mark.parametrize(
     ("overrides", "field", "fragment"),
     [
-        ({"name": "researcher"}, "name", "already exists"),
+        ({"name": "news-scanner"}, "name", "already exists"),
         ({"name": "Bad Name"}, "name", "not a usable agent name"),
         ({"name": ""}, "name", "needs a name"),
         ({"system_prompt": "   "}, "system_prompt", "needs a system prompt"),
@@ -268,7 +278,7 @@ def test_a_duplicate_name_is_a_conflict_not_a_bad_request(client: TestClient) ->
     code, which is what let a duplicate quietly return 400 when an unrelated
     default tripped an earlier rule first.
     """
-    response = client.post("/agents", json=a_definition(name="researcher"))
+    response = client.post("/agents", json=a_definition(name="news-scanner"))
 
     assert response.status_code == 409
     assert response.json()["detail"]["field"] == "name"
@@ -293,7 +303,7 @@ def test_an_unknown_field_is_rejected_rather_than_ignored(client: TestClient) ->
 def test_renaming_onto_an_existing_name_is_refused(client: TestClient) -> None:
     created = client.post("/agents", json=a_definition()).json()
 
-    response = client.patch(f"/agents/{created['id']}", json={"name": "researcher"})
+    response = client.patch(f"/agents/{created['id']}", json={"name": "news-scanner"})
 
     assert response.status_code == 409
 
@@ -675,13 +685,14 @@ async def test_the_supervisor_is_told_which_agents_it_has(
 @anyio_tests
 async def test_the_registry_reads_the_roster_once(agents: AgentDefStore) -> None:
     """The snapshot is the whole mechanism behind the mid-run-edit guarantee."""
+    before = tuple(sorted(d.name for d in await agents.list_enabled()))
     registry = await AgentRegistry.load(agents, RunLimits())
-    assert registry.names == BUILTINS
+    assert registry.names == before
 
     await agents.create(a_definition())
 
-    assert registry.names == BUILTINS
-    assert (await AgentRegistry.load(agents, RunLimits())).names != BUILTINS
+    assert registry.names == before
+    assert (await AgentRegistry.load(agents, RunLimits())).names != before
 
 
 @anyio_tests

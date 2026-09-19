@@ -63,11 +63,15 @@ scans for key-shaped prefixes, including in Markdown.
    `test_store_spaces.py` against populated old schemas. Also start the sidecar
    with a separate temporary data directory to check a fresh install.
 
-Built-ins are seeded by migration 003, **not** by startup code: a migration
-runs exactly once, so it does not overwrite later user edits. Space creation
-and the explicit seed endpoint use `store/builtins.py` through `AgentDefStore`;
-these copies have fresh ids and are deletable. Keep those seed definitions and
-the migration's defaults consistent.
+Built-ins are seeded by migration, **not** by startup code: a migration runs
+exactly once, so it does not overwrite later user edits. Migration 010 seeds
+the default space's ten investment definitions (fixed ids, `is_builtin = 1`,
+each skipped where the user already has that name) and retires the three
+generic roles 003 seeded, deleting each only while it still holds exactly
+its shipped values and otherwise leaving it as a deletable row. Space
+creation and the explicit seed endpoint use the starter roles in
+`store/builtins.py` through `AgentDefStore`; those copies have fresh ids and
+are deletable, and Python is their only copy now.
 
 ### A tool
 

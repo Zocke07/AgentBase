@@ -36,7 +36,15 @@ and disconnects their stored keys.
   or every N hours, started through `RunLauncher` by one scheduler task in the
   sidecar. The app must be open; a missed time is run once at the next launch
   or skipped, per the schedule. There is no tray or service mode.
-- The latest recorded database migration is 009 (schedules). Existing workspace files are
+- The default space ships the ten-definition investment research roster
+  (migration 010, 2026-09-19): four Haiku collectors, Sonnet analysts and a
+  risk manager, an Opus decision agent, a Sonnet reviewer, each with an
+  explicit Anthropic model, no `run_shell` anywhere and `http_get` only on
+  the collectors. The three generic roles are now the starter roles a new
+  space is seeded from (`store/builtins.py`); 010 retires them from the
+  default space only while untouched. The prompts assume scripts and config
+  files the app does not ship; the user guide says which.
+- The latest recorded database migration is 010 (investment roster). Existing workspace files are
   adopted into the default space once; new spaces get their own folders. Each
   space folder is also an Obsidian-compatible Markdown vault. The Knowledge
   section provides notes, properties, tags, links, backlinks, unresolved links,

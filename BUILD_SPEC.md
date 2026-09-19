@@ -367,7 +367,12 @@ Agents stop being hardcoded Python classes and become editable data.
   classes; it constructs workers from rows.
 - Seed 3–4 built-in definitions on first launch (e.g. `researcher`, `writer`, `reviewer`)
   so a fresh install is usable immediately. Built-ins are editable but not deletable -
-  `is_builtin = 1` guards the delete path only.
+  `is_builtin = 1` guards the delete path only. *(2026-09-19, at the maintainer's
+  request: the default space's built-ins are the ten definitions of an investment
+  research pipeline, seeded by migration 010 with explicit Anthropic models and
+  narrowed approval lists; the three generic roles remain as the starter roles a new
+  space is seeded from. The security note below still holds: no seeded definition can
+  run a shell, and only the three collectors can fetch.)*
 - `allowed_tools` is an **allowlist, never a denylist.** An agent can only call tools named
   in its own row. An empty array means the agent can reason and hand off but touches nothing.
 - A definition edited mid-run does not affect the in-flight run. Runs snapshot the

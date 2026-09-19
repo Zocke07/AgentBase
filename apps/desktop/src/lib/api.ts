@@ -183,7 +183,7 @@ export const updateSpace = (id: string, body: UpdateSpaceRequest): Promise<Space
 export const deleteSpace = (id: string): Promise<void> =>
   requestNoContent(`/spaces/${id}`, { method: "DELETE" });
 
-/** Add fresh copies of the three built-in roles to a space's roster. */
+/** Add fresh copies of the three starter roles to a space's roster. */
 export const seedSpace = (id: string): Promise<AgentDef[]> =>
   request<AgentDef[]>(`/spaces/${id}/seed`, { method: "POST" });
 

@@ -142,7 +142,7 @@ export function HomeView({
     }
   };
 
-  // An empty roster gets the three built-in roles on request.
+  // An empty roster gets the three starter roles on request.
   const seed = async () => {
     if (space === null) return;
     setRosterError(null);
@@ -304,7 +304,7 @@ export function HomeView({
                   <>
                     {" "}
                     <button type="button" className="link" disabled={seeding} onClick={() => void seed()}>
-                      Start from the built-in roles
+                      Start from the starter roles
                     </button>
                   </>
                 )}
@@ -397,7 +397,7 @@ export function HomeView({
                 No agents are defined, so the supervisor would have nobody to delegate to.{" "}
                 {space !== null && (
                   <button type="button" className="link" disabled={seeding} onClick={() => void seed()}>
-                    Start from the built-in roles
+                    Start from the starter roles
                   </button>
                 )}
               </p>
