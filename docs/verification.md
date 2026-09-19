@@ -4,7 +4,7 @@ Updated 2026-09-19. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
 superseded gaps. A test result below is scoped to what was actually executed.
 
-## After 0.4.1: the summary handle, full-screen canvas, the model on the space, the runs filter, schedule limits
+## 0.4.2: the model on the space, the runs filter, schedule limits, the summary handle, full-screen canvas
 
 On 2026-09-19, after 0.4.1: the supervisor's account gained a drag handle
 (a height given makes it scroll, unfolded), the canvas gained a **Full

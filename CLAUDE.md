@@ -15,11 +15,11 @@ and disconnects their stored keys.
 
 - Phases 0 through 9 and the spaces redesign are implemented. Do not restart
   Phase 0 or replace completed work from an earlier phase.
-- The current release line is **0.4.1**: the investment roster in the default
-  space (migration 010), per-tool approval answers and a run-wide yes
-  (migration 011), resizable Runs panels and relabelled handoffs, over
-  0.4.0's schedules, Usage and tour, 0.3.3's run canvas and vault and
-  0.3.2's packaging. It includes the Windows installer and an ad-hoc signed,
+- The current release line is **0.4.2**: the model on each space (migration
+  012), a runs filter by origin, schedule time limits and the unattended
+  readout, over 0.4.1's investment roster (010), per-tool answers (011) and
+  Runs panels, 0.4.0's schedules, Usage and tour, 0.3.3's run canvas and
+  vault and 0.3.2's packaging. It includes the Windows installer and an ad-hoc signed,
   unnotarized Apple Silicon macOS disk image (a zip until 0.3.1; the image's
   Applications link keeps the app out of Downloads, where Gatekeeper
   translocates it and Spotlight ignores it). An incomplete first 0.2.0 Mac
