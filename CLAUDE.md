@@ -15,12 +15,12 @@ and disconnects their stored keys.
 
 - Phases 0 through 9 and the spaces redesign are implemented. Do not restart
   Phase 0 or replace completed work from an earlier phase.
-- The current release line is **0.4.3**: provider changes move inheriting
-  spaces' models, the scanner reads its config (migration 013), folder
-  delete and a folding rail, over 0.4.2's model on each space (012), runs
-  filter and schedule limits, 0.4.1's investment roster (010), per-tool
-  answers (011) and Runs panels, 0.4.0's schedules, Usage and tour, 0.3.3's
-  run canvas and vault and 0.3.2's packaging. It includes the Windows installer and an ad-hoc signed,
+- The current release line is **0.4.4**: guards on runaway runs, a per-run
+  cost ceiling (migration 014) and data files in Knowledge, over 0.4.3's
+  provider-change fix and folding rail (013), 0.4.2's model on each space
+  (012), 0.4.1's investment roster (010) and per-tool answers (011), 0.4.0's
+  schedules, Usage and tour, 0.3.3's run canvas and vault and 0.3.2's
+  packaging. It includes the Windows installer and an ad-hoc signed,
   unnotarized Apple Silicon macOS disk image (a zip until 0.3.1; the image's
   Applications link keeps the app out of Downloads, where Gatekeeper
   translocates it and Spotlight ignores it). An incomplete first 0.2.0 Mac

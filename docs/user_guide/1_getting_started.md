@@ -4,16 +4,16 @@
 
 ## Install and open AgentSpace
 
-The 0.4.3 downloads are a Windows x64 installer and a macOS Apple Silicon disk
+The 0.4.4 downloads are a Windows x64 installer and a macOS Apple Silicon disk
 image. Python, Node and Rust are bundled or unnecessary for installed users.
-Use the [0.4.3 release](https://github.com/Zocke07/AgentBase/releases/tag/v0.4.3)
+Use the [0.4.4 release](https://github.com/Zocke07/AgentBase/releases/tag/v0.4.4)
 or the matching artifact from a successful
 [build run](https://github.com/Zocke07/AgentBase/actions/workflows/build.yml).
-See the [release notes](../releases/0.4.3.md) for release status and limitations.
+See the [release notes](../releases/0.4.4.md) for release status and limitations.
 
 ### Windows
 
-1. Download `AgentSpace_0.4.3_x64-setup.exe` for an x64 Windows PC.
+1. Download `AgentSpace_0.4.4_x64-setup.exe` for an x64 Windows PC.
 2. Run the installer. The build is unsigned; if SmartScreen shows **Windows
    protected your PC**, choose **More info → Run anyway** to proceed with the
    downloaded build you trust. A new installer or your machine's security
@@ -24,7 +24,7 @@ See the [release notes](../releases/0.4.3.md) for release status and limitations
 
 ### macOS
 
-1. Download `AgentSpace_0.4.3_aarch64.dmg` for an Apple Silicon Mac. This
+1. Download `AgentSpace_0.4.4_aarch64.dmg` for an Apple Silicon Mac. This
    image is not an Intel or universal build.
 2. Open the disk image and drag **AgentSpace** onto the **Applications** link
    in the window that appears, then eject the image. Installing it there is
