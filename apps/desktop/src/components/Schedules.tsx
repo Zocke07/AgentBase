@@ -5,7 +5,7 @@ import type {
   SettingsResponse,
   SpaceResponse,
   ToolPolicy,
-} from "@agentspace/schemas";
+} from "@agentbase/schemas";
 import { useCallback, useEffect, useState } from "react";
 
 import * as api from "../lib/api";
@@ -179,7 +179,7 @@ export function Schedules({ space, settings, onOpenRun }: SchedulesProps) {
         )}
       </div>
       <p className="settings__hint">
-        A goal this space runs on its own at set times, while AgentSpace is open. A time that passes
+        A goal this space runs on its own at set times, while AgentBase is open. A time that passes
         while the app is closed is run once at the next launch or skipped, as each schedule says.
       </p>
       {space.archived === true && (
@@ -617,7 +617,7 @@ function ScheduleEditor({
             }}
             data-testid="schedule-missed-run"
           />
-          <span>Run it once when AgentSpace next opens</span>
+          <span>Run it once when AgentBase next opens</span>
         </label>
         <label className="editor__tool">
           <input

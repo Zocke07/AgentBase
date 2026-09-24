@@ -7,20 +7,20 @@ from typing import TYPE_CHECKING
 
 from fastapi.testclient import TestClient
 
-from agentspace.main import create_app
-from agentspace.providers.base import Message, ToolSpec
-from agentspace.providers.chatgpt import (
+from agentbase.main import create_app
+from agentbase.providers.base import Message, ToolSpec
+from agentbase.providers.chatgpt import (
     ChatGPTAuthStatus,
     ChatGPTLoginAttempt,
     ChatGPTModelDelta,
     ChatGPTModelResponse,
 )
-from agentspace.providers.codex_runtime import CodexRuntimeStatus
+from agentbase.providers.codex_runtime import CodexRuntimeStatus
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from agentspace.config import AppPaths
+    from agentbase.config import AppPaths
 
 
 @dataclass

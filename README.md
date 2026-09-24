@@ -1,4 +1,4 @@
-# AgentSpace
+# AgentBase
 
 A local-first desktop application where multiple AI agents collaborate on a task
 and you watch them work in real time on a live graph.
@@ -64,8 +64,8 @@ right for `just test` and wrong for a release, so this recipe passes
 
 ## Installing
 
-Download `AgentSpace_0.4.5_x64-setup.exe` for Windows x64 or
-`AgentSpace_0.4.5_aarch64.dmg` for Apple Silicon macOS from the
+Download `AgentBase_0.4.5_x64-setup.exe` for Windows x64 or
+`AgentBase_0.4.5_aarch64.dmg` for Apple Silicon macOS from the
 [latest release](https://github.com/Zocke07/AgentBase/releases/latest), or from the artifacts of a green
 [build run](https://github.com/Zocke07/AgentBase/actions/workflows/build.yml). See the
 [User Guide](docs/user_guide/1_getting_started.md) for both installation paths.
@@ -76,10 +76,15 @@ trust the download. A new build or machine policy can show the warning again.
 
 The installer needs no administrator rights and installs for the current user
 only. Your data (the event log, agent definitions and one folder per space
-under `spaces\`) lives in `%LOCALAPPDATA%\dev.agentspace.desktop`, outside the
+under `spaces\`) lives in `%LOCALAPPDATA%\dev.agentbase.desktop`, outside the
 installation, so upgrading or uninstalling the app does not touch it. An install
 from before spaces existed keeps its files: the old `workspace` folder becomes
 the default space's folder on the first launch.
+
+AgentBase also adopts data from a pre-rename installation when its new data
+directory is empty. Keep the earlier app closed during that first launch. New
+AgentBase credentials take precedence, while existing credentials remain
+available until you replace or remove them in **Settings > Keys**.
 
 Once it is installed, the **[User Guide](docs/user_guide/README.md)** covers everything
 after the first launch: connecting an API key or ChatGPT subscription, using a

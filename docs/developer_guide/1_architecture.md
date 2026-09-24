@@ -5,7 +5,7 @@ For installation and the first checks, start with [Development setup](2_developm
 ## Repository map
 
 ```
-apps/backend/src/agentspace/    Python 3.12 FastAPI sidecar
+apps/backend/src/agentbase/    Python 3.12 FastAPI sidecar
   main.py                       app factory, lifespan, stdin watchdog, run()
   config.py                     BIND_HOST (hardcoded), ports, data paths
   secrets.py                    API keys in memory; the stdin handshake
@@ -160,9 +160,9 @@ members the SDK uses, and hands the executable to the SDK through
 `CodexConfig.codex_bin`. A checkout with the wheel installed uses it directly,
 so tests and `just dev-app` stay offline. It is a credential and inference
 transport, not an agent framework. Each call starts an ephemeral read-only thread with
-approvals denied and Codex tools disabled, supplies the AgentSpace conversation
+approvals denied and Codex tools disabled, supplies the AgentBase conversation
 and tool schemas as data, and requests one structured decision. A requested
-tool is converted to the normal `ToolCall`; the hand-written AgentSpace loop
+tool is converted to the normal `ToolCall`; the hand-written AgentBase loop
 decides whether and how to execute it. This preserves the approval and event
 boundaries even though the wire protocol differs from an API-key request. The
 App Server's structured JSON stream is incrementally decoded so only its
@@ -258,8 +258,8 @@ configurable. `ALLOWED_ORIGINS` is an explicit allowlist, never a wildcard.
 
 ## Gotchas
 
-**The sidecar stops on stdin EOF.** `python -m agentspace < NUL` (Windows) or
-`python -m agentspace < /dev/null` (macOS), or a subprocess with a closed
+**The sidecar stops on stdin EOF.** `python -m agentbase < NUL` (Windows) or
+`python -m agentbase < /dev/null` (macOS), or a subprocess with a closed
 stdin, exits at once with `stdin reached EOF; shutting down`. Hold stdin open.
 This is the shutdown mechanism, not a bug.
 
@@ -268,7 +268,7 @@ This is the shutdown mechanism, not a bug.
 - **Windows:** Check for an orphaned uvicorn reload worker:
   `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like
   '*multiprocessing*' }` and `taskkill /PID <id> /T /F`. Or a stray
-  `agentspace-sidecar` from an installed app or a crashed `dev-app`.
+  `agentbase-sidecar` from an installed app or a crashed `dev-app`.
   `netstat -ano | findstr :8787` names the PID; note it can report the
   *creator* of the socket rather than the process now holding it.
 - **macOS:** `lsof -ti tcp:8787` names the PID. Kill it with

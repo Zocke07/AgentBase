@@ -5,14 +5,14 @@
 ## One vault per space
 
 Open **Knowledge** in the left rail. Every note shown there is an ordinary
-UTF-8 Markdown file in the selected space's folder. AgentSpace does not import
+UTF-8 Markdown file in the selected space's folder. AgentBase does not import
 the note into a proprietary format, so you can edit the same file in the
 built-in source editor, Obsidian, VS Code or another text editor.
 
 **Open in Obsidian** appears in the toolbar only when Obsidian is installed
 where its installer puts it (`Applications` on macOS, its per-user program
 folder on Windows). It asks the desktop shell to open the space folder through
-Obsidian's URI handler; AgentSpace validates the folder first and does not give
+Obsidian's URI handler; AgentBase validates the folder first and does not give
 the webview a general URL-opening permission. If Obsidian lives somewhere else,
 or the link does not open, use **Open folder** in Space settings to find the
 folder and add it from Obsidian's own vault picker. The built-in editor works
@@ -35,14 +35,14 @@ memory/
   merged/
 ```
 
-`memory/` is written by AgentSpace after runs and agent proposals; `captures/`
+`memory/` is written by AgentBase after runs and agent proposals; `captures/`
 holds notes you save from a run's event log; `daily/` and `templates/` are
 used by the **Daily note** and **From template** buttons. The rest is yours.
 
 A folder is deleted from the tree: the **✕** that appears beside a folder's
 name asks first, then removes the folder and everything in it, notes and
 other files alike, after copying every file it held under
-`.agentspace/backups/`. Links into the deleted folder become unresolved
+`.agentbase/backups/`. Links into the deleted folder become unresolved
 links. The vault itself and hidden folders cannot be deleted this way.
 
 ## Data files
@@ -57,7 +57,7 @@ text and **Save file**; a `.json` file that does not parse is refused before
 it is written, so an agent never reads a broken config. **New file** takes a
 path inside the space; an empty list offers the roster's three config files
 as templates. **Delete…** asks first and keeps a copy under
-`.agentspace/backups/`. Hidden files, binaries and anything outside the
+`.agentbase/backups/`. Hidden files, binaries and anything outside the
 space folder stay out of reach. An agent may change these files too, through
 the same `write_file` approval as any write.
 
@@ -123,7 +123,7 @@ changed.
   trust filter described below.
 - **Move or rename** changes a note's path. Every wikilink and Markdown link in
   the vault that pointed at it is rewritten, and the files that changed are
-  copied to `.agentspace/backups/` first.
+  copied to `.agentbase/backups/` first.
 - **Daily note** (the calendar icon) opens today's `daily/YYYY-MM-DD.md`,
   creating it from `templates/daily.md` when that exists. **Template** lists
   every note under `templates/`; a new note copies it with `{{date}}` and
@@ -151,7 +151,7 @@ links or backlinks for surrounding context.
 
 ## What a run receives
 
-When a run starts, AgentSpace retrieves up to six relevant chunks for the
+When a run starts, AgentBase retrieves up to six relevant chunks for the
 goal. It retrieves again for each worker's specific handoff. Those excerpts
 are sent to the selected model as cited, untrusted reference material. A cloud
 model therefore receives relevant excerpts just as it receives the rest of
@@ -176,7 +176,7 @@ low-risk tool call and passes through the same approval gate as other reads.
 
 ## The memory inbox
 
-After a successful run, AgentSpace saves a note at `memory/runs/<run-id>.md`
+After a successful run, AgentBase saves a note at `memory/runs/<run-id>.md`
 with the goal, the supervisor's outcome, the citations that were retrieved for
 the goal, structured properties and `agent-memory` tags. The unique run ID
 prevents an automatic memory from overwriting an earlier note, and the

@@ -11,10 +11,10 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from agentspace.store import db as db_module
-from agentspace.store.db import LATEST_SCHEMA_VERSION, Database
-from agentspace.store.settings import WorkspaceSettings
-from agentspace.store.spaces import (
+from agentbase.store import db as db_module
+from agentbase.store.db import LATEST_SCHEMA_VERSION, Database
+from agentbase.store.settings import WorkspaceSettings
+from agentbase.store.spaces import (
     DEFAULT_SPACE_ID,
     DEFAULT_SPACE_NAME,
     DefaultSpaceProtectedError,
@@ -25,10 +25,10 @@ from agentspace.store.spaces import (
     SpaceStore,
     SpaceValidationError,
 )
-from agentspace.tools.catalogue import RiskLevel
+from agentbase.tools.catalogue import RiskLevel
 
 if TYPE_CHECKING:
-    from agentspace.config import AppPaths
+    from agentbase.config import AppPaths
 
 
 def _populate_v5(app_paths: AppPaths) -> None:
@@ -367,7 +367,7 @@ def test_per_tool_answers_only_get_stricter() -> None:
     """A space can turn an app-wide allow into a question or a refusal and a
     question into a refusal, and can never widen; a tool it does not name
     keeps the app-wide answer."""
-    from agentspace.tools.catalogue import ToolPolicy
+    from agentbase.tools.catalogue import ToolPolicy
 
     workspace = WorkspaceSettings(
         tool_policies={"write_file": ToolPolicy.ALLOW, "run_shell": ToolPolicy.DENY}
@@ -393,9 +393,9 @@ def test_the_starter_roles_seed_a_space_as_deletable_copies(
 ) -> None:
     """The generic three live in Python only since migration 010 retired them
     from the default space; a space seeded with them gets its own rows."""
-    from agentspace.store.agents import AgentDefStore
-    from agentspace.store.builtins import STARTER_ROLES
-    from agentspace.store.settings import SettingsStore
+    from agentbase.store.agents import AgentDefStore
+    from agentbase.store.builtins import STARTER_ROLES
+    from agentbase.store.settings import SettingsStore
 
     store = AgentDefStore(db, SettingsStore(db))
     seeded = asyncio.run(store.seed_builtins(DEFAULT_SPACE_ID))

@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from agentspace.tools.sandbox import (
+from agentbase.tools.sandbox import (
     Sandbox,
     SandboxViolationError,
     UrlNotAllowedError,

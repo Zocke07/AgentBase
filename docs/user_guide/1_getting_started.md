@@ -2,7 +2,7 @@
 
 [Guide contents](README.md) · [Next: Running tasks](2_running_tasks.md)
 
-## Install and open AgentSpace
+## Install and open AgentBase
 
 The 0.4.5 downloads are a Windows x64 installer and a macOS Apple Silicon disk
 image. Python, Node and Rust are bundled or unnecessary for installed users.
@@ -13,24 +13,24 @@ See the [release notes](../releases/0.4.5.md) for release status and limitations
 
 ### Windows
 
-1. Download `AgentSpace_0.4.5_x64-setup.exe` for an x64 Windows PC.
+1. Download `AgentBase_0.4.5_x64-setup.exe` for an x64 Windows PC.
 2. Run the installer. The build is unsigned; if SmartScreen shows **Windows
    protected your PC**, choose **More info → Run anyway** to proceed with the
    downloaded build you trust. A new installer or your machine's security
    policy may produce another warning.
 3. Installation is for your account and needs no administrator rights. The
    installer includes a WebView2 bootstrapper for machines missing that runtime.
-4. Open **AgentSpace** from the Start menu.
+4. Open **AgentBase** from the Start menu.
 
 ### macOS
 
-1. Download `AgentSpace_0.4.5_aarch64.dmg` for an Apple Silicon Mac. This
+1. Download `AgentBase_0.4.5_aarch64.dmg` for an Apple Silicon Mac. This
    image is not an Intel or universal build.
-2. Open the disk image and drag **AgentSpace** onto the **Applications** link
+2. Open the disk image and drag **AgentBase** onto the **Applications** link
    in the window that appears, then eject the image. Installing it there is
    what makes Spotlight list the app; an app run straight from
    the image or from Downloads is started by macOS as a temporary copy each
-   time, which can show up as several AgentSpace entries in Finder searches.
+   time, which can show up as several AgentBase entries in Finder searches.
    Releases before 0.3.2 shipped a zip; if you kept one of those apps in
    Downloads, delete it and use the one in Applications.
 3. Open the app from **Applications**. It has no Developer ID signature or
@@ -44,7 +44,7 @@ See the [release notes](../releases/0.4.5.md) for release status and limitations
 If the installed app remains quarantined, an alternative in Terminal is:
 
 ```bash
-xattr -dr com.apple.quarantine /Applications/AgentSpace.app
+xattr -dr com.apple.quarantine /Applications/AgentBase.app
 ```
 
 Adjust the path if you installed it elsewhere. This removes the quarantine
@@ -52,8 +52,8 @@ attribute from this app and its contents; it does not add a trusted Developer
 ID signature or notarization.
 
 A separate **keychain access** prompt can appear after you have stored a key,
-particularly after an upgrade. It names **AgentSpace** and
-`dev.agentspace.desktop` and may request your **login keychain password**.
+particularly after an upgrade. It names **AgentBase** and
+`dev.agentbase.desktop` and may request your **login keychain password**.
 Choose **Allow** for this access, or **Always Allow** for this build. It is
 asking for the Mac's keychain password, not your model API key. Because these
 builds have an ad-hoc code identity, another build may ask again. If you choose
@@ -65,7 +65,7 @@ On launch, **Connecting to the sidecar** means the app is starting its local
 server. After it connects, you land on **Home** in the default space. The
 first launch opens a short tour that points at each part of the window and
 ends on the demo run; **Skip the tour** or Esc closes it for good, and
-**Settings → About AgentSpace → Replay the tour** brings it back.
+**Settings → About AgentBase → Replay the tour** brings it back.
 
 | Control | What it opens |
 |---|---|
@@ -93,9 +93,9 @@ scripted run without calling a model or using a key.
 ### Anthropic or OpenAI with an API key
 
 1. Obtain an API key from your provider's account dashboard.
-2. In the AgentSpace window, open **Settings → Keys**. Click **Set…** beside
+2. In the AgentBase window, open **Settings → Keys**. Click **Set…** beside
    `anthropic_api_key` or `openai_api_key`, paste the key, and click **Save key**.
-3. Click **Restart AgentSpace**, which appears under the key list once a key
+3. Click **Restart AgentBase**, which appears under the key list once a key
    has been saved or cleared, or quit and reopen the app yourself. The key is
    stored in the OS credential store and read when the app starts, so a
    change takes effect only after a restart, and a restart stops any run in
@@ -115,7 +115,7 @@ A space's model dropdown lists the cloud models whose prices this build
 knows. A model that is not in its price table is refused before a model call;
 an Anthropic dated snapshot such as `claude-haiku-4-5-20251001` is priced as
 its alias `claude-haiku-4-5`, so either id works in a space or agent. Keys
-are shared by every space. AgentSpace displays their names and whether they
+are shared by every space. AgentBase displays their names and whether they
 are set, never their stored values.
 
 Key entry works in the desktop app. A browser showing the development UI can
@@ -125,29 +125,29 @@ only display which keys the sidecar received at startup.
 
 1. In **Settings → Provider**, choose **openai** and select **ChatGPT
    subscription** under **OpenAI access**; the model stays each space's own.
-2. Click **Connect ChatGPT**. AgentSpace opens an OpenAI sign-in page in your
+2. Click **Connect ChatGPT**. AgentBase opens an OpenAI sign-in page in your
    browser. Complete sign-in with the ChatGPT account whose monthly plan you
-   want to use, then return to AgentSpace.
+   want to use, then return to AgentBase.
 3. Wait for the account status to show **connected**, then click **Save
    settings**. **Check** confirms that the saved mode has a connected account
    without calling a model.
 
 API-key and ChatGPT access both remain the `openai` provider. They use the same
-selected model id, AgentSpace agent loop, tool catalogue, approvals, event log,
+selected model id, AgentBase agent loop, tool catalogue, approvals, event log,
 run limits and normalized token accounting. Switching the access radio is the
-only AgentSpace behavior change. OpenAI can expose different models and usage
-allowances to a ChatGPT plan and an API account. AgentSpace does not silently
+only AgentBase behavior change. OpenAI can expose different models and usage
+allowances to a ChatGPT plan and an API account. AgentBase does not silently
 replace an unavailable model; the run reports the provider error so you can
 choose another model or return to API-key access.
 
 The first **Sign in with ChatGPT** downloads the OpenAI Codex App Server
-runtime (about 113 MB on macOS, 138 MB on Windows) from PyPI into AgentSpace's
+runtime (about 113 MB on macOS, 138 MB on Windows) from PyPI into AgentBase's
 data folder. The download is refused unless its size and SHA-256 checksum match
-the build AgentSpace was released with, and it happens once; later launches
+the build AgentBase was released with, and it happens once; later launches
 reuse it. Settings shows the progress, and API-key access never needs it. The
 ChatGPT credential is then stored by that runtime in the OS credential store.
-OAuth tokens are never returned to the AgentSpace webview or written to its
-database. The runtime is used only to obtain one model decision; AgentSpace
+OAuth tokens are never returned to the AgentBase webview or written to its
+database. The runtime is used only to obtain one model decision; AgentBase
 still executes every tool through its own approval gate. OpenAI's
 [authentication guide](https://learn.chatgpt.com/docs/auth) documents ChatGPT
 subscription and API-key access as Codex's two sign-in methods, and its
@@ -177,7 +177,7 @@ provider loop.
 3. In **Space settings → Model**, type `qwen3:4b` into **Model** and click
    **Save space**, then start a small task from **Home**.
 
-Ollama needs no API key, and its calls add $0 to AgentSpace's budget. After the
+Ollama needs no API key, and its calls add $0 to AgentBase's budget. After the
 model is downloaded, local inference works offline. Model capability and
 speed depend on the model and your hardware; a successful setup check does
 not prove that the daemon is running or the model can finish a task.
@@ -227,7 +227,7 @@ The default space cannot be archived or deleted.
 | **Monthly budget** | **Monthly cap (USD)**, $20.00 by default, shared across spaces. Enter dollars directly. |
 | **Chat channels** | Enable Discord, allow accounts, choose approval responders and the destination space. |
 | **Appearance** | **Follow the system**, **Light**, or **Dark**; changes immediately. |
-| **About AgentSpace** | The version that is running, the data folder with **Open folder**, and **Replay the tour**. |
+| **About AgentBase** | The version that is running, the data folder with **Open folder**, and **Replay the tour**. |
 
 Click **Save settings** for changed settings. Model, limit and approval
 changes affect future runs; an active run keeps its starting configuration.

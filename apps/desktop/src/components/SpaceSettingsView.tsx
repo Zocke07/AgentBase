@@ -6,7 +6,7 @@ import type {
   ToolPolicy,
   ToolResponse,
   UpdateSpaceRequest,
-} from "@agentspace/schemas";
+} from "@agentbase/schemas";
 import { useCallback, useState } from "react";
 
 import * as api from "../lib/api";
@@ -301,7 +301,7 @@ function SpaceForm({
           </div>
           <span className="editor__hint editor__hint--field">
             Every file this space&apos;s agents read or write is inside this folder. It was created
-            by AgentSpace and cannot be pointed elsewhere.
+            by AgentBase and cannot be pointed elsewhere.
           </span>
           {opening !== null && (
             <p className="field-error" role="alert">

@@ -12,12 +12,12 @@ from typing import TYPE_CHECKING, Final
 
 import pytest
 
-import agentspace.store.db as db_module
-from agentspace.store.db import LATEST_SCHEMA_VERSION, Database
-from agentspace.store.spaces import DEFAULT_SPACE_ID
+import agentbase.store.db as db_module
+from agentbase.store.db import LATEST_SCHEMA_VERSION, Database
+from agentbase.store.spaces import DEFAULT_SPACE_ID
 
 if TYPE_CHECKING:
-    from agentspace.config import AppPaths
+    from agentbase.config import AppPaths
 
 #: What 010 seeds: name, model, allowed tools, step ceiling, narrowed levels.
 ROSTER: Final[dict[str, tuple[str, tuple[str, ...], int, tuple[str, ...]]]] = {

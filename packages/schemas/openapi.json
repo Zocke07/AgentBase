@@ -464,7 +464,7 @@
       },
       "CreateAgentRequest": {
         "additionalProperties": false,
-        "description": "A new definition.\n\nNot :class:`~agentspace.store.agents.AgentDef`: a caller must not mint a built-in.",
+        "description": "A new definition.\n\nNot :class:`~agentbase.store.agents.AgentDef`: a caller must not mint a built-in.",
         "properties": {
           "allowed_tools": {
             "items": {
@@ -2808,7 +2808,7 @@
       },
       "UpdateSettingsRequest": {
         "additionalProperties": false,
-        "description": "A partial update. Every field optional; omitted fields are untouched.\n\nUnknown fields are rejected, not dropped: Pydantic's default turns a\nmisspelled setting into a `200 OK` that changed nothing. This model must\nlist every field of :class:`~agentspace.store.settings.WorkspaceSettings`\n(they differ in bounds and optionality, so it cannot be the same class),\nand `test_every_workspace_setting_can_be_patched` keeps the two in step.",
+        "description": "A partial update. Every field optional; omitted fields are untouched.\n\nUnknown fields are rejected, not dropped: Pydantic's default turns a\nmisspelled setting into a `200 OK` that changed nothing. This model must\nlist every field of :class:`~agentbase.store.settings.WorkspaceSettings`\n(they differ in bounds and optionality, so it cannot be the same class),\nand `test_every_workspace_setting_can_be_patched` keeps the two in step.",
         "properties": {
           "auto_approve": {
             "anyOf": [
@@ -3698,7 +3698,7 @@
     }
   },
   "info": {
-    "title": "AgentSpace sidecar",
+    "title": "AgentBase sidecar",
     "version": "0.4.5"
   },
   "openapi": "3.1.0",
@@ -4387,7 +4387,7 @@
         "summary": "List Runs"
       },
       "post": {
-        "description": "Create a run and start the orchestrator on it.\n\nReturns as soon as the row exists; the client watches the run over SSE.\nStarting it is :class:`~agentspace.orchestrator.launcher.RunLauncher`'s\njob, shared with the chat channels.",
+        "description": "Create a run and start the orchestrator on it.\n\nReturns as soon as the row exists; the client watches the run over SSE.\nStarting it is :class:`~agentbase.orchestrator.launcher.RunLauncher`'s\njob, shared with the chat channels.",
         "operationId": "create_run_runs_post",
         "requestBody": {
           "content": {
@@ -4426,7 +4426,7 @@
     },
     "/runs/{run_id}": {
       "delete": {
-        "description": "Remove a finished run, its events and its approvals. Its spend stays.\n\nA run that has not ended is a 409: the log must never be deleted from\nunder an orchestrator still appending to it. A run this process is still\ndriving is refused even if its row just turned terminal, since the\norchestrator lets go a moment after writing the status. See\n:meth:`~agentspace.events.store.EventStore.delete_run` for what is kept.",
+        "description": "Remove a finished run, its events and its approvals. Its spend stays.\n\nA run that has not ended is a 409: the log must never be deleted from\nunder an orchestrator still appending to it. A run this process is still\ndriving is refused even if its row just turned terminal, since the\norchestrator lets go a moment after writing the status. See\n:meth:`~agentbase.events.store.EventStore.delete_run` for what is kept.",
         "operationId": "delete_run_runs__run_id__delete",
         "parameters": [
           {
@@ -5482,7 +5482,7 @@
     },
     "/spaces/{space_id}/knowledge/folder": {
       "delete": {
-        "description": "Delete a folder and its notes, after a copy under `.agentspace/backups/`.",
+        "description": "Delete a folder and its notes, after a copy under `.agentbase/backups/`.",
         "operationId": "delete_folder_spaces__space_id__knowledge_folder_delete",
         "parameters": [
           {

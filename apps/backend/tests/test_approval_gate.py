@@ -12,12 +12,12 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from agentspace.events.types import EventType
-from agentspace.orchestrator import execute_run
-from agentspace.tools.approval import ApprovalScope, ApprovalStatus, approval_prompt
-from agentspace.tools.builtin.filesystem import WriteFileTool
-from agentspace.tools.catalogue import RiskLevel
-from agentspace.tools.sandbox import Sandbox
+from agentbase.events.types import EventType
+from agentbase.orchestrator import execute_run
+from agentbase.tools.approval import ApprovalScope, ApprovalStatus, approval_prompt
+from agentbase.tools.builtin.filesystem import WriteFileTool
+from agentbase.tools.catalogue import RiskLevel
+from agentbase.tools.sandbox import Sandbox
 from support import (
     ReconstructedRun,
     ScriptedProvider,
@@ -30,15 +30,15 @@ from support import (
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from agentspace.budget.ledger import BudgetLedger
-    from agentspace.events.store import EventStore
-    from agentspace.providers.base import Completion
-    from agentspace.secrets import SecretStore
-    from agentspace.store.agents import AgentDefStore
-    from agentspace.store.db import Database
-    from agentspace.store.settings import SettingsStore
-    from agentspace.tools.approval import ApprovalService
-    from agentspace.tools.runtime import ToolRuntime
+    from agentbase.budget.ledger import BudgetLedger
+    from agentbase.events.store import EventStore
+    from agentbase.providers.base import Completion
+    from agentbase.secrets import SecretStore
+    from agentbase.store.agents import AgentDefStore
+    from agentbase.store.db import Database
+    from agentbase.store.settings import SettingsStore
+    from agentbase.tools.approval import ApprovalService
+    from agentbase.tools.runtime import ToolRuntime
 
 pytestmark = pytest.mark.anyio
 
@@ -48,7 +48,7 @@ def workspace(tmp_path: Path) -> Path:
     """The sandbox root every test here runs against.
 
     `exist_ok` because the autouse data-directory fixture in `conftest.py`
-    already resolves `AGENTSPACE_DATA_DIR` under `tmp_path` and creates a
+    already resolves `AGENTBASE_DATA_DIR` under `tmp_path` and creates a
     `workspace` beside it, the same directory the shipped application uses,
     which is the right one to be testing against.
     """
@@ -748,7 +748,7 @@ async def test_an_approval_cannot_be_resolved_twice(
     so the second resolution finds nothing to change and raises rather than
     quietly flipping an approval a user already denied into an approval.
     """
-    from agentspace.tools.approval import ApprovalNotPendingError
+    from agentbase.tools.approval import ApprovalNotPendingError
 
     _, service = tool_runtime(store, db, workspace)
     run = await store.create_run(goal="twice", origin="ui")

@@ -1,4 +1,4 @@
-import type { NoteSummary } from "@agentspace/schemas";
+import type { NoteSummary } from "@agentbase/schemas";
 import { useEffect, useRef, useState } from "react";
 
 import { fuzzyFilter } from "../lib/fuzzy";

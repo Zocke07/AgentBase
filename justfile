@@ -1,4 +1,4 @@
-# AgentSpace: every dev task lives here.
+# AgentBase: every dev task lives here.
 #
 # BUILD_SPEC §5 Phase 0: `just` recipes for every dev task, no `.sh` and no
 # `.bat` files anywhere. Recipes are single commands run from a per-recipe
@@ -22,8 +22,8 @@ export UV_CACHE_DIR := dev_dir / "cache" / "uv"
 export npm_config_cache := dev_dir / "cache" / "npm"
 
 # Dev-only override of the sidecar's data directory; the shipped application
-# still resolves the OS app-data dir (`agentspace.config.default_data_dir`).
-export AGENTSPACE_DATA_DIR := dev_dir / "data"
+# still resolves the OS app-data dir (`agentbase.config.default_data_dir`).
+export AGENTBASE_DATA_DIR := dev_dir / "data"
 
 # PyInstaller's bootloader cache, which would otherwise land on the system drive.
 export PYINSTALLER_CONFIG_DIR := dev_dir / "cache" / "pyinstaller"
@@ -44,7 +44,7 @@ target_triple := if os() == "windows" {
 
 # `sidecar_binary` is what the build is asked to produce; `sidecar_file` is
 # what exists on disk, since PyInstaller appends the extension itself.
-sidecar_binary := "agentspace-sidecar-" + target_triple
+sidecar_binary := "agentbase-sidecar-" + target_triple
 exe_suffix := if os() == "windows" { ".exe" } else { "" }
 sidecar_file := sidecar_binary + exe_suffix
 sidecar_dir := justfile_directory() / "apps" / "desktop" / "src-tauri" / "binaries"
@@ -68,8 +68,8 @@ cross_platform := if os() == "windows" { "darwin" } else { "win32" }
 # Every migration, as a glob: a named file would need an edit here per
 # migration, and forgetting it is a binary that dies on a missing resource
 # only when frozen. A test asserts the glob covers every MIGRATIONS entry.
-migrations_sql := justfile_directory() / "apps" / "backend" / "src" / "agentspace" / "store" / "*.sql"
-codex_manifest := justfile_directory() / "apps" / "backend" / "src" / "agentspace" / "providers" / "codex_runtime.json"
+migrations_sql := justfile_directory() / "apps" / "backend" / "src" / "agentbase" / "store" / "*.sql"
+codex_manifest := justfile_directory() / "apps" / "backend" / "src" / "agentbase" / "providers" / "codex_runtime.json"
 sidecar_path := sidecar_dir / sidecar_file
 
 # Generated TypeScript API types, committed rather than built on demand.
@@ -203,7 +203,7 @@ test-desktop *ARGS:
 [group('test')]
 [working-directory('apps/backend')]
 test-backend-cov:
-    uv run pytest --cov=agentspace --cov-report=term-missing
+    uv run pytest --cov=agentbase --cov-report=term-missing
 
 # ---------------------------------------------------------------------------
 # Generated code
@@ -214,7 +214,7 @@ test-backend-cov:
 [group('build')]
 [working-directory('apps/backend')]
 schemas:
-    uv run python -m agentspace.openapi {{ schemas_dir / "openapi.json" }} {{ schemas_dir / "src" / "api.ts" }}
+    uv run python -m agentbase.openapi {{ schemas_dir / "openapi.json" }} {{ schemas_dir / "src" / "api.ts" }}
 
 # ---------------------------------------------------------------------------
 # Run
@@ -228,13 +228,13 @@ schemas:
 [group('build')]
 [working-directory('apps/backend')]
 build-sidecar:
-    uv run pyinstaller --onefile --clean --noconfirm --name {{ sidecar_binary }} --distpath {{ sidecar_dir }} --workpath {{ dev_dir / "cache" / "pyinstaller" / "build" }} --specpath {{ dev_dir / "cache" / "pyinstaller" }} --add-data "{{ migrations_sql }}{{ data_sep }}agentspace/store" --add-data "{{ codex_manifest }}{{ data_sep }}agentspace/providers" --exclude-module codex_cli_bin src/agentspace/__main__.py
+    uv run pyinstaller --onefile --clean --noconfirm --name {{ sidecar_binary }} --distpath {{ sidecar_dir }} --workpath {{ dev_dir / "cache" / "pyinstaller" / "build" }} --specpath {{ dev_dir / "cache" / "pyinstaller" }} --add-data "{{ migrations_sql }}{{ data_sep }}agentbase/store" --add-data "{{ codex_manifest }}{{ data_sep }}agentbase/providers" --exclude-module codex_cli_bin src/agentbase/__main__.py
 
 # Regenerate the Codex runtime manifest from the wheels `uv.lock` pins.
 [group('build')]
 [working-directory('apps/backend')]
 codex-manifest:
-    uv run python -m agentspace.providers.codex_runtime uv.lock {{ codex_manifest }}
+    uv run python -m agentbase.providers.codex_runtime uv.lock {{ codex_manifest }}
 
 # Show the built sidecar's path, size and hash.
 [group('build')]
@@ -323,7 +323,7 @@ verify-build: setup
 # Install the built installer here and run it with no Python on PATH: §5
 # Phase 9's "second Windows machine", as close as one machine can state it.
 # It installs software, so it is never part of `just test`.
-# `AGENTSPACE_INSTALLER_DIR` points it at an installer elsewhere.
+# `AGENTBASE_INSTALLER_DIR` points it at an installer elsewhere.
 [group('build')]
 [working-directory('apps/backend')]
 verify-installed: setup
@@ -350,7 +350,7 @@ paths:
     @echo "cargo registry   {{ CARGO_HOME }}"
     @echo "uv cache         {{ UV_CACHE_DIR }}"
     @echo "npm cache        {{ npm_config_cache }}"
-    @echo "dev runtime data {{ AGENTSPACE_DATA_DIR }}"
+    @echo "dev runtime data {{ AGENTBASE_DATA_DIR }}"
     @echo "backend venv     {{ justfile_directory() / 'apps' / 'backend' / '.venv' }}"
     @echo "node_modules     {{ justfile_directory() / 'apps' / 'desktop' / 'node_modules' }}"
 

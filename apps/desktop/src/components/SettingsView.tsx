@@ -12,7 +12,7 @@ import type {
   UpdateSettingsRequest,
   VerifyResponse,
   WorkspaceSettings,
-} from "@agentspace/schemas";
+} from "@agentbase/schemas";
 import { useCallback, useEffect, useState } from "react";
 
 import * as api from "../lib/api";
@@ -361,7 +361,7 @@ function SettingsForm({
             <p className="settings__hint">
               Both modes use the same OpenAI provider, the spaces' model choices, agent loop, tool approvals,
               event log, and limits. Subscription calls count at the model&apos;s API-equivalent price
-              only for AgentSpace&apos;s safety cap; they are not API charges.
+              only for AgentBase&apos;s safety cap; they are not API charges.
             </p>
             {form.openai_access === "chatgpt" && <ChatGPTAccount />}
             <FieldError field="openai_access" message={errorFor("openai_access")} />
@@ -537,9 +537,9 @@ function SettingsForm({
       <section className="settings__section" data-testid="keys" data-tour="keys">
         <h2>Keys</h2>
         <p className="settings__hint">
-          Keys live in the operating system&apos;s keychain and are read once, when AgentSpace starts. They
+          Keys live in the operating system&apos;s keychain and are read once, when AgentBase starts. They
           are never written to a file or sent to the sidecar by this screen; after setting or clearing
-          one, restart AgentSpace. A restart stops any run in progress.
+          one, restart AgentBase. A restart stops any run in progress.
         </p>
         <KeyRows loaded={loaded} />
       </section>
@@ -706,7 +706,7 @@ function AboutSection({
 
   return (
     <section className="settings__section about" data-testid="about">
-      <h2>About AgentSpace</h2>
+      <h2>About AgentBase</h2>
       <dl className="about__facts">
         <dt>Version</dt>
         <dd data-testid="about-version">{version}</dd>
@@ -901,7 +901,7 @@ function ChatGPTAccount() {
       {runtime !== null && runtime.state !== "ready" && auth.data.state !== "connected" && (
         <p className="settings__hint" data-testid="chatgpt-runtime">
           The first sign-in downloads the Codex App Server runtime {runtime.version} (about{" "}
-          {megabytes(runtime.total_bytes ?? 112_000_000)}) from PyPI into AgentSpace's data folder,
+          {megabytes(runtime.total_bytes ?? 112_000_000)}) from PyPI into AgentBase's data folder,
           verified against its pinned checksum. API-key access never needs it.
         </p>
       )}
@@ -1016,7 +1016,7 @@ function KeyRows({ loaded }: { loaded: SettingsResponse }) {
     <div className="settings__keys">
       {!available && (
         <p className="settings__hint">
-          Keys can be set only from the AgentSpace app, which holds the keychain. This page is open in
+          Keys can be set only from the AgentBase app, which holds the keychain. This page is open in
           a browser; the rows below show what the sidecar received at its last start.
         </p>
       )}
@@ -1029,9 +1029,9 @@ function KeyRows({ loaded }: { loaded: SettingsResponse }) {
         {names.map((name) => {
           const configured = loaded.configured_secrets.includes(name);
           const state = written.has(name)
-            ? "set: restart AgentSpace to apply"
+            ? "set: restart AgentBase to apply"
             : cleared.has(name)
-              ? "cleared: restart AgentSpace to apply"
+              ? "cleared: restart AgentBase to apply"
               : configured
                 ? "set"
                 : "not set";
@@ -1111,7 +1111,7 @@ function KeyRows({ loaded }: { loaded: SettingsResponse }) {
             disabled={restarting}
             onClick={() => void restart()}
           >
-            {restarting ? "Restarting…" : "Restart AgentSpace"}
+            {restarting ? "Restarting…" : "Restart AgentBase"}
           </button>
           <span className="settings__hint">
             Quits and reopens the app so the sidecar starts with the keys as they are now.

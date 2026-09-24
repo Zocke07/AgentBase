@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from agentspace.providers.base import TokenUsage
-from agentspace.providers.pricing import (
+from agentbase.providers.base import TokenUsage
+from agentbase.providers.pricing import (
     MICROS_PER_DOLLAR,
     PRICES,
     ModelPrice,

@@ -1,4 +1,4 @@
-import type { SpaceResponse } from "@agentspace/schemas";
+import type { SpaceResponse } from "@agentbase/schemas";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -120,7 +120,7 @@ describe("visualization workspace", () => {
       expect(mocked.writeFile).toHaveBeenCalledWith(
         "space-lab",
         "visualizations/dashboard.dashboard.json",
-        expect.stringContaining("agentspace://dashboard/v1"),
+        expect.stringContaining("agentbase://dashboard/v1"),
       );
     });
   });

@@ -1,4 +1,4 @@
-import type { Event, EventType } from "@agentspace/schemas";
+import type { Event, EventType } from "@agentbase/schemas";
 
 import { flag, int, record, records, strings, text, type Payload } from "../lib/payload";
 

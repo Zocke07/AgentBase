@@ -7,8 +7,8 @@ import tomllib
 from pathlib import Path
 from typing import Any, cast
 
-from agentspace import __version__
-from agentspace.main import create_app
+from agentbase import __version__
+from agentbase.main import create_app
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -32,13 +32,13 @@ def test_every_release_version_identifies_the_same_build() -> None:
     desktop_lock = _json("apps/desktop/package-lock.json")
     versions = {
         "Python package": _toml("apps/backend/pyproject.toml")["project"]["version"],
-        "Python lock": _locked_version("apps/backend/uv.lock", "agentspace"),
+        "Python lock": _locked_version("apps/backend/uv.lock", "agentbase"),
         "Python runtime": __version__,
         "FastAPI": create_app().version,
         "desktop package": _json("apps/desktop/package.json")["version"],
         "desktop lock": desktop_lock["packages"][""]["version"],
         "Rust package": _toml("apps/desktop/src-tauri/Cargo.toml")["package"]["version"],
-        "Rust lock": _locked_version("apps/desktop/src-tauri/Cargo.lock", "agentspace-desktop"),
+        "Rust lock": _locked_version("apps/desktop/src-tauri/Cargo.lock", "agentbase-desktop"),
         "Tauri bundle": _json("apps/desktop/src-tauri/tauri.conf.json")["version"],
         "schemas package": _json("packages/schemas/package.json")["version"],
         "schemas lock": desktop_lock["packages"]["../../packages/schemas"]["version"],

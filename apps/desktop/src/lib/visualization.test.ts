@@ -3,12 +3,14 @@ import { describe, expect, it } from "vitest";
 import {
   DASHBOARD_SCHEMA,
   VISUALIZATION_SCHEMA,
+  dashboardJson,
   defaultVisualization,
   parseDashboardSpec,
   parseDataFile,
   parseVisualizationSpec,
   prepareChart,
   type VisualizationSpec,
+  visualizationJson,
 } from "./visualization";
 
 describe("visualization data", () => {
@@ -67,8 +69,8 @@ describe("visualization data", () => {
   it("parses JSON lines and refuses malformed saved contracts", () => {
     const data = parseDataFile("events.jsonl", '{"kind":"read","count":2}\n{"kind":"write","count":1}\n');
     expect(data.rows).toHaveLength(2);
-    expect(() => parseVisualizationSpec('{"title":"missing schema"}')).toThrow(/not an AgentSpace visualization/);
-    expect(() => parseDashboardSpec(JSON.stringify({ $schema: DASHBOARD_SCHEMA, columns: 4 }))).toThrow(/not an AgentSpace dashboard/);
+    expect(() => parseVisualizationSpec('{"title":"missing schema"}')).toThrow(/not an AgentBase visualization/);
+    expect(() => parseDashboardSpec(JSON.stringify({ $schema: DASHBOARD_SCHEMA, columns: 4 }))).toThrow(/not an AgentBase dashboard/);
   });
 
   it("accepts the versioned dashboard contract", () => {
@@ -78,5 +80,33 @@ describe("visualization data", () => {
       visualizations: ["visualizations/spend.viz.json"],
       columns: 2,
     })).title).toBe("Operations");
+  });
+
+  it("loads legacy saved contracts and serializes them as AgentBase", () => {
+    const visualization = parseVisualizationSpec(JSON.stringify({
+      $schema: "agentspace://visualization/v1",
+      title: "Sales",
+      source: "sales.csv",
+      chart: "bar",
+      x: "month",
+      y: ["revenue"],
+      series: null,
+      aggregate: "none",
+      sort: "source",
+      limit: 100,
+    }));
+    const dashboard = parseDashboardSpec(JSON.stringify({
+      $schema: "agentspace://dashboard/v1",
+      title: "Operations",
+      visualizations: ["visualizations/sales.viz.json"],
+      columns: 2,
+    }));
+
+    expect(visualization.$schema).toBe(VISUALIZATION_SCHEMA);
+    expect(dashboard.$schema).toBe(DASHBOARD_SCHEMA);
+    expect(visualizationJson(visualization)).toContain(VISUALIZATION_SCHEMA);
+    expect(dashboardJson(dashboard)).toContain(DASHBOARD_SCHEMA);
+    expect(visualizationJson(visualization)).not.toContain("agentspace://visualization");
+    expect(dashboardJson(dashboard)).not.toContain("agentspace://dashboard");
   });
 });

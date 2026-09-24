@@ -1,7 +1,8 @@
-import type { SpaceResponse } from "@agentspace/schemas";
+import type { SpaceResponse } from "@agentbase/schemas";
 import { create } from "zustand";
 
 import * as api from "../lib/api";
+import { readRenamedStorage } from "../lib/storage";
 
 /**
  * The spaces, and which one the window is looking at: a fact about this
@@ -23,14 +24,11 @@ export interface SpacesState {
   reset: () => void;
 }
 
-const KEY = "agentspace.space";
+const KEY = "agentbase.space";
+const LEGACY_KEY = "agentspace.space";
 
 function readStored(): string | null {
-  try {
-    return localStorage.getItem(KEY);
-  } catch {
-    return null;
-  }
+  return readRenamedStorage(KEY, LEGACY_KEY);
 }
 
 function store(id: string): void {

@@ -1,4 +1,4 @@
-import type { AgentDef } from "@agentspace/schemas";
+import type { AgentDef } from "@agentbase/schemas";
 import { create } from "zustand";
 
 import * as api from "../lib/api";

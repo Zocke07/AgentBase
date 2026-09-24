@@ -29,7 +29,7 @@ BUNDLE_DIR = TAURI_ROOT / "target" / "release" / "bundle"
 
 def _sidecar_source() -> Path | None:
     """The freshly built sidecar, whatever the host triple is."""
-    matches = sorted(SIDECAR_DIR.glob("agentspace-sidecar-*"))
+    matches = sorted(SIDECAR_DIR.glob("agentbase-sidecar-*"))
     return matches[0] if matches else None
 
 
@@ -44,8 +44,8 @@ def bundled_name(source_name: str) -> str:
     Tauri's `externalBin` contract is asymmetric and this is the half that is
     easy to miss: the file on disk must carry the target triple for Tauri to
     find it, but Tauri strips that triple when it stages and installs the
-    binary. So `agentspace-sidecar-x86_64-pc-windows-msvc.exe` is what gets
-    built, and `agentspace-sidecar.exe` is what ships. Looking for the built
+    binary. So `agentbase-sidecar-x86_64-pc-windows-msvc.exe` is what gets
+    built, and `agentbase-sidecar.exe` is what ships. Looking for the built
     name inside the installer finds nothing and looks exactly like a bundling
     failure.
     """
@@ -182,7 +182,7 @@ def test_staged_sidecar_matches_the_build(
 
 
 def test_bundled_name_strips_the_target_triple() -> None:
-    assert bundled_name("agentspace-sidecar-x86_64-pc-windows-msvc.exe") == (
-        "agentspace-sidecar.exe"
+    assert bundled_name("agentbase-sidecar-x86_64-pc-windows-msvc.exe") == (
+        "agentbase-sidecar.exe"
     )
-    assert bundled_name("agentspace-sidecar-aarch64-apple-darwin") == "agentspace-sidecar"
+    assert bundled_name("agentbase-sidecar-aarch64-apple-darwin") == "agentbase-sidecar"

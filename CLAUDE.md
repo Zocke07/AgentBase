@@ -7,12 +7,18 @@ design and constraint authority. This file holds current working context; the
 [historical session record](docs/history/README.md) preserves earlier findings
 and decisions. Read the relevant history when changing a boundary it explains.
 
-The product is **AgentSpace**; the repository is **AgentBase**. Preserve the
-bundle identifier `dev.agentspace.desktop`: changing it relocates users' data
-and disconnects their stored keys.
+The product and repository are **AgentBase**. Its bundle identifier is
+`dev.agentbase.desktop`; preserve it after the one-time rename migration so
+future changes do not relocate users' data or disconnect their stored keys.
 
 ## Current state
 
+- The product was renamed to **AgentBase** on 2026-09-24. New installs use the
+  AgentBase package, bundle, sidecar, schema, data, keychain and browser-storage
+  namespaces. On its first canonical launch, an empty AgentBase data directory
+  adopts the prior profile and its SQLite database. Legacy credentials, browser
+  preferences and saved visualization schemas remain readable during the
+  transition; current AgentBase values take precedence.
 - Phases 0 through 9 and the spaces redesign are implemented. Do not restart
   Phase 0 or replace completed work from an earlier phase.
 - The current release line is **0.4.5**: charts from CSV and JSON, portable
@@ -85,7 +91,7 @@ and disconnects their stored keys.
   the inbox approves, archives, pins, merges or forgets; only approved or
   pinned memories are retrieved. The practical vault limit is 10,000 notes.
 - OpenAI access can use either an API key or the user's ChatGPT subscription.
-  Both remain the `openai` provider and share the same AgentSpace behavior;
+  Both remain the `openai` provider and share the same AgentBase behavior;
   Codex App Server is a credential and single-decision inference transport,
   never the agent orchestrator. Direct Claude subscription login is not
   supported because Anthropic does not permit third-party Claude.ai login or
@@ -161,7 +167,7 @@ second chronological log here.
   a background index job or treats retrieved prose as instructions. Automatic
   run memories use unique app-owned paths and are named in `run.completed`;
   a memory is retrieved only once approved or pinned. Merges and moves back up
-  the files they change under `.agentspace/backups/`.
+  the files they change under `.agentbase/backups/`.
 - Discord accepts explicit commands/mentions from allowed senders only. Its
   supervised adapter runs in-process and uses the same approval gate as the UI.
 

@@ -1,15 +1,18 @@
 import { useCallback, useState } from "react";
 
+import { readRenamedStorage, removeRenamedStorage } from "../lib/storage";
+
 /**
  * A panel size the viewer chose, kept in this browser's storage. Null means
  * the stylesheet's default applies. Storage is a convenience, not state the
  * app depends on: it can be empty or refuse, and the page renders either way.
  */
 export function useStoredSize(name: string): [number | null, (value: number | null) => void] {
-  const key = `agentspace.size.${name}`;
+  const key = `agentbase.size.${name}`;
+  const legacyKey = `agentspace.size.${name}`;
   const [value, setValue] = useState<number | null>(() => {
     try {
-      const stored = localStorage.getItem(key);
+      const stored = readRenamedStorage(key, legacyKey);
       const parsed = stored === null ? Number.NaN : Number(stored);
       return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
     } catch {
@@ -21,13 +24,13 @@ export function useStoredSize(name: string): [number | null, (value: number | nu
     (next: number | null) => {
       setValue(next);
       try {
-        if (next === null) localStorage.removeItem(key);
+        if (next === null) removeRenamedStorage(key, legacyKey);
         else localStorage.setItem(key, String(next));
       } catch {
         // Nothing to do: the size still applies for this view.
       }
     },
-    [key],
+    [key, legacyKey],
   );
 
   return [value, set];

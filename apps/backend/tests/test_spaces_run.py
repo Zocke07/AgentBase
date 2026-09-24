@@ -13,20 +13,20 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from agentspace.knowledge.store import KnowledgeStore
-from agentspace.orchestrator.launcher import RunLauncher
-from agentspace.store.spaces import DEFAULT_SPACE_ID, SpaceArchivedError, SpaceStore
-from agentspace.tools.catalogue import RiskLevel
+from agentbase.knowledge.store import KnowledgeStore
+from agentbase.orchestrator.launcher import RunLauncher
+from agentbase.store.spaces import DEFAULT_SPACE_ID, SpaceArchivedError, SpaceStore
+from agentbase.tools.catalogue import RiskLevel
 from support import ScriptedProvider, StandingAnswer, call, reconstruct, says, tool_runtime
 
 if TYPE_CHECKING:
-    from agentspace.budget.ledger import BudgetLedger
-    from agentspace.config import AppPaths
-    from agentspace.events.store import EventStore
-    from agentspace.secrets import SecretStore
-    from agentspace.store.agents import AgentDefStore
-    from agentspace.store.db import Database
-    from agentspace.store.settings import SettingsStore
+    from agentbase.budget.ledger import BudgetLedger
+    from agentbase.config import AppPaths
+    from agentbase.events.store import EventStore
+    from agentbase.secrets import SecretStore
+    from agentbase.store.agents import AgentDefStore
+    from agentbase.store.db import Database
+    from agentbase.store.settings import SettingsStore
 
 pytestmark = pytest.mark.anyio
 

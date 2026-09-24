@@ -102,7 +102,7 @@ export interface CopyFrom {
 /**
  * A new definition.
  *
- * Not :class:`~agentspace.store.agents.AgentDef`: a caller must not mint a built-in.
+ * Not :class:`~agentbase.store.agents.AgentDef`: a caller must not mint a built-in.
  */
 export interface CreateAgentRequest {
   space_id?: string | null;
@@ -594,7 +594,7 @@ export interface UpdateScheduleRequest {
  *
  * Unknown fields are rejected, not dropped: Pydantic's default turns a
  * misspelled setting into a `200 OK` that changed nothing. This model must
- * list every field of :class:`~agentspace.store.settings.WorkspaceSettings`
+ * list every field of :class:`~agentbase.store.settings.WorkspaceSettings`
  * (they differ in bounds and optionality, so it cannot be the same class),
  * and `test_every_workspace_setting_can_be_patched` keeps the two in step.
  */

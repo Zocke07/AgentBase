@@ -11,7 +11,7 @@ from __future__ import annotations
 import discord
 import pytest
 
-from agentspace.channels.discord_adapter import INTENTS
+from agentbase.channels.discord_adapter import INTENTS
 
 pytestmark = pytest.mark.anyio
 
@@ -73,7 +73,7 @@ def test_commands_are_registered_per_guild_rather_than_globally() -> None:
     """
     import inspect
 
-    from agentspace.channels.discord_adapter import DiscordAdapter
+    from agentbase.channels.discord_adapter import DiscordAdapter
 
     source = inspect.getsource(DiscordAdapter._sync_one)
 
@@ -90,7 +90,7 @@ def test_a_guild_joined_after_startup_also_gets_the_commands() -> None:
     the next restart, which is the same invisible failure one step later."""
     import inspect
 
-    from agentspace.channels.discord_adapter import DiscordAdapter
+    from agentbase.channels.discord_adapter import DiscordAdapter
 
     assert "on_guild_join" in inspect.getsource(DiscordAdapter._register)
 
@@ -105,7 +105,7 @@ def _adapter_with_bot_user(bot_id: int) -> tuple[object, list[object]]:
     from types import SimpleNamespace
     from unittest.mock import MagicMock
 
-    from agentspace.channels.discord_adapter import DiscordAdapter
+    from agentbase.channels.discord_adapter import DiscordAdapter
 
     adapter = DiscordAdapter(MagicMock(), token="")  # never started, so never sent
     started: list[object] = []

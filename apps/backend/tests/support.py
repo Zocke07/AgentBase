@@ -14,20 +14,20 @@ import contextlib
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from agentspace.events.types import Event, EventType
-from agentspace.providers.base import Completion, TextDelta, TokenUsage, ToolCall
-from agentspace.tools.approval import ApprovalService, ApprovalStore
-from agentspace.tools.runtime import ToolRuntime
-from agentspace.tools.sandbox import Sandbox
+from agentbase.events.types import Event, EventType
+from agentbase.providers.base import Completion, TextDelta, TokenUsage, ToolCall
+from agentbase.tools.approval import ApprovalService, ApprovalStore
+from agentbase.tools.runtime import ToolRuntime
+from agentbase.tools.sandbox import Sandbox
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Iterable
     from pathlib import Path
 
-    from agentspace.events.store import EventStore
-    from agentspace.providers.base import Message, StreamEvent, ToolSpec
-    from agentspace.store.db import Database
-    from agentspace.tools.catalogue import RiskLevel
+    from agentbase.events.store import EventStore
+    from agentbase.providers.base import Message, StreamEvent, ToolSpec
+    from agentbase.store.db import Database
+    from agentbase.tools.catalogue import RiskLevel
 
 __all__ = [
     "FakeClock",

@@ -1,4 +1,4 @@
-import type { Event, Run } from "@agentspace/schemas";
+import type { Event, Run } from "@agentbase/schemas";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";

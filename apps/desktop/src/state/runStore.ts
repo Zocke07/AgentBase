@@ -1,4 +1,4 @@
-import type { Event } from "@agentspace/schemas";
+import type { Event } from "@agentbase/schemas";
 import { create } from "zustand";
 
 import { EMPTY_RUN, reduce, reduceAll, type RunView } from "./reducer";

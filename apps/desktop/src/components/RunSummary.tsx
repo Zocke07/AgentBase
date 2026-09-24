@@ -1,4 +1,4 @@
-import type { MemoryItem } from "@agentspace/schemas";
+import type { MemoryItem } from "@agentbase/schemas";
 import { useEffect, useRef, useState } from "react";
 
 import * as api from "../lib/api";

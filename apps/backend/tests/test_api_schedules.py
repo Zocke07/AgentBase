@@ -9,15 +9,15 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from fastapi.testclient import TestClient
 
-from agentspace import __version__
-from agentspace.main import create_app
-from agentspace.store.spaces import DEFAULT_SPACE_ID
+from agentbase import __version__
+from agentbase.main import create_app
+from agentbase.store.spaces import DEFAULT_SPACE_ID
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from agentspace.config import AppPaths
-    from agentspace.secrets import SecretStore
+    from agentbase.config import AppPaths
+    from agentbase.secrets import SecretStore
 
 
 @pytest.fixture

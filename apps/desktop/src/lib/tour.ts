@@ -17,7 +17,7 @@ export interface TourStep {
 
 export const TOUR_STEPS: readonly TourStep[] = [
   {
-    title: "Welcome to AgentSpace",
+    title: "Welcome to AgentBase",
     body:
       "A place on your own computer where a few AI agents work on a task together while you watch. " +
       "This takes about a minute. Esc skips it; you can replay it from Settings.",

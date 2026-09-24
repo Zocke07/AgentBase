@@ -14,8 +14,8 @@ from typing import Any
 import httpx2
 import pytest
 
-from agentspace.providers.anthropic import ANTHROPIC_VERSION, AnthropicProvider
-from agentspace.providers.base import (
+from agentbase.providers.anthropic import ANTHROPIC_VERSION, AnthropicProvider
+from agentbase.providers.base import (
     Completion,
     Message,
     Provider,
@@ -28,17 +28,17 @@ from agentspace.providers.base import (
     TokenUsage,
     ToolSpec,
 )
-from agentspace.providers.chatgpt import ChatGPTAuthStatus, ChatGPTModelResponse
-from agentspace.providers.factory import (
+from agentbase.providers.chatgpt import ChatGPTAuthStatus, ChatGPTModelResponse
+from agentbase.providers.factory import (
     SUPPORTED_PROVIDERS,
     UnknownProviderError,
     build_provider,
     qualified_model,
 )
-from agentspace.providers.ollama import OllamaProvider
-from agentspace.providers.openai import OpenAIProvider
-from agentspace.secrets import SecretStore
-from agentspace.store.settings import WorkspaceSettings
+from agentbase.providers.ollama import OllamaProvider
+from agentbase.providers.openai import OpenAIProvider
+from agentbase.secrets import SecretStore
+from agentbase.store.settings import WorkspaceSettings
 
 pytestmark = pytest.mark.anyio
 

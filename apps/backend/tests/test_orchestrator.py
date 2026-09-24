@@ -15,24 +15,24 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from agentspace.api.stream import run_stream
-from agentspace.events.bus import DEFAULT_QUEUE_SIZE, EventBus
-from agentspace.events.types import EventType
-from agentspace.orchestrator import execute_run
-from agentspace.orchestrator.limits import RunLimits
-from agentspace.orchestrator.run import Mailbox, Run, SpawnRefusedError
-from agentspace.providers.base import Completion
+from agentbase.api.stream import run_stream
+from agentbase.events.bus import DEFAULT_QUEUE_SIZE, EventBus
+from agentbase.events.types import EventType
+from agentbase.orchestrator import execute_run
+from agentbase.orchestrator.limits import RunLimits
+from agentbase.orchestrator.run import Mailbox, Run, SpawnRefusedError
+from agentbase.providers.base import Completion
 from support import FakeClock, ReconstructedRun, ScriptedProvider, call, reconstruct, says
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable
 
-    from agentspace.budget.ledger import BudgetLedger
-    from agentspace.events.store import EventStore
-    from agentspace.secrets import SecretStore
-    from agentspace.store.agents import AgentDefStore
-    from agentspace.store.db import Database
-    from agentspace.store.settings import SettingsStore
+    from agentbase.budget.ledger import BudgetLedger
+    from agentbase.events.store import EventStore
+    from agentbase.secrets import SecretStore
+    from agentbase.store.agents import AgentDefStore
+    from agentbase.store.db import Database
+    from agentbase.store.settings import SettingsStore
 
 pytestmark = pytest.mark.anyio
 

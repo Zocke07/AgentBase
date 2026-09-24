@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from agentspace.openapi import UnsupportedSchemaError, emit_typescript, schema
+from agentbase.openapi import UnsupportedSchemaError, emit_typescript, schema
 
 
 def _document(schemas: dict[str, Any]) -> dict[str, Any]:

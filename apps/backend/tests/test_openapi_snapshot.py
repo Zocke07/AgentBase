@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from agentspace import openapi
+from agentbase import openapi
 
 #: `apps/backend/tests/` -> repo root.
 REPO_ROOT = Path(__file__).resolve().parents[3]

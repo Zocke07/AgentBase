@@ -1,4 +1,4 @@
-import type { TextFileSummary } from "@agentspace/schemas";
+import type { TextFileSummary } from "@agentbase/schemas";
 import { useCallback, useEffect, useState } from "react";
 
 import * as api from "../lib/api";
@@ -273,7 +273,7 @@ function FileEditor({
           {!open.fresh &&
             (deleteAsked ? (
               <span className="roster__confirm">
-                <span>Delete {open.path}? A copy is kept under .agentspace/backups.</span>
+                <span>Delete {open.path}? A copy is kept under .agentbase/backups.</span>
                 <button type="button" className="button button--small button--danger" disabled={busy} onClick={() => void remove()}>
                   Delete
                 </button>

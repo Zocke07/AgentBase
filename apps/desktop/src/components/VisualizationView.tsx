@@ -1,4 +1,4 @@
-import type { SpaceResponse, TextFileSummary } from "@agentspace/schemas";
+import type { SpaceResponse, TextFileSummary } from "@agentbase/schemas";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import * as api from "../lib/api";

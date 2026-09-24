@@ -1,9 +1,9 @@
-# AgentSpace: User Guide
+# AgentBase: User Guide
 
 **Version covered: 0.4.5.** For installation from source and development, use the
 [Developer Guide](../developer_guide/README.md).
 
-AgentSpace runs a team of AI agents on your computer. You give a task to a
+AgentBase runs a team of AI agents on your computer. You give a task to a
 supervisor, which delegates to the agents you have enabled. The graph and event
 log show their work as it happens and let you replay it afterwards.
 

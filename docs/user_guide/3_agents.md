@@ -55,7 +55,7 @@ with `read_file`, so the files must be inside the space folder, not on the
 web. `config/limits.json` holds the hard risk rules `portfolio-review` and
 `risk-manager` restate.
 
-Two things the prompts assume that AgentSpace does not provide: scripts
+Two things the prompts assume that AgentBase does not provide: scripts
 (`scripts/compute_movers.py`, `compute_portfolio.py`, `check_limits.py`,
 `score_predictions.py`, `fetch_keyed.py`) that do the arithmetic and the
 header-requiring fetches, and a `portfolio/positions.csv` you export by

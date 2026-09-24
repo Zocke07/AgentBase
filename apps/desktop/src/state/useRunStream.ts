@@ -1,4 +1,4 @@
-import type { Event } from "@agentspace/schemas";
+import type { Event } from "@agentbase/schemas";
 import { useEffect } from "react";
 
 import { baseUrl, getRunHistory } from "../lib/api";
@@ -79,7 +79,7 @@ export function useRunStream(runId: string | null): void {
         },
         onBadFrame: (raw) => {
           // Loud, but not on the connection indicator: the stream is fine.
-          console.warn("agentspace: dropped a frame that was not an event", raw);
+          console.warn("agentbase: dropped a frame that was not an event", raw);
         },
       }, { afterSeq });
     };

@@ -93,7 +93,7 @@ agent-workspace/
 ├── apps/
 │   ├── backend/
 │   │   ├── pyproject.toml        # uv-managed
-│   │   ├── src/agentspace/
+│   │   ├── src/agentbase/
 │   │   │   ├── main.py           # FastAPI app + lifespan
 │   │   │   ├── config.py
 │   │   │   ├── events/
@@ -319,7 +319,7 @@ resumes with zero gaps and zero duplicates.
 
 **Approved addition, 2026-09-14:** OpenAI has an app-wide access mode,
 `api_key` or `chatgpt`. Both construct a provider named `openai` and use the
-same selected model id, normalized response contract, AgentSpace orchestrator,
+same selected model id, normalized response contract, AgentBase orchestrator,
 tool catalogue, approval gate, event log, usage ledger and run limits. ChatGPT
 access uses the pinned Codex App Server as a credential and inference transport
 only. *(2026-09-18: the App Server executable is fetched from the pinned wheel
@@ -327,13 +327,13 @@ on the first sign-in and kept in the data directory, verified by size and
 SHA-256, rather than frozen into the sidecar, whose one-file form unpacked it
 on every launch. The pin itself is unchanged: `uv.lock` names the wheel.)* It receives one structured model decision per provider call, runs in an
 empty read-only directory with its own tools disabled, and never owns the agent
-loop or executes an AgentSpace tool. OAuth tokens stay in the OS credential
-store and are not returned by the local API. AgentSpace applies the selected
+loop or executes an AgentBase tool. OAuth tokens stay in the OS credential
+store and are not returned by the local API. AgentBase applies the selected
 model's API-equivalent price to subscription token usage so the existing local
 safety cap behaves the same; this estimate is not an OpenAI API charge.
 
 ChatGPT and API accounts can have different model entitlements and usage
-allowances. AgentSpace preserves the requested model and surfaces an access
+allowances. AgentBase preserves the requested model and surfaces an access
 error rather than silently substituting another model. Direct Claude
 subscription login is not included because Anthropic's current
 [authentication terms](https://code.claude.com/docs/en/legal-and-compliance#authentication-and-credential-use)
@@ -487,7 +487,7 @@ originating chat channel, and a channel-originated tool call still hits the appr
   survives artifact upload, which strips executable modes from raw files; the link makes
   the install a drag. **2026-09-18 deviation from the zip the 0.2.0 handoff chose:** the
   zip left the app in Downloads, where Gatekeeper ran a fresh translocated copy on every
-  launch, Finder searches showed several AgentSpace entries and Spotlight listed none,
+  launch, Finder searches showed several AgentBase entries and Spotlight listed none,
   which was the first macOS bug report. The earlier objection to `dmg`, that it could
   only fail for reasons outside this repository, predates publishing macOS at all; the
   image is built with `CI=true` so Tauri skips the Finder AppleScript on every host.
@@ -502,7 +502,7 @@ originating chat channel, and a channel-originated tool call still hits the appr
   cert, optional and not required to ship, removes the warning entirely if it's ever worth the
   cost.
 - Document macOS Gatekeeper's **Privacy & Security > Open Anyway** path and the scoped
-  `xattr -dr com.apple.quarantine /Applications/AgentSpace.app` fallback, plus the keychain
+  `xattr -dr com.apple.quarantine /Applications/AgentBase.app` fallback, plus the keychain
   access prompt after an app update. The first 0.2.0 archive omitted a complete app-bundle
   signature and Gatekeeper reported it as damaged. The corrected 0.2.0 release uses Tauri's
   ad-hoc identity and a strict signature check. Hardened runtime stays disabled because
@@ -720,22 +720,22 @@ and CLAUDE.md records what the live runs showed.
 non-goal that excluded vector memory and RAG.*
 
 Each space's existing folder is also an Obsidian-compatible vault. Markdown is
-the canonical data, whether a note is edited in AgentSpace, Obsidian or another
-text editor. AgentSpace must not create a proprietary second copy of note
+the canonical data, whether a note is edited in AgentBase, Obsidian or another
+text editor. AgentBase must not create a proprietary second copy of note
 content or require Obsidian to be installed.
 
 - Add a **Knowledge** section per space with a note browser, Markdown source
   editor, safe preview, YAML properties and tags, wikilinks, backlinks, local
   search and a linked-note graph.
 - Add **Open in Obsidian** through a narrow Rust command. It accepts only an
-  existing directory under AgentSpace's data root, constructs the documented
+  existing directory under AgentBase's data root, constructs the documented
   `obsidian://open?path=` URI itself, and does not grant a general URL opener to
   the webview. *(2026-09-19: the button is offered only when the shell finds
   Obsidian where its installer puts it; on a machine without it the link has
   no handler and the launcher's exit status was reaching the user as the
   error. The folder is a vault regardless, which Obsidian's picker opens.)*
 - Rebuild the index from the live folder when it is used. An edit made outside
-  AgentSpace is visible on the next list, search or run without a watcher,
+  AgentBase is visible on the next list, search or run without a watcher,
   reindex job or stale database.
 - Retrieval stays local and combines deterministic hashed term vectors with
   term overlap, title and tag relevance. Return heading-sized chunks with
@@ -758,7 +758,7 @@ content or require Obsidian to be installed.
 
 **Accept when:**
 
-1. A Markdown file edited outside AgentSpace appears with its YAML properties,
+1. A Markdown file edited outside AgentBase appears with its YAML properties,
    tags, outgoing links and backlinks, and the graph carries the same edges.
 2. Retrieval ranks a relevant heading above unrelated notes and returns a
    stable citation without making a network call.
@@ -847,8 +847,8 @@ chart definitions, dashboards and diagrams with the existing approval-gated
   sort and a bounded row count. Every graphic has an accessible source table
   and exports as SVG or prepared CSV.
 - A saved chart is a versioned `.viz.json` file with schema
-  `agentspace://visualization/v1` and a relative source path. A saved dashboard
-  is `.dashboard.json` with schema `agentspace://dashboard/v1` and a list of
+  `agentbase://visualization/v1` and a relative source path. A saved dashboard
+  is `.dashboard.json` with schema `agentbase://dashboard/v1` and a list of
   saved chart paths in one, two or three columns. Both contracts are validated
   before rendering and remain small enough for a model to write directly.
 - `.mmd` and `.mermaid` are editable text files. Render them with Mermaid in
@@ -905,7 +905,7 @@ Do not build these. Do not scaffold placeholders for these.
   sign-in for the single user is allowed as described in the Phase 3 addition.
 - Any network-exposed surface beyond `127.0.0.1`
 - Cloud-hosted knowledge databases or separate embedding services
-- Executing Obsidian community plugins inside AgentSpace
+- Executing Obsidian community plugins inside AgentBase
 - Agent marketplaces or plugin systems
 - Intel macOS release artifacts (Apple Silicon `.app.zip` added for 0.2.0 on 2026-09-13,
   replaced by a `.dmg` on 2026-09-18; see constraint #7 and the Phase 9 deviation)

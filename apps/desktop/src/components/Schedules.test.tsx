@@ -1,4 +1,4 @@
-import type { RiskLevel, ScheduleResponse, SettingsResponse, SpaceResponse } from "@agentspace/schemas";
+import type { RiskLevel, ScheduleResponse, SettingsResponse, SpaceResponse } from "@agentbase/schemas";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";

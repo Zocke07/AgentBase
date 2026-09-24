@@ -11,16 +11,16 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from fastapi.testclient import TestClient
 
-from agentspace.main import create_app
-from agentspace.secrets import SecretStore
-from agentspace.store.spaces import DEFAULT_SPACE_ID
-from agentspace.tools.approval import ApprovalStatus
-from agentspace.tools.catalogue import RiskLevel
+from agentbase.main import create_app
+from agentbase.secrets import SecretStore
+from agentbase.store.spaces import DEFAULT_SPACE_ID
+from agentbase.tools.approval import ApprovalStatus
+from agentbase.tools.catalogue import RiskLevel
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from agentspace.config import AppPaths
+    from agentbase.config import AppPaths
 
 
 @pytest.fixture

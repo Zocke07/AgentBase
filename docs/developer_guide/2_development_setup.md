@@ -21,7 +21,7 @@ imports `audioop`, which 3.13 removes.
 
 **Package caches and development data stay inside the repository.** The
 justfile exports `CARGO_HOME`, `UV_CACHE_DIR`, `npm_config_cache`,
-`PYINSTALLER_CONFIG_DIR` and `AGENTSPACE_DATA_DIR` into a git-ignored `.dev/`,
+`PYINSTALLER_CONFIG_DIR` and `AGENTBASE_DATA_DIR` into a git-ignored `.dev/`,
 so a clone on a roomy drive does not fill the system drive. `just paths` prints
 the resolved locations. This applies **only inside `just` recipes**: a command
 you run by hand does not get these exports, which matters when
@@ -60,16 +60,16 @@ No Rust, no freeze step, instant reloads. Two terminals.
 
 **Terminal 1: the sidecar from source.** There is no `just` recipe for this
 yet, so set the data directory by hand or the sidecar writes to the *real*
-app-data directory (`%LOCALAPPDATA%\dev.agentspace.desktop` on Windows,
-`~/Library/Application Support/dev.agentspace.desktop` on macOS):
+app-data directory (`%LOCALAPPDATA%\dev.agentbase.desktop` on Windows,
+`~/Library/Application Support/dev.agentbase.desktop` on macOS):
 
 <details open>
 <summary>Windows (PowerShell)</summary>
 
 ```powershell
 cd apps\backend
-$env:AGENTSPACE_DATA_DIR = "$(git rev-parse --show-toplevel)\.dev\data"
-uv run python -m agentspace
+$env:AGENTBASE_DATA_DIR = "$(git rev-parse --show-toplevel)\.dev\data"
+uv run python -m agentbase
 ```
 </details>
 
@@ -78,8 +78,8 @@ uv run python -m agentspace
 
 ```bash
 cd apps/backend
-export AGENTSPACE_DATA_DIR="$(git rev-parse --show-toplevel)/.dev/data"
-uv run python -m agentspace
+export AGENTBASE_DATA_DIR="$(git rev-parse --show-toplevel)/.dev/data"
+uv run python -m agentbase
 ```
 </details>
 
@@ -99,7 +99,7 @@ It binds `127.0.0.1:8787`, applies migrations, and logs to the terminal.
 - Typing `shutdown` and Enter stops it cleanly. So does **Ctrl+C**, and so
   does **EOF**: which means `< NUL` (Windows), `< /dev/null` (macOS/Linux)
   or a closed pipe stops it immediately. If you script it, keep stdin open.
-- `AGENTSPACE_PORT=8790` moves the port (1024–65535). The Tauri shell does not
+- `AGENTBASE_PORT=8790` moves the port (1024–65535). The Tauri shell does not
   read this (it pins 8787), so it is only useful for a second, source-run
   sidecar.
 
@@ -122,8 +122,8 @@ falls back to `http://127.0.0.1:8787` for the sidecar, and both
 
 ```powershell
 cd apps\backend
-$env:AGENTSPACE_DATA_DIR = "$(git rev-parse --show-toplevel)\.dev\data"
-uv run uvicorn agentspace.main:create_app --factory --host 127.0.0.1 --port 8787 --reload --reload-dir src
+$env:AGENTBASE_DATA_DIR = "$(git rev-parse --show-toplevel)\.dev\data"
+uv run uvicorn agentbase.main:create_app --factory --host 127.0.0.1 --port 8787 --reload --reload-dir src
 ```
 
 You lose the stdin handshake (no keys: fine for Ollama) and the watchdog.
@@ -138,8 +138,8 @@ or `taskkill` can leave the worker alive and 8787 taken. See
 
 ```bash
 cd apps/backend
-export AGENTSPACE_DATA_DIR="$(git rev-parse --show-toplevel)/.dev/data"
-uv run uvicorn agentspace.main:create_app --factory --host 127.0.0.1 --port 8787 --reload --reload-dir src
+export AGENTBASE_DATA_DIR="$(git rev-parse --show-toplevel)/.dev/data"
+uv run uvicorn agentbase.main:create_app --factory --host 127.0.0.1 --port 8787 --reload --reload-dir src
 ```
 
 You lose the stdin handshake (no keys: fine for Ollama) and the watchdog.
@@ -166,10 +166,10 @@ Consequences of "the frozen sidecar":
 - A backend change needs `just build-sidecar` again (or re-run `dev-app`).
   Vite hot-reloads the frontend as usual.
 - The shell reads **your real OS keychain**: entries under service
-  `dev.agentspace.desktop`. A dev run with a key stored there uses it. The
+  `dev.agentbase.desktop`. A dev run with a key stored there uses it. The
   terminal shows `[keychain] sending N key(s): [...]`.
 - The data directory is `.dev/data`, because `just` exports
-  `AGENTSPACE_DATA_DIR` and the shell defers to an inherited value.
+  `AGENTBASE_DATA_DIR` and the shell defers to an inherited value.
 - The debug build keeps a console: every sidecar line arrives prefixed
   `[sidecar]`. On Windows, right-click → **Inspect** opens WebView2 devtools;
   macOS uses WebKit's inspector.
@@ -180,7 +180,7 @@ Consequences of "the frozen sidecar":
 
 - **Windows:** the `.exe` from `apps/desktop/src-tauri/target/release/bundle/nsis/`.
 - **macOS:** the `.app` from `apps/desktop/src-tauri/target/release/bundle/macos/`.
-  Open it with `open AgentSpace.app` or double-click in Finder.
+  Open it with `open AgentBase.app` or double-click in Finder.
 
 See [Packaging](6_packaging.md) for bundle checks and the macOS archive.
 An installed launch exercises the default data directory, packaged origin
@@ -199,8 +199,8 @@ source-run sidecar all bind it. Close the installed app before developing.
 
 ```
 .dev/data/
-  agentspace.sqlite3      runs, events, spend, settings, spaces, agent_defs, approvals
-  agentspace.sqlite3-wal  (WAL mode: readers never block the writer)
+  agentbase.sqlite3      runs, events, spend, settings, spaces, agent_defs, approvals
+  agentbase.sqlite3-wal  (WAL mode: readers never block the writer)
   spaces/
     <default-space-id>/    Main's sandbox folder
     <space-id>/           each additional space's sandbox folder
@@ -213,7 +213,7 @@ Migration 006 assigns old runs and definitions to Main, whose fixed UUID is
 new installs use the spaces layout directly. Each run resolves tools against
 its own space's folder, not the whole `spaces/` directory.
 
-For a fresh-install check, use a separate temporary `AGENTSPACE_DATA_DIR` and
+For a fresh-install check, use a separate temporary `AGENTBASE_DATA_DIR` and
 retain any development files you need. Deleting `.dev/data` removes all its
 history and space files; migrations then recreate Main and its built-in
 roster at next launch. `just clean-dev` deletes it along with the package
@@ -228,7 +228,7 @@ CLI dependency; use the interpreter:
 
 ```powershell
 cd apps\backend
-uv run python -c "import sqlite3; c = sqlite3.connect('../../.dev/data/agentspace.sqlite3'); print(c.execute('PRAGMA user_version').fetchone()); [print(r) for r in c.execute('SELECT seq, agent_id, type FROM events WHERE run_id = (SELECT id FROM runs ORDER BY created_at DESC LIMIT 1) ORDER BY seq')]"
+uv run python -c "import sqlite3; c = sqlite3.connect('../../.dev/data/agentbase.sqlite3'); print(c.execute('PRAGMA user_version').fetchone()); [print(r) for r in c.execute('SELECT seq, agent_id, type FROM events WHERE run_id = (SELECT id FROM runs ORDER BY created_at DESC LIMIT 1) ORDER BY seq')]"
 ```
 </details>
 
@@ -237,7 +237,7 @@ uv run python -c "import sqlite3; c = sqlite3.connect('../../.dev/data/agentspac
 
 ```bash
 cd apps/backend
-uv run python -c "import sqlite3; c = sqlite3.connect('../../.dev/data/agentspace.sqlite3'); print(c.execute('PRAGMA user_version').fetchone()); [print(r) for r in c.execute('SELECT seq, agent_id, type FROM events WHERE run_id = (SELECT id FROM runs ORDER BY created_at DESC LIMIT 1) ORDER BY seq')]"
+uv run python -c "import sqlite3; c = sqlite3.connect('../../.dev/data/agentbase.sqlite3'); print(c.execute('PRAGMA user_version').fetchone()); [print(r) for r in c.execute('SELECT seq, agent_id, type FROM events WHERE run_id = (SELECT id FROM runs ORDER BY created_at DESC LIMIT 1) ORDER BY seq')]"
 ```
 </details>
 

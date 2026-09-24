@@ -11,15 +11,15 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from agentspace.budget.ledger import (
+from agentbase.budget.ledger import (
     BudgetedProvider,
     BudgetExceededError,
     BudgetLedger,
     current_period,
     estimate_usage,
 )
-from agentspace.events.types import EventType
-from agentspace.providers.base import (
+from agentbase.events.types import EventType
+from agentbase.providers.base import (
     Completion,
     Message,
     Role,
@@ -28,13 +28,13 @@ from agentspace.providers.base import (
     TokenUsage,
     ToolSpec,
 )
-from agentspace.store.settings import SettingsStore
+from agentbase.store.settings import SettingsStore
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from agentspace.events.store import EventStore
-    from agentspace.store.db import Database
+    from agentbase.events.store import EventStore
+    from agentbase.store.db import Database
 
 pytestmark = pytest.mark.anyio
 

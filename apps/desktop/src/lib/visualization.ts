@@ -23,8 +23,10 @@ export type ChartKind = "bar" | "line" | "area" | "scatter" | "pie" | "metric" |
 export type Aggregate = "none" | "sum" | "average" | "count" | "minimum" | "maximum";
 export type SortOrder = "source" | "x-ascending" | "x-descending" | "value-ascending" | "value-descending";
 
-export const VISUALIZATION_SCHEMA = "agentspace://visualization/v1" as const;
-export const DASHBOARD_SCHEMA = "agentspace://dashboard/v1" as const;
+export const VISUALIZATION_SCHEMA = "agentbase://visualization/v1" as const;
+export const DASHBOARD_SCHEMA = "agentbase://dashboard/v1" as const;
+const LEGACY_VISUALIZATION_SCHEMA = "agentspace://visualization/v1" as const;
+const LEGACY_DASHBOARD_SCHEMA = "agentspace://dashboard/v1" as const;
 
 export interface VisualizationSpec {
   $schema: typeof VISUALIZATION_SCHEMA;
@@ -45,6 +47,14 @@ export interface DashboardSpec {
   visualizations: string[];
   columns: 1 | 2 | 3;
 }
+
+type SavedVisualizationSpec = Omit<VisualizationSpec, "$schema"> & {
+  $schema: typeof VISUALIZATION_SCHEMA | typeof LEGACY_VISUALIZATION_SCHEMA;
+};
+
+type SavedDashboardSpec = Omit<DashboardSpec, "$schema"> & {
+  $schema: typeof DASHBOARD_SCHEMA | typeof LEGACY_DASHBOARD_SCHEMA;
+};
 
 export interface ChartPoint {
   label: string;
@@ -69,7 +79,11 @@ const CHART_LIMIT = 2_000;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}(?:[T ][0-9:.+-Z]+)?$/;
 
 export function isVisualizationSpec(value: unknown): value is VisualizationSpec {
-  if (!isRecord(value) || value.$schema !== VISUALIZATION_SCHEMA) return false;
+  return isSavedVisualizationSpec(value) && value.$schema === VISUALIZATION_SCHEMA;
+}
+
+function isSavedVisualizationSpec(value: unknown): value is SavedVisualizationSpec {
+  if (!isRecord(value) || !isVisualizationSchema(value.$schema)) return false;
   return (
     typeof value.title === "string" &&
     typeof value.source === "string" &&
@@ -88,7 +102,11 @@ export function isVisualizationSpec(value: unknown): value is VisualizationSpec 
 }
 
 export function isDashboardSpec(value: unknown): value is DashboardSpec {
-  if (!isRecord(value) || value.$schema !== DASHBOARD_SCHEMA) return false;
+  return isSavedDashboardSpec(value) && value.$schema === DASHBOARD_SCHEMA;
+}
+
+function isSavedDashboardSpec(value: unknown): value is SavedDashboardSpec {
+  if (!isRecord(value) || !isDashboardSchema(value.$schema)) return false;
   return (
     typeof value.title === "string" &&
     Array.isArray(value.visualizations) &&
@@ -99,26 +117,26 @@ export function isDashboardSpec(value: unknown): value is DashboardSpec {
 
 export function parseVisualizationSpec(source: string): VisualizationSpec {
   const parsed: unknown = JSON.parse(source);
-  if (!isVisualizationSpec(parsed)) {
-    throw new Error(`This is not an AgentSpace visualization (${VISUALIZATION_SCHEMA}).`);
+  if (!isSavedVisualizationSpec(parsed)) {
+    throw new Error(`This is not an AgentBase visualization (${VISUALIZATION_SCHEMA}).`);
   }
-  return parsed;
+  return { ...parsed, $schema: VISUALIZATION_SCHEMA };
 }
 
 export function parseDashboardSpec(source: string): DashboardSpec {
   const parsed: unknown = JSON.parse(source);
-  if (!isDashboardSpec(parsed)) {
-    throw new Error(`This is not an AgentSpace dashboard (${DASHBOARD_SCHEMA}).`);
+  if (!isSavedDashboardSpec(parsed)) {
+    throw new Error(`This is not an AgentBase dashboard (${DASHBOARD_SCHEMA}).`);
   }
-  return parsed;
+  return { ...parsed, $schema: DASHBOARD_SCHEMA };
 }
 
 export function visualizationJson(spec: VisualizationSpec): string {
-  return `${JSON.stringify(spec, null, 2)}\n`;
+  return `${JSON.stringify({ ...spec, $schema: VISUALIZATION_SCHEMA }, null, 2)}\n`;
 }
 
 export function dashboardJson(spec: DashboardSpec): string {
-  return `${JSON.stringify(spec, null, 2)}\n`;
+  return `${JSON.stringify({ ...spec, $schema: DASHBOARD_SCHEMA }, null, 2)}\n`;
 }
 
 export function defaultVisualization(path: string, data: DataSet): VisualizationSpec {
@@ -364,6 +382,14 @@ function sum(values: number[]): number {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isVisualizationSchema(value: unknown): value is typeof VISUALIZATION_SCHEMA | typeof LEGACY_VISUALIZATION_SCHEMA {
+  return value === VISUALIZATION_SCHEMA || value === LEGACY_VISUALIZATION_SCHEMA;
+}
+
+function isDashboardSchema(value: unknown): value is typeof DASHBOARD_SCHEMA | typeof LEGACY_DASHBOARD_SCHEMA {
+  return value === DASHBOARD_SCHEMA || value === LEGACY_DASHBOARD_SCHEMA;
 }
 
 function isChartKind(value: unknown): value is ChartKind {

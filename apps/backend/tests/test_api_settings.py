@@ -14,15 +14,15 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from fastapi.testclient import TestClient
 
-from agentspace.api.settings import UpdateSettingsRequest
-from agentspace.main import create_app
-from agentspace.secrets import SecretStore
-from agentspace.store.settings import DEFAULT_MONTHLY_CAP_MICROS, WorkspaceSettings
+from agentbase.api.settings import UpdateSettingsRequest
+from agentbase.main import create_app
+from agentbase.secrets import SecretStore
+from agentbase.store.settings import DEFAULT_MONTHLY_CAP_MICROS, WorkspaceSettings
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from agentspace.config import AppPaths
+    from agentbase.config import AppPaths
 
 FAKE_KEY = "totally-not-a-real-key-9f3a2b"
 
@@ -249,7 +249,7 @@ def test_settings_lists_every_secret_the_sidecar_would_accept(client: TestClient
     """The settings screen renders one row per secret, set or not, and must
     not keep its own copy of the names: Rust has one, Python has one, and a
     test already holds those two together. The UI reads this instead."""
-    from agentspace.secrets import SECRET_KEYS
+    from agentbase.secrets import SECRET_KEYS
 
     body = client.get("/settings").json()
 
@@ -454,7 +454,7 @@ def test_a_provider_change_moves_inheriting_spaces_to_its_default_model(
     """A space that inherits the provider was naming a model of the old one,
     which the new one cannot run; it moves to the new provider's default. A
     space with a provider of its own is left alone."""
-    from agentspace.store.spaces import DEFAULT_SPACE_ID
+    from agentbase.store.spaces import DEFAULT_SPACE_ID
 
     own = client.post("/spaces", json={"name": "Own", "provider": "anthropic"}).json()
     assert client.get("/spaces").json()[0]["model"] == "claude-opus-5"
@@ -535,8 +535,8 @@ def test_a_structured_setting_round_trips_without_a_serialisation_warning(
     """
     import warnings
 
-    from agentspace.store.db import Database
-    from agentspace.store.settings import SettingsStore
+    from agentbase.store.db import Database
+    from agentbase.store.settings import SettingsStore
 
     database = Database(tmp_path / "settings.sqlite3")
     database.connect()
@@ -569,8 +569,8 @@ def test_a_structured_setting_round_trips_without_a_serialisation_warning(
 def test_a_duplicate_channel_identity_is_refused_by_the_api(tmp_path: Path) -> None:
     """The allowlist validator has to fire through the endpoint, not only in
     the model: that is the Phase 6 lesson about a rule nobody can reach."""
-    from agentspace.store.db import Database
-    from agentspace.store.settings import SettingsStore
+    from agentbase.store.db import Database
+    from agentbase.store.settings import SettingsStore
 
     database = Database(tmp_path / "settings.sqlite3")
     database.connect()

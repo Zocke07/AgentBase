@@ -1,4 +1,4 @@
-import type { Event, EventType } from "@agentspace/schemas";
+import type { Event, EventType } from "@agentbase/schemas";
 
 /**
  * The SSE client: one run's event stream, resumable.

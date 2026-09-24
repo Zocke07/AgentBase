@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, cast
 import pytest
 from openai_codex import ApprovalMode, AsyncCodex, Sandbox
 
-from agentspace.providers.base import (
+from agentbase.providers.base import (
     Completion,
     Message,
     Provider,
@@ -19,7 +19,7 @@ from agentspace.providers.base import (
     ToolCall,
     ToolSpec,
 )
-from agentspace.providers.chatgpt import (
+from agentbase.providers.chatgpt import (
     ChatGPTModelDelta,
     ChatGPTModelResponse,
     ChatGPTSubscriptionProvider,
@@ -170,7 +170,7 @@ def test_structured_codex_output_becomes_native_tool_calls() -> None:
 
 
 def test_invalid_structured_output_is_a_provider_error() -> None:
-    from agentspace.providers.base import ProviderError
+    from agentbase.providers.base import ProviderError
 
     with pytest.raises(ProviderError, match="structured response"):
         _parse_decision(

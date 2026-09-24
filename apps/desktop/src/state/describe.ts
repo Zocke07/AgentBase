@@ -1,4 +1,4 @@
-import type { Event } from "@agentspace/schemas";
+import type { Event } from "@agentbase/schemas";
 
 import { ellipsise, summariseArgs } from "../lib/format";
 import { display, flag, int, record, text, type Payload } from "../lib/payload";

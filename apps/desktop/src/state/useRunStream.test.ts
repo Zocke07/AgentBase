@@ -1,4 +1,4 @@
-import type { Event } from "@agentspace/schemas";
+import type { Event } from "@agentbase/schemas";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 

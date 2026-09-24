@@ -34,7 +34,7 @@ version-one contract:
 
 ```json
 {
-  "$schema": "agentspace://visualization/v1",
+  "$schema": "agentbase://visualization/v1",
   "title": "Revenue by month",
   "source": "data/revenue.csv",
   "chart": "line",
@@ -49,7 +49,7 @@ version-one contract:
 
 An agent with `write_file` can write the data and this definition under
 `visualizations/`. The write still asks or runs according to the same tool
-policy as every other file write. AgentSpace validates JSON before saving it
+policy as every other file write. AgentBase validates JSON before saving it
 through the app and validates the visualization contract before rendering it.
 A malformed or missing source is shown as an error, never executed.
 
@@ -60,7 +60,7 @@ two or three columns. A dashboard is also ordinary JSON:
 
 ```json
 {
-  "$schema": "agentspace://dashboard/v1",
+  "$schema": "agentbase://dashboard/v1",
   "title": "Research dashboard",
   "visualizations": [
     "visualizations/revenue.viz.json",
@@ -79,7 +79,7 @@ Choose **New diagram** or open a `.mmd` or `.mermaid` file. Mermaid supports
 flowcharts, sequence diagrams, class and entity diagrams, state diagrams,
 timelines, Gantt charts, mind maps and its other built-in syntaxes. Diagram
 rendering uses Mermaid's strict security mode with HTML labels disabled, then
-AgentSpace removes scripts, embedded objects, event handlers and external SVG
+AgentBase removes scripts, embedded objects, event handlers and external SVG
 links before inserting the result. The source stays editable beside the live
 preview, and the rendered diagram can be exported as SVG.
 

@@ -1,4 +1,4 @@
-import type { BudgetResponse } from "@agentspace/schemas";
+import type { BudgetResponse } from "@agentbase/schemas";
 
 /**
  * Month-to-date spend against the cap. The one panel that is not a projection

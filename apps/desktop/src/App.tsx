@@ -3,7 +3,7 @@ import type {
   BudgetResponse,
   SettingsResponse,
   VerifyResponse,
-} from "@agentspace/schemas";
+} from "@agentbase/schemas";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AgentsView } from "./components/AgentsView";
@@ -302,7 +302,7 @@ export function App() {
   if (status.kind !== "ready") {
     return (
       <main className="shell shell--waiting">
-        <h1 className="shell__title">AgentSpace</h1>
+        <h1 className="shell__title">AgentBase</h1>
 
         {status.kind === "connecting" && (
           <p className="shell__status">

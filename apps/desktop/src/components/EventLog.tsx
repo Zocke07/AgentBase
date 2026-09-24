@@ -1,4 +1,4 @@
-import type { Event } from "@agentspace/schemas";
+import type { Event } from "@agentbase/schemas";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { clockTime, eventFamily } from "../lib/format";

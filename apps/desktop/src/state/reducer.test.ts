@@ -1,4 +1,4 @@
-import type { Event, EventType } from "@agentspace/schemas";
+import type { Event, EventType } from "@agentbase/schemas";
 import { describe, expect, it } from "vitest";
 
 import { LogBuilder, twoAgentRun } from "../test/log";

@@ -5,7 +5,7 @@
 ## Discord
 
 Discord can start a task and display updates from the same run you watch on
-the desktop. AgentSpace must remain running on your computer. Only accounts
+the desktop. AgentBase must remain running on your computer. Only accounts
 you explicitly allow can start tasks; ordinary channel conversation is not
 fed into an agent's context.
 
@@ -14,7 +14,7 @@ fed into an agent's context.
 1. Create an application in the
    [Discord Developer Portal](https://discord.com/developers/applications).
 2. Open its **Bot** page, generate or reset the token, and copy it. Leave
-   the privileged gateway intents off; AgentSpace does not request them.
+   the privileged gateway intents off; AgentBase does not request them.
 3. Under **Installation**, configure **Guild Install** with the `bot` and
    `applications.commands` scopes and **Send Messages** permission. Use its
    install link to add the app to your server. Ensure it can view and send
@@ -26,9 +26,9 @@ covers the portal flow.
 
 ### Save the token and allow accounts
 
-1. In AgentSpace, open **Settings → Keys**, click **Set…** beside
+1. In AgentBase, open **Settings → Keys**, click **Set…** beside
    `discord_bot_token`, paste the token and click **Save key**.
-2. Click **Restart AgentSpace** under the key list, or quit and reopen the
+2. Click **Restart AgentBase** under the key list, or quit and reopen the
    app, so the sidecar receives the new token.
 3. Open **Settings → Chat channels** and tick **Enable discord**.
 4. Under **Who may give the bots tasks**, enter the Discord **Account id**
@@ -39,7 +39,7 @@ covers the portal flow.
 A Discord account ID is the long numeric ID, not a username. In Discord,
 enable **User Settings → Advanced → Developer Mode**, then use **Copy User
 ID** on your profile. Alternatively, enable and save the bot first, try a
-command, and read the **Refused** account shown in AgentSpace's chat status.
+command, and read the **Refused** account shown in AgentBase's chat status.
 
 The status should become **running**. If it does not, the message beside it
 explains the error. Channel settings take effect when saved; a changed token
@@ -66,7 +66,7 @@ automated coverage.
 ### Answer approvals from Discord
 
 By default, **Who may answer an approval** is **Only this window**. Discord
-shows that the run is waiting, and you answer in AgentSpace's approval panel.
+shows that the run is waiting, and you answer in AgentBase's approval panel.
 
 To answer from Discord too, choose **Also the chat user who started the
 run** and click **Save settings**. For pending requests, the bot posts

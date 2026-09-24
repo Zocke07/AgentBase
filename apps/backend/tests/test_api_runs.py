@@ -11,15 +11,15 @@ from typing import TYPE_CHECKING
 import pytest
 from fastapi.testclient import TestClient
 
-from agentspace.main import create_app
-from agentspace.secrets import SecretStore
+from agentbase.main import create_app
+from agentbase.secrets import SecretStore
 from support import ScriptedProvider, call, says
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from agentspace.config import AppPaths
-    from agentspace.events.store import EventStore
+    from agentbase.config import AppPaths
+    from agentbase.events.store import EventStore
 
 
 @pytest.fixture
@@ -59,7 +59,7 @@ def test_runs_are_listed_newest_first(client: TestClient) -> None:
 def test_the_list_can_be_narrowed_to_one_origin(client: TestClient) -> None:
     """Runs you started, runs a schedule started and runs from Discord are one
     list with a filter, not three lists: the same rows, narrowed by `origin`."""
-    from agentspace.store.spaces import DEFAULT_SPACE_ID
+    from agentbase.store.spaces import DEFAULT_SPACE_ID
 
     mine = client.post("/debug/fake_run", params={"step_ms": 0}).json()["id"]
     store = client.app.state.store  # type: ignore[attr-defined]

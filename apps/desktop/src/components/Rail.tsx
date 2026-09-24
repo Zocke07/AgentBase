@@ -1,4 +1,4 @@
-import type { SpaceResponse } from "@agentspace/schemas";
+import type { SpaceResponse } from "@agentbase/schemas";
 import type { ReactNode } from "react";
 
 import { SECTION_ORDER, type Section } from "../lib/sections";
@@ -138,7 +138,7 @@ export function Rail({
     <nav className={`rail${collapsed ? " rail--collapsed" : ""}`} aria-label="Sections" data-testid="rail">
       <div className="rail__brand">
         <span className="rail__logo" aria-hidden="true" />
-        <span className="rail__name">AgentSpace</span>
+        <span className="rail__name">AgentBase</span>
       </div>
 
       <SpaceSwitcher

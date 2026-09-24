@@ -28,7 +28,7 @@ exists that fails when they do not: read the failure, it names the other place.
 4. If a run depends on it, **snapshot it at run start** (see `RunLimits`): a
    run must not be held to different rules at step 1 and step 12.
 5. If a service depends on it (channels), make the `PATCH` handler reconcile
-   immediately. The **Restart AgentSpace** button exists for keys, which only
+   immediately. The **Restart AgentBase** button exists for keys, which only
    reach the sidecar at spawn; a setting must never need it.
 6. For a space override, also update `store/spaces.py`, `api/spaces.py`,
    `Space.apply_to`, and the space editor. Preserve the distinction between a

@@ -11,8 +11,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from agentspace.events.bus import EventBus, Subscription
-from agentspace.events.types import Event, EventType
+from agentbase.events.bus import EventBus, Subscription
+from agentbase.events.types import Event, EventType
 
 pytestmark = pytest.mark.anyio
 

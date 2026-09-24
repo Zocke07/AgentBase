@@ -1,5 +1,5 @@
 {
-  "name": "@agentspace/desktop",
+  "name": "@agentbase/desktop",
   "private": true,
   "version": "0.4.5",
   "type": "module",
@@ -17,7 +17,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@agentspace/schemas": "file:../../packages/schemas",
+    "@agentbase/schemas": "file:../../packages/schemas",
     "@tauri-apps/api": "^2.11.1",
     "@xyflow/react": "^12.11.6",
     "mermaid": "^11.17.2",

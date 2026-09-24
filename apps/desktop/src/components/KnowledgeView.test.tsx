@@ -6,7 +6,7 @@ import type {
   MemoryIndex,
   MemoryItem,
   SpaceResponse,
-} from "@agentspace/schemas";
+} from "@agentbase/schemas";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -135,7 +135,7 @@ beforeEach(() => {
     Promise.resolve({
       note: { ...note, path: target },
       updated_links: 2,
-      backup_path: ".agentspace/backups/move",
+      backup_path: ".agentbase/backups/move",
     }),
   );
   mocked.importKnowledge.mockResolvedValue({
@@ -339,7 +339,7 @@ describe("knowledge vault", () => {
     mocked.mergeMemories.mockResolvedValue({
       memory: { ...cacheMemory, path: "memory/merged/new.md", title: "Storage" },
       archived_paths: ["memory/runs/run-1.md", "memory/inbox/abc.md"],
-      backup_path: ".agentspace/backups/merge",
+      backup_path: ".agentbase/backups/merge",
     });
     render(<KnowledgeView space={space} onOpenRun={onOpenRun} />);
 
@@ -481,7 +481,7 @@ describe("the vault as an editor", () => {
     mocked.deleteKnowledgeFolder.mockResolvedValue({
       path: "decisions",
       deleted_files: 1,
-      backup_path: ".agentspace/backups/20260919T000000Z-delete-folder-abcd1234",
+      backup_path: ".agentbase/backups/20260919T000000Z-delete-folder-abcd1234",
     });
     render(<KnowledgeView space={space} />);
     await user.click(await screen.findByRole("button", { name: /Storage decision/ }));

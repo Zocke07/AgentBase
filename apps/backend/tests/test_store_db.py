@@ -14,14 +14,14 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from agentspace.store import db as db_module
-from agentspace.store.db import LATEST_SCHEMA_VERSION, Database, Migration
-from agentspace.store.settings import SettingsStore
+from agentbase.store import db as db_module
+from agentbase.store.db import LATEST_SCHEMA_VERSION, Database, Migration
+from agentbase.store.settings import SettingsStore
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from agentspace.config import AppPaths
+    from agentbase.config import AppPaths
 
 
 def _table_names(database: Database) -> set[str]:
@@ -48,7 +48,7 @@ def test_connect_creates_the_database_file(app_paths: AppPaths) -> None:
 
 def test_connect_creates_missing_parent_directories(tmp_path: Path) -> None:
     """The first launch on a fresh install has no app-data directory yet."""
-    nested = tmp_path / "does" / "not" / "exist" / "agentspace.sqlite3"
+    nested = tmp_path / "does" / "not" / "exist" / "agentbase.sqlite3"
 
     database = Database(nested)
     database.connect()
@@ -442,7 +442,7 @@ def test_every_migration_file_is_bundled_by_the_packaging_glob() -> None:
 
     assert 'migrations_sql := justfile_directory() / "apps" / "backend" / "src"' in text
     assert '"store" / "*.sql"' in text
-    assert '--add-data "{{ migrations_sql }}{{ data_sep }}agentspace/store"' in text
+    assert '--add-data "{{ migrations_sql }}{{ data_sep }}agentbase/store"' in text
 
     store_dir = pathlib.Path(db_module.__file__).resolve().parent
     on_disk = {path.name for path in store_dir.glob("*.sql")}

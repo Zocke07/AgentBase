@@ -1,4 +1,4 @@
-import type { SpaceResponse, UsageBucket, UsageReport, UsageRun } from "@agentspace/schemas";
+import type { SpaceResponse, UsageBucket, UsageReport, UsageRun } from "@agentbase/schemas";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import * as api from "../lib/api";

@@ -8,7 +8,7 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
  */
 
 export interface ErrorBoundaryProps {
-  /** Names the region in the fallback: "the run view", "AgentSpace". */
+  /** Names the region in the fallback: "the run view", "AgentBase". */
   label: string;
   /** When this changes, a boundary showing its fallback tries again; a healthy subtree keeps its DOM. */
   resetKey?: string | null;
@@ -30,7 +30,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   override componentDidCatch(error: Error, info: ErrorInfo): void {
     // The stack goes to the console, where a bug report can find it; the
     // message goes on screen, where a person can.
-    console.error(`agentspace: ${this.props.label} failed to render`, error, info.componentStack);
+    console.error(`agentbase: ${this.props.label} failed to render`, error, info.componentStack);
   }
 
   override componentDidUpdate(previous: ErrorBoundaryProps): void {

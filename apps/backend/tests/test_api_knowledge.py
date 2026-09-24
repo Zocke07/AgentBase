@@ -7,15 +7,15 @@ from typing import TYPE_CHECKING
 import pytest
 from fastapi.testclient import TestClient
 
-from agentspace.config import ALLOWED_ORIGINS
-from agentspace.main import create_app
-from agentspace.store.spaces import DEFAULT_SPACE_ID
+from agentbase.config import ALLOWED_ORIGINS
+from agentbase.main import create_app
+from agentbase.store.spaces import DEFAULT_SPACE_ID
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from agentspace.config import AppPaths
-    from agentspace.secrets import SecretStore
+    from agentbase.config import AppPaths
+    from agentbase.secrets import SecretStore
 
 
 @pytest.fixture
@@ -60,7 +60,7 @@ def test_crud_search_and_graph(client: TestClient) -> None:
 
 def test_a_folder_can_be_deleted_with_a_copy_kept_first(client: TestClient) -> None:
     """A folder goes with everything in it, after every file it held is copied
-    under `.agentspace/backups/`; the root and hidden folders are refused."""
+    under `.agentbase/backups/`; the root and hidden folders are refused."""
     prefix = f"/spaces/{DEFAULT_SPACE_ID}/knowledge"
     for path, content in (
         ("scratch/one.md", "# One\n\nSee [[keep/two]]."),
@@ -90,7 +90,7 @@ def test_a_folder_can_be_deleted_with_a_copy_kept_first(client: TestClient) -> N
     assert two["unresolved_links"] == ["scratch/one"]
 
     assert client.delete(f"{prefix}/folder", params={"path": "scratch"}).status_code == 404
-    for refused in ("", ".", ".obsidian", "../", ".agentspace/backups"):
+    for refused in ("", ".", ".obsidian", "../", ".agentbase/backups"):
         assert client.delete(f"{prefix}/folder", params={"path": refused}).status_code == 400, (
             refused
         )
@@ -159,7 +159,7 @@ def test_plain_text_files_can_be_listed_written_read_and_deleted(client: TestCli
     )
     assert not (folder / "config" / "watchlist.json").exists()
     backups = list(
-        (folder / ".agentspace" / "backups").glob("*-delete-file-*/config/watchlist.json")
+        (folder / ".agentbase" / "backups").glob("*-delete-file-*/config/watchlist.json")
     )
     assert len(backups) == 1
 

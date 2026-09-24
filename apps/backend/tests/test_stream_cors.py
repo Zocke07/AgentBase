@@ -11,13 +11,13 @@ from typing import TYPE_CHECKING
 import pytest
 from fastapi.testclient import TestClient
 
-from agentspace import main
-from agentspace.config import ALLOWED_ORIGINS
+from agentbase import main
+from agentbase.config import ALLOWED_ORIGINS
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from agentspace.config import AppPaths
+    from agentbase.config import AppPaths
 
 #: The origin the *packaged* Windows app runs from. The dev server origin is
 #: not a substitute: it is same-site enough to hide a misconfiguration that

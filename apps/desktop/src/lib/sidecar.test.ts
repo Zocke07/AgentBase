@@ -152,7 +152,7 @@ describe("fetchHealth", () => {
     await expect(fetchHealth("http://x", undefined, "launch-1")).rejects.toThrow(/not started by this app/);
 
     fetchStub.mockResolvedValueOnce(ok("launch-2"));
-    await expect(fetchHealth("http://x", undefined, "launch-1")).rejects.toThrow(/another AgentSpace/);
+    await expect(fetchHealth("http://x", undefined, "launch-1")).rejects.toThrow(/another AgentBase/);
 
     fetchStub.mockResolvedValueOnce(ok("launch-1"));
     await expect(fetchHealth("http://x", undefined, "launch-1")).resolves.toMatchObject({ instance: "launch-1" });

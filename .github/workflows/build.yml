@@ -86,7 +86,7 @@ jobs:
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v7
         with:
-          name: AgentSpace-windows-installer
+          name: AgentBase-windows-installer
           path: apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
 
@@ -94,7 +94,7 @@ jobs:
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v7
         with:
-          name: AgentSpace-macos-app
+          name: AgentBase-macos-app
           path: apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
           if-no-files-found: error
 
@@ -115,12 +115,12 @@ jobs:
       - name: Download the installer the build job produced
         uses: actions/download-artifact@v8
         with:
-          name: AgentSpace-windows-installer
+          name: AgentBase-windows-installer
           path: dist
 
       - name: Install it, and run the installed sidecar with no Python
         env:
-          AGENTSPACE_INSTALLER_DIR: ${{ github.workspace }}/dist
+          AGENTBASE_INSTALLER_DIR: ${{ github.workspace }}/dist
         run: just verify-installed
 
   release:
@@ -140,13 +140,13 @@ jobs:
       - name: Download the installer built by the Windows job
         uses: actions/download-artifact@v8
         with:
-          name: AgentSpace-windows-installer
+          name: AgentBase-windows-installer
           path: dist
 
       - name: Download the disk image built by the macOS job
         uses: actions/download-artifact@v8
         with:
-          name: AgentSpace-macos-app
+          name: AgentBase-macos-app
           path: dist
 
       # A corrected tag may need to replace an existing release's notes and
@@ -158,7 +158,7 @@ jobs:
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release edit "$GITHUB_REF_NAME" \
               --repo "$GITHUB_REPOSITORY" \
-              --title "AgentSpace $GITHUB_REF_NAME" \
+              --title "AgentBase $GITHUB_REF_NAME" \
               --notes-file "docs/releases/${GITHUB_REF_NAME#v}.md"
             gh release upload "$GITHUB_REF_NAME" dist/*-setup.exe dist/*.dmg \
               --repo "$GITHUB_REPOSITORY" \
@@ -166,6 +166,6 @@ jobs:
           else
             gh release create "$GITHUB_REF_NAME" dist/*-setup.exe dist/*.dmg \
               --repo "$GITHUB_REPOSITORY" \
-              --title "AgentSpace $GITHUB_REF_NAME" \
+              --title "AgentBase $GITHUB_REF_NAME" \
               --notes-file "docs/releases/${GITHUB_REF_NAME#v}.md"
           fi

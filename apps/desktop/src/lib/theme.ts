@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { create } from "zustand";
 
+import { readRenamedStorage, removeRenamedStorage } from "./storage";
+
 /**
  * Light or dark, following the OS with an override. "System" is the absence
  * of the `data-theme` attribute; the stylesheet's tokens do the rest. The
@@ -12,19 +14,16 @@ export type Theme = "system" | "light" | "dark";
 
 export const THEMES: readonly Theme[] = ["system", "light", "dark"];
 
-const KEY = "agentspace.theme";
+const KEY = "agentbase.theme";
+const LEGACY_KEY = "agentspace.theme";
 
 function isTheme(value: unknown): value is Theme {
   return value === "system" || value === "light" || value === "dark";
 }
 
 function readStoredTheme(): Theme {
-  try {
-    const stored = localStorage.getItem(KEY);
-    return isTheme(stored) ? stored : "system";
-  } catch {
-    return "system";
-  }
+  const stored = readRenamedStorage(KEY, LEGACY_KEY);
+  return isTheme(stored) ? stored : "system";
 }
 
 /** Put the choice on the document root, where the stylesheet reads it. */
@@ -43,7 +42,7 @@ export const useThemeStore = create<ThemeState>()((set) => ({
   theme: readStoredTheme(),
   setTheme: (theme) => {
     try {
-      if (theme === "system") localStorage.removeItem(KEY);
+      if (theme === "system") removeRenamedStorage(KEY, LEGACY_KEY);
       else localStorage.setItem(KEY, theme);
     } catch {
       // Not remembered, still applied for this window.

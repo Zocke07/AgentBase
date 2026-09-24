@@ -14,9 +14,9 @@ from pathlib import Path
 import pytest
 import uvicorn
 
-from agentspace import main
-from agentspace.config import BIND_HOST
-from agentspace.secrets import SECRET_KEYS, SecretStore, parse_secrets_line
+from agentbase import main
+from agentbase.config import BIND_HOST
+from agentbase.secrets import SECRET_KEYS, SecretStore, parse_secrets_line
 
 FAKE_KEY = "totally-not-a-real-key-9f3a2b"
 
@@ -142,7 +142,7 @@ def test_the_handshake_does_not_stop_the_server_by_itself() -> None:
 
 
 def test_shutdown_still_works_when_no_handshake_is_sent() -> None:
-    """`python -m agentspace` by hand sends no secrets. It must still stop."""
+    """`python -m agentbase` by hand sends no secrets. It must still stop."""
     store = SecretStore()
     server = _server()
 
@@ -200,8 +200,8 @@ def test_secrets_are_not_written_to_the_database(tmp_path: Path) -> None:
     The settings table lives in the same file as the event log and is plain
     text on disk, so this asserts the store and the database never meet.
     """
-    from agentspace.store.db import Database
-    from agentspace.store.settings import SettingsStore
+    from agentbase.store.db import Database
+    from agentbase.store.settings import SettingsStore
 
     database = Database(tmp_path / "test.sqlite3")
     database.connect()
@@ -223,7 +223,7 @@ def test_secrets_are_not_written_to_the_database(tmp_path: Path) -> None:
 def test_the_settings_model_has_no_field_for_a_key() -> None:
     """The type system is the guard: there is nowhere in WorkspaceSettings to
     put a key even by accident."""
-    from agentspace.store.settings import WorkspaceSettings
+    from agentbase.store.settings import WorkspaceSettings
 
     for field in WorkspaceSettings.model_fields:
         assert "key" not in field.lower()
@@ -234,7 +234,7 @@ def test_the_settings_model_has_no_field_for_a_key() -> None:
 def pathlib_source(filename: str) -> str:
     import pathlib
 
-    root = pathlib.Path(__file__).resolve().parents[1] / "src" / "agentspace"
+    root = pathlib.Path(__file__).resolve().parents[1] / "src" / "agentbase"
     return (root / filename).read_text(encoding="utf-8")
 
 

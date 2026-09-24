@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from agentspace.knowledge.store import (
+from agentbase.knowledge.store import (
     MAX_NOTES,
     KnowledgeConflictError,
     KnowledgeEvaluationCase,
@@ -19,11 +19,11 @@ from agentspace.knowledge.store import (
     _parse_note,
     _search,
 )
-from agentspace.store.spaces import DEFAULT_SPACE_ID, SpaceStore
+from agentbase.store.spaces import DEFAULT_SPACE_ID, SpaceStore
 
 if TYPE_CHECKING:
-    from agentspace.config import AppPaths
-    from agentspace.store.db import Database
+    from agentbase.config import AppPaths
+    from agentbase.store.db import Database
 
 pytestmark = pytest.mark.anyio
 
@@ -198,7 +198,7 @@ async def test_move_updates_links_and_keeps_a_recoverable_backup(
     assert moved.updated_links == 3
     assert "[[decisions/source|source]]" in index.content
     assert "decisions/source.md" in index.content
-    assert moved.backup_path.startswith(".agentspace/backups/")
+    assert moved.backup_path.startswith(".agentbase/backups/")
     assert (
         not knowledge.spaces.folder_for(DEFAULT_SPACE_ID)
         .joinpath("research/source.md")
@@ -371,7 +371,7 @@ async def test_memories_carry_citations_and_merge_into_one_archiving_the_rest(
     assert "SQLite in WAL mode." in merged.memory.outcome
     assert "No cache is needed." in merged.memory.outcome
     assert merged.archived_paths == [first, second]
-    assert merged.backup_path.startswith(".agentspace/backups/")
+    assert merged.backup_path.startswith(".agentbase/backups/")
     assert {item.status for item in originals.values()} == {MemoryStatus.ARCHIVED}
     assert {item.merged_into for item in originals.values()} == {merged.memory.path}
     assert after.archived == 2

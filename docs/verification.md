@@ -1,8 +1,27 @@
 # Verification and remaining work
 
-Updated 2026-09-19. This is the current record; the
+Updated 2026-09-24. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
-superseded gaps. A test result below is scoped to what was actually executed.
+superseded gaps. Earlier evidence retains its original product and artifact
+identifiers. A test result below is scoped to what was actually executed.
+
+## AgentBase product rename, 2026-09-24
+
+The shipped product, backend package, TypeScript packages, Rust crate, Tauri
+bundle, sidecar, environment variables, generated schemas, CI artifacts and
+current documentation now use AgentBase names. The first canonical launch can
+adopt an empty new app-data directory from the preceding profile and rename its
+SQLite database plus WAL and SHM companions without overwriting an existing new
+profile. Legacy keychain entries, browser preferences and visualization schemas
+remain readable for the transition; writes use AgentBase names.
+
+Executed: the full backend suite (**868 passed, 12 skipped**), backend Ruff
+lint and format checks, mypy strict on both the native and cross platform,
+the desktop suite (**47 files, 453 tests passed**), desktop lint, typecheck
+and production build, a sidecar freeze, `cargo clippy --all-targets`, and
+`cargo test` (**7 passed**, including the legacy-keychain-entry precedence
+tests). The pinned Codex runtime dependency download that stalled a prior
+attempt in this environment completed on retry, in about 25 minutes.
 
 ## 0.4.4: guards on runaway runs, a per-run cost ceiling, data files in the app
 

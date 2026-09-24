@@ -12,26 +12,26 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from agentspace.channels.base import InboundMessage
-from agentspace.channels.identity import ChannelIdentity
-from agentspace.channels.render import fold
-from agentspace.channels.service import ChannelDeps, ChannelService, converse
-from agentspace.events.types import TERMINAL_RUN_EVENTS, EventType
-from agentspace.orchestrator.launcher import RunLauncher
-from agentspace.tools.approval import ApprovalNotPendingError
-from agentspace.tools.catalogue import RiskLevel
+from agentbase.channels.base import InboundMessage
+from agentbase.channels.identity import ChannelIdentity
+from agentbase.channels.render import fold
+from agentbase.channels.service import ChannelDeps, ChannelService, converse
+from agentbase.events.types import TERMINAL_RUN_EVENTS, EventType
+from agentbase.orchestrator.launcher import RunLauncher
+from agentbase.tools.approval import ApprovalNotPendingError
+from agentbase.tools.catalogue import RiskLevel
 from support import ScriptedProvider, call, says, tool_runtime
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from agentspace.budget.ledger import BudgetLedger
-    from agentspace.events.bus import EventBus
-    from agentspace.events.store import EventStore
-    from agentspace.secrets import SecretStore
-    from agentspace.store.agents import AgentDefStore
-    from agentspace.store.db import Database
-    from agentspace.store.settings import SettingsStore
+    from agentbase.budget.ledger import BudgetLedger
+    from agentbase.events.bus import EventBus
+    from agentbase.events.store import EventStore
+    from agentbase.secrets import SecretStore
+    from agentbase.store.agents import AgentDefStore
+    from agentbase.store.db import Database
+    from agentbase.store.settings import SettingsStore
 
 pytestmark = pytest.mark.anyio
 
@@ -141,7 +141,7 @@ async def test_a_channel_run_is_watchable_from_the_dashboard_while_it_happens(
     the criterion says simultaneously, so the stream is opened mid-run and the
     chat's edits are counted after that point.
     """
-    from agentspace.api.stream import run_stream
+    from agentbase.api.stream import run_stream
 
     await allow(settings)
     deps = deps_for(store, bus, settings, agents, ledger, secrets, finishing_provider())
@@ -194,7 +194,7 @@ async def test_both_projections_of_one_log_say_the_same_thing(
     await converse(deps, inbound(), reply)
     run_id = await _wait_for_run(store)
 
-    from agentspace.channels.render import render
+    from agentbase.channels.render import render
 
     stored = await store.read(run_id)
     assert reply.updates[-1] == render(fold(stored), limit=2000)
@@ -342,7 +342,7 @@ async def test_a_live_watcher_receives_every_event_the_log_ends_up_holding(
     needed, expressed on the consumer rather than on the writer, and it stays
     true for any future append the `finally` block might grow.
     """
-    from agentspace.api.stream import run_stream
+    from agentbase.api.stream import run_stream
 
     await allow(settings)
     deps = deps_for(store, bus, settings, agents, ledger, secrets, finishing_provider())
@@ -651,7 +651,7 @@ async def test_an_adapter_that_keeps_failing_is_left_stopped_with_a_reason(
     fixable configuration mistake into a warning nobody reads. The supervisor
     gives up and keeps the reason where `GET /channels` can show it.
     """
-    import agentspace.channels.service as service_module
+    import agentbase.channels.service as service_module
 
     monkeypatch.setattr(service_module, "_BACKOFF_SECONDS", (0.0,))
 

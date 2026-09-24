@@ -1,5 +1,5 @@
 [project]
-name = "agentspace"
+name = "agentbase"
 version = "0.4.5"
 description = "Local-first autonomous agent co-working space: FastAPI sidecar."
 requires-python = "==3.12.*"
@@ -45,7 +45,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/agentspace"]
+packages = ["src/agentbase"]
 
 # ---------------------------------------------------------------------------
 # ruff
@@ -87,13 +87,13 @@ ignore = [
 # parameter they do not read, and renaming it to `_sandbox` would stop them
 # conforming to the protocol. Same exemption, same scope and same reasoning as
 # the test doubles below: ARG002 only, so ARG001 keeps its signal.
-"src/agentspace/tools/builtin/**" = ["ARG002"]
+"src/agentbase/tools/builtin/**" = ["ARG002"]
 # `discord.py` passes the Button object to its own decorator's callback. It is
 # not read here, and renaming it to `_x` would stop the library recognising the
 # signature. Same exemption, same scope and same reasoning as the two below:
 # ARG002 only, so ARG001 keeps the signal that caught a real unused parameter
 # in Phase 3.
-"src/agentspace/channels/*_adapter.py" = ["ARG002"]
+"src/agentbase/channels/*_adapter.py" = ["ARG002"]
 "tests/**" = [
     "S101",  # assert is the point of a test
     # Test doubles implement a Protocol, so they must keep the parameter names
@@ -107,7 +107,7 @@ ignore = [
 ban-relative-imports = "all"
 
 [tool.ruff.lint.isort]
-known-first-party = ["agentspace"]
+known-first-party = ["agentbase"]
 
 [tool.ruff.format]
 quote-style = "double"

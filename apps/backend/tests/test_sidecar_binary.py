@@ -37,7 +37,7 @@ SHUTDOWN_TIMEOUT_S = 20.0
 def _target_triple(platform_name: str = sys.platform, machine: str | None = None) -> str:
     """Mirror the triple the justfile builds the sidecar under.
 
-    Parameterized for the same reason as `agentspace.config.default_data_dir`:
+    Parameterized for the same reason as `agentbase.config.default_data_dir`:
     mypy narrows a literal `sys.platform` comparison to the host it runs on, so
     `warn_unreachable` would call the other branches dead code, and the macOS
     branch is one CI builds but no one here can execute.
@@ -56,7 +56,7 @@ def _target_triple(platform_name: str = sys.platform, machine: str | None = None
 
 def _sidecar_path() -> Path:
     suffix = ".exe" if sys.platform == "win32" else ""
-    name = f"agentspace-sidecar-{_target_triple()}{suffix}"
+    name = f"agentbase-sidecar-{_target_triple()}{suffix}"
     return REPO_ROOT / "apps" / "desktop" / "src-tauri" / "binaries" / name
 
 
@@ -174,8 +174,8 @@ def sidecar(tmp_path: Path) -> Iterator[subprocess.Popen[str]]:
         text=True,
         env={
             **os.environ,
-            "AGENTSPACE_PORT": str(TEST_PORT),
-            "AGENTSPACE_DATA_DIR": str(tmp_path),
+            "AGENTBASE_PORT": str(TEST_PORT),
+            "AGENTBASE_DATA_DIR": str(tmp_path),
         },
     )
     try:
@@ -319,7 +319,7 @@ def test_frozen_sidecar_creates_its_database(
 
     _post("/debug/fake_run?step_ms=0")
 
-    assert (tmp_path / "agentspace.sqlite3").is_file(), (
+    assert (tmp_path / "agentbase.sqlite3").is_file(), (
         "the frozen sidecar did not create its database; "
         "schema.sql is most likely missing from the bundle"
     )

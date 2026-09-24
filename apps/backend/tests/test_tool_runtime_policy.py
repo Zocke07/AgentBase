@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from agentspace.store.settings import WorkspaceSettings
-from agentspace.tools.catalogue import (
+from agentbase.store.settings import WorkspaceSettings
+from agentbase.tools.catalogue import (
     RiskLevel,
     ToolPolicy,
     effective_tool_policies,
@@ -48,12 +48,12 @@ def test_settings_refuse_a_policy_for_a_tool_that_does_not_exist() -> None:
 
 
 def test_policy_for_narrows_an_allow_by_the_definition_levels(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    from agentspace.events.bus import EventBus
-    from agentspace.events.store import EventStore
-    from agentspace.store.db import Database
-    from agentspace.tools.approval import ApprovalService, ApprovalStore
-    from agentspace.tools.runtime import ToolRuntime
-    from agentspace.tools.sandbox import Sandbox
+    from agentbase.events.bus import EventBus
+    from agentbase.events.store import EventStore
+    from agentbase.store.db import Database
+    from agentbase.tools.approval import ApprovalService, ApprovalStore
+    from agentbase.tools.runtime import ToolRuntime
+    from agentbase.tools.sandbox import Sandbox
 
     db = Database(tmp_path / "t.sqlite3")
     db.connect()

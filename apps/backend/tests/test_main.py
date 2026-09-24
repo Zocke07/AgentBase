@@ -13,9 +13,9 @@ import pytest
 import uvicorn
 from fastapi.testclient import TestClient
 
-from agentspace import config, main
-from agentspace.config import BIND_HOST, DEFAULT_BIND_PORT
-from agentspace.secrets import SecretStore
+from agentbase import config, main
+from agentbase.config import BIND_HOST, DEFAULT_BIND_PORT
+from agentbase.secrets import SecretStore
 
 
 def _server() -> uvicorn.Server:

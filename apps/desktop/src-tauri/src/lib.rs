@@ -16,15 +16,15 @@ use tauri_plugin_shell::ShellExt;
 
 /// Matches the `externalBin` entry in `tauri.conf.json`. Tauri appends the
 /// target triple when resolving it on disk.
-const SIDECAR_NAME: &str = "agentspace-sidecar";
+const SIDECAR_NAME: &str = "agentbase-sidecar";
 
-/// Must match `agentspace.config.DEFAULT_BIND_PORT` and the `connect-src` in
+/// Must match `agentbase.config.DEFAULT_BIND_PORT` and the `connect-src` in
 /// the CSP. The sidecar binds 127.0.0.1 only, hardcoded on its side
 /// (BUILD_SPEC §1 constraint 3).
 const SIDECAR_PORT: u16 = 8787;
 
 /// Written to the sidecar's stdin to request a clean stop. Must match
-/// `agentspace.main.SHUTDOWN_COMMAND`.
+/// `agentbase.main.SHUTDOWN_COMMAND`.
 const SHUTDOWN_LINE: &[u8] = b"shutdown\n";
 
 /// How long to let the sidecar exit on its own before forcing the issue.
@@ -32,18 +32,22 @@ const SHUTDOWN_GRACE: Duration = Duration::from_secs(5);
 
 /// Keychain service name. Matches the bundle identifier so the entries are
 /// attributable to this app in the Windows Credential Manager UI.
-const KEYCHAIN_SERVICE: &str = "dev.agentspace.desktop";
+const KEYCHAIN_SERVICE: &str = "dev.agentbase.desktop";
+
+/// Service used by AgentSpace before the project rename. Read-only fallback
+/// keeps existing credentials available until the user writes an AgentBase key.
+const LEGACY_KEYCHAIN_SERVICE: &str = "dev.agentspace.desktop";
 
 /// Keychain account names, which double as the JSON field names in the stdin
-/// handshake. Must match `agentspace.secrets.SECRET_KEYS`; a test compares them.
+/// handshake. Must match `agentbase.secrets.SECRET_KEYS`; a test compares them.
 const SECRET_NAMES: [&str; 3] = ["anthropic_api_key", "openai_api_key", "discord_bot_token"];
 
 #[derive(Default)]
 struct SidecarState(Mutex<Option<CommandChild>>);
 
 /// Environment variable carrying this launch's tag to the sidecar, which
-/// echoes it from `/health`. Must match `agentspace.main.INSTANCE_ENV_VAR`.
-const INSTANCE_ENV: &str = "AGENTSPACE_INSTANCE";
+/// echoes it from `/health`. Must match `agentbase.main.INSTANCE_ENV_VAR`.
+const INSTANCE_ENV: &str = "AGENTBASE_INSTANCE";
 
 /// The tag for this launch, handed to both the sidecar and the webview so the
 /// webview can tell the shell's own sidecar from whatever else holds the fixed
@@ -79,9 +83,17 @@ fn keychain_service() -> String {
     KEYCHAIN_SERVICE.to_string()
 }
 
+/// The predecessor service name. The webview may use it only to remove a
+/// credential that was adopted through the rename fallback; it never reads a
+/// value from either keychain service.
+#[tauri::command]
+fn legacy_keychain_service() -> String {
+    LEGACY_KEYCHAIN_SERVICE.to_string()
+}
+
 /// Environment variable the sidecar reads its data directory from. Must match
-/// `agentspace.config.DATA_DIR_ENV_VAR`.
-const DATA_DIR_ENV: &str = "AGENTSPACE_DATA_DIR";
+/// `agentbase.config.DATA_DIR_ENV_VAR`.
+const DATA_DIR_ENV: &str = "AGENTBASE_DATA_DIR";
 
 /// The data directory: the one the justfile exported for a dev run, else the
 /// one Tauri derives from the bundle identifier. One function, because the
@@ -95,14 +107,14 @@ fn data_dir(app: &AppHandle) -> Result<PathBuf, tauri::Error> {
     }
 }
 
-/// Resolve one existing directory and prove it belongs to AgentSpace's data.
+/// Resolve one existing directory and prove it belongs to AgentBase's data.
 fn validated_data_directory(app: &AppHandle, path: &str) -> Result<PathBuf, String> {
     let root = data_dir(app).map_err(|error| error.to_string())?;
     let root = std::fs::canonicalize(&root).map_err(|error| error.to_string())?;
     let wanted = std::fs::canonicalize(path)
         .map_err(|_| format!("{path} does not exist yet: it is created by the first run"))?;
     if !wanted.starts_with(&root) {
-        return Err(format!("{path} is not inside AgentSpace's data directory"));
+        return Err(format!("{path} is not inside AgentBase's data directory"));
     }
     if !wanted.is_dir() {
         return Err(format!("{path} is not a folder"));
@@ -241,7 +253,7 @@ fn spawn_sidecar(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     // refuses whatever holds the port by its tag. This line is for the log.
     if port_is_open(SIDECAR_PORT) {
         eprintln!(
-            "[sidecar] port {SIDECAR_PORT} is already in use: another AgentSpace, or a dev \
+            "[sidecar] port {SIDECAR_PORT} is already in use: another AgentBase, or a dev \
              sidecar? This app's sidecar will not be able to bind it."
         );
     }
@@ -296,19 +308,51 @@ fn spawn_sidecar(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
 /// `get_password`, which folds every failure into `None`: on macOS a user
 /// clicking Deny on the keychain prompt then looked like an unset key.
 /// `NoEntry` is the one error that means "not set".
+enum KeychainLookup {
+    Value(String),
+    Missing,
+    Unavailable,
+}
+
+/// Read one keychain entry without turning a keychain failure into a missing
+/// entry. That distinction prevents an old AgentSpace credential from bypassing
+/// a denied or unavailable AgentBase entry.
+fn read_keychain_entry(service: &str, name: &str) -> KeychainLookup {
+    match keyring::Entry::new(service, name).and_then(|entry| entry.get_password()) {
+        Ok(value) => KeychainLookup::Value(value),
+        Err(keyring::Error::NoEntry) => KeychainLookup::Missing,
+        // The service and account are identifiers, never secret values.
+        Err(error) => {
+            eprintln!("[keychain] could not read {name} from {service}: {error}");
+            KeychainLookup::Unavailable
+        }
+    }
+}
+
+/// Read an AgentBase key first. The legacy service is considered only after an
+/// explicit `NoEntry` result, so a current empty entry or keychain failure is
+/// authoritative and cannot be replaced by an older value.
+fn secret_for_name(
+    name: &str,
+    mut lookup: impl FnMut(&str, &str) -> KeychainLookup,
+) -> Option<String> {
+    let entry = match lookup(KEYCHAIN_SERVICE, name) {
+        KeychainLookup::Missing => lookup(LEGACY_KEYCHAIN_SERVICE, name),
+        entry => entry,
+    };
+
+    match entry {
+        KeychainLookup::Value(value) if !value.is_empty() => Some(value),
+        KeychainLookup::Value(_) | KeychainLookup::Missing | KeychainLookup::Unavailable => None,
+    }
+}
+
 fn send_secrets(child: &mut CommandChild) -> Result<(), Box<dyn std::error::Error>> {
     let mut secrets = serde_json::Map::new();
 
     for name in SECRET_NAMES {
-        match keyring::Entry::new(KEYCHAIN_SERVICE, name)?.get_password() {
-            Ok(value) if !value.is_empty() => {
-                secrets.insert(name.to_string(), serde_json::Value::String(value));
-            }
-            Ok(_) => {}
-            // A miss is normal: the user has not set that key.
-            Err(keyring::Error::NoEntry) => {}
-            // The keychain refusing or failing: the one place that can be seen.
-            Err(error) => eprintln!("[keychain] could not read {name}: {error}"),
+        if let Some(value) = secret_for_name(name, read_keychain_entry) {
+            secrets.insert(name.to_string(), serde_json::Value::String(value));
         }
     }
 
@@ -381,6 +425,7 @@ pub fn run() {
             sidecar_base_url,
             sidecar_instance,
             keychain_service,
+            legacy_keychain_service,
             reveal_folder,
             obsidian_available,
             open_obsidian_vault,
@@ -392,7 +437,7 @@ pub fn run() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("failed to build the AgentSpace application");
+        .expect("failed to build the AgentBase application");
 
     app.run(|app, event| {
         if matches!(event, RunEvent::Exit) {
@@ -405,7 +450,90 @@ pub fn run() {
 mod tests {
     use std::path::Path;
 
-    use super::{auth_url_is_allowed, obsidian_candidates, obsidian_vault_url};
+    use super::{
+        auth_url_is_allowed, obsidian_candidates, obsidian_vault_url, secret_for_name,
+        KeychainLookup, KEYCHAIN_SERVICE, LEGACY_KEYCHAIN_SERVICE,
+    };
+
+    #[test]
+    fn agentbase_keychain_entry_wins_without_reading_legacy() {
+        let mut calls = Vec::new();
+        let secret = secret_for_name("openai_api_key", |service, name| {
+            calls.push((service.to_string(), name.to_string()));
+            match service {
+                KEYCHAIN_SERVICE => KeychainLookup::Value("current".to_string()),
+                LEGACY_KEYCHAIN_SERVICE => panic!("legacy entry must not be read"),
+                _ => unreachable!("unexpected keychain service"),
+            }
+        });
+
+        assert_eq!(secret.as_deref(), Some("current"));
+        assert_eq!(
+            calls,
+            vec![(KEYCHAIN_SERVICE.to_string(), "openai_api_key".to_string())]
+        );
+    }
+
+    #[test]
+    fn missing_agentbase_keychain_entry_reads_legacy_once() {
+        let mut calls = Vec::new();
+        let secret = secret_for_name("openai_api_key", |service, name| {
+            calls.push((service.to_string(), name.to_string()));
+            match service {
+                KEYCHAIN_SERVICE => KeychainLookup::Missing,
+                LEGACY_KEYCHAIN_SERVICE => KeychainLookup::Value("legacy".to_string()),
+                _ => unreachable!("unexpected keychain service"),
+            }
+        });
+
+        assert_eq!(secret.as_deref(), Some("legacy"));
+        assert_eq!(
+            calls,
+            vec![
+                (KEYCHAIN_SERVICE.to_string(), "openai_api_key".to_string()),
+                (
+                    LEGACY_KEYCHAIN_SERVICE.to_string(),
+                    "openai_api_key".to_string()
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn unavailable_agentbase_keychain_entry_does_not_read_legacy() {
+        let mut calls = Vec::new();
+        let secret = secret_for_name("openai_api_key", |service, _| {
+            calls.push(service.to_string());
+            match service {
+                KEYCHAIN_SERVICE => KeychainLookup::Unavailable,
+                LEGACY_KEYCHAIN_SERVICE => {
+                    panic!("legacy entry must not bypass an unavailable current entry")
+                }
+                _ => unreachable!("unexpected keychain service"),
+            }
+        });
+
+        assert!(secret.is_none());
+        assert_eq!(calls, vec![KEYCHAIN_SERVICE.to_string()]);
+    }
+
+    #[test]
+    fn empty_agentbase_keychain_entry_does_not_read_legacy() {
+        let mut calls = Vec::new();
+        let secret = secret_for_name("openai_api_key", |service, _| {
+            calls.push(service.to_string());
+            match service {
+                KEYCHAIN_SERVICE => KeychainLookup::Value(String::new()),
+                LEGACY_KEYCHAIN_SERVICE => {
+                    panic!("legacy entry must not replace a current empty entry")
+                }
+                _ => unreachable!("unexpected keychain service"),
+            }
+        });
+
+        assert!(secret.is_none());
+        assert_eq!(calls, vec![KEYCHAIN_SERVICE.to_string()]);
+    }
 
     #[test]
     fn obsidian_is_looked_for_where_its_installer_puts_it() {

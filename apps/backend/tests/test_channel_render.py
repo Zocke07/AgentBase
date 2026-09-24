@@ -8,12 +8,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from agentspace.channels.render import (
+from agentbase.channels.render import (
     DISCORD_MESSAGE_LIMIT,
     fold,
     render,
 )
-from agentspace.events.types import Event, EventType
+from agentbase.events.types import Event, EventType
 
 RUN_ID = "3f2a9c1e-0000-4000-8000-000000000001"
 

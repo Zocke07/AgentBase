@@ -3,7 +3,7 @@
 ## Building and verifying the bundles
 
 ```
-just build-sidecar      # PyInstaller --onefile → src-tauri/binaries/agentspace-sidecar-<triple>
+just build-sidecar      # PyInstaller --onefile → src-tauri/binaries/agentbase-sidecar-<triple>
 just build-installer    # setup + build-sidecar + tauri build --bundles <nsis|app,dmg>
 just verify-build       # AFTER a build: launches binaries and checks installer/disk image contents
 just verify-installed   # installs it on THIS machine and runs it with Python scrubbed from PATH (Windows only)
@@ -17,15 +17,15 @@ Windows, `aarch64-apple-darwin` (Apple Silicon) or `x86_64-apple-darwin`
 |---|---|---|
 | Bundle target | `nsis` | `app,dmg` |
 | Bundle location | `apps/desktop/src-tauri/target/release/bundle/nsis/` | `apps/desktop/src-tauri/target/release/bundle/macos/` and `.../bundle/dmg/` |
-| Distribution file | `AgentSpace_0.3.2_x64-setup.exe` | `AgentSpace_0.3.2_<arch>.dmg` |
-| Silent install | `AgentSpace_0.3.2_x64-setup.exe /S` | N/A (drag the `.app` from the image to Applications) |
+| Distribution file | `AgentBase_0.3.2_x64-setup.exe` | `AgentBase_0.3.2_<arch>.dmg` |
+| Silent install | `AgentBase_0.3.2_x64-setup.exe /S` | N/A (drag the `.app` from the image to Applications) |
 | `verify-installed` | Installs the NSIS `.exe` and runs it | Not applicable (no NSIS on macOS) |
 
 Things that will bite:
 
 - **The filename must carry the target triple** or Tauri never finds it, and
   Tauri then *strips* the triple when staging, so the shipped file is
-  `agentspace-sidecar.exe` (Windows) or `agentspace-sidecar` (macOS). Looking
+  `agentbase-sidecar.exe` (Windows) or `agentbase-sidecar` (macOS). Looking
   for the built name inside the bundle finds nothing and looks like a bundling
   failure.
 - **`verify-build` exists because the bundle can carry a stale sidecar.**
@@ -56,10 +56,10 @@ Tauri's `dmg` target wraps the signed `.app` in a disk image beside a link to
 `/Applications`, so installing is the drag every Mac user knows. Releases up
 to 0.3.1 shipped a `ditto` zip instead, and the first bug report against them
 was the predictable one: the app stayed in Downloads, Gatekeeper ran a fresh
-translocated copy on every launch, Finder searches found several AgentSpace
+translocated copy on every launch, Finder searches found several AgentBase
 entries and Spotlight listed none. The filename includes the version and the
 architecture; a typical Apple Silicon build produces
-`AgentSpace_0.3.2_aarch64.dmg` in `bundle/dmg/`. This is a native
+`AgentBase_0.3.2_aarch64.dmg` in `bundle/dmg/`. This is a native
 architecture build, not a universal binary.
 
 The macOS `_build-installer` recipe sets `CI=true`, which makes Tauri's

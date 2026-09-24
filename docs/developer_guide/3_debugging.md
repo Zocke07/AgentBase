@@ -63,7 +63,7 @@ overrides provider/model, update that space too or set it to inherit.
 
 `logging.basicConfig(level=INFO)` to stderr; nothing writes to `logs/`. Under
 `dev-app` the shell relays it as `[sidecar] ...`. Loggers are per package
-(`agentspace.store`, `agentspace.secrets`, `agentspace.channels.discord`, …).
+(`agentbase.store`, `agentbase.secrets`, `agentbase.channels.discord`, …).
 `ruff`'s `T20` rule bans `print` in `src/`: the event log is the output
 channel, and stderr is for operational messages only.
 
@@ -179,8 +179,8 @@ instance tag echoed by `/health`, so the webview can reject another process on
   linting a line. This order looks wrong and is pinned by a test.
 - Set a key in the desktop app's **Settings > Keys**, then quit and reopen.
   This section is unavailable in a browser. The keychain service is
-  `dev.agentspace.desktop`; Windows Credential Manager uses an address like
-  `<name>.dev.agentspace.desktop`, and macOS uses the service plus the key
+  `dev.agentbase.desktop`; Windows Credential Manager uses an address like
+  `<name>.dev.agentbase.desktop`, and macOS uses the service plus the key
   name as account. Do not place key values in command arguments.
 - On macOS a rebuilt ad-hoc-signed app can prompt for keychain access again.
   **Always Allow** trusts the current binary. **Deny** omits that key from
@@ -191,10 +191,10 @@ instance tag echoed by `/health`, so the webview can reject another process on
   not values. A keychain denial is observable in the Rust stderr log even
   though the settings screen sees only that the key did not arrive.
 - Orphan check after any shutdown change: close the window, then confirm no
-  `agentspace-sidecar` process survives and 8787 is released.
-  - **Windows:** `Get-Process agentspace-sidecar` and
+  `agentbase-sidecar` process survives and 8787 is released.
+  - **Windows:** `Get-Process agentbase-sidecar` and
     `netstat -ano | findstr :8787`.
-  - **macOS:** `pgrep -f agentspace-sidecar` and `lsof -ti tcp:8787`.
+  - **macOS:** `pgrep -f agentbase-sidecar` and `lsof -ti tcp:8787`.
   - With `--onefile` there are *two* sidecar processes while running
     (bootloader + interpreter) and the PID the shell holds is the
     bootloader's.

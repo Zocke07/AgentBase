@@ -13,7 +13,7 @@ if (container === null) {
 
 createRoot(container).render(
   <StrictMode>
-    <ErrorBoundary label="AgentSpace">
+    <ErrorBoundary label="AgentBase">
       <App />
     </ErrorBoundary>
   </StrictMode>,

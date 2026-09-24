@@ -1,4 +1,4 @@
-import type { Event, EventType } from "@agentspace/schemas";
+import type { Event, EventType } from "@agentbase/schemas";
 
 /**
  * Builds event logs for tests, shaped like the sidecar's: `seq` dense and

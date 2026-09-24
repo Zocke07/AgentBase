@@ -1,4 +1,4 @@
-import type { Event } from "@agentspace/schemas";
+import type { Event } from "@agentbase/schemas";
 import { useEffect, useRef, useState, type RefObject } from "react";
 
 import { ellipsise, formatCount, formatMicros, summariseArgs } from "../lib/format";

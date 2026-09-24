@@ -1,4 +1,4 @@
-import type { Run, SettingsResponse, SpaceResponse } from "@agentspace/schemas";
+import type { Run, SettingsResponse, SpaceResponse } from "@agentbase/schemas";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -79,7 +79,7 @@ beforeEach(() => {
   useRoster.getState().reset();
   useSpaces.getState().reset();
   try {
-    localStorage.removeItem("agentspace.space");
+    localStorage.removeItem("agentbase.space");
   } catch {
     // jsdom always has storage; kept symmetrical with the store's own guard.
   }
@@ -267,11 +267,11 @@ describe("switching sections", () => {
     expect(rail.parentElement?.className).toContain("app--rail-collapsed");
     // The names are gone from the row; the tooltip still names it.
     expect(screen.getByRole("button", { name: "Agents" }).getAttribute("title")).toContain("Agents");
-    expect(localStorage.getItem("agentspace.flag.rail.collapsed")).toBe("1");
+    expect(localStorage.getItem("agentbase.flag.rail.collapsed")).toBe("1");
 
     await user.keyboard("{Control>}b{/Control}");
     expect(rail.className).not.toContain("rail--collapsed");
-    expect(localStorage.getItem("agentspace.flag.rail.collapsed")).toBe("0");
+    expect(localStorage.getItem("agentbase.flag.rail.collapsed")).toBe("0");
   });
 
   it("fetches the run list and the roster once, however many sections show them", async () => {

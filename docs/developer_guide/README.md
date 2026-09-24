@@ -1,4 +1,4 @@
-# AgentSpace: Developer Guide
+# AgentBase: Developer Guide
 
 This guide is for the person changing the code. If you just want to run the
 app, see the [User Guide](../user_guide/README.md).

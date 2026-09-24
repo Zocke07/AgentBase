@@ -4,9 +4,9 @@
  * The retry loop lives here so it is testable on its own.
  */
 
-import type { HealthResponse } from "@agentspace/schemas";
+import type { HealthResponse } from "@agentbase/schemas";
 
-/** Matches `agentspace.config.DEFAULT_BIND_PORT` and the Rust `SIDECAR_PORT`. */
+/** Matches `agentbase.config.DEFAULT_BIND_PORT` and the Rust `SIDECAR_PORT`. */
 const DEFAULT_BASE_URL = "http://127.0.0.1:8787";
 
 /**
@@ -101,7 +101,7 @@ export async function fetchHealth(
     const who =
       health.instance === null
         ? "a sidecar not started by this app: a dev sidecar in a terminal, most likely"
-        : "another AgentSpace, still running or still shutting down";
+        : "another AgentBase, still running or still shutting down";
     throw new Error(
       `Something else is listening on ${baseUrl}: ${who}. Close it and relaunch; this app's own sidecar could not take the port.`,
     );

@@ -1,4 +1,4 @@
-"""Constraint tests for :mod:`agentspace.config`.
+"""Constraint tests for :mod:`agentbase.config`.
 
 These assert BUILD_SPEC §1 constraint 3 (loopback only) as executable facts, so
 that a later refactor which makes the bind address configurable fails CI rather
@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from agentspace import config
+from agentbase import config
 
 
 def test_bind_host_is_loopback() -> None:
@@ -36,7 +36,7 @@ def test_bind_host_is_not_influenced_by_the_environment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """No environment variable may move the bind address off loopback."""
-    for name in ("HOST", "BIND_HOST", "AGENTSPACE_HOST", "AGENTSPACE_BIND_HOST"):
+    for name in ("HOST", "BIND_HOST", "AGENTBASE_HOST", "AGENTBASE_BIND_HOST"):
         monkeypatch.setenv(name, "0.0.0.0")  # noqa: S104
 
     assert config.BIND_HOST == "127.0.0.1"
@@ -51,7 +51,7 @@ def test_resolve_app_paths_honours_an_explicit_override(tmp_path: Path) -> None:
     paths = config.resolve_app_paths(tmp_path)
 
     assert paths.data_dir == tmp_path.resolve()
-    assert paths.db_path == tmp_path.resolve() / "agentspace.sqlite3"
+    assert paths.db_path == tmp_path.resolve() / "agentbase.sqlite3"
     assert paths.logs_dir.parent == paths.data_dir
     assert paths.spaces_dir.parent == paths.data_dir
 
@@ -62,6 +62,91 @@ def test_resolve_app_paths_reads_the_data_dir_env_var(
     monkeypatch.setenv(config.DATA_DIR_ENV_VAR, str(tmp_path))
 
     assert config.resolve_app_paths().data_dir == tmp_path.resolve()
+
+
+# --- AgentSpace data migration ---------------------------------------------
+
+
+def test_empty_agentbase_data_dir_adopts_agentspace_data_and_database(tmp_path: Path) -> None:
+    """The shell creates the new directory before the sidecar can migrate it."""
+    legacy_data_dir = tmp_path / config.LEGACY_APP_IDENTIFIER
+    legacy_data_dir.mkdir()
+    legacy_database = legacy_data_dir / config.LEGACY_DATABASE_FILENAME
+    legacy_database.write_bytes(b"database")
+    (legacy_data_dir / f"{config.LEGACY_DATABASE_FILENAME}-wal").write_bytes(b"wal")
+    (legacy_data_dir / "workspace").mkdir()
+    (legacy_data_dir / "workspace" / "notes.md").write_text("kept", encoding="utf-8")
+
+    data_dir = tmp_path / config.APP_IDENTIFIER
+    data_dir.mkdir()
+
+    assert config.adopt_legacy_app_data(data_dir, legacy_data_dir) is True
+
+    assert not legacy_data_dir.exists()
+    assert (data_dir / config.DATABASE_FILENAME).read_bytes() == b"database"
+    assert (data_dir / f"{config.DATABASE_FILENAME}-wal").read_bytes() == b"wal"
+    assert not (data_dir / config.LEGACY_DATABASE_FILENAME).exists()
+    assert (data_dir / "workspace" / "notes.md").read_text(encoding="utf-8") == "kept"
+
+
+def test_existing_agentbase_data_is_never_overwritten_by_agentspace_data(
+    tmp_path: Path,
+) -> None:
+    legacy_data_dir = tmp_path / config.LEGACY_APP_IDENTIFIER
+    legacy_data_dir.mkdir()
+    (legacy_data_dir / config.LEGACY_DATABASE_FILENAME).write_bytes(b"legacy")
+
+    data_dir = tmp_path / config.APP_IDENTIFIER
+    data_dir.mkdir()
+    (data_dir / config.DATABASE_FILENAME).write_bytes(b"new")
+
+    assert config.adopt_legacy_app_data(data_dir, legacy_data_dir) is False
+
+    assert (legacy_data_dir / config.LEGACY_DATABASE_FILENAME).read_bytes() == b"legacy"
+    assert (data_dir / config.DATABASE_FILENAME).read_bytes() == b"new"
+
+
+def test_resolve_app_paths_adopts_only_the_canonical_agentbase_location(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    legacy_data_dir = tmp_path / config.LEGACY_APP_IDENTIFIER
+    legacy_data_dir.mkdir()
+    (legacy_data_dir / config.LEGACY_DATABASE_FILENAME).write_bytes(b"legacy")
+    canonical_data_dir = tmp_path / config.APP_IDENTIFIER
+    canonical_data_dir.mkdir()
+    custom_data_dir = tmp_path / "portable-agentbase"
+
+    monkeypatch.setattr(config, "default_data_dir", lambda: canonical_data_dir)
+    monkeypatch.setattr(config, "_legacy_data_dir", lambda: legacy_data_dir)
+    monkeypatch.setenv(config.DATA_DIR_ENV_VAR, str(custom_data_dir))
+
+    paths = config.resolve_app_paths()
+
+    assert paths.data_dir == custom_data_dir.resolve()
+    assert legacy_data_dir.is_dir()
+    assert canonical_data_dir.is_dir()
+    assert not any(canonical_data_dir.iterdir())
+    assert not custom_data_dir.exists()
+
+
+def test_resolve_app_paths_adopts_the_canonical_agentbase_location(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    legacy_data_dir = tmp_path / config.LEGACY_APP_IDENTIFIER
+    legacy_data_dir.mkdir()
+    (legacy_data_dir / config.LEGACY_DATABASE_FILENAME).write_bytes(b"legacy")
+    data_dir = tmp_path / config.APP_IDENTIFIER
+    data_dir.mkdir()
+
+    monkeypatch.setattr(config, "default_data_dir", lambda: data_dir)
+    monkeypatch.setattr(config, "_legacy_data_dir", lambda: legacy_data_dir)
+    monkeypatch.setenv(config.DATA_DIR_ENV_VAR, str(data_dir))
+
+    paths = config.resolve_app_paths()
+
+    assert paths.data_dir == data_dir.resolve()
+    assert paths.db_path.read_bytes() == b"legacy"
+    assert not legacy_data_dir.exists()
 
 
 def test_every_resolved_path_is_a_pathlib_path(tmp_path: Path) -> None:
@@ -185,12 +270,12 @@ def test_data_dir_is_always_absolute(platform_name: str) -> None:
 def test_data_dir_is_derived_from_the_identifier_not_the_product_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    r"""Tauri's per-user NSIS installer installs into `%LOCALAPPDATA%\AgentSpace`.
+    r"""Tauri's per-user NSIS installer installs into `%LOCALAPPDATA%\AgentBase`.
 
     That is byte for byte where an `APP_NAME`-derived data directory resolves,
     so the SQLite event log would sit inside the installation: deleted by an
     uninstall, at risk from an upgrade. This is not theoretical: a stray
-    `agentspace.sqlite3` was found in the installed application's own directory
+    `agentbase.sqlite3` was found in the installed application's own directory
     during Phase 2, which is what prompted the change.
     """
     monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\someone\AppData\Local")

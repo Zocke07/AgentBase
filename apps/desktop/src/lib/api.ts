@@ -38,12 +38,12 @@ import type {
   UpdateSpaceRequest,
   UsageReport,
   VerifyResponse,
-} from "@agentspace/schemas";
+} from "@agentbase/schemas";
 
 import { resolveSidecarBaseUrl } from "./sidecar";
 
 /**
- * Typed calls to the sidecar. Every type comes from `@agentspace/schemas`,
+ * Typed calls to the sidecar. Every type comes from `@agentbase/schemas`,
  * generated from the OpenAPI document, so a backend model change breaks the
  * typecheck rather than the runtime. Nothing here touches the run store:
  * events reach the UI through the stream and the reducer, and history fetched
@@ -248,7 +248,7 @@ export const writeFile = (spaceId: string, path: string, content: string): Promi
 export const deleteFile = (spaceId: string, path: string): Promise<void> =>
   requestNoContent(`/spaces/${spaceId}/knowledge/file${query({ path })}`, { method: "DELETE" });
 
-/** Delete a folder and everything in it; the sidecar copies it under `.agentspace/backups/` first. */
+/** Delete a folder and everything in it; the sidecar copies it under `.agentbase/backups/` first. */
 export const deleteKnowledgeFolder = (spaceId: string, path: string): Promise<KnowledgeFolderDeleteResult> =>
   request<KnowledgeFolderDeleteResult>(`/spaces/${spaceId}/knowledge/folder${query({ path })}`, { method: "DELETE" });
 

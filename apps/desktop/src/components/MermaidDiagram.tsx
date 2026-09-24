@@ -31,7 +31,7 @@ export function MermaidDiagram({ source, title }: { source: string; title: strin
           theme: document.documentElement.dataset.theme === "dark" ? "dark" : "neutral",
           flowchart: { htmlLabels: false },
         });
-        const id = `agentspace-mermaid-${rawId.replaceAll(":", "")}`;
+        const id = `agentbase-mermaid-${rawId.replaceAll(":", "")}`;
         const rendered = await mermaid.render(id, source);
         if (!live || target.current === null) return;
         const parsed = new DOMParser().parseFromString(rendered.svg, "image/svg+xml");

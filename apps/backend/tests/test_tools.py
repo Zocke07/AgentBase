@@ -15,21 +15,21 @@ from typing import TYPE_CHECKING
 import httpx2
 import pytest
 
-from agentspace.tools.base import ToolArgumentError, ToolExecutionError
-from agentspace.tools.builtin import build_registry
-from agentspace.tools.builtin.filesystem import (
+from agentbase.tools.base import ToolArgumentError, ToolExecutionError
+from agentbase.tools.builtin import build_registry
+from agentbase.tools.builtin.filesystem import (
     MAX_READ_CHARS,
     MAX_WRITE_CHARS,
     ListDirTool,
     ReadFileTool,
     WriteFileTool,
 )
-from agentspace.tools.builtin.knowledge import SearchKnowledgeTool
-from agentspace.tools.builtin.memory import ProposeMemoryTool
-from agentspace.tools.builtin.network import HttpGetTool
-from agentspace.tools.builtin.shell import RunShellTool
-from agentspace.tools.catalogue import CATALOGUE, RiskLevel
-from agentspace.tools.sandbox import Sandbox, SandboxViolationError, UrlNotAllowedError
+from agentbase.tools.builtin.knowledge import SearchKnowledgeTool
+from agentbase.tools.builtin.memory import ProposeMemoryTool
+from agentbase.tools.builtin.network import HttpGetTool
+from agentbase.tools.builtin.shell import RunShellTool
+from agentbase.tools.catalogue import CATALOGUE, RiskLevel
+from agentbase.tools.sandbox import Sandbox, SandboxViolationError, UrlNotAllowedError
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -554,12 +554,12 @@ async def test_run_shell_does_not_inherit_the_sidecar_environment(
     allowlist means a variable added later is excluded by default rather than
     included by default.
     """
-    monkeypatch.setenv("AGENTSPACE_TEST_SECRET", "swordfish")
+    monkeypatch.setenv("AGENTBASE_TEST_SECRET", "swordfish")
     tool = RunShellTool()
     command = (
-        "echo %AGENTSPACE_TEST_SECRET%"
+        "echo %AGENTBASE_TEST_SECRET%"
         if sys.platform == "win32"
-        else "echo $AGENTSPACE_TEST_SECRET"
+        else "echo $AGENTBASE_TEST_SECRET"
     )
 
     result = await tool.execute(tool.prepare({"command": command}, sandbox), sandbox)
@@ -576,7 +576,7 @@ async def test_run_shell_kills_a_command_that_outlives_its_timeout(
     is that the timeout fires and the call comes back as an execution failure -
     a command that hung the run forever would be the failure this prevents.
     """
-    monkeypatch.setattr("agentspace.tools.builtin.shell.SHELL_TIMEOUT_SECONDS", 1.0)
+    monkeypatch.setattr("agentbase.tools.builtin.shell.SHELL_TIMEOUT_SECONDS", 1.0)
     tool = RunShellTool()
     command = "ping -n 30 127.0.0.1" if sys.platform == "win32" else "sleep 30"
 

@@ -5,7 +5,7 @@ import type {
   SpaceResponse,
   ToolResponse,
   UpdateAgentRequest,
-} from "@agentspace/schemas";
+} from "@agentbase/schemas";
 import { useCallback, useEffect, useState } from "react";
 
 import * as api from "../lib/api";

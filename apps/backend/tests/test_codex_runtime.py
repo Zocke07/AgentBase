@@ -14,7 +14,7 @@ import httpx2
 import pytest
 from fastapi import FastAPI, Response
 
-from agentspace.providers.codex_runtime import (
+from agentbase.providers.codex_runtime import (
     CodexRuntimeError,
     CodexRuntimeInstaller,
     CodexRuntimeManifest,

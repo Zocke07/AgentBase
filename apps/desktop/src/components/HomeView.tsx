@@ -1,4 +1,4 @@
-import type { AgentDef, ApprovalResponse, Run, SearchHit, SpaceResponse } from "@agentspace/schemas";
+import type { AgentDef, ApprovalResponse, Run, SearchHit, SpaceResponse } from "@agentbase/schemas";
 import { useEffect, useState } from "react";
 
 import * as api from "../lib/api";

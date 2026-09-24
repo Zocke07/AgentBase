@@ -1,4 +1,4 @@
-import type { AgentDef, ToolResponse } from "@agentspace/schemas";
+import type { AgentDef, ToolResponse } from "@agentbase/schemas";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";

@@ -1,4 +1,4 @@
-import type { MemoryIndex, MemoryItem, MemoryStatus } from "@agentspace/schemas";
+import type { MemoryIndex, MemoryItem, MemoryStatus } from "@agentbase/schemas";
 
 import { Markdown } from "./Markdown";
 import { MemoryStatusBar } from "./MetricBar";

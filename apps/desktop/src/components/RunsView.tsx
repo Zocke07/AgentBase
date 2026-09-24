@@ -1,6 +1,6 @@
 
 
-import type { ApprovalResponse, Event } from "@agentspace/schemas";
+import type { ApprovalResponse, Event } from "@agentbase/schemas";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import * as api from "../lib/api";

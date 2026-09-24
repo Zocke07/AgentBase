@@ -13,17 +13,17 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from fastapi.testclient import TestClient
 
-from agentspace.main import create_app
-from agentspace.orchestrator import execute_run
-from agentspace.orchestrator.limits import RunLimits
-from agentspace.orchestrator.registry import AgentRegistry, ProviderPool
-from agentspace.providers.base import ProviderAuthError
-from agentspace.providers.factory import UnknownProviderError
-from agentspace.secrets import SecretStore
-from agentspace.store.agents import AgentValidationError
-from agentspace.store.settings import WorkspaceSettings
-from agentspace.tools.builtin import build_registry
-from agentspace.tools.catalogue import (
+from agentbase.main import create_app
+from agentbase.orchestrator import execute_run
+from agentbase.orchestrator.limits import RunLimits
+from agentbase.orchestrator.registry import AgentRegistry, ProviderPool
+from agentbase.providers.base import ProviderAuthError
+from agentbase.providers.factory import UnknownProviderError
+from agentbase.secrets import SecretStore
+from agentbase.store.agents import AgentValidationError
+from agentbase.store.settings import WorkspaceSettings
+from agentbase.tools.builtin import build_registry
+from agentbase.tools.catalogue import (
     CATALOGUE,
     RiskLevel,
     effective_auto_approve,
@@ -35,13 +35,13 @@ from support import ReconstructedRun, ScriptedProvider, call, reconstruct, says
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 
-    from agentspace.budget.ledger import BudgetLedger
-    from agentspace.config import AppPaths
-    from agentspace.events.store import EventStore
-    from agentspace.providers.base import Completion, Message, StreamEvent, ToolSpec
-    from agentspace.store.agents import AgentDefStore
-    from agentspace.store.db import Database
-    from agentspace.store.settings import SettingsStore
+    from agentbase.budget.ledger import BudgetLedger
+    from agentbase.config import AppPaths
+    from agentbase.events.store import EventStore
+    from agentbase.providers.base import Completion, Message, StreamEvent, ToolSpec
+    from agentbase.store.agents import AgentDefStore
+    from agentbase.store.db import Database
+    from agentbase.store.settings import SettingsStore
 
 anyio_tests = pytest.mark.anyio
 

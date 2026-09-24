@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from agentspace.channels.identity import (
+from agentbase.channels.identity import (
     ChannelIdentity,
     IdentityDirectory,
     refusal_text,

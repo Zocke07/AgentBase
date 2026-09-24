@@ -1,4 +1,4 @@
-import type { CreateSpaceRequest, SpaceResponse } from "@agentspace/schemas";
+import type { CreateSpaceRequest, SpaceResponse } from "@agentbase/schemas";
 import { useEffect, useRef, useState } from "react";
 
 import * as api from "../lib/api";

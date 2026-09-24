@@ -14,20 +14,20 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from agentspace.events.types import EventType
-from agentspace.orchestrator import execute_run
-from agentspace.orchestrator.agent import Agent, AgentSpec
-from agentspace.orchestrator.control import (
+from agentbase.events.types import EventType
+from agentbase.orchestrator import execute_run
+from agentbase.orchestrator.agent import Agent, AgentSpec
+from agentbase.orchestrator.control import (
     FINISH,
     HANDOFF,
     SPAWN_AGENT,
     WORKER_TOOLS,
     catalogue_specs,
 )
-from agentspace.orchestrator.limits import RunLimits
-from agentspace.orchestrator.run import Mailbox, Run
-from agentspace.tools.builtin.filesystem import WriteFileTool
-from agentspace.tools.catalogue import RiskLevel
+from agentbase.orchestrator.limits import RunLimits
+from agentbase.orchestrator.run import Mailbox, Run
+from agentbase.tools.builtin.filesystem import WriteFileTool
+from agentbase.tools.catalogue import RiskLevel
 from support import (
     ReconstructedRun,
     ScriptedProvider,
@@ -40,14 +40,14 @@ from support import (
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from agentspace.budget.ledger import BudgetLedger
-    from agentspace.events.store import EventStore
-    from agentspace.providers.base import Completion
-    from agentspace.secrets import SecretStore
-    from agentspace.store.agents import AgentDefStore
-    from agentspace.store.db import Database
-    from agentspace.store.settings import SettingsStore
-    from agentspace.tools.runtime import ToolRuntime
+    from agentbase.budget.ledger import BudgetLedger
+    from agentbase.events.store import EventStore
+    from agentbase.providers.base import Completion
+    from agentbase.secrets import SecretStore
+    from agentbase.store.agents import AgentDefStore
+    from agentbase.store.db import Database
+    from agentbase.store.settings import SettingsStore
+    from agentbase.tools.runtime import ToolRuntime
 
 pytestmark = pytest.mark.anyio
 
@@ -274,7 +274,7 @@ async def test_a_permitted_tool_without_a_runtime_cannot_execute(
     *never* executable, because the gate did not exist. Phase 6 built the gate,
     so the assertion narrows to the case that is still true and still matters:
     an agent assembled without a
-    :class:`~agentspace.tools.runtime.ToolRuntime` has no sandbox and no gate,
+    :class:`~agentbase.tools.runtime.ToolRuntime` has no sandbox and no gate,
     and therefore executes nothing.
 
     That is not a hypothetical configuration: it is what every orchestration

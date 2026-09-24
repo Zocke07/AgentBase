@@ -37,9 +37,9 @@ ARCH = "aarch64" if platform.machine().lower() in {"arm64", "aarch64"} else "x86
 TRIPLE = f"{ARCH}-apple-darwin"
 #: Tauri names the image after the product, version and architecture, no triple.
 DISK_IMAGE = (
-    TAURI_ROOT / "target" / "release" / "bundle" / "dmg" / f"AgentSpace_{VERSION}_{ARCH}.dmg"
+    TAURI_ROOT / "target" / "release" / "bundle" / "dmg" / f"AgentBase_{VERSION}_{ARCH}.dmg"
 )
-SIDECAR = TAURI_ROOT / "binaries" / f"agentspace-sidecar-{TRIPLE}"
+SIDECAR = TAURI_ROOT / "binaries" / f"agentbase-sidecar-{TRIPLE}"
 TEST_PORT = 8898
 
 pytestmark = pytest.mark.skipif(sys.platform != "darwin", reason="macOS disk image")
@@ -50,7 +50,7 @@ def mounted_image(
     tmp_path: Path, build_prerequisite: Callable[[str | None], None]
 ) -> Iterator[Path]:
     """The image's contents, mounted read-only and detached afterwards."""
-    for required in (DISK_IMAGE, SIDECAR, BUNDLE_DIR / "AgentSpace.app"):
+    for required in (DISK_IMAGE, SIDECAR, BUNDLE_DIR / "AgentBase.app"):
         build_prerequisite(
             None if required.exists() else f"missing {required}; run `just build-installer`"
         )
@@ -82,9 +82,9 @@ def mounted_image(
 @pytest.fixture
 def extracted_app(mounted_image: Path, tmp_path: Path) -> Path:
     """The app as a drag to Applications leaves it: copied out with its modes."""
-    app = mounted_image / "AgentSpace.app"
+    app = mounted_image / "AgentBase.app"
     assert app.is_dir(), f"the image holds {sorted(p.name for p in mounted_image.iterdir())}"
-    copied = tmp_path / "Applications" / "AgentSpace.app"
+    copied = tmp_path / "Applications" / "AgentBase.app"
     subprocess.run(  # noqa: S603
         ["/usr/bin/ditto", str(app), str(copied)], check=True
     )
@@ -110,7 +110,7 @@ def test_the_image_offers_the_app_beside_an_applications_link(mounted_image: Pat
     entries = {
         entry.name for entry in mounted_image.iterdir() if not entry.name.startswith(".")
     }
-    assert entries == {"AgentSpace.app", "Applications"}, entries
+    assert entries == {"AgentBase.app", "Applications"}, entries
     applications = mounted_image / "Applications"
     assert applications.is_symlink(), "Applications must be a link, not a copied folder"
     assert applications.readlink() == Path("/Applications")
@@ -122,18 +122,18 @@ def test_image_preserves_the_current_app_and_executable_modes(
     with (extracted_app / "Contents" / "Info.plist").open("rb") as handle:
         info = plistlib.load(handle)
     assert info["CFBundleShortVersionString"] == VERSION
-    assert info["CFBundleIdentifier"] == "dev.agentspace.desktop"
+    assert info["CFBundleIdentifier"] == "dev.agentbase.desktop"
 
     executables = {
         str(info["CFBundleExecutable"]): BUNDLE_DIR
-        / "AgentSpace.app"
+        / "AgentBase.app"
         / "Contents"
         / "MacOS"
         / str(info["CFBundleExecutable"]),
-        "agentspace-sidecar": SIDECAR,
+        "agentbase-sidecar": SIDECAR,
     }
     for name, source in executables.items():
-        on_image = mounted_image / "AgentSpace.app" / "Contents" / "MacOS" / name
+        on_image = mounted_image / "AgentBase.app" / "Contents" / "MacOS" / name
         assert stat.S_IMODE(on_image.stat().st_mode) & stat.S_IXUSR, (
             f"{name} has no executable mode on the image"
         )
@@ -192,11 +192,11 @@ def test_extracted_sidecar_serves_and_stops_without_python(
     environment = {k: v for k, v in os.environ.items() if not k.upper().startswith("PYTHON")}
     environment.update(
         PATH=str(tmp_path / "no-interpreters"),
-        AGENTSPACE_PORT=str(TEST_PORT),
-        AGENTSPACE_DATA_DIR=str(data_dir),
+        AGENTBASE_PORT=str(TEST_PORT),
+        AGENTBASE_DATA_DIR=str(data_dir),
     )
     # The absent PATH directory prevents an OS-provided Python satisfying the test.
-    binary = extracted_app / "Contents" / "MacOS" / "agentspace-sidecar"
+    binary = extracted_app / "Contents" / "MacOS" / "agentbase-sidecar"
     with (tmp_path / "sidecar.log").open("w+") as log:
         process = subprocess.Popen(  # noqa: S603
             [str(binary)],
@@ -217,7 +217,7 @@ def test_extracted_sidecar_serves_and_stops_without_python(
                 f"http://127.0.0.1:{TEST_PORT}/spaces", timeout=5
             ) as response:
                 assert response.status == 200
-            assert (data_dir / "agentspace.sqlite3").is_file()
+            assert (data_dir / "agentbase.sqlite3").is_file()
             assert process.stdin is not None
             process.stdin.close()
             assert process.wait(timeout=20) == 0

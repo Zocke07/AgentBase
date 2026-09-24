@@ -1,4 +1,4 @@
-import type { SettingsResponse } from "@agentspace/schemas";
+import type { SettingsResponse } from "@agentbase/schemas";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -375,7 +375,7 @@ describe("keys", () => {
     view();
     await loaded();
 
-    expect(screen.getByTestId("keys").textContent).toContain("only from the AgentSpace app");
+    expect(screen.getByTestId("keys").textContent).toContain("only from the AgentBase app");
     expect(screen.queryByRole("button", { name: /Set/ })).toBeNull();
   });
 
@@ -423,7 +423,7 @@ describe("keys", () => {
     expect(screen.queryByTestId("restart-offer")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Clear anthropic_api_key" }));
-    const restart = await screen.findByRole("button", { name: "Restart AgentSpace" });
+    const restart = await screen.findByRole("button", { name: "Restart AgentBase" });
     await user.click(restart);
 
     expect(shell.restartApp).toHaveBeenCalledTimes(1);
@@ -440,10 +440,10 @@ describe("keys", () => {
     await loaded();
 
     await user.click(screen.getByRole("button", { name: "Clear anthropic_api_key" }));
-    await user.click(await screen.findByRole("button", { name: "Restart AgentSpace" }));
+    await user.click(await screen.findByRole("button", { name: "Restart AgentBase" }));
 
     expect((await screen.findByRole("alert")).textContent).toContain("no relaunch today");
-    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Restart AgentSpace" }).disabled).toBe(
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Restart AgentBase" }).disabled).toBe(
       false,
     );
   });

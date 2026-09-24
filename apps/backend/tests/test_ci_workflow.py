@@ -156,8 +156,8 @@ def test_both_platforms_publish_their_verified_artefact() -> None:
     assert len(uploads) == 2, f"expected two upload steps, found {len(uploads)}"
     by_platform = {step["if"]: step for step in uploads}
     for platform, name, suffix in (
-        ("Windows", "AgentSpace-windows-installer", "*-setup.exe"),
-        ("macOS", "AgentSpace-macos-app", "bundle/dmg/*.dmg"),
+        ("Windows", "AgentBase-windows-installer", "*-setup.exe"),
+        ("macOS", "AgentBase-macos-app", "bundle/dmg/*.dmg"),
     ):
         upload = by_platform[f"runner.os == '{platform}'"]
         assert upload["with"]["name"] == name
@@ -250,7 +250,7 @@ def test_the_smoke_job_installs_the_artefact_the_build_job_uploaded() -> None:
     pinned here. It must wait on the build, or there is nothing to install. It
     must run on Windows, because the artefact is an NSIS installer. And it must
     install the *downloaded* artefact (the bytes a user would get) rather than
-    rebuilding locally, which is what `AGENTSPACE_INSTALLER_DIR` pointing at
+    rebuilding locally, which is what `AGENTBASE_INSTALLER_DIR` pointing at
     the download directory guarantees.
     """
     smoke = _workflow()["jobs"]["smoke"]
@@ -260,11 +260,11 @@ def test_the_smoke_job_installs_the_artefact_the_build_job_uploaded() -> None:
 
     downloads = [s for s in smoke["steps"] if "download-artifact" in str(s.get("uses", ""))]
     assert len(downloads) == 1, "the smoke job must download the build job's artefact"
-    assert downloads[0]["with"]["name"] == "AgentSpace-windows-installer"
+    assert downloads[0]["with"]["name"] == "AgentBase-windows-installer"
 
     runs = [s for s in smoke["steps"] if "just verify-installed" in str(s.get("run", ""))]
     assert len(runs) == 1, "the smoke job must run `just verify-installed`"
-    assert "AGENTSPACE_INSTALLER_DIR" in runs[0].get("env", {}), (
+    assert "AGENTBASE_INSTALLER_DIR" in runs[0].get("env", {}), (
         "verify-installed must be pointed at the downloaded artefact, or it falls "
         "back to a local bundle directory that does not exist on the runner"
     )

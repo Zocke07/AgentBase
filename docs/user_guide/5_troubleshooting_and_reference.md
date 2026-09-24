@@ -6,7 +6,7 @@
 
 **The app stays on “Connecting to the sidecar” or says “Sidecar unreachable.”**
 The local server could not start or another process is holding port 8787.
-Quit other AgentSpace instances or development servers and reopen the app,
+Quit other AgentBase instances or development servers and reopen the app,
 or use **Retry**. A message about a different sidecar means the app found a
 server from another launch on that port and refused to attach to it. The
 installed app uses the fixed address `127.0.0.1:8787`.
@@ -18,17 +18,17 @@ notarization. The Gatekeeper exception and the later keychain access prompt
 are separate. If an earlier 0.2.0 download reports that the app is damaged,
 download the current disk image again.
 
-**Spotlight does not find AgentSpace, or Finder shows several copies.**
+**Spotlight does not find AgentBase, or Finder shows several copies.**
 The app is running from Downloads or straight from the disk image. macOS
 starts a quarantined app outside Applications from a temporary copy on every
-launch, and each copy is registered separately. Drag **AgentSpace** from the
+launch, and each copy is registered separately. Drag **AgentBase** from the
 disk image onto its **Applications** link, delete any copy left in Downloads,
 and open the one in Applications.
 
 **Home says there is no API key, or a run fails with “No API key.”**
 In **Settings → Keys**, set the key for the selected provider, then click
-**Restart AgentSpace** under the key list, or quit and reopen the app. A row
-saying **set: restart AgentSpace to apply** has not
+**Restart AgentBase** under the key list, or quit and reopen the app. A row
+saying **set: restart AgentBase to apply** has not
 been loaded into the running sidecar. On macOS, a denied keychain read also
 leaves the key unavailable: relaunch and allow the named keychain item. Check
 whether the space or an individual agent selects a different provider from
@@ -39,12 +39,12 @@ In **Settings → Provider**, select **openai** and **ChatGPT subscription**, th
 click **Connect ChatGPT**. Complete the OpenAI page in the browser and return
 to the app. If the page did not open, retry and allow the browser window. Use
 **Cancel** to discard a stuck attempt, or **Sign out** and connect again. The
-OS must provide a working credential store; AgentSpace deliberately refuses
+OS must provide a working credential store; AgentBase deliberately refuses
 plaintext fallback storage.
 
 **ChatGPT is connected, but the selected OpenAI model fails.**
 ChatGPT plans and API accounts can offer different model entitlements and
-usage allowances. AgentSpace sends the same selected model id in both modes
+usage allowances. AgentBase sends the same selected model id in both modes
 and never substitutes a different one. Choose a model available to the plan,
 wait for its usage allowance to reset, or switch **OpenAI access** back to
 **API key**.
@@ -129,8 +129,8 @@ existing runs.
 
 | Data | Windows | macOS |
 |---|---|---|
-| App data folder | `%LOCALAPPDATA%\dev.agentspace.desktop` | `~/Library/Application Support/dev.agentspace.desktop` |
-| Runs, events, agents, settings and spending | `agentspace.sqlite3` inside app data | `agentspace.sqlite3` inside app data |
+| App data folder | `%LOCALAPPDATA%\dev.agentbase.desktop` | `~/Library/Application Support/dev.agentbase.desktop` |
+| Runs, events, agents, settings and spending | `agentbase.sqlite3` inside app data | `agentbase.sqlite3` inside app data |
 | A space's files | `spaces\<space-id>` inside app data | `spaces/<space-id>` inside app data |
 | Keys and bot token | Windows Credential Manager | macOS Keychain |
 
@@ -145,15 +145,15 @@ does not provide a separate application log file in the UI. For startup
 output and developer diagnostics, see the
 [debugging guide](../developer_guide/3_debugging.md).
 
-Before manually backing up or removing data, quit AgentSpace. Copying the
+Before manually backing up or removing data, quit AgentBase. Copying the
 whole app data folder preserves the database, any SQLite companion files
 and space folders together. Keys are stored separately in the OS credential
 store and are not included in that folder.
 
 ## Uninstall or start over
 
-On Windows, uninstall AgentSpace through **Settings → Apps**. On macOS,
-remove **AgentSpace.app** from wherever you installed it. Uninstalling leaves
+On Windows, uninstall AgentBase through **Settings → Apps**. On macOS,
+remove **AgentBase.app** from wherever you installed it. Uninstalling leaves
 the app data folder and stored credentials in place.
 
 To erase runs, definitions, settings and space files, quit the app and delete
@@ -170,8 +170,8 @@ Keychain Access instead. Current secret names are:
 | `openai_api_key` | OpenAI API key. |
 | `discord_bot_token` | Discord bot token. |
 
-The service is `dev.agentspace.desktop`. Windows generic credential addresses
-are `<name>.dev.agentspace.desktop`; macOS keychain items use that service
+The service is `dev.agentbase.desktop`. Windows generic credential addresses
+are `<name>.dev.agentbase.desktop`; macOS keychain items use that service
 and the secret name as the account. Old Telegram credentials can also be
 removed manually.
 

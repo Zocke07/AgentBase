@@ -1,4 +1,4 @@
-import type { Run } from "@agentspace/schemas";
+import type { Run } from "@agentbase/schemas";
 import { create } from "zustand";
 
 import * as api from "../lib/api";

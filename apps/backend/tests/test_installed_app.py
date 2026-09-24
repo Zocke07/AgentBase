@@ -30,7 +30,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 #: mode uses `%LOCALAPPDATA%\<productName>`, which Phase 2 confirmed empirically
 #: and which is why the data directory is deliberately *not* derived from
 #: `APP_NAME`: it would have resolved inside the installation.
-INSTALL_DIR = Path(os.environ.get("LOCALAPPDATA", "C:/")) / "AgentSpace"
+INSTALL_DIR = Path(os.environ.get("LOCALAPPDATA", "C:/")) / "AgentBase"
 
 #: Deliberately none of 8787 (dev), 8899 (`test_sidecar_binary`), so a running
 #: instance of either cannot make this pass or fail for the wrong reason.
@@ -47,12 +47,12 @@ pytestmark = pytest.mark.skipif(
 def _installer() -> Path | None:
     """The installer to exercise.
 
-    `AGENTSPACE_INSTALLER_DIR` is what CI sets, pointing at the artefact it
+    `AGENTBASE_INSTALLER_DIR` is what CI sets, pointing at the artefact it
     downloaded from the build job: the actual bytes a user would get, rather than
     a local rebuild of them. Falling back to the bundle directory keeps the recipe
     usable straight after `just build-installer`.
     """
-    configured = os.environ.get("AGENTSPACE_INSTALLER_DIR")
+    configured = os.environ.get("AGENTBASE_INSTALLER_DIR")
     directory = (
         Path(configured)
         if configured
@@ -109,8 +109,8 @@ def _python_free_environment() -> dict[str, str]:
         "PATH": os.pathsep.join([str(Path(system_root) / "System32"), system_root]),
         "TEMP": temp,
         "TMP": temp,
-        "AGENTSPACE_PORT": str(TEST_PORT),
-        "AGENTSPACE_DATA_DIR": "",  # replaced per-test with a temporary directory
+        "AGENTBASE_PORT": str(TEST_PORT),
+        "AGENTBASE_DATA_DIR": "",  # replaced per-test with a temporary directory
     }
 
 
@@ -134,7 +134,7 @@ def _surviving_processes() -> list[str]:
         [
             str(Path(os.environ.get("SYSTEMROOT", "C:/Windows")) / "System32" / "tasklist.exe"),
             "/FI",
-            "IMAGENAME eq agentspace-sidecar.exe",
+            "IMAGENAME eq agentbase-sidecar.exe",
             "/NH",
             "/FO",
             "CSV",
@@ -144,7 +144,7 @@ def _surviving_processes() -> list[str]:
         check=False,
     )
     return [
-        line for line in completed.stdout.splitlines() if "agentspace-sidecar" in line.lower()
+        line for line in completed.stdout.splitlines() if "agentbase-sidecar" in line.lower()
     ]
 
 
@@ -170,7 +170,7 @@ def installed(request: pytest.FixtureRequest) -> Path:
     if installer is None:
         pytest.fail(
             "--install-smoke was given but there is no *-setup.exe to install. "
-            "Run `just build-installer`, or set AGENTSPACE_INSTALLER_DIR."
+            "Run `just build-installer`, or set AGENTBASE_INSTALLER_DIR."
         )
 
     completed = subprocess.run([str(installer), "/S"], check=False)  # noqa: S603
@@ -178,7 +178,7 @@ def installed(request: pytest.FixtureRequest) -> Path:
         f"{installer.name} exited {completed.returncode}; a silent per-user install should succeed"
     )
 
-    sidecar = INSTALL_DIR / "agentspace-sidecar.exe"
+    sidecar = INSTALL_DIR / "agentbase-sidecar.exe"
     assert sidecar.is_file(), (
         f"{sidecar} is missing after installing {installer.name}: the installer "
         f"ran but did not place the sidecar where a per-user install puts it"
@@ -233,7 +233,7 @@ def test_the_installed_sidecar_serves_with_no_python_available(
     )
 
     environment = _python_free_environment()
-    environment["AGENTSPACE_DATA_DIR"] = str(tmp_path / "data")
+    environment["AGENTBASE_DATA_DIR"] = str(tmp_path / "data")
 
     process = subprocess.Popen(  # noqa: S603
         [str(installed)],
@@ -276,7 +276,7 @@ def test_the_installed_sidecar_serves_with_no_python_available(
         with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
             run = json.loads(response.read())
         assert run["id"]
-        assert (tmp_path / "data" / "agentspace.sqlite3").is_file(), (
+        assert (tmp_path / "data" / "agentbase.sqlite3").is_file(), (
             "the installed sidecar did not create its database; the bundled "
             "migration SQL is most likely missing from the installed binary"
         )
@@ -291,7 +291,7 @@ def test_closing_stdin_leaves_no_orphan_process(installed: Path, tmp_path: Path)
     so this is the one guarantee that cannot be inferred from the process exiting.
     """
     environment = _python_free_environment()
-    environment["AGENTSPACE_DATA_DIR"] = str(tmp_path / "data")
+    environment["AGENTBASE_DATA_DIR"] = str(tmp_path / "data")
 
     process = subprocess.Popen(  # noqa: S603
         [str(installed)],

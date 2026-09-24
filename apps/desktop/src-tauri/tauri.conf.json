@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
-  "productName": "AgentSpace",
+  "productName": "AgentBase",
   "version": "0.4.5",
-  "identifier": "dev.agentspace.desktop",
+  "identifier": "dev.agentbase.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://127.0.0.1:5173",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "AgentSpace",
+        "title": "AgentBase",
         "width": 1280,
         "height": 800,
         "minWidth": 800,
@@ -35,7 +35,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/agentspace-sidecar"],
+    "externalBin": ["binaries/agentbase-sidecar"],
     "resources": [],
     "copyright": "",
     "category": "DeveloperTool",

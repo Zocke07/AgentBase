@@ -6,14 +6,14 @@
 just test                                   # both suites
 just test-backend                           # pytest
 just test-backend tests/test_sandbox.py -k symlink -v
-just test-backend-cov                       # with --cov=agentspace term-missing
+just test-backend-cov                       # with --cov=agentbase term-missing
 just test-desktop                           # vitest run
 just test-desktop src/state/reducer.test.ts
 ```
 
 Backend tests are async on **anyio's** pytest plugin (asyncio backend only),
 with a **60-second per-test timeout**: a stream that never terminates fails
-instead of hanging CI. An autouse fixture points `AGENTSPACE_DATA_DIR` at
+instead of hanging CI. An autouse fixture points `AGENTBASE_DATA_DIR` at
 `tmp_path`, so no test can touch a real data directory even if it forgets to
 pass paths.
 
@@ -92,8 +92,8 @@ test (windows, macos)  →  build (windows, macos)  →  smoke (windows)  →  r
   invokes setup/artifact actions and `gh` for publication; a test pins the test
   job to `just ci`.
 - Test, build and Windows smoke jobs share `.github/actions/toolchain`.
-- The build jobs upload `AgentSpace-windows-installer` and
-  `AgentSpace-macos-app`. The latter is the disk image, one file, so artifact
+- The build jobs upload `AgentBase-windows-installer` and
+  `AgentBase-macos-app`. The latter is the disk image, one file, so artifact
   upload cannot strip the app's executable permissions.
 - The macOS image check mounts the image, checks that it holds the app and an
   `Applications` link, copies the app out, checks its bundle version,

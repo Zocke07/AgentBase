@@ -10,25 +10,25 @@ from typing import TYPE_CHECKING
 import pytest
 from fastapi.testclient import TestClient
 
-from agentspace.events.types import EventType
-from agentspace.main import create_app
-from agentspace.orchestrator import execute_run
-from agentspace.providers.base import Completion
-from agentspace.secrets import SecretStore
+from agentbase.events.types import EventType
+from agentbase.main import create_app
+from agentbase.orchestrator import execute_run
+from agentbase.providers.base import Completion
+from agentbase.secrets import SecretStore
 from support import ScriptedProvider, call, reconstruct, says, tool_runtime
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable
     from pathlib import Path
 
-    from agentspace.budget.ledger import BudgetLedger
-    from agentspace.config import AppPaths
-    from agentspace.events.store import EventStore
-    from agentspace.orchestrator.run import Run
-    from agentspace.providers.base import Message, StreamEvent, ToolSpec
-    from agentspace.store.agents import AgentDefStore
-    from agentspace.store.db import Database
-    from agentspace.store.settings import SettingsStore
+    from agentbase.budget.ledger import BudgetLedger
+    from agentbase.config import AppPaths
+    from agentbase.events.store import EventStore
+    from agentbase.orchestrator.run import Run
+    from agentbase.providers.base import Message, StreamEvent, ToolSpec
+    from agentbase.store.agents import AgentDefStore
+    from agentbase.store.db import Database
+    from agentbase.store.settings import SettingsStore
 
 pytestmark = pytest.mark.anyio
 

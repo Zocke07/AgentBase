@@ -131,7 +131,7 @@ earlier point does not pause an active run.
 
 **Cancel run** stops an unfinished run and records why it ended. It does not
 undo files or other effects from calls that already ran. Switching sections
-or spaces leaves runs running; quitting AgentSpace stops its local server.
+or spaces leaves runs running; quitting AgentBase stops its local server.
 
 A finished run offers **Delete run…** and an inline **Delete / Keep**
 confirmation. Deletion removes the run, its event log and approval history.
@@ -154,7 +154,7 @@ budget. The accounting month uses UTC.
 Spending uses token counts and the prices bundled with this build. Your
 provider's bill is authoritative. For ChatGPT subscription access, this is an
 API-equivalent safety estimate and is not an API charge; it keeps the same
-AgentSpace cap in force for both OpenAI access modes. Ollama adds no cost.
+AgentBase cap in force for both OpenAI access modes. Ollama adds no cost.
 Choosing a different space or deleting run history does not reset spending.
 
 | Limit | What happens when it is reached |
@@ -235,9 +235,9 @@ agents, folder, rules, approval gate and the shared budget all apply.
 
 Two things to know before relying on one:
 
-- **AgentSpace has to be open.** The local server is part of the app, so a
+- **AgentBase has to be open.** The local server is part of the app, so a
   time that passes while the app is closed cannot start anything then. Each
-  schedule chooses what happens instead: **Run it once when AgentSpace next
+  schedule chooses what happens instead: **Run it once when AgentBase next
   opens** (the default) or **Skip it and wait for the next time**. Either
   way the following time is computed from the clock, so a laptop shut for a
   week runs the schedule once on opening, not seven times.

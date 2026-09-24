@@ -14,17 +14,17 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from fastapi.testclient import TestClient
 
-from agentspace import main
-from agentspace.api.stream import format_sse, parse_last_event_id, run_events
-from agentspace.events.types import Event, EventType
+from agentbase import main
+from agentbase.api.stream import format_sse, parse_last_event_id, run_events
+from agentbase.events.types import Event, EventType
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from agentspace.config import AppPaths
-    from agentspace.events.bus import EventBus
-    from agentspace.events.store import EventStore
-    from agentspace.store.db import Database
+    from agentbase.config import AppPaths
+    from agentbase.events.bus import EventBus
+    from agentbase.events.store import EventStore
+    from agentbase.store.db import Database
 
 
 @pytest.fixture
@@ -420,7 +420,7 @@ def test_the_fake_run_speaks_the_reducers_dialect(client: TestClient) -> None:
 
 def test_fake_run_default_pace_matches_the_spec() -> None:
     """20 events at the default step is the 10 seconds §5 Phase 2 describes."""
-    from agentspace.api.runs import _FAKE_RUN_SCRIPT, DEFAULT_STEP_MS
+    from agentbase.api.runs import _FAKE_RUN_SCRIPT, DEFAULT_STEP_MS
 
     assert len(_FAKE_RUN_SCRIPT) == 20
     assert len(_FAKE_RUN_SCRIPT) * DEFAULT_STEP_MS / 1000 == 10.0

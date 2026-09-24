@@ -21,12 +21,18 @@ export async function setSecret(name: string, value: string): Promise<void> {
 
 /** Remove the secret called `name`. A missing entry is not an error. */
 export async function clearSecret(name: string): Promise<void> {
-  const service = await invoke<string>("keychain_service");
-  try {
-    await invoke("plugin:keyring|delete_password", { service, user: name });
-  } catch (failure) {
-    // The keyring crate reports a missing entry as an error; clearing what is
-    // already clear is what the user asked for.
-    if (!/no entry|not found|NoEntry/iu.test(String(failure))) throw failure;
+  const [service, legacyService] = await Promise.all([
+    invoke<string>("keychain_service"),
+    invoke<string>("legacy_keychain_service"),
+  ]);
+  for (const target of new Set([service, legacyService])) {
+    try {
+      await invoke("plugin:keyring|delete_password", { service: target, user: name });
+    } catch (failure) {
+      // The keyring crate reports a missing entry as an error; clearing what is
+      // already clear is what the user asked for. Removing the predecessor
+      // entry prevents a renamed credential from appearing again on restart.
+      if (!/no entry|not found|NoEntry/iu.test(String(failure))) throw failure;
+    }
   }
 }

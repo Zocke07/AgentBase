@@ -13,11 +13,11 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from agentspace.events.types import EventType
+from agentbase.events.types import EventType
 
 if TYPE_CHECKING:
-    from agentspace.events.store import EventStore
-    from agentspace.store.db import Database
+    from agentbase.events.store import EventStore
+    from agentbase.store.db import Database
 
 pytestmark = pytest.mark.anyio
 
@@ -333,11 +333,11 @@ def _rows_naming(db: Database, table: str, run_id: str) -> int:
 
 async def _finished_run_with_everything(store: EventStore, db: Database) -> str:
     """A completed run with a row in every table that can name a run."""
-    from agentspace.budget.ledger import BudgetLedger
-    from agentspace.providers.base import TokenUsage
-    from agentspace.store.settings import SettingsStore
-    from agentspace.tools.approval import ApprovalStore
-    from agentspace.tools.catalogue import RiskLevel
+    from agentbase.budget.ledger import BudgetLedger
+    from agentbase.providers.base import TokenUsage
+    from agentbase.store.settings import SettingsStore
+    from agentbase.tools.approval import ApprovalStore
+    from agentbase.tools.catalogue import RiskLevel
 
     run_id = await _new_run(store)
     await store.append(run_id, EventType.RUN_STARTED, {"goal": "test goal"})
@@ -381,8 +381,8 @@ async def test_deleting_a_run_keeps_its_spend_in_the_ledger(
     was spent whether or not the run is kept, so the row survives with its
     ``run_id`` cleared rather than being removed: otherwise deleting runs
     would be a way to spend past the cap."""
-    from agentspace.budget.ledger import BudgetLedger
-    from agentspace.store.settings import SettingsStore
+    from agentbase.budget.ledger import BudgetLedger
+    from agentbase.store.settings import SettingsStore
 
     ledger = BudgetLedger(db, SettingsStore(db))
     run_id = await _finished_run_with_everything(store, db)
@@ -403,7 +403,7 @@ async def test_deleting_an_unfinished_run_is_refused_and_removes_nothing(
 ) -> None:
     """An orchestrator is still appending to it, and its gate may be holding a
     future on one of its approvals. The row's status is the guard."""
-    from agentspace.events.store import RunUnfinishedError
+    from agentbase.events.store import RunUnfinishedError
 
     run_id = await _new_run(store)
     await store.append(run_id, EventType.RUN_STARTED, {"goal": "test goal"})
@@ -417,7 +417,7 @@ async def test_deleting_an_unfinished_run_is_refused_and_removes_nothing(
 
 
 async def test_deleting_an_unknown_run_raises(store: EventStore) -> None:
-    from agentspace.events.store import RunNotFoundError
+    from agentbase.events.store import RunNotFoundError
 
     with pytest.raises(RunNotFoundError):
         await store.delete_run("does-not-exist")

@@ -1,4 +1,4 @@
-import type { KnowledgeEvaluation, KnowledgeEvaluationCase } from "@agentspace/schemas";
+import type { KnowledgeEvaluation, KnowledgeEvaluationCase } from "@agentbase/schemas";
 import { useState } from "react";
 
 import * as api from "../lib/api";

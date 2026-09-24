@@ -6,6 +6,9 @@ decisions. It is historical evidence, not a current task list: some old
 "not verified" statements were closed by later sections without being edited
 in every place they appeared.
 
+Historical material retains the product names, identifiers, artifact names and
+hashes it recorded. It is not current configuration.
+
 Use [CLAUDE.md](../../CLAUDE.md) for current working instructions,
 [BUILD_SPEC.md](../../BUILD_SPEC.md) for the design and agreed deviations, and
 [Verification](../verification.md) for remaining checks.

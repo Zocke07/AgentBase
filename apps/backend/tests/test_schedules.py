@@ -16,9 +16,9 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from agentspace.orchestrator.scheduler import MISSED_AFTER, Fired, Scheduler
-from agentspace.store.db import LATEST_SCHEMA_VERSION
-from agentspace.store.schedules import (
+from agentbase.orchestrator.scheduler import MISSED_AFTER, Fired, Scheduler
+from agentbase.store.db import LATEST_SCHEMA_VERSION
+from agentbase.store.schedules import (
     DailyCadence,
     IntervalCadence,
     LocalZone,
@@ -30,16 +30,16 @@ from agentspace.store.schedules import (
     next_occurrence,
     parse_cadence,
 )
-from agentspace.store.spaces import (
+from agentbase.store.spaces import (
     DEFAULT_SPACE_ID,
     SpaceArchivedError,
     SpaceStore,
 )
 
 if TYPE_CHECKING:
-    from agentspace.config import AppPaths
-    from agentspace.events.store import EventStore
-    from agentspace.store.db import Database
+    from agentbase.config import AppPaths
+    from agentbase.events.store import EventStore
+    from agentbase.store.db import Database
 
 pytestmark = pytest.mark.anyio
 

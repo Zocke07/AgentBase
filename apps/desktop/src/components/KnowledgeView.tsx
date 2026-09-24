@@ -7,7 +7,7 @@ import type {
   MemoryStatus,
   SearchHit,
   SpaceResponse,
-} from "@agentspace/schemas";
+} from "@agentbase/schemas";
 import {
   Background,
   BackgroundVariant,
@@ -862,7 +862,7 @@ export function KnowledgeView({
                     <p>
                       Delete <b>{folderAsked.path}/</b> and everything in it
                       {folderAsked.notes > 0 && ` (${String(folderAsked.notes)} note${folderAsked.notes === 1 ? "" : "s"})`}? A copy
-                      goes under .agentspace/backups first.
+                      goes under .agentbase/backups first.
                     </p>
                     <div className="roster__confirm">
                       <button type="button" className="button button--small button--danger" disabled={busy} onClick={() => void removeFolder()}>
@@ -1182,7 +1182,7 @@ export function KnowledgeView({
             <h2>Shared knowledge for people and agents</h2>
             <p>
               Notes are ordinary Markdown files in this space's folder, and the folder is an Obsidian vault.
-              AgentSpace retrieves cited excerpts from them for every run; completed runs propose memories back
+              AgentBase retrieves cited excerpts from them for every run; completed runs propose memories back
               into the inbox.
             </p>
             <div className="knowledge__welcome-actions">

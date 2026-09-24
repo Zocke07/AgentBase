@@ -5,7 +5,7 @@ import type {
   RiskLevel,
   ToolResponse,
   UpdateAgentRequest,
-} from "@agentspace/schemas";
+} from "@agentbase/schemas";
 import { useEffect, useState } from "react";
 
 import { ApiError } from "../lib/api";
