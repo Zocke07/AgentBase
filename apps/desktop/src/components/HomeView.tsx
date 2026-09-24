@@ -6,6 +6,7 @@ import { useRoster } from "../state/roster";
 import { unfinished, useRunList } from "../state/runList";
 
 import { Markdown } from "./Markdown";
+import { MetricBar } from "./MetricBar";
 import { RunCard } from "./RunCard";
 
 /**
@@ -275,6 +276,7 @@ export function HomeView({
                     {hit.excerpt !== "" && (
                       <Markdown source={hit.excerpt} className="md--compact new-run__excerpt" />
                     )}
+                    <MetricBar value={hit.score} label={`Relevance for ${hit.citation}`} />
                     <small>
                       {Math.round(hit.score * 100)}% relevance · {hit.estimated_tokens ?? 0} tokens
                       {(hit.matched_terms ?? []).length > 0 &&

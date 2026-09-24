@@ -832,6 +832,52 @@ models, attachments, PDFs and web clipping.
 4. The tour opens exactly once per fresh data directory and never on a
    settings document without the flag.
 
+### Phase 14: Local visualization files, dashboards and diagrams
+
+*Added 2026-09-24 at the maintainer's request for release 0.4.5.*
+
+Visualization stays inside a space and uses its ordinary files. There is no
+chart database, remote renderer or second agent tool: an agent creates data,
+chart definitions, dashboards and diagrams with the existing approval-gated
+`write_file`, and a person can edit the same files in Knowledge.
+
+- Add a **Visualize** section that parses CSV, TSV, JSON, JSONL and NDJSON
+  locally and draws bar, line, area, scatter, pie, metric and table views.
+  A chart selects its category, numeric values, optional series, aggregation,
+  sort and a bounded row count. Every graphic has an accessible source table
+  and exports as SVG or prepared CSV.
+- A saved chart is a versioned `.viz.json` file with schema
+  `agentspace://visualization/v1` and a relative source path. A saved dashboard
+  is `.dashboard.json` with schema `agentspace://dashboard/v1` and a list of
+  saved chart paths in one, two or three columns. Both contracts are validated
+  before rendering and remain small enough for a model to write directly.
+- `.mmd` and `.mermaid` are editable text files. Render them with Mermaid in
+  strict security mode, disable HTML labels, parse the returned SVG, and remove
+  scripts, embedded objects, event attributes and external links before it is
+  inserted. Diagram SVG may be exported.
+- Add compact visual evidence where it changes a decision: relevance bars for
+  retrieved context, MRR and recall bars in retrieval evaluation, and a trust
+  state distribution in the memory inbox. Retain the run graph, knowledge
+  graph and Usage bars as their existing authoritative projections.
+- Data parsing is bounded at 10,000 rows and chart rendering at 2,000 rows.
+  Invalid data, missing sources and invalid contracts are readable errors and
+  never code execution. Nothing in a visualization is treated as an agent
+  instruction.
+
+**Accept when:**
+
+1. A CSV and a nested JSON file can be opened, configured as every chart type,
+   inspected as a table and exported without a network call.
+2. An agent-compatible `.viz.json` can be saved, reopened and composed into a
+   persistent dashboard whose charts reread their source files.
+3. A Mermaid file renders locally, and a returned SVG containing a script,
+   event handler, embedded object or external link loses all four before DOM
+   insertion.
+4. Retrieval, evaluation and memory metrics retain their textual values and
+   add accessible visual equivalents.
+5. The existing approval gate, sandbox, event contract, replay and budget
+   ledger are unchanged.
+
 ---
 
 ## 6. How you should work

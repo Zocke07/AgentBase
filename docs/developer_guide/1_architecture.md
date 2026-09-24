@@ -29,7 +29,8 @@ apps/backend/src/agentspace/    Python 3.12 FastAPI sidecar
 apps/backend/tests/             pytest; support.py holds the shared doubles
 apps/desktop/src/               React 19 + Vite + TypeScript
   lib/                          api.ts (typed calls), events.ts (SSE client), sidecar.ts,
-                                markdown.ts (the Obsidian dialect), fuzzy.ts, graphLayout.ts,
+                                markdown.ts (the Obsidian dialect), visualization.ts,
+                                fuzzy.ts, graphLayout.ts,
                                 sections.ts (rail order), tour.ts (the tour's script)
   state/                        reducer.ts: the fold; runStore, graph, spaces, hooks
   components/                   Rail, SpaceSwitcher, HomeView, RunsView, AgentsView,
@@ -37,7 +38,8 @@ apps/desktop/src/               React 19 + Vite + TypeScript
                                 ApprovalPanel, AgentEditor, BudgetMeter, RunPanel,
                                 Markdown, KnowledgeView, NoteTree, NoteEditor,
                                 QuickSwitcher, MemoryInbox, KnowledgeEvaluation,
-                                Schedules, UsageView, Tour
+                                Schedules, UsageView, VisualizationView, Chart,
+                                MermaidDiagram, Tour
 apps/desktop/src-tauri/         Rust shell: spawns the sidecar, reads the keychain
   binaries/                     the frozen sidecar lands here (git-ignored)
 packages/schemas/               openapi.json + src/api.ts, GENERATED and committed

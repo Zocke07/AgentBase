@@ -131,12 +131,21 @@ def test_plain_text_files_can_be_listed_written_read_and_deleted(client: TestCli
     assert broken.status_code == 400
     assert "not valid JSON" in broken.json()["detail"]["message"]
 
+    diagram = client.put(
+        f"{prefix}/file",
+        json={"path": "visualizations/workflow.mmd", "content": "flowchart LR\nA --> B\n"},
+    )
+    assert diagram.status_code == 200, diagram.text
+
     for path in ("notes.md", "../escape.json", ".obsidian/app.json", "chart.png"):
         refused = client.put(f"{prefix}/file", json={"path": path, "content": "x"})
         assert refused.status_code == 400, path
 
     listed = client.get(f"{prefix}/files").json()["files"]
-    assert [entry["path"] for entry in listed] == ["config/watchlist.json"]
+    assert [entry["path"] for entry in listed] == [
+        "config/watchlist.json",
+        "visualizations/workflow.mmd",
+    ]
 
     read = client.get(f"{prefix}/file", params={"path": "config/watchlist.json"}).json()
     assert read["content"] == '{"watchlist": [{"ticker": "AAPL"}]}'

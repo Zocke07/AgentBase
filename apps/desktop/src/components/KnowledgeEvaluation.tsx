@@ -3,6 +3,8 @@ import { useState } from "react";
 
 import * as api from "../lib/api";
 
+import { MetricBar } from "./MetricBar";
+
 /**
  * Retrieval evaluation: one question per line with the notes it should
  * surface, scored as MRR and recall at k, so a change to ranking can be
@@ -54,14 +56,18 @@ export function KnowledgeEvaluationView({ spaceId }: { spaceId: string }) {
       </div>
       {result !== null && (
         <div className="knowledge__evaluation-result">
-          <strong>
-            MRR {Math.round(result.mean_reciprocal_rank * 100)}% · recall@{result.limit}{" "}
-            {Math.round(result.mean_recall_at_k * 100)}%
-          </strong>
+          <div className="knowledge__evaluation-metrics">
+            <MetricBar value={result.mean_reciprocal_rank} label="Mean reciprocal rank" />
+            <MetricBar value={result.mean_recall_at_k} label={`Recall at ${String(result.limit)}`} />
+          </div>
           <ol>
             {result.results.map((item) => (
               <li key={item.question}>
                 <span>{item.question}</span>
+                <div className="knowledge__evaluation-case-metrics">
+                  <MetricBar value={item.reciprocal_rank} label="Reciprocal rank" />
+                  <MetricBar value={item.recall_at_k} label={`Recall at ${String(result.limit)}`} />
+                </div>
                 <small>
                   expected {item.expected_paths.join(", ")} · retrieved {item.retrieved_paths.join(", ") || "nothing"}
                 </small>

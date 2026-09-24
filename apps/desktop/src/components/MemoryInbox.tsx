@@ -1,6 +1,7 @@
 import type { MemoryIndex, MemoryItem, MemoryStatus } from "@agentspace/schemas";
 
 import { Markdown } from "./Markdown";
+import { MemoryStatusBar } from "./MetricBar";
 
 /**
  * The memory inbox: a run's outcome or an agent's proposal starts as
@@ -50,6 +51,7 @@ export function MemoryInbox({
         {memories.proposed} proposed · {memories.approved} approved · {memories.archived} archived. Only
         approved and pinned memories are retrieved.
       </p>
+      <MemoryStatusBar proposed={memories.proposed} approved={memories.approved} archived={memories.archived} />
       {selection.length > 0 && (
         <div className="knowledge__merge" data-testid="memory-merge">
           <input
@@ -217,4 +219,3 @@ function citationPath(citation: string): string | null {
   const stem = match?.[1]?.trim();
   return stem === undefined || stem === "" ? null : `${stem.replace(/\.md$/i, "")}.md`;
 }
-

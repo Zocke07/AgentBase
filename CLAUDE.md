@@ -15,8 +15,10 @@ and disconnects their stored keys.
 
 - Phases 0 through 9 and the spaces redesign are implemented. Do not restart
   Phase 0 or replace completed work from an earlier phase.
-- The current release line is **0.4.4**: guards on runaway runs, a per-run
-  cost ceiling (migration 014) and data files in Knowledge, over 0.4.3's
+- The current release line is **0.4.5**: charts from CSV and JSON, portable
+  agent-written visualization specs, dashboards, Mermaid, exports and visual
+  RAG metrics, over 0.4.4's guards on runaway runs, per-run cost ceiling
+  (migration 014) and data files in Knowledge, over 0.4.3's
   provider-change fix and folding rail (013), 0.4.2's model on each space
   (012), 0.4.1's investment roster (010) and per-tool answers (011), 0.4.0's
   schedules, Usage and tour, 0.3.3's run canvas and vault and 0.3.2's
@@ -27,7 +29,7 @@ and disconnects their stored keys.
   archive made Gatekeeper report that the app was damaged; the corrected
   bundle has a complete code seal. Check the release page and tag workflow
   for publication status and cross-platform CI evidence.
-- The UI has a left rail, spaces, Home, Runs, Agents, Knowledge, Usage, Space
+- The UI has a left rail, spaces, Home, Runs, Agents, Knowledge, Visualize, Usage, Space
   settings, and app-wide Settings. Approvals are docked. The run canvas is a
   left-to-right workflow (goal, supervisor, workers, outcome) with an
   inspector; the Knowledge section is laid out as an Obsidian vault and one
@@ -65,6 +67,12 @@ and disconnects their stored keys.
   that has spent it, checked before each model call like the deadline.
   Plain-text data files beside the notes are listed and edited through
   `/knowledge/files` and `/knowledge/file` (JSON parsed before a write).
+- The Visualize section parses CSV, TSV, JSON and JSON-lines locally and draws
+  bar, line, area, scatter, pie, metric and table views. A versioned `.viz.json`
+  points at a data file, `.dashboard.json` composes saved charts and `.mmd` or
+  `.mermaid` holds a diagram. Mermaid uses strict mode and its SVG is sanitized
+  again before insertion. These are ordinary space files written through the
+  existing gate; there is no visualization database or service.
 - The latest recorded database migration is 014 (a space's run cost ceiling). Existing workspace files are
   adopted into the default space once; new spaces get their own folders. Each
   space folder is also an Obsidian-compatible Markdown vault. The Knowledge

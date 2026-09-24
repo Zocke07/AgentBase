@@ -31,6 +31,7 @@ import { FilesPanel, type OpenFile } from "./FilesPanel";
 import { KnowledgeEvaluationView } from "./KnowledgeEvaluation";
 import { Markdown } from "./Markdown";
 import { MemoryInbox } from "./MemoryInbox";
+import { MetricBar } from "./MetricBar";
 import { NoteEditor } from "./NoteEditor";
 import { NoteTree } from "./NoteTree";
 import { QuickSwitcher } from "./QuickSwitcher";
@@ -844,6 +845,7 @@ export function KnowledgeView({
               >
                 <code>{hit.citation}</code>
                 <span>{hit.excerpt}</span>
+                <MetricBar value={hit.score} label={`Relevance for ${hit.citation}`} />
                 <small>
                   {Math.round(hit.score * 100)}% relevance · {hit.estimated_tokens ?? 0} tokens
                 </small>

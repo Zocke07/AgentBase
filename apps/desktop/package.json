@@ -1,7 +1,7 @@
 {
   "name": "@agentspace/desktop",
   "private": true,
-  "version": "0.4.4",
+  "version": "0.4.5",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -20,6 +20,7 @@
     "@agentspace/schemas": "file:../../packages/schemas",
     "@tauri-apps/api": "^2.11.1",
     "@xyflow/react": "^12.11.6",
+    "mermaid": "^11.17.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "zustand": "^5.0.15"

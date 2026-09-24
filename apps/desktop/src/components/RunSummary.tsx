@@ -7,6 +7,7 @@ import { STATUS_LABEL } from "../state/describe";
 import type { RunView } from "../state/reducer";
 
 import { Markdown } from "./Markdown";
+import { MetricBar } from "./MetricBar";
 
 /**
  * The run's header and outcome. A terminal `summary` is a model's claim, not a
@@ -162,6 +163,7 @@ export function RunSummary({
                 ) : (
                   <code>{hit.citation}</code>
                 )}
+                {hit.score !== null && <MetricBar value={hit.score} label={`Relevance for ${hit.citation}`} />}
                 <small>
                   {hit.score !== null && `${String(Math.round(hit.score * 100))}% relevance`}
                   {hit.estimatedTokens !== null && ` · ${String(hit.estimatedTokens)} tokens`}

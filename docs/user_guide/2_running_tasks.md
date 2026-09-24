@@ -263,7 +263,7 @@ space is archived turns itself off.
 
 ## Follow cost, tokens and context
 
-**Usage** (Ctrl/Cmd+5) is a month of model calls from the same ledger the
+**Usage** (Ctrl/Cmd+6) is a month of model calls from the same ledger the
 monthly cap is enforced on, so it always agrees with the meter in the header.
 The cards show what was spent (against the cap, when every space is shown),
 how many model calls were made across how many runs, and the input and output

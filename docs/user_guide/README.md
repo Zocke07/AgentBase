@@ -1,6 +1,6 @@
 # AgentSpace: User Guide
 
-**Version covered: 0.4.4.** For installation from source and development, use the
+**Version covered: 0.4.5.** For installation from source and development, use the
 [Developer Guide](../developer_guide/README.md).
 
 AgentSpace runs a team of AI agents on your computer. You give a task to a
@@ -10,8 +10,8 @@ log show their work as it happens and let you replay it afterwards.
 A **space** groups a roster of agents, a folder for their files, and settings
 for their runs. Its folder is also a Markdown knowledge vault shared by people
 and agents. The left rail switches between **Home**, **Runs**, **Agents**,
-**Knowledge**, **Usage** and **Space settings** for the selected space;
-Ctrl/Cmd+1 to 7 jump between them in that order, and a badge on **Runs** or
+**Knowledge**, **Visualize**, **Usage** and **Space settings** for the selected space;
+Ctrl/Cmd+1 to 8 jump between them in that order, and a badge on **Runs** or
 **Knowledge** counts approvals or memories waiting for you. **Settings** at
 the bottom controls defaults, model access, API keys, the shared budget,
 Discord, appearance, and shows the version. A first launch opens a short tour
@@ -39,3 +39,5 @@ risk levels to proceed automatically.
    failures, data locations, upgrades, removal and the local API.
 6. [Knowledge and memory](6_knowledge_and_memory.md): Markdown notes, links,
    properties, Obsidian, retrieval, citations and durable run memory.
+7. [Visualizations and dashboards](7_visualizations.md): charts from CSV and
+   JSON, agent-written visualization files, dashboards, Mermaid and exports.

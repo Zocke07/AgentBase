@@ -65,10 +65,17 @@ export const TOUR_STEPS: readonly TourStep[] = [
     section: "knowledge",
   },
   {
+    title: "Visualize the evidence",
+    body:
+      "Turn CSV and JSON into charts, combine saved charts into dashboards, or render Mermaid diagrams. " +
+      "The definitions are ordinary files, so agents can create and update them behind the normal approval gate.",
+    target: "rail-visualize",
+    section: "visualize",
+  },
+  {
     title: "That is the whole app",
     body: "Try a demo run to see a scripted run on the canvas without a key or a model, or finish and start your own.",
     target: null,
     section: "home",
   },
 ];
-

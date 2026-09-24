@@ -40,6 +40,7 @@ vi.mock("./lib/api", () => ({
   listAgents: vi.fn(),
   listTools: vi.fn(),
   listProviders: vi.fn(),
+  listFiles: vi.fn(),
   baseUrl: vi.fn(() => Promise.resolve("http://x")),
 }));
 
@@ -103,6 +104,7 @@ beforeEach(() => {
   mocked.listAgents.mockResolvedValue([]);
   mocked.listTools.mockResolvedValue([]);
   mocked.listProviders.mockResolvedValue({ providers: [], models: {} });
+  mocked.listFiles.mockResolvedValue({ files: [] });
   mocked.getRunHistory.mockResolvedValue([]);
   mocked.listRuns.mockResolvedValue([row("running")]);
 });

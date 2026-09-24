@@ -325,7 +325,19 @@ class KnowledgeMoveResult(BaseModel):
 #: configuration and data the agents read and write. Anything else in the
 #: folder (images, archives, the SQLite of another tool) stays out of reach.
 TEXT_FILE_SUFFIXES: Final[frozenset[str]] = frozenset(
-    {".json", ".jsonl", ".csv", ".txt", ".yaml", ".yml", ".toml", ".ndjson", ".tsv"}
+    {
+        ".json",
+        ".jsonl",
+        ".csv",
+        ".txt",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".ndjson",
+        ".tsv",
+        ".mmd",
+        ".mermaid",
+    }
 )
 MAX_TEXT_FILE_CHARS: Final[int] = 1_000_000
 
