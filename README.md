@@ -64,8 +64,8 @@ right for `just test` and wrong for a release, so this recipe passes
 
 ## Installing
 
-Download `AgentBase_0.4.5_x64-setup.exe` for Windows x64 or
-`AgentBase_0.4.5_aarch64.dmg` for Apple Silicon macOS from the
+Download `AgentBase_0.4.6_x64-setup.exe` for Windows x64 or
+`AgentBase_0.4.6_aarch64.dmg` for Apple Silicon macOS from the
 [latest release](https://github.com/Zocke07/AgentBase/releases/latest), or from the artifacts of a green
 [build run](https://github.com/Zocke07/AgentBase/actions/workflows/build.yml). See the
 [User Guide](docs/user_guide/1_getting_started.md) for both installation paths.
@@ -85,6 +85,12 @@ AgentBase also adopts data from a pre-rename installation when its new data
 directory is empty. Keep the earlier app closed during that first launch. New
 AgentBase credentials take precedence, while existing credentials remain
 available until you replace or remove them in **Settings > Keys**.
+
+The new identifier means this is a separate app, not an in-place upgrade of
+AgentSpace: Windows lists it as its own entry in **Apps & features** and
+macOS installs it as its own `AgentBase.app` alongside the old one. Once
+you have confirmed your data carried over, uninstall or delete the old
+AgentSpace app yourself; AgentBase does not touch it.
 
 Once it is installed, the **[User Guide](docs/user_guide/README.md)** covers everything
 after the first launch: connecting an API key or ChatGPT subscription, using a

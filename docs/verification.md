@@ -1,11 +1,11 @@
 # Verification and remaining work
 
-Updated 2026-09-24. This is the current record; the
+Updated 2026-09-25. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
 superseded gaps. Earlier evidence retains its original product and artifact
 identifiers. A test result below is scoped to what was actually executed.
 
-## AgentBase product rename, 2026-09-24
+## AgentBase product rename, 2026-09-24, released as 0.4.6
 
 The shipped product, backend package, TypeScript packages, Rust crate, Tauri
 bundle, sidecar, environment variables, generated schemas, CI artifacts and

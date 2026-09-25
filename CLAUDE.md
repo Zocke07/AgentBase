@@ -21,10 +21,14 @@ future changes do not relocate users' data or disconnect their stored keys.
   transition; current AgentBase values take precedence.
 - Phases 0 through 9 and the spaces redesign are implemented. Do not restart
   Phase 0 or replace completed work from an earlier phase.
-- The current release line is **0.4.5**: charts from CSV and JSON, portable
-  agent-written visualization specs, dashboards, Mermaid, exports and visual
-  RAG metrics, over 0.4.4's guards on runaway runs, per-run cost ceiling
-  (migration 014) and data files in Knowledge, over 0.4.3's
+- The current release line is **0.4.6**: the rename to AgentBase across the
+  product, package, bundle and data identifiers, with one-time adoption of a
+  pre-rename install's data and database and read-through fallbacks for its
+  keychain entries, browser preferences and saved visualizations, over 0.4.5's
+  charts from CSV and JSON, portable agent-written visualization specs,
+  dashboards, Mermaid, exports and visual RAG metrics, over 0.4.4's guards on
+  runaway runs, per-run cost ceiling (migration 014) and data files in
+  Knowledge, over 0.4.3's
   provider-change fix and folding rail (013), 0.4.2's model on each space
   (012), 0.4.1's investment roster (010) and per-tool answers (011), 0.4.0's
   schedules, Usage and tour, 0.3.3's run canvas and vault and 0.3.2's

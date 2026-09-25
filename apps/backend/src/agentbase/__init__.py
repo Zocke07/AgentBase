@@ -6,4 +6,4 @@ Discord adapter make the outbound connections described in the user guide.
 
 __all__ = ["__version__"]
 
-__version__ = "0.4.5"
+__version__ = "0.4.6"

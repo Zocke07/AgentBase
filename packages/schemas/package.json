@@ -1,7 +1,7 @@
 {
   "name": "@agentbase/schemas",
   "private": true,
-  "version": "0.4.5",
+  "version": "0.4.6",
   "type": "module",
   "description": "TypeScript types generated from the sidecar's OpenAPI schema. Do not hand-edit.",
   "exports": {

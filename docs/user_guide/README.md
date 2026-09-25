@@ -1,6 +1,6 @@
 # AgentBase: User Guide
 
-**Version covered: 0.4.5.** For installation from source and development, use the
+**Version covered: 0.4.6.** For installation from source and development, use the
 [Developer Guide](../developer_guide/README.md).
 
 AgentBase runs a team of AI agents on your computer. You give a task to a
