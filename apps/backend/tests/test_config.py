@@ -149,6 +149,28 @@ def test_resolve_app_paths_adopts_the_canonical_agentbase_location(
     assert not legacy_data_dir.exists()
 
 
+def test_resolve_app_paths_survives_an_unresolvable_canonical_location(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A host with neither `LOCALAPPDATA` nor a resolvable home directory must
+    not crash an explicit override: the installed-app smoke test's Python-free,
+    scrubbed launch environment is exactly this case (`Path.home()` raises
+    `RuntimeError: Could not determine home directory.`), and the whole point
+    of an override is that it must not depend on the canonical location being
+    computable at all.
+    """
+
+    def _unresolvable() -> Path:
+        raise RuntimeError("Could not determine home directory.")
+
+    monkeypatch.setattr(config, "default_data_dir", _unresolvable)
+    custom_data_dir = tmp_path / "portable-agentbase"
+
+    paths = config.resolve_app_paths(custom_data_dir)
+
+    assert paths.data_dir == custom_data_dir.resolve()
+
+
 def test_every_resolved_path_is_a_pathlib_path(tmp_path: Path) -> None:
     """§5 Phase 0: paths are Path objects, never assembled strings."""
     paths = config.resolve_app_paths(tmp_path)

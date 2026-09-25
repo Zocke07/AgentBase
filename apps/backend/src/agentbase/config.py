@@ -209,7 +209,15 @@ def resolve_app_paths(data_dir: Path | None = None) -> AppPaths:
     # environment override is also used by tests, portable/dev runs, and
     # callers that intentionally choose a separate workspace; moving an OS
     # profile into one of those paths would be surprising despite being safe.
-    if resolved == default_data_dir().expanduser().resolve():
+    try:
+        at_canonical_location = resolved == default_data_dir().expanduser().resolve()
+    except RuntimeError:
+        # No LOCALAPPDATA and no resolvable home directory (`Path.home()`
+        # raises this exact message): the canonical location cannot be
+        # computed, so `resolved` cannot be confirmed to be it. An explicit
+        # override must still work here; only legacy adoption is skipped.
+        at_canonical_location = False
+    if at_canonical_location:
         adopt_legacy_app_data(resolved, _legacy_data_dir().expanduser().resolve())
         # Also recover a prior directory move that completed before the
         # database filename changed.
