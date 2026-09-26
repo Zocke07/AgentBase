@@ -54,8 +54,11 @@ future changes do not relocate users' data or disconnect their stored keys.
 - The default space ships the ten-definition investment research roster
   (migration 010, 2026-09-19): four Haiku collectors, Sonnet analysts and a
   risk manager, an Opus decision agent, a Sonnet reviewer, each with an
-  explicit Anthropic model, no `run_shell` anywhere and `http_get` only on
-  the collectors. The three generic roles are now the starter roles a new
+  explicit Anthropic model and no `run_shell` anywhere. Migration 015 moves
+  an untouched `news-scanner` from raw `http_get` responses to `read_feed`,
+  which parses complete RSS or Atom entries locally and supplies deterministic
+  identifiers; the other network collectors retain `http_get`. The three
+  generic roles are now the starter roles a new
   space is seeded from (`store/builtins.py`); 010 retires them from the
   default space only while untouched. The prompts assume scripts and config
   files the app does not ship; the user guide says which.
@@ -83,7 +86,8 @@ future changes do not relocate users' data or disconnect their stored keys.
   `.mermaid` holds a diagram. Mermaid uses strict mode and its SVG is sanitized
   again before insertion. These are ordinary space files written through the
   existing gate; there is no visualization database or service.
-- The latest recorded database migration is 014 (a space's run cost ceiling). Existing workspace files are
+- The latest recorded database migration is 015 (complete feed input for an
+  untouched `news-scanner`). Existing workspace files are
   adopted into the default space once; new spaces get their own folders. Each
   space folder is also an Obsidian-compatible Markdown vault. The Knowledge
   section provides notes, properties, tags, links, backlinks, unresolved links,
@@ -146,8 +150,9 @@ second chronological log here.
   offered to the model. Filesystem tools use the run's space folder.
 - `run_shell` has a timeout and process-tree termination, but no OS filesystem
   or network isolation. Do not describe approval as a containment guarantee.
-  `http_get` checks public addresses and connects to the checked address;
-  redirects require a new checked request.
+  `http_get` and `read_feed` check public addresses and connect to the checked
+  address; redirects require a new checked request. `read_feed` accepts at
+  most 2 MB of untrusted XML and returns no more than 20 complete entries.
 - `RunLauncher` is shared by UI and Discord. It snapshots roster, rules and
   limits at run start. Worker delegation is sequential. A definition edited
   mid-run does not change that run.

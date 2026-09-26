@@ -93,6 +93,7 @@ you consider it.
 | `search_knowledge` | low | Retrieve relevant Markdown chunks with note and heading citations. |
 | `write_file` | medium | Create or overwrite a file inside this space's folder. |
 | `http_get` | medium | Fetch a public URL; local and private network addresses are refused. |
+| `read_feed` | medium | Fetch public RSS or Atom and return bounded, complete entries; local and private network addresses are refused. |
 | `run_shell` | high | Run a shell command as your user, starting in this space's folder, with a timeout. |
 
 File-tool attempts outside the space folder are refused before an approval

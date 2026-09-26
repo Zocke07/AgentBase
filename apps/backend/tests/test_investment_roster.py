@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 ROSTER: Final[dict[str, tuple[str, tuple[str, ...], int, tuple[str, ...]]]] = {
     "news-scanner": (
         "claude-haiku-4-5",
-        ("http_get", "read_file", "write_file"),
+        ("read_feed", "read_file", "write_file"),
         20,
         ("low", "medium"),
     ),
@@ -110,7 +110,11 @@ def test_nothing_seeded_can_run_a_shell_and_only_collectors_fetch(db: Database) 
     pages get no shell, and nothing else reaches the network."""
     roster = _roster(db)
 
-    fetchers = {name for name, row in roster.items() if "http_get" in str(row["allowed_tools"])}
+    fetchers = {
+        name
+        for name, row in roster.items()
+        if {"http_get", "read_feed"} & set(json.loads(str(row["allowed_tools"])))
+    }
     assert fetchers == {"news-scanner", "market-movers", "event-calendar"}
     assert not any("run_shell" in str(row["allowed_tools"]) for row in roster.values())
     # Narrowing only: no seeded row names a level the app-wide policy has not
@@ -287,3 +291,70 @@ def test_migration_012_gives_every_space_the_model_it_was_inheriting(
         "c": None,
     }
     assert "max_run_seconds" in columns
+
+
+def _at_version_fourteen(app_paths: AppPaths) -> Database:
+    """A database migrated through the v0.4.5 schema only."""
+    original = db_module.MIGRATIONS
+    db_module.MIGRATIONS = tuple(migration for migration in original if migration.version <= 14)
+    database = Database(app_paths.db_path)
+    try:
+        database.connect()
+        assert database.schema_version == 14
+    finally:
+        db_module.MIGRATIONS = original
+    return database
+
+
+def test_migration_015_moves_the_untouched_scanner_to_complete_feeds(
+    app_paths: AppPaths,
+) -> None:
+    before = _at_version_fourteen(app_paths)
+    before.close()
+
+    after = Database(app_paths.db_path)
+    after.connect()
+    try:
+        scanner = _roster(after)["news-scanner"]
+    finally:
+        after.close()
+
+    assert json.loads(str(scanner["allowed_tools"])) == [
+        "read_feed",
+        "read_file",
+        "write_file",
+    ]
+    prompt = str(scanner["system_prompt"])
+    assert "call\nread_feed with limit 10" in prompt
+    assert "Never calculate or alter id or" in prompt
+    assert "Never fall back to\n  http_get" in prompt
+
+
+@pytest.mark.parametrize("edited", ["prompt", "allowlist"])
+def test_migration_015_preserves_an_edited_scanner(app_paths: AppPaths, edited: str) -> None:
+    before = _at_version_fourteen(app_paths)
+    try:
+        with before.write() as connection:
+            if edited == "prompt":
+                connection.execute(
+                    "UPDATE agent_defs SET system_prompt = 'My feed policy.'"
+                    " WHERE name = 'news-scanner'"
+                )
+            else:
+                connection.execute(
+                    "UPDATE agent_defs SET allowed_tools = '[\"read_file\"]'"
+                    " WHERE name = 'news-scanner'"
+                )
+        original = _roster(before)["news-scanner"]
+    finally:
+        before.close()
+
+    after = Database(app_paths.db_path)
+    after.connect()
+    try:
+        scanner = _roster(after)["news-scanner"]
+    finally:
+        after.close()
+
+    assert scanner["system_prompt"] == original["system_prompt"]
+    assert scanner["allowed_tools"] == original["allowed_tools"]

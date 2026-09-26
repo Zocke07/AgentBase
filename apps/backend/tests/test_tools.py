@@ -9,6 +9,8 @@ into a `tool.error`.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import sys
 from typing import TYPE_CHECKING
 
@@ -26,12 +28,13 @@ from agentbase.tools.builtin.filesystem import (
 )
 from agentbase.tools.builtin.knowledge import SearchKnowledgeTool
 from agentbase.tools.builtin.memory import ProposeMemoryTool
-from agentbase.tools.builtin.network import HttpGetTool
+from agentbase.tools.builtin.network import MAX_FEED_ENTRIES, HttpGetTool, ReadFeedTool
 from agentbase.tools.builtin.shell import RunShellTool
 from agentbase.tools.catalogue import CATALOGUE, RiskLevel
 from agentbase.tools.sandbox import Sandbox, SandboxViolationError, UrlNotAllowedError
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
     from pathlib import Path
 
 pytestmark = pytest.mark.anyio
@@ -453,13 +456,17 @@ async def test_http_get_refuses_loopback_before_any_request(sandbox: Sandbox) ->
     await client.aclose()
 
 
-async def test_http_get_does_not_follow_redirects(sandbox: Sandbox) -> None:
+async def test_http_get_does_not_follow_redirects(
+    sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """A redirect is how a checked public URL becomes an unchecked private one.
 
     The sandbox validated the address the agent named; a `Location` header
     names one nothing validated. Handing the target back makes the agent ask
     for it explicitly, which puts it through `check_url` and the gate again.
     """
+
+    _resolves_to(monkeypatch, "93.184.216.34")
 
     def handler(request: httpx2.Request) -> httpx2.Response:  # noqa: ARG001
         return httpx2.Response(302, headers={"location": "http://169.254.169.254/"})
@@ -476,7 +483,11 @@ async def test_http_get_does_not_follow_redirects(sandbox: Sandbox) -> None:
     await client.aclose()
 
 
-async def test_http_get_reports_an_error_status(sandbox: Sandbox) -> None:
+async def test_http_get_reports_an_error_status(
+    sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _resolves_to(monkeypatch, "93.184.216.34")
+
     def handler(request: httpx2.Request) -> httpx2.Response:  # noqa: ARG001
         return httpx2.Response(404, text="nope")
 
@@ -488,6 +499,186 @@ async def test_http_get_reports_an_error_status(sandbox: Sandbox) -> None:
 
     assert "404" in str(caught.value)
     await client.aclose()
+
+
+# --- read_feed ---------------------------------------------------------------
+
+
+async def test_read_feed_returns_complete_bounded_deterministic_entries(
+    sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _resolves_to(monkeypatch, "93.184.216.34")
+    seen: list[httpx2.Request] = []
+    rss = """<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel><title>Market news</title>
+<item><title>Apple launches a product - Reuters</title>
+<link>https://news.google.com/articles/newer</link>
+<pubDate>Sat, 26 Sep 2026 05:00:00 GMT</pubDate>
+<source url="https://www.reuters.com/">Reuters</source>
+<description><![CDATA[<b>Newer</b> summary<script>ignore me</script>]]></description></item>
+<item><title>Apple launches a product - Associated Press</title>
+<link>https://news.google.com/articles/earlier</link>
+<pubDate>Sat, 26 Sep 2026 03:00:00 GMT</pubDate>
+<source url="https://apnews.com/">Associated Press</source>
+<description><![CDATA[<p>Earlier safe summary</p>]]></description></item>
+<item><title>Apple names a new executive</title>
+<link>https://example.com/executive</link>
+<pubDate>Sat, 26 Sep 2026 04:00:00 GMT</pubDate>
+<description>Leadership changed.</description></item>
+</channel></rss>"""
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        seen.append(request)
+        return httpx2.Response(200, text=rss, headers={"content-type": "application/rss+xml"})
+
+    client = httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+    tool = ReadFeedTool(client)
+    result = json.loads(
+        await tool.execute(
+            tool.prepare({"url": "https://example.com/feed", "limit": 1}, sandbox),
+            sandbox,
+        )
+    )
+    await client.aclose()
+
+    assert result["feed_title"] == "Market news"
+    assert result["available_entries"] == 3
+    assert result["valid_entries"] == 3
+    assert result["deduplicated_entries"] == 2
+    assert result["returned_entries"] == 1
+    assert result["truncated"] is True
+    (entry,) = result["entries"]
+    assert entry["url"] == "https://news.google.com/articles/earlier"
+    assert entry["published"] == "2026-09-26T03:00:00Z"
+    assert entry["source"] == "apnews.com"
+    assert entry["summary"] == "Earlier safe summary"
+    expected = hashlib.sha1(
+        f"{entry['url']}{entry['title']}".encode(), usedforsecurity=False
+    ).hexdigest()
+    assert entry["id"] == expected
+    assert len(entry["dedupe_key"]) == 40
+
+    (request,) = seen
+    assert request.url.host == "93.184.216.34"
+    assert request.headers["host"] == "example.com"
+    assert request.extensions["sni_hostname"] == "example.com"
+
+
+async def test_read_feed_understands_atom(
+    sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _resolves_to(monkeypatch, "93.184.216.34")
+    atom = """<feed xmlns="http://www.w3.org/2005/Atom">
+<title>Company feed</title><entry><title>Quarterly filing</title>
+<link rel="alternate" href="/report"/>
+<published>2026-09-26T01:02:03+02:00</published>
+<summary type="xhtml"><div xmlns="http://www.w3.org/1999/xhtml">Filed
+<script>ignore me</script>&amp; accepted.</div></summary></entry></feed>"""
+
+    client = httpx2.AsyncClient(
+        transport=httpx2.MockTransport(lambda _request: httpx2.Response(200, text=atom))
+    )
+    tool = ReadFeedTool(client)
+    result = json.loads(
+        await tool.execute(tool.prepare({"url": "https://example.com/atom"}, sandbox), sandbox)
+    )
+    await client.aclose()
+
+    assert result["returned_entries"] == 1
+    assert result["entries"][0]["published"] == "2026-09-25T23:02:03Z"
+    assert result["entries"][0]["source"] == "example.com"
+    assert result["entries"][0]["url"] == "https://example.com/report"
+    assert result["entries"][0]["summary"] == "Filed & accepted."
+
+
+async def test_read_feed_refuses_unsafe_or_malformed_xml(
+    sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _resolves_to(monkeypatch, "93.184.216.34")
+    unsafe = b'<!DOCTYPE rss [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><rss><channel><title>&xxe;</title></channel></rss>'
+    client = httpx2.AsyncClient(
+        transport=httpx2.MockTransport(lambda _request: httpx2.Response(200, content=unsafe))
+    )
+    tool = ReadFeedTool(client)
+
+    with pytest.raises(ToolExecutionError) as caught:
+        await tool.execute(tool.prepare({"url": "https://example.com/feed"}, sandbox), sandbox)
+
+    assert "safe, well-formed" in str(caught.value)
+    await client.aclose()
+
+
+async def test_read_feed_stops_at_its_network_input_limit(
+    sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _resolves_to(monkeypatch, "93.184.216.34")
+    monkeypatch.setattr("agentspace.tools.builtin.network.MAX_FEED_BYTES", 100)
+    client = httpx2.AsyncClient(
+        transport=httpx2.MockTransport(
+            lambda _request: httpx2.Response(200, content=b"x" * 101)
+        )
+    )
+    tool = ReadFeedTool(client)
+
+    with pytest.raises(ToolExecutionError) as caught:
+        await tool.execute(tool.prepare({"url": "https://example.com/feed"}, sandbox), sandbox)
+
+    assert "100-byte feed safety limit" in str(caught.value)
+    await client.aclose()
+
+
+async def test_read_feed_counts_streamed_bytes_when_length_is_not_advertised(
+    sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class Chunks(httpx2.AsyncByteStream):
+        async def __aiter__(self) -> AsyncIterator[bytes]:
+            yield b"x" * 60
+            yield b"x" * 41
+
+    _resolves_to(monkeypatch, "93.184.216.34")
+    monkeypatch.setattr("agentspace.tools.builtin.network.MAX_FEED_BYTES", 100)
+    client = httpx2.AsyncClient(
+        transport=httpx2.MockTransport(lambda _request: httpx2.Response(200, stream=Chunks()))
+    )
+    tool = ReadFeedTool(client)
+
+    with pytest.raises(ToolExecutionError) as caught:
+        await tool.execute(tool.prepare({"url": "https://example.com/feed"}, sandbox), sandbox)
+
+    assert "100-byte feed safety limit" in str(caught.value)
+    await client.aclose()
+
+
+async def test_read_feed_reports_redirects_instead_of_following_them(
+    sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _resolves_to(monkeypatch, "93.184.216.34")
+    client = httpx2.AsyncClient(
+        transport=httpx2.MockTransport(
+            lambda _request: httpx2.Response(
+                302, headers={"location": "http://169.254.169.254/feed"}
+            )
+        )
+    )
+    tool = ReadFeedTool(client)
+
+    with pytest.raises(ToolExecutionError) as caught:
+        await tool.execute(tool.prepare({"url": "https://example.com/feed"}, sandbox), sandbox)
+
+    assert "redirected to" in str(caught.value)
+    assert "not followed" in str(caught.value)
+    await client.aclose()
+
+
+def test_read_feed_validates_its_limit_and_refuses_loopback(sandbox: Sandbox) -> None:
+    tool = ReadFeedTool()
+
+    with pytest.raises(ToolArgumentError):
+        tool.prepare(
+            {"url": "https://example.com/feed", "limit": MAX_FEED_ENTRIES + 1}, sandbox
+        )
+    with pytest.raises(UrlNotAllowedError):
+        tool.prepare({"url": "http://127.0.0.1/feed"}, sandbox)
 
 
 # --- run_shell ----------------------------------------------------------------

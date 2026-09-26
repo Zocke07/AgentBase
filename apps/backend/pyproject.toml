@@ -10,6 +10,10 @@ dependencies = [
     # TestClient. The distribution is `httpx2` and the module it provides is
     # `httpx2`, not `httpx`, which is the httpx 2.x line.
     "httpx2>=2.12.0",
+    # RSS and Atom are untrusted network input. The feed reader uses the
+    # hardened ElementTree wrapper so entity expansion and external entities
+    # are refused before any entry reaches a model.
+    "defusedxml>=0.7.1",
     "uvicorn>=0.32.0",
     # BUILD_SPEC §5 Phase 8 names both libraries. Unlike the provider SDKs
     # (which §5 Phase 3 left open, and which this project deliberately declined
@@ -31,6 +35,7 @@ dev = [
     "pytest-cov>=6.0.0",
     "pytest-timeout>=2.3.1",
     "ruff>=0.14.0",
+    "types-defusedxml>=0.7.0.20250822",
     # Read by `test_ci_workflow.py` only. The CI workflow is the one file that
     # encodes Phase 9's acceptance criterion (the test job gating the build job)
     # and a silently deleted `needs:` would leave a release built on untested

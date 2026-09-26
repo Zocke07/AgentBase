@@ -120,7 +120,7 @@ agent-workspace/
 │   │   │   │   ├── base.py       # Tool protocol + risk level
 │   │   │   │   ├── approval.py   # human-in-the-loop gate
 │   │   │   │   ├── sandbox.py    # path/exec restrictions
-│   │   │   │   └── builtin/      # read_file, write_file, http_get, shell
+│   │   │   │   └── builtin/      # files, knowledge, network, shell
 │   │   │   ├── channels/
 │   │   │   │   ├── base.py       # ChannelAdapter protocol
 │   │   │   │   └── discord_adapter.py   # telegram_adapter.py removed 2026-09-11
@@ -396,7 +396,8 @@ calling it even when its system prompt explicitly instructs it to.
 ### Phase 6: Tools and the approval gate
 
 - `Tool` protocol with a declared `risk` level.
-- Built-ins: `read_file`, `write_file`, `list_dir`, `http_get`, `run_shell`.
+- Built-ins: `read_file`, `write_file`, `list_dir`, `search_knowledge`,
+  `propose_memory`, `http_get`, `read_feed`, `run_shell`.
 - **Sandbox**: a configured workspace root. Path traversal outside it is rejected before
   the approval prompt is even shown. `run_shell` has a hard timeout and process-tree
   termination. **2026-09-10 deviation:** the shared cross-platform build does not claim
@@ -877,6 +878,42 @@ chart definitions, dashboards and diagrams with the existing approval-gated
    add accessible visual equivalents.
 5. The existing approval gate, sandbox, event contract, replay and budget
    ledger are unchanged.
+
+### Phase 15: Complete, bounded RSS and Atom ingestion
+
+*Added 2026-09-26 after the first live Google News RSS scan exposed a response
+cut through an XML item.*
+
+The generic HTTP tool deliberately returns only 20,000 characters to a model.
+Feeds can be much larger, so raising that model-facing limit would spend more
+context while still making completeness depend on feed size. Feed structure is
+handled locally instead.
+
+- Add `read_feed`, a medium-risk network tool that uses the same public-address
+  check, pinned address, host header, TLS name and no-redirect rule as
+  `http_get`.
+- Stream at most 2 MB, parse untrusted RSS or Atom with entity expansion and
+  external entities disabled, discard markup and return at most 20 complete
+  entries. Titles and summaries are bounded before entering model context.
+- Normalize publication timestamps and publisher domains. Generate each
+  entry's ID as SHA-1 of the returned URL plus title and a separate normalized
+  title key for cross-feed deduplication. Locally collapse the same ID, or the
+  same title within 24 hours, keeping the earliest publication.
+- Migration 015 changes the built-in `news-scanner` only when both its prompt
+  and allowlist are still the shipped values. Customized definitions remain
+  byte-for-byte unchanged.
+
+**Accept when:**
+
+1. A Google News-sized feed returns bounded, complete records rather than a
+   truncated XML prefix, and the identifier for each record is reproducible.
+2. RSS and Atom dates, links, publisher domains and summaries are normalized,
+   while malformed XML, entity declarations, private addresses, redirects and
+   an input over 2 MB are refused.
+3. A version-14 database migrates the untouched scanner to `read_feed`, while
+   an edited prompt or allowlist is preserved.
+4. The approval UI and run graph identify a `read_feed` call as a feed read,
+   with the same medium-risk approval semantics as other network access.
 
 ---
 

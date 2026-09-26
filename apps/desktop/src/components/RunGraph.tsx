@@ -76,6 +76,7 @@ const CHIP_LABEL: Readonly<Record<string, string>> = {
   search_knowledge: "search",
   propose_memory: "memory",
   http_get: "http",
+  read_feed: "feed",
   run_shell: "shell",
 };
 

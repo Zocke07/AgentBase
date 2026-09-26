@@ -113,6 +113,15 @@ CATALOGUE: Final[tuple[ToolDeclaration, ...]] = (
         risk=RiskLevel.MEDIUM,
     ),
     ToolDeclaration(
+        name="read_feed",
+        description=(
+            "Fetch an RSS or Atom URL and return bounded, complete entries with "
+            "deterministic identifiers."
+        ),
+        # The same network boundary as http_get, with local parsing afterwards.
+        risk=RiskLevel.MEDIUM,
+    ),
+    ToolDeclaration(
         name="run_shell",
         description=(
             "Run a shell command as your user, starting in the space folder, "

@@ -268,7 +268,15 @@ def test_a_relative_root_is_made_absolute(
         "http://example.com:8080/thing",
     ],
 )
-def test_an_ordinary_public_url_is_allowed(sandbox: Sandbox, url: str) -> None:
+def test_an_ordinary_public_url_is_allowed(
+    sandbox: Sandbox, url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import socket
+
+    def resolver(*_args: object, **_kwargs: object) -> list[tuple[object, ...]]:
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))]
+
+    monkeypatch.setattr(socket, "getaddrinfo", resolver)
     assert sandbox.check_url(url) == url
 
 

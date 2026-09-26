@@ -18,7 +18,7 @@ and `config/limits.json` for the collectors to read.
 
 | Agent | Model | What it does | Tools |
 |---|---|---|---|
-| `news-scanner` | Haiku | Collects news and social discussion about watchlist tickers into `raw/news-*.json`. No analysis. | `http_get`, `read_file`, `write_file` |
+| `news-scanner` | Haiku | Collects news and social discussion about watchlist tickers into `raw/news-*.json`. No analysis. | `read_feed`, `read_file`, `write_file` |
 | `research-librarian` | Sonnet | Writes durable concept and company notes under `knowledge/`, sourced to filings. | `read_file`, `list_dir`, `search_knowledge`, `write_file`, `propose_memory` |
 | `market-movers` | Haiku | Collects prices, volume and gainers/losers into `raw/movers-*.json`. Numbers only. | `http_get`, `read_file`, `write_file` |
 | `event-calendar` | Haiku | Builds a 30-day calendar of earnings, macro releases, corporate events and personnel changes. | `http_get`, `read_file`, `write_file` |
@@ -52,7 +52,10 @@ in it for `news-scanner`, a Stooq template for `market-movers`, and any keyed
 endpoint with its key in the query string for `event-calendar`; a note field
 per source is fine, the agent reads the file as text. The agents read these
 with `read_file`, so the files must be inside the space folder, not on the
-web. `config/limits.json` holds the hard risk rules `portfolio-review` and
+web. `news-scanner` expands each configured feed template and asks
+`read_feed` for complete entries. The tool parses RSS and Atom locally,
+returns at most 20 entries per call, normalizes dates and domains, and supplies
+deterministic IDs and title deduplication keys. `config/limits.json` holds the hard risk rules `portfolio-review` and
 `risk-manager` restate.
 
 Two things the prompts assume that AgentBase does not provide: scripts
@@ -112,7 +115,7 @@ protected; disable it instead if you do not want the supervisor using it.
 
 ## Custom tools
 
-The app lets you combine the five registered tools into an agent's allowlist.
+The app lets you combine the registered tools into an agent's allowlist.
 It has no UI for installing or writing another tool. Adding a tool requires
 a code change; see the
 [developer checklist](../developer_guide/5_checklists.md).

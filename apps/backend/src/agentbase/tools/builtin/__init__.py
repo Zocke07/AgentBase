@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Final
 from agentbase.tools.builtin.filesystem import ListDirTool, ReadFileTool, WriteFileTool
 from agentbase.tools.builtin.knowledge import SearchKnowledgeTool
 from agentbase.tools.builtin.memory import ProposeMemoryTool
-from agentbase.tools.builtin.network import HttpGetTool
+from agentbase.tools.builtin.network import HttpGetTool, ReadFeedTool
 from agentbase.tools.builtin.shell import RunShellTool
 
 if TYPE_CHECKING:
@@ -23,6 +23,7 @@ __all__ = [
     "HttpGetTool",
     "ListDirTool",
     "ProposeMemoryTool",
+    "ReadFeedTool",
     "ReadFileTool",
     "RunShellTool",
     "SearchKnowledgeTool",
@@ -38,6 +39,7 @@ BUILTIN_TOOLS: Final[tuple[type[Tool], ...]] = (
     ProposeMemoryTool,
     WriteFileTool,
     HttpGetTool,
+    ReadFeedTool,
     RunShellTool,
 )
 

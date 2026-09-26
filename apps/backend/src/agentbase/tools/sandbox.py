@@ -11,10 +11,10 @@ the legitimate `reports/../notes.txt` and misses a symlink, which is the escape
 that works; :meth:`Path.resolve` covers traversal, symlinks, drive letters and
 UNC paths in one comparison.
 
-For `http_get`, the machine's own services are inside the boundary: without
-:meth:`Sandbox.check_url` an agent can read this application's API from inside
-a run. :meth:`Sandbox.resolve_url` also hands back the address it checked so
-the tool connects to that one rather than resolving the name again.
+For network readers, the machine's own services are inside the boundary:
+without :meth:`Sandbox.check_url` an agent can read this application's API
+from inside a run. :meth:`Sandbox.resolve_url` also hands back the address it
+checked so the tool connects to that one rather than resolving the name again.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ __all__ = [
 #: short enough that a command waiting on input does not eat the run's budget.
 SHELL_TIMEOUT_SECONDS: Final[float] = 60.0
 
-#: Schemes `http_get` will fetch. An allowlist: `file:` is a filesystem read
+#: Schemes network readers will fetch. An allowlist: `file:` is a filesystem read
 #: that bypasses the path sandbox, and `data:` launders the model's own text.
 _ALLOWED_SCHEMES: Final[frozenset[str]] = frozenset({"http", "https"})
 
@@ -51,12 +51,12 @@ class SandboxViolationError(Exception):
 
 
 class UrlNotAllowedError(Exception):
-    """A URL `http_get` will not fetch. Same contract as :class:`SandboxViolationError`."""
+    """A URL network tools will not fetch. Same contract as the path refusal."""
 
 
 @dataclass(frozen=True, slots=True)
 class CheckedUrl:
-    """A URL `http_get` may fetch, and the address that was checked.
+    """A URL a network tool may fetch, and the address that was checked.
 
     The connection must be made to ``address``: resolving the name again
     would give a second answer, which is the whole of a rebinding attack.
@@ -149,7 +149,7 @@ class Sandbox:
     # --- urls --------------------------------------------------------------
 
     def check_url(self, candidate: str) -> str:
-        """Return ``candidate`` if `http_get` may fetch it, else refuse.
+        """Return ``candidate`` if a network reader may fetch it, else refuse.
 
         :meth:`resolve_url` without the address.
         """
@@ -162,7 +162,7 @@ class Sandbox:
         so is a hostname any of whose addresses is one. The address handed
         back is the resolver's first, and every one of them passed. It
         travels with the answer because a name can resolve public when checked
-        and private when connected (DNS rebinding); `http_get` connects to it
+        and private when connected (DNS rebinding); the reader connects to it
         and carries ``host`` in the `Host` header and the TLS handshake.
 
         :raises UrlNotAllowedError: for a bad scheme, a missing host, or a host

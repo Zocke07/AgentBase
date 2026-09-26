@@ -49,6 +49,8 @@ export function callPhrase(tool: string, args: Payload): CallPhrase {
       };
     case "http_get":
       return { infinitive: `fetch ${arg("url")}`, progressive: `fetching ${arg("url")}`, past: `fetched ${arg("url")}` };
+    case "read_feed":
+      return { infinitive: `read feed ${arg("url")}`, progressive: `reading feed ${arg("url")}`, past: `read feed ${arg("url")}` };
     case "spawn_agent":
       return { infinitive: `spawn ${arg("agent")}`, progressive: `spawning ${arg("agent")}`, past: `spawned ${arg("agent")}` };
     case "handoff":

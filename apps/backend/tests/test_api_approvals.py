@@ -76,6 +76,7 @@ def test_the_application_builds_a_tool_runtime(client: TestClient) -> None:
         "propose_memory",
         "write_file",
         "http_get",
+        "read_feed",
         "run_shell",
     }
 

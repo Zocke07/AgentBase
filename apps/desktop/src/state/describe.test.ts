@@ -158,6 +158,17 @@ describe("a sentence for every event", () => {
     expect(sentenceFor(answered)).not.toMatch(/nothing/);
   });
 
+  it("describes a feed read with its public URL", () => {
+    const phrase = callPhrase("read_feed", {
+      url: "https://news.example.test/rss",
+      limit: 10,
+    });
+
+    expect(phrase.infinitive).toBe("read feed https://news.example.test/rss");
+    expect(phrase.progressive).toBe("reading feed https://news.example.test/rss");
+    expect(phrase.past).toBe("read feed https://news.example.test/rss");
+  });
+
   it("falls back to the raw call for a tool it has no verb for", () => {
     expect(callPhrase("summon_dragon", { name: "Smaug" }).infinitive).toBe("call summon_dragon(name=Smaug)");
   });

@@ -1,6 +1,6 @@
 # Verification and remaining work
 
-Updated 2026-09-25. This is the current record; the
+Updated 2026-09-26. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
 superseded gaps. Earlier evidence retains its original product and artifact
 identifiers. A test result below is scoped to what was actually executed.
@@ -22,6 +22,31 @@ and production build, a sidecar freeze, `cargo clippy --all-targets`, and
 `cargo test` (**7 passed**, including the legacy-keychain-entry precedence
 tests). The pinned Codex runtime dependency download that stalled a prior
 attempt in this environment completed on retry, in about 25 minutes.
+
+## After 0.4.5: complete feed input for news-scanner
+
+On 2026-09-26 a real `news-scanner` run received Google News RSS through
+`http_get`'s 20,000-character model-facing limit. The XML ended inside an item,
+so the scanner correctly refused unverifiable extraction and wrote an empty
+array. The new `read_feed` tool keeps the existing public-address and
+no-redirect network boundary, streams at most 2 MB, parses RSS or Atom locally
+with unsafe XML features disabled, and returns at most 20 complete, bounded
+entries. It normalizes dates and publisher domains, calculates reproducible
+SHA-1 IDs and title deduplication keys, and removes exact or same-title
+duplicates within 24 hours. Migration 015 moves only the completely untouched
+built-in scanner to the tool and preserves edited definitions. Executed:
+`just check`; **164 focused backend tests** for tools, the URL sandbox, roster
+migration, registry and approvals (one Windows-only skip); **843 backend
+tests** with eight platform or build skips after excluding the frozen sidecar,
+mounted disk image and repository-hygiene files that this managed sandbox
+cannot exercise cleanly; frontend lint and typecheck; **446 frontend tests**.
+A live fetch of the failing AAPL Google News query read all 82 valid feed
+entries and returned the requested 10 complete entries, each with a
+40-character ID. The unrestricted backend invocation reached 863 passes and
+eight skips; its remaining failures were the managed sandbox refusing DNS,
+disk-image mounting and PyInstaller semaphores, plus an unrelated untracked
+working document caught by the tree-wide prose check. The DNS-dependent tests
+are now deterministic; the other exclusions do not exercise this change.
 
 ## 0.4.4: guards on runaway runs, a per-run cost ceiling, data files in the app
 
