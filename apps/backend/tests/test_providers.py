@@ -687,9 +687,15 @@ async def test_the_factory_rejects_an_unknown_provider() -> None:
 
 
 async def test_the_factory_reports_a_missing_key_before_any_request() -> None:
-    """A missing key must not surface later as an opaque vendor 401."""
-    with pytest.raises(ProviderAuthError, match="restarted"):
+    """A missing key must not surface later as an opaque vendor 401, and the
+    message must say where the key goes and that the app needs a restart,
+    in words a person who has never heard of a keychain can follow."""
+    with pytest.raises(ProviderAuthError) as refused:
         build_provider(WorkspaceSettings(provider="anthropic"), SecretStore())
+    message = str(refused.value)
+    assert message.startswith("No API key for Anthropic")
+    assert "Settings" in message and "restart AgentSpace" in message
+    assert "sidecar" not in message and "keychain" not in message
 
 
 async def test_ollama_needs_no_key_at_all() -> None:

@@ -58,6 +58,14 @@ def qualified_model(provider: str, model: str) -> str:
     return model
 
 
+#: How each provider is named to a person, in messages they read.
+_PROVIDER_NAMES: Final[dict[str, str]] = {
+    "anthropic": "Anthropic",
+    "openai": "OpenAI",
+    "ollama": "Ollama",
+}
+
+
 def build_provider(
     settings: WorkspaceSettings,
     secrets: SecretStore,
@@ -87,10 +95,12 @@ def build_provider(
     if required_secret is not None:
         stored = secrets.get(required_secret)
         if not stored:
+            # Read by people who have never heard of a keychain or a sidecar:
+            # say what to do, where, and the one surprise (the restart).
+            shown = _PROVIDER_NAMES.get(name, name)
             msg = (
-                f"No API key for {name}. Add it in settings: it is read from the OS "
-                f"keychain and passed to the sidecar at startup, so the app must be "
-                f"restarted after adding one."
+                f"No API key for {shown} yet. Add one in Settings under Keys, then "
+                f"restart AgentSpace when it offers to: the key is read at startup."
             )
             raise ProviderAuthError(msg)
         api_key = stored
