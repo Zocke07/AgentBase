@@ -694,7 +694,7 @@ async def test_the_factory_reports_a_missing_key_before_any_request() -> None:
         build_provider(WorkspaceSettings(provider="anthropic"), SecretStore())
     message = str(refused.value)
     assert message.startswith("No API key for Anthropic")
-    assert "Settings" in message and "restart AgentSpace" in message
+    assert "Settings" in message and "restart AgentBase" in message
     assert "sidecar" not in message and "keychain" not in message
 
 

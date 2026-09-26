@@ -21,10 +21,12 @@ future changes do not relocate users' data or disconnect their stored keys.
   transition; current AgentBase values take precedence.
 - Phases 0 through 9 and the spaces redesign are implemented. Do not restart
   Phase 0 or replace completed work from an earlier phase.
-- The current release line is **0.4.6**: the rename to AgentBase across the
-  product, package, bundle and data identifiers, with one-time adoption of a
-  pre-rename install's data and database and read-through fallbacks for its
-  keychain entries, browser preferences and saved visualizations, over 0.4.5's
+- The current release line is **0.4.7**: complete bounded RSS and Atom input
+  for the news scanner, clearer setup guidance, and a responsive accessible
+  window, over 0.4.6's rename to AgentBase across the product, package, bundle
+  and data identifiers, with one-time adoption of a pre-rename install's data
+  and database and read-through fallbacks for its keychain entries, browser
+  preferences and saved visualizations, over 0.4.5's
   charts from CSV and JSON, portable agent-written visualization specs,
   dashboards, Mermaid, exports and visual RAG metrics, over 0.4.4's guards on
   runaway runs, per-run cost ceiling (migration 014) and data files in

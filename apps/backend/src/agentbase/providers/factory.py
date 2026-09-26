@@ -100,7 +100,7 @@ def build_provider(
             shown = _PROVIDER_NAMES.get(name, name)
             msg = (
                 f"No API key for {shown} yet. Add one in Settings under Keys, then "
-                f"restart AgentSpace when it offers to: the key is read at startup."
+                f"restart AgentBase when it offers to: the key is read at startup."
             )
             raise ProviderAuthError(msg)
         api_key = stored

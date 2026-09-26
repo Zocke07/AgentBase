@@ -5,6 +5,27 @@ Updated 2026-09-26. This is the current record; the
 superseded gaps. Earlier evidence retains its original product and artifact
 identifiers. A test result below is scoped to what was actually executed.
 
+## 0.4.7 local release gate, 2026-09-26
+
+The AgentBase 0.4.7 candidate combines the bounded RSS and Atom reader, the
+safe built-in `news-scanner` migration, clearer missing-key guidance, and the
+responsive and accessible desktop work below on top of the published 0.4.6
+rename. `just check` passed: backend Ruff lint and format, mypy strict on the
+native and Windows targets, desktop lint and TypeScript typecheck. The backend
+suite excluding build-artifact checks and repository hygiene passed with
+**849 passed, 4 skipped**; repository hygiene passed **15 tests**, with only
+the tree-wide em-dash check deselected because it sees the maintainer's
+untracked working document. The desktop suite passed **47 files, 456 tests**.
+
+The Apple Silicon sidecar freeze, production frontend build, Rust application
+build and ad-hoc signing completed. `cargo clippy --all-targets -- -D warnings`
+passed and `cargo test` passed **7 tests**. The required artifact verifier
+launched the frozen sidecar and inspected the bundled application and mounted
+disk image: **18 passed, 4 Windows-only checks skipped**. The resulting
+`AgentBase_0.4.7_aarch64.dmg` is 27,924,355 bytes with SHA-256
+`88ab2ec44414d609974c4279c8f2d8aed08844e1687b525c40e63589dfc88efc`.
+Publication and the Windows installer remain gated on the tag workflow.
+
 ## AgentBase product rename, 2026-09-24, released as 0.4.6
 
 The shipped product, backend package, TypeScript packages, Rust crate, Tauri

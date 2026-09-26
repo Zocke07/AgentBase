@@ -612,7 +612,7 @@ async def test_read_feed_stops_at_its_network_input_limit(
     sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _resolves_to(monkeypatch, "93.184.216.34")
-    monkeypatch.setattr("agentspace.tools.builtin.network.MAX_FEED_BYTES", 100)
+    monkeypatch.setattr("agentbase.tools.builtin.network.MAX_FEED_BYTES", 100)
     client = httpx2.AsyncClient(
         transport=httpx2.MockTransport(
             lambda _request: httpx2.Response(200, content=b"x" * 101)
@@ -636,7 +636,7 @@ async def test_read_feed_counts_streamed_bytes_when_length_is_not_advertised(
             yield b"x" * 41
 
     _resolves_to(monkeypatch, "93.184.216.34")
-    monkeypatch.setattr("agentspace.tools.builtin.network.MAX_FEED_BYTES", 100)
+    monkeypatch.setattr("agentbase.tools.builtin.network.MAX_FEED_BYTES", 100)
     client = httpx2.AsyncClient(
         transport=httpx2.MockTransport(lambda _request: httpx2.Response(200, stream=Chunks()))
     )
