@@ -61,8 +61,8 @@ builds have an ad-hoc code identity, another build may ask again. If you choose
 
 ## Find your way around
 
-On launch, **Connecting to the sidecar** means the app is starting its local
-server. After it connects, you land on **Home** in the default space. The
+On launch, **Starting up…** means the app is starting its local engine.
+After it connects, you land on **Home** in the default space. The
 first launch opens a short tour that points at each part of the window and
 ends on the demo run; **Skip the tour** or Esc closes it for good, and
 **Settings → About AgentBase → Replay the tour** brings it back.
@@ -80,13 +80,27 @@ ends on the demo run; **Skip the tour** or Esc closes it for good, and
 | **Settings**, at the bottom | App defaults, keys, shared budget, Discord, theme and the About box. |
 | **Hide the sidebar**, beneath Settings | Folds the rail to icons (Ctrl/Cmd+B does the same); the names stay in tooltips and the space's initial stands in for its name. |
 
-The header shows the selected space's provider and model, the shared monthly
-budget, and any approvals waiting across spaces. Switching spaces changes
-what you are viewing; it does not stop runs already in progress.
+In a window narrower than about 1,100 pixels the rail folds to icons by
+itself, and **Show the sidebar** opens it over the page; Esc, a click
+outside it, or choosing a section closes it again. Pressing Tab first
+offers **Skip to content**, which jumps past the rail to the section.
 
-A fresh install has no cloud key. **Home** explains why a run cannot start
-and offers **Open settings**. **Try a demo run** in that notice shows a
-scripted run without calling a model or using a key.
+The header shows the model the selected space uses (by the name its maker
+gives it, such as **Claude Opus 5**; hover for the provider), this month's
+spending against your monthly limit (hover for the exact figures), and any
+approvals waiting across spaces. While setup is unfinished, **Finish setup**
+in the header opens Settings. Switching spaces changes what you are viewing;
+it does not stop runs already in progress.
+
+A fresh install has no cloud key. **Home** says so in **One step before
+your first run** and offers **Open settings**. **Try a demo run** in that
+notice shows a scripted run without calling a model or using a key.
+
+Settings is one long page. The row of buttons at its top (**Provider**,
+**Keys**, **Budget**, **Limits**, **Chat**, **Appearance**, **About**) jumps
+to each section, and **Save settings** stays at the bottom of the window
+however far down you are. The first group, **Get started**, holds the two
+things a new install needs: the provider and its key.
 
 ## Connect a model
 
@@ -94,7 +108,8 @@ scripted run without calling a model or using a key.
 
 1. Obtain an API key from your provider's account dashboard.
 2. In the AgentBase window, open **Settings → Keys**. Click **Set…** beside
-   `anthropic_api_key` or `openai_api_key`, paste the key, and click **Save key**.
+   **Anthropic API key** (`anthropic_api_key`) or **OpenAI API key**
+   (`openai_api_key`), paste the key, and click **Save key**.
 3. Click **Restart AgentBase**, which appears under the key list once a key
    has been saved or cleared, or quit and reopen the app yourself. The key is
    stored in the OS credential store and read when the app starts, so a

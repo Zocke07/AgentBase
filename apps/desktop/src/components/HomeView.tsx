@@ -41,6 +41,16 @@ export interface HomeViewProps {
 /** How many finished runs the Home screen shows before pointing at the list. */
 const RECENT = 6;
 
+/**
+ * "10 agents ready: news-scanner, decision and 8 more." A roster can be long;
+ * three names say what kind of team it is, and the count says the rest.
+ */
+function readyLine(names: readonly string[]): string {
+  const count = `${String(names.length)} agent${names.length === 1 ? "" : "s"} ready`;
+  if (names.length <= 3) return `${count}: ${names.join(", ")}.`;
+  return `${count}: ${names.slice(0, 3).join(", ")} and ${String(names.length - 3)} more.`;
+}
+
 export function HomeView({
   space,
   blocker,
@@ -177,7 +187,7 @@ export function HomeView({
       <div className="home__inner">
         {blocker !== null && (
           <section className="card card--notice home__preflight" role="status" data-testid="preflight">
-            <h2 className="card__title">Before a run can start</h2>
+            <h2 className="card__title">One step before your first run</h2>
             <p>{blocker}</p>
             <div className="card__actions">
               <button type="button" className="button" onClick={onOpenSettings}>
@@ -213,7 +223,7 @@ export function HomeView({
             className="new-run__goal"
             rows={firstLaunch ? 4 : 3}
             value={goal}
-            placeholder="Describe the task. The supervisor will plan it and hand parts to the agents that are enabled."
+            placeholder="Describe what you want done, in plain words. For example: Summarise the notes in this space into one page."
             onChange={(changed) => {
               setGoal(changed.target.value);
               setRetrieval(null);
@@ -231,19 +241,19 @@ export function HomeView({
           />
           {retrieval !== null && (
             <fieldset className="new-run__retrieval" data-testid="retrieval-preview">
-              <legend>Retrieved context</legend>
+              <legend>Notes it will read</legend>
               <p>
-                Clear a result to keep it out of this run and its worker handoffs.
-                {retrieval.length > 0 && (
+                {retrieval.length > 0 ? (
                   <>
-                    {" "}
-                    The {includedCount} kept excerpt{includedCount === 1 ? "" : "s"} (about{" "}
-                    {includedTokens} tokens) leave this machine with your goal, sent to{" "}
-                    <strong>{modelLabel ?? "the configured model"}</strong>.
+                    {includedCount === 1 ? "This passage" : `These ${String(includedCount)} passages`} from this
+                    space&apos;s notes
+                    will be sent along with your task to <strong>{modelLabel ?? "the model"}</strong> (about{" "}
+                    {includedTokens} tokens). Untick anything you would rather keep out.
                   </>
+                ) : (
+                  "None of this space's notes or approved memories match this task, so it will start from your words alone."
                 )}
               </p>
-              {retrieval.length === 0 && <p>No approved memory or note matched this goal.</p>}
               {retrieval.map((hit) => (
                 <label key={hit.citation}>
                   <input
@@ -299,9 +309,7 @@ export function HomeView({
                   ? rosterLoaded
                     ? "No agents are enabled: the supervisor will have nobody to delegate to."
                     : ""
-                  : `${String(enabled.length)} agent${enabled.length === 1 ? "" : "s"} ready: ${enabled
-                      .map((agent) => agent.name)
-                      .join(", ")}.`}
+                  : readyLine(enabled.map((agent) => agent.name))}
                 {firstLaunch && rosterLoaded && agents.length === 0 && space !== null && (
                   <>
                     {" "}
@@ -325,14 +333,18 @@ export function HomeView({
                 type="button"
                 className="button"
                 disabled={retrieving || goal.trim() === "" || space === null}
+                aria-busy={retrieving}
+                title="See which of this space's notes will be sent along with your task"
                 onClick={() => void previewRetrieval()}
               >
-                {retrieving ? "Retrieving…" : "Preview context"}
+                {retrieving ? "Looking…" : "Preview notes"}
               </button>
               <button
                 type="submit"
                 className="button button--primary"
                 disabled={starting || goal.trim() === "" || blocker !== null}
+                aria-busy={starting}
+                title={blocker ?? "Enter starts it too; Shift+Enter makes a new line"}
               >
                 {starting ? "Starting…" : "Start run"}
               </button>
@@ -411,7 +423,7 @@ export function HomeView({
                   className={`roster-card${agent.enabled === false ? " roster-card--off" : ""}`}
                   data-testid={`home-agent-${agent.name}`}
                 >
-                  <span className="roster-card__name">
+                  <span className="roster-card__name" title={`${agent.name}: ${agent.role}`}>
                     {agent.name}
                     {agent.is_builtin === true && <span className="tag">built-in</span>}
                   </span>

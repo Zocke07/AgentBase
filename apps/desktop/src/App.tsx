@@ -19,6 +19,7 @@ import { Tour } from "./components/Tour";
 import { UsageView } from "./components/UsageView";
 import { VisualizationView } from "./components/VisualizationView";
 import * as api from "./lib/api";
+import { modelLabel, providerLabel } from "./lib/format";
 import { SECTION_ORDER } from "./lib/sections";
 import { connectWithRetry, type SidecarStatus } from "./lib/sidecar";
 import { useTheme } from "./lib/theme";
@@ -26,6 +27,7 @@ import { useRoster } from "./state/roster";
 import { unfinished, useRunList } from "./state/runList";
 import { useRunStore } from "./state/runStore";
 import { currentSpace, useSpaces } from "./state/spaces";
+import { useMediaQuery } from "./state/useMediaQuery";
 import { useStoredFlag } from "./state/useStoredFlag";
 
 /**
@@ -261,17 +263,36 @@ export function App() {
     openRun(run.id);
   }, [openRun]);
 
-  // The sidebar folds to icons on request, remembered in this browser.
-  const [railCollapsed, setRailCollapsed] = useStoredFlag("rail.collapsed");
+  // The sidebar folds to icons on request, remembered in this browser. In a
+  // narrow window it is folded regardless, and opens as a drawer over the
+  // page rather than squeezing the section beside it.
+  const [railFolded, setRailFolded] = useStoredFlag("rail.collapsed");
+  const narrow = useMediaQuery("(max-width: 1100px)");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const drawer = narrow && drawerOpen;
+  const railCollapsed = narrow ? !drawerOpen : railFolded;
+  const toggleRail = useCallback(() => {
+    if (narrow) setDrawerOpen((open) => !open);
+    else setRailFolded(!railFolded);
+  }, [narrow, railFolded, setRailFolded]);
+  const choose = useCallback((next: Section) => {
+    setSection(next);
+    setDrawerOpen(false);
+  }, []);
 
-  // Ctrl/Cmd and a digit jumps to a section, in rail order; Ctrl/Cmd+B folds the sidebar.
+  // Ctrl/Cmd and a digit jumps to a section, in rail order; Ctrl/Cmd+B folds
+  // the sidebar; Escape closes the drawer.
   useEffect(() => {
     if (status.kind !== "ready") return undefined;
     const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && drawer) {
+        setDrawerOpen(false);
+        return;
+      }
       if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
       if (event.key === "b" || event.key === "B") {
         event.preventDefault();
-        setRailCollapsed(!railCollapsed);
+        toggleRail();
         return;
       }
       const digit = Number.parseInt(event.key, 10);
@@ -285,7 +306,7 @@ export function App() {
     return () => {
       document.removeEventListener("keydown", onKey);
     };
-  }, [status.kind, railCollapsed, setRailCollapsed]);
+  }, [status.kind, drawer, toggleRail]);
 
   // The provider and model a run in this space would use.
   const effectiveProvider = space?.provider ?? settings?.settings.provider ?? null;
@@ -302,23 +323,32 @@ export function App() {
   if (status.kind !== "ready") {
     return (
       <main className="shell shell--waiting">
+        <span className="shell__logo" aria-hidden="true" />
         <h1 className="shell__title">AgentBase</h1>
 
         {status.kind === "connecting" && (
-          <p className="shell__status">
-            <span className="dot dot--pending" /> Connecting to the sidecar (attempt{" "}
-            {status.attempt})
+          <p className="shell__status" role="status">
+            <span className="spinner" aria-hidden="true" /> Starting up
+            {status.attempt > 1 && ` (try ${String(status.attempt)})`}…
           </p>
         )}
 
         {status.kind === "failed" && (
           <>
-            <p className="shell__status">
-              <span className="dot dot--bad" /> Sidecar unreachable at <code>{status.baseUrl}</code>
+            <p className="shell__status" role="alert">
+              <span className="dot dot--bad" /> AgentBase could not start its engine.
             </p>
-            <p className="shell__detail">{status.message}</p>
-            <button className="button" type="button" onClick={connect}>
-              Retry
+            <p className="shell__detail">
+              Try again in a moment. If this keeps happening, quit AgentBase and open it again.
+            </p>
+            <details className="shell__technical">
+              <summary>Technical details</summary>
+              <p>
+                No answer from <code>{status.baseUrl}</code>: {status.message}
+              </p>
+            </details>
+            <button className="button button--primary" type="button" onClick={connect}>
+              Try again
             </button>
           </>
         )}
@@ -327,14 +357,26 @@ export function App() {
   }
 
   return (
-    <div className={`app${railCollapsed ? " app--rail-collapsed" : ""}`}>
+    <div className={`app${railCollapsed || drawer ? " app--rail-collapsed" : ""}${drawer ? " app--drawer" : ""}`}>
+      {/* The first stop for Tab: past the sidebar, straight to the section. */}
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
+      {drawer && (
+        <div
+          className="app__scrim"
+          aria-hidden="true"
+          onClick={() => {
+            setDrawerOpen(false);
+          }}
+        />
+      )}
       <Rail
         section={section}
-        onSelect={setSection}
+        onSelect={choose}
         collapsed={railCollapsed}
-        onToggleCollapsed={() => {
-          setRailCollapsed(!railCollapsed);
-        }}
+        drawer={drawer}
+        onToggleCollapsed={toggleRail}
         spaces={spaces}
         currentSpaceId={spaceId}
         onSelectSpace={switchSpace}
@@ -350,9 +392,10 @@ export function App() {
       <div className="app__main">
         {lost !== null && (
           <div className="app__lost" role="alert" data-testid="sidecar-lost">
-            <span className="dot dot--bad" />
-            {lost.kind === "connecting" && `Lost the sidecar: reconnecting (attempt ${String(lost.attempt)})`}
-            {lost.kind === "failed" && `Lost the sidecar at ${lost.baseUrl}: ${lost.message}`}
+            {lost.kind === "connecting" ? <span className="spinner" aria-hidden="true" /> : <span className="dot dot--bad" />}
+            {lost.kind === "connecting" &&
+              `Lost touch with AgentBase's engine. Reconnecting (attempt ${String(lost.attempt)})…`}
+            {lost.kind === "failed" && `AgentBase's engine stopped answering (${lost.message}).`}
             {lost.kind === "failed" && (
               <button
                 type="button"
@@ -364,7 +407,7 @@ export function App() {
                   connect();
                 }}
               >
-                Retry
+                Try again
               </button>
             )}
           </div>
@@ -396,25 +439,34 @@ export function App() {
                 {pendingApprovals.length} approval{pendingApprovals.length === 1 ? "" : "s"} waiting
               </button>
             )}
+            {verified !== null && !verified.ok && (
+              // Not red text that says what is wrong, but the way to fix it.
+              <button
+                type="button"
+                className="app__setup"
+                title={verified.reason ?? "Tasks cannot start until setup is finished."}
+                onClick={() => {
+                  setSection("settings");
+                }}
+              >
+                Finish setup
+              </button>
+            )}
             {effectiveProvider !== null && (
               <span
                 className="app__provider"
-                title="What a run in this space uses; a definition may pin its own"
+                title={`Tasks in this space use ${providerLabel(effectiveProvider)}'s ${effectiveModel ?? "model"}. An agent can use a model of its own.`}
                 data-testid="header-model"
               >
-                {effectiveProvider} · {effectiveModel}
-                {verified !== null && !verified.ok && (
-                  <span className="app__unpriced" role="alert">
-                    runs will be refused
-                  </span>
-                )}
+                <span className="app__provider-dot" aria-hidden="true" />
+                {effectiveModel === null ? providerLabel(effectiveProvider) : modelLabel(effectiveModel)}
               </span>
             )}
             <BudgetMeter budget={budget} />
           </div>
         </header>
 
-        <div className="app__body">
+        <main className="app__body" id="main-content" tabIndex={-1}>
           {/* Every section stays mounted, so the runs section keeps its stream
               across a visit elsewhere; each has its own boundary so one failing
               to render does not take the rest down. */}
@@ -426,7 +478,11 @@ export function App() {
                 pendingApprovals={pendingApprovals}
                 liveStatus={liveStatus}
                 modelLabel={
-                  effectiveProvider === null ? null : `${effectiveProvider} · ${effectiveModel ?? "?"}`
+                  effectiveProvider === null
+                    ? null
+                    : effectiveModel === null
+                      ? providerLabel(effectiveProvider)
+                      : modelLabel(effectiveModel)
                 }
                 onOpenRun={openRun}
                 onOpenRuns={() => {
@@ -535,7 +591,7 @@ export function App() {
               />
             </ErrorBoundary>
           </div>
-        </div>
+        </main>
       </div>
       <Tour open={tourShowing} section={section} onSection={setSection} onClose={closeTour} onDemo={demoRun} />
     </div>

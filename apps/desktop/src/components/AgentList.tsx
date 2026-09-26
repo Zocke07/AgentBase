@@ -1,6 +1,8 @@
 import type { AgentDef } from "@agentbase/schemas";
 import { useState } from "react";
 
+import { Skeleton } from "./Skeleton";
+
 /**
  * The roster: every definition, enabled or not, with the toggle that decides
  * whether the supervisor may draw on it. Delete asks first, is offered on
@@ -52,7 +54,7 @@ export function AgentList({
 
       {agents.length === 0 &&
         (loading ? (
-          <p className="roster__empty">Loading…</p>
+          <Skeleton label="Loading the agents" lines={4} />
         ) : (
           <p className="roster__empty">No agent definitions yet.</p>
         ))}

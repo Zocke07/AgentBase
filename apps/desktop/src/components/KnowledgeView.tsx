@@ -901,7 +901,7 @@ export function KnowledgeView({
         )}
       </aside>
 
-      <main className="knowledge__workspace">
+      <section className="knowledge__workspace">
         <div className="knowledge__toolbar">
           <div className="knowledge__modes" role="group" aria-label="Knowledge view">
             {(["write", "preview", "split"] as const).map((choice) => (
@@ -1257,7 +1257,7 @@ export function KnowledgeView({
             </button>
           </div>
         )}
-      </main>
+      </section>
 
       {switcher && (
         <QuickSwitcher

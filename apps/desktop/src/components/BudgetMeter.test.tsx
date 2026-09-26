@@ -41,17 +41,21 @@ describe("BudgetMeter", () => {
   it("says further runs are refused once the cap is reached, and never overfills the bar", () => {
     render(<BudgetMeter budget={budget(140)} />);
 
-    expect(screen.getByTestId("budget-meter").textContent).toContain("refused");
+    expect(screen.getByTestId("budget-meter").textContent).toContain("will not start");
     expect(screen.getByRole("meter").getAttribute("aria-valuenow")).toBe("140");
     const fill = document.querySelector<HTMLElement>(".budget__fill");
     expect(fill?.style.width).toBe("100%");
   });
 
-  it("renders the backend's own money strings rather than formatting micros itself", () => {
-    /* §5 Phase 3: money is integer micros and the rounding rule lives in one
-       place. A second, floating-point opinion on screen is what this avoids. */
+  it("reads at a glance, and keeps the ledger's exact figures one hover away", () => {
+    /* §5 Phase 3: money is integer micros and the exact rounding rule lives in
+       one place, the backend's display strings, which the tooltip carries.
+       The glance is whole cents from the same integer micros. */
     render(<BudgetMeter budget={budget(50)} />);
 
-    expect(screen.getByTestId("budget-meter").textContent).toContain("$10.0000 / $20.0000");
+    const meter = screen.getByTestId("budget-meter");
+    expect(meter.textContent).toContain("$10 of $20");
+    expect(meter.textContent).toContain("this month");
+    expect(meter.getAttribute("title")).toContain("$10.0000 of your $20.0000 monthly limit");
   });
 });

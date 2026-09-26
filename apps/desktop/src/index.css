@@ -15,7 +15,14 @@
  * Nothing here animates a value that comes from the log. §5 Phase 7 asks that a
  * replayed run render identically to the live one, and a transition keyed on
  * arrival time would make the same event look different depending on how it
- * got there.
+ * got there. Motion is for the app's chrome only: moving between sections,
+ * menus and dialogs opening, a button answering a press, something loading.
+ * The run canvas, the event log, the approval panel and the run's summary do
+ * not animate their arrival. Every animation stops under
+ * `prefers-reduced-motion`.
+ *
+ * Text colours are chosen to meet WCAG AA (4.5:1 for body text) on every
+ * surface they sit on, in both themes; `--faint` is the lightest text allowed.
  */
 
 /* --- tokens --------------------------------------------------------------- */
@@ -30,20 +37,23 @@
   --border: #dcdfe7;
   --border-strong: #bfc5d2;
   --text: #1a1e29;
-  --muted: #667085;
-  --faint: #98a1b3;
+  /* 6.5:1 on a surface, 5.9:1 on the page. */
+  --muted: #555e70;
+  /* The lightest text allowed: 5.0:1 on a surface, 4.6:1 on the page. */
+  --faint: #666f82;
 
-  --accent: #d4622a;
-  --accent-strong: #b8501e;
-  --accent-soft: rgb(212 98 42 / 12%);
+  /* White on the accent is 5.0:1; the brighter orange it replaced was 3.8:1. */
+  --accent: #b8501e;
+  --accent-strong: #9c4218;
+  --accent-soft: rgb(184 80 30 / 12%);
   --on-accent: #ffffff;
 
-  --good: #1f8a5b;
-  --good-soft: rgb(31 138 91 / 12%);
+  --good: #1a7a50;
+  --good-soft: rgb(26 122 80 / 12%);
   --bad: #c43d2c;
   --bad-soft: rgb(196 61 44 / 10%);
-  --warn: #a86f0c;
-  --warn-soft: rgb(168 111 12 / 12%);
+  --warn: #8f5e0a;
+  --warn-soft: rgb(143 94 10 / 12%);
   --info: #2a6bb0;
   --info-soft: rgb(42 107 176 / 12%);
 
@@ -72,6 +82,13 @@
   --radius: 10px;
   --radius-sm: 6px;
 
+  /* Motion: three speeds and two curves; nothing else moves. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.35, 0.64, 1);
+  --dur-quick: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+
   --rail-width: 13.5rem;
 
   --mono: ui-monospace, "Cascadia Code", Consolas, "SF Mono", Menlo, monospace;
@@ -94,7 +111,7 @@
     --border-strong: #3c4354;
     --text: #e7e9f0;
     --muted: #8d95a9;
-    --faint: #626a7e;
+    --faint: #7e869c;
 
     --accent: #ff8f52;
     --accent-strong: #ffa672;
@@ -133,7 +150,7 @@
   --border-strong: #3c4354;
   --text: #e7e9f0;
   --muted: #8d95a9;
-  --faint: #626a7e;
+  --faint: #7e869c;
 
   --accent: #ff8f52;
   --accent-strong: #ffa672;
@@ -232,6 +249,26 @@ pre {
   letter-spacing: -0.03em;
 }
 
+.shell__logo {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.9rem;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  box-shadow: var(--shadow-2);
+  animation: rise-in var(--dur-slow) var(--ease-spring) backwards;
+}
+
+.shell__technical {
+  max-width: 32rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+.shell__technical summary {
+  cursor: pointer;
+}
+
 .shell__status {
   display: flex;
   gap: 0.6rem;
@@ -324,9 +361,63 @@ pre {
   margin-left: auto;
 }
 
+/* The model a task here uses, as a chip: the name its maker gives it. */
 .app__provider {
-  color: var(--muted);
-  font-size: 0.8667rem;
+  display: inline-flex;
+  gap: 0.45rem;
+  align-items: center;
+  padding: 0.2rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.app__provider-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--good);
+}
+
+/* Setup is unfinished: a way to finish it, rather than red text saying so. */
+.app__setup {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--warn);
+  border-radius: 999px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-quick) var(--ease-out),
+    transform var(--dur-quick) var(--ease-out);
+}
+
+.app__setup::before {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: currentcolor;
+  content: "";
+}
+
+.app__setup:hover {
+  background: color-mix(in srgb, var(--warn) 20%, transparent);
+}
+
+.app__setup:active {
+  transform: scale(0.97);
 }
 
 .app__unpriced {
@@ -415,11 +506,21 @@ pre {
 }
 
 .rail--collapsed .rail__name,
-.rail--collapsed .rail__item > span:not(.rail__badge),
 .rail--collapsed .switcher__label,
 .rail--collapsed .switcher__name,
 .rail--collapsed .switcher__chevron {
   display: none;
+}
+
+/* Hidden from sight, not from screen readers: a folded rail's buttons keep
+   their names. `display: none` would have taken the names away too. */
+.rail--collapsed .rail__item > span:not(.rail__badge) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
 .rail--collapsed .rail__item {
@@ -3045,7 +3146,7 @@ button.md__tag:hover {
 
 .roster-card {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
     "name switch"
     "role switch";
@@ -3062,7 +3163,11 @@ button.md__tag:hover {
 
 .roster-card__name {
   grid-area: name;
+  min-width: 0;
+  overflow: hidden;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .roster-card__role {
@@ -4199,7 +4304,8 @@ button.md__tag:hover {
 
 .log__filters {
   display: flex;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
   align-items: center;
   padding: 0.4rem 1.25rem;
   border-bottom: 1px solid var(--border);
@@ -4576,6 +4682,12 @@ button.md__tag:hover {
   gap: 0.5rem;
   align-items: center;
   font-size: 0.8rem;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.budget__figure b {
+  font-weight: 650;
 }
 
 .budget__label {
@@ -4594,7 +4706,9 @@ button.md__tag:hover {
 .budget__fill {
   display: block;
   height: 100%;
+  border-radius: inherit;
   background: var(--good);
+  transition: width var(--dur-slow) var(--ease-out);
 }
 
 .budget--warn .budget__fill {
@@ -5751,13 +5865,6 @@ textarea[aria-invalid="true"] {
   border-color: var(--bad);
 }
 
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible,
-button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
 
 input[type="checkbox"],
 input[type="radio"] {
@@ -6352,4 +6459,655 @@ input[type="radio"] {
   .diagram-editor__source { overflow: visible; border-right: 0; border-bottom: 1px solid var(--border); }
   .dashboard--2,
   .dashboard--3 { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ==========================================================================
+   Motion and interaction.
+
+   Chrome only (see the header of this file): sections, menus, dialogs,
+   toasts, buttons, cards and loading placeholders. Every rule here is
+   switched off by the reduced-motion block at the end.
+   ========================================================================== */
+
+@keyframes view-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+}
+
+@keyframes pop-out {
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+}
+
+@keyframes sink-out {
+  to {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 150% 0;
+  }
+
+  to {
+    background-position: -50% 0;
+  }
+}
+
+/* Moving between sections: the section eases up into place. `backwards`,
+   not `both`, so no transform is left behind once it has landed; a leftover
+   transform would become the containing block of the full-screen canvas. */
+.app__view:not([hidden]) {
+  animation: view-in var(--dur-slow) var(--ease-out) backwards;
+}
+
+/* Buttons answer the pointer: colours ease, a press sinks a little, and the
+   primary action lifts toward the pointer on hover. */
+.button,
+.link-button,
+.link,
+.rail__item,
+.switcher__current,
+.app__waiting {
+  transition:
+    background-color var(--dur-quick) var(--ease-out),
+    border-color var(--dur-quick) var(--ease-out),
+    color var(--dur-quick) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out),
+    transform var(--dur-quick) var(--ease-out);
+}
+
+.button:active:not(:disabled),
+.app__waiting:active {
+  transform: scale(0.97);
+}
+
+.button--primary:hover:not(:disabled) {
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 32%, transparent);
+  transform: translateY(-1px);
+}
+
+.button--primary:active:not(:disabled) {
+  box-shadow: none;
+  transform: translateY(0) scale(0.97);
+}
+
+/* A button waiting on the sidecar says so without changing its width much:
+   a small spinner before its label. Set `aria-busy="true"` on it. */
+.button[aria-busy="true"] {
+  cursor: progress;
+}
+
+.button[aria-busy="true"]::before {
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  margin-right: 0.45em;
+  border: 2px solid currentcolor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.1em;
+  animation: spin 700ms linear infinite;
+  content: "";
+}
+
+/* Cards that open something lift slightly under the pointer. */
+.run-card,
+.roster-card,
+.usage__card {
+  transition:
+    border-color var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+}
+
+.run-card:hover,
+.roster-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-2);
+}
+
+.run-card:active {
+  transform: translateY(0);
+}
+
+/* The rail's current section is marked by a bar that grows in from the edge. */
+.rail__item {
+  position: relative;
+}
+
+.rail__item::before {
+  position: absolute;
+  top: 22%;
+  bottom: 22%;
+  left: -0.75rem;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+  transform: scaleY(0);
+  transition: transform var(--dur-base) var(--ease-spring);
+  content: "";
+}
+
+.rail__item--active::before {
+  transform: scaleY(1);
+}
+
+.rail--collapsed .rail__item::before {
+  left: -0.5rem;
+}
+
+/* The active item's text is the stronger accent: 5:1 on its tinted fill. */
+.rail__item--active,
+.rail__item--active:hover {
+  color: var(--accent-strong);
+}
+
+/* The rail folds and unfolds rather than jumping. */
+.app {
+  transition: grid-template-columns var(--dur-slow) var(--ease-out);
+}
+
+/* Menus and dialogs. `--closing` is set by `usePresence` while an element
+   plays its way out before it is removed. */
+.switcher__menu {
+  transform-origin: top center;
+  animation: pop-in var(--dur-base) var(--ease-out) backwards;
+}
+
+.switcher__menu--closing {
+  pointer-events: none;
+  animation: pop-out var(--dur-quick) ease-in forwards;
+}
+
+.tour__card {
+  animation: rise-in var(--dur-slow) var(--ease-spring) backwards;
+}
+
+.tour--closing {
+  pointer-events: none;
+}
+
+.tour--closing .tour__card {
+  animation: sink-out var(--dur-base) ease-in forwards;
+}
+
+.tour--closing .tour__veil,
+.tour--closing .tour__spotlight {
+  animation: fade-out var(--dur-base) ease-in forwards;
+}
+
+.tour__veil {
+  animation: fade-in var(--dur-slow) var(--ease-out) backwards;
+}
+
+.tour__spotlight {
+  transition:
+    top var(--dur-slow) var(--ease-out),
+    left var(--dur-slow) var(--ease-out),
+    width var(--dur-slow) var(--ease-out),
+    height var(--dur-slow) var(--ease-out);
+}
+
+.quick-switcher,
+.knowledge__folder-confirm,
+.roster__confirm,
+.home__advanced-body {
+  animation: pop-in var(--dur-base) var(--ease-out) backwards;
+}
+
+.knowledge__toast {
+  animation: toast-in var(--dur-slow) var(--ease-spring) backwards;
+}
+
+.settings__saved {
+  animation: fade-in var(--dur-base) var(--ease-out) backwards;
+}
+
+/* --- loading placeholders ------------------------------------------------- */
+
+/* Grey bars in the shape of what is coming, instead of the word "Loading". */
+.skeleton {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.skeleton__bar {
+  height: 0.85rem;
+  border-radius: 999px;
+  background: linear-gradient(
+      90deg,
+      var(--surface-2) 0%,
+      var(--surface-3) 50%,
+      var(--surface-2) 100%
+    )
+    0 0 / 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.skeleton__bar--title {
+  height: 1.2rem;
+  width: 45%;
+}
+
+.skeleton--cards {
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+}
+
+.skeleton__card {
+  display: grid;
+  gap: 0.55rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+/* A small spinner for a status line: "Checking…", "Connecting…". */
+.spinner {
+  display: inline-block;
+  flex: none;
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentcolor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.15em;
+  animation: spin 800ms linear infinite;
+}
+
+/* ==========================================================================
+   Accessibility.
+   ========================================================================== */
+
+/* The first thing Tab reaches: straight to the section's content. */
+.skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 100;
+  padding: 0.5rem 0.9rem;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(-150%);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+  outline-offset: 2px;
+}
+
+/* One focus ring for everything that takes focus by keyboard, drawn outside
+   the element so it never hides a border that carries meaning. */
+:where(a, button, input, select, textarea, summary, [tabindex], [role="tab"]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  transition: outline-offset var(--dur-quick) var(--ease-out);
+}
+
+/* Main content takes focus from the skip link without drawing a ring round
+   the whole page. */
+.app__body:focus {
+  outline: none;
+}
+
+/* Comfortable targets: nothing clickable is shorter than 32 px. */
+.button,
+.rail__item,
+.switcher__current {
+  min-height: 2rem;
+}
+
+.button--small {
+  min-height: 1.75rem;
+}
+
+/* Windows High Contrast and other forced-colour modes: keep the edges and
+   the focus ring, which the flat fills otherwise lose. */
+@media (forced-colors: active) {
+  .button,
+  .card,
+  .run-card,
+  .rail__item--active {
+    border: 1px solid ButtonText;
+  }
+
+  .rail__item::before,
+  .skeleton__bar {
+    background: CanvasText;
+  }
+}
+
+/* Everything above stops for people who asked the OS for less motion. The
+   durations shrink to nothing rather than being removed, so anything that
+   waits for an animation to end still hears that it did. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .skeleton__bar {
+    animation: none;
+  }
+
+  .button[aria-busy="true"]::before,
+  .spinner {
+    animation: spin 1.6s linear infinite !important;
+  }
+}
+
+.runs-view__loading {
+  padding: 1.5rem;
+}
+
+/* ==========================================================================
+   Responsive layout. The window can be as small as 800 by 600.
+   ========================================================================== */
+
+/* The main column is placed explicitly, so a rail taken out of the flow as a
+   drawer does not let the page slide into the rail's column. */
+.app__main {
+  grid-column: 2;
+}
+
+@keyframes drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+}
+
+/* In a narrow window the rail opens over the page, with a scrim behind it
+   that closes it on a click. */
+.rail--drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 45;
+  width: 13.5rem;
+  box-shadow: var(--shadow-2);
+  animation: drawer-in var(--dur-base) var(--ease-out) backwards;
+}
+
+.app__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 44;
+  background: rgb(10 12 20 / 35%);
+  animation: fade-in var(--dur-base) var(--ease-out) backwards;
+}
+
+/* Anything that sits in a grid or flex column may shrink below its content's
+   width; without this, one long row pushes the whole section off the page. */
+.run-panel,
+.runs-view__main,
+.agents-view__editor,
+.knowledge__workspace {
+  min-width: 0;
+}
+
+/* Form rows wrap instead of running off the right edge. */
+.editor__row {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 1100px) {
+  .runs-view {
+    grid-template-columns: 15rem minmax(0, 1fr);
+  }
+
+  .agents-view {
+    grid-template-columns: 18rem minmax(0, 1fr);
+  }
+
+  .knowledge {
+    grid-template-columns: minmax(13rem, 16rem) minmax(0, 1fr);
+  }
+
+  /* The replay status takes a line of its own, live or scrubbed alike, so the
+     slider keeps its length when the words beside it change. */
+  .scrubber {
+    flex-wrap: wrap;
+  }
+
+  .scrubber__state {
+    flex: 1 1 100%;
+    min-width: 0;
+    justify-content: flex-start;
+  }
+
+  .app__header {
+    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+  }
+
+  .app__workspace {
+    gap: 0.6rem;
+  }
+
+  .budget__label {
+    display: none;
+  }
+
+  .home {
+    padding: 1rem 1.25rem 2rem;
+  }
+
+  .settings {
+    padding-right: 1rem;
+    padding-left: 1rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .runs-view {
+    grid-template-columns: 12.5rem minmax(0, 1fr);
+  }
+
+  .agents-view {
+    grid-template-columns: 14rem minmax(0, 1fr);
+  }
+
+  .budget__bar {
+    width: 3.5rem;
+  }
+
+  .run-summary {
+    padding: 0.75rem 1rem;
+  }
+}
+
+/* One column that may shrink: without a template the grid's column is as wide
+   as its widest child (the log's filter row), whatever the window. */
+.run-projection {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* The run's title and figures are the last thing to give up room: they keep
+   at least their first lines, and scroll inside that if the window is short. */
+.run-panel__summary {
+  min-height: 5.25rem;
+  max-height: 45vh;
+}
+
+@media (max-height: 760px) {
+  .run-projection {
+    grid-template-rows: auto auto minmax(12rem, 1.6fr) minmax(7rem, 1fr);
+  }
+}
+
+/* The run's connection, as a dot and a word: pulsing while live. */
+.runs-view__connection--live::before,
+.runs-view__connection--connecting::before {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-right: 0.45rem;
+  border-radius: 50%;
+  background: var(--status-running);
+  vertical-align: 0.1em;
+  animation: pulse 1.6s ease-in-out infinite;
+  content: "";
+}
+
+.runs-view__connection--closed::before {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-right: 0.45rem;
+  border-radius: 50%;
+  background: var(--status-completed);
+  vertical-align: 0.1em;
+  content: "";
+}
+
+/* --- Settings: a bar to jump between sections, and Save always in reach -- */
+
+.settings {
+  scroll-behavior: smooth;
+  scroll-padding-top: 4rem;
+}
+
+.settings__nav {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: -1.5rem -0.5rem 0;
+  padding: 0.75rem 0.5rem;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.settings__nav-link {
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition:
+    background-color var(--dur-quick) var(--ease-out),
+    border-color var(--dur-quick) var(--ease-out),
+    color var(--dur-quick) var(--ease-out);
+}
+
+.settings__nav-link:hover {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+/* The section a link jumped to flashes its edge, so the eye finds it. */
+.settings__section:target {
+  animation: target-flash 1.2s var(--ease-out);
+}
+
+@keyframes target-flash {
+  from {
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent),
+      var(--shadow-1);
+  }
+}
+
+.settings__group {
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Save stays at the bottom of the view however far down the page you are. */
+.settings__actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  align-items: center;
+  margin: 0 -0.5rem;
+  padding: 0.75rem 0.5rem;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.settings__unsaved {
+  margin-right: auto;
+  color: var(--warn);
+  font-size: 0.8rem;
+  font-weight: 500;
+  animation: fade-in var(--dur-base) var(--ease-out) backwards;
+}
+
+/* A key's name as a person says it, with the stored name beneath for anyone
+   matching it against documentation. */
+.settings__key-label {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.settings__key-label strong {
+  font-weight: 600;
+}
+
+.settings__key-label code {
+  color: var(--muted);
+  font-size: 0.75rem;
 }

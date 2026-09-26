@@ -23,6 +23,53 @@ and production build, a sidecar freeze, `cargo clippy --all-targets`, and
 tests). The pinned Codex runtime dependency download that stalled a prior
 attempt in this environment completed on retry, in about 25 minutes.
 
+## After 0.4.5: a plainer, responsive and accessible window
+
+On 2026-09-26, at the maintainer's request, the window was reworked for
+people without a technical background, for the 800 by 600 minimum window,
+and for keyboard, screen-reader and reduced-motion users, with motion added
+to its chrome. Before any change, every section was screenshotted at 1440 by
+900 and 800 by 600 against a scratch sidecar. Found: at 800 px, 171 elements
+in Runs spilled past the right edge (the replay bar reserved 22 rem, and the
+run area's grid had no column template, so its column took its widest child),
+and at 600 px tall the run's title and summary row collapsed to 0 px; light
+theme text in `--faint` measured 2.6:1 and white on the orange buttons
+3.76:1; the folded rail hid its labels with `display: none`, taking them from
+screen readers; there was no skip link and no `<main>` in the shell.
+
+Changed: text tokens raised to AA (a contrast audit over Home, Settings and
+Runs reports no failures in either theme, and reports 2.6:1 and 3.76:1 when
+the old values are put back, so it is not vacuous); a skip link, one main
+landmark, one focus ring, forced-colours rules; the rail folds below 1,100 px
+and opens as a drawer; the run area, replay bar, log filters and form rows
+wrap, and the run's summary keeps its first lines in a short window. Copy: a
+header with the model's own name ("Claude Opus 5"), rounded spend ("$0 of
+$20", exact figures in the tooltip) and **Finish setup** in place of "runs
+will be refused"; the missing-key message without "keychain" or "sidecar"
+(`providers/factory.py`); Home's setup card, task placeholder, a three-name
+agent summary and **Preview notes**; plain start-up, reconnect and run status
+words; Settings reordered so provider and keys come first, with a bar that
+jumps between sections, a Save bar pinned to the window and key names in
+words. Motion: CSS only, on sections, menus, the tour, toasts, buttons, cards,
+the rail's active bar and skeleton placeholders, with exits through
+`usePresence`; none on the canvas, log, approval panel or summary.
+
+Executed: `just check`; **448 frontend tests** (new: `moneyShort`,
+`modelLabel` and `providerLabel`; the budget meter's glance and tooltip; the
+loading state by its accessible name) and **797 backend tests** pass, with 7
+skipped and the DNS-bound `test_sandbox.py` and `test_tools.py` deselected on
+this Mac; the one failure is the em-dash check on the maintainer's untracked
+`agentspace-investment-agents.md`. In Chrome against the scratch sidecar: no
+element past the right edge in any section at 800 by 600 or in Runs at 1024
+by 700; the first Tab showed **Skip to content** and Enter focused
+`main-content`; the space menu played `pop-in` and, on closing, `pop-out` with
+clicks disabled, and was removed after it; under emulated reduced motion it
+went at once and a section's animation measured 1 ms instead of 320 ms; the
+tour rose in and sank out; the drawer opened with a scrim and closed on Esc;
+the Settings **Keys** link jumped to its section with Save still in view.
+**Not exercised:** the Tauri window itself, a screen reader, and Windows High
+Contrast; the dark theme was checked by the contrast audit, not by eye.
+
 ## After 0.4.5: complete feed input for news-scanner
 
 On 2026-09-26 a real `news-scanner` run received Google News RSS through

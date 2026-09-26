@@ -46,6 +46,11 @@ future changes do not relocate users' data or disconnect their stored keys.
   Markdown renderer (`components/Markdown.tsx`, over `lib/markdown.ts`)
   serves notes, agent prose and excerpts without ever emitting raw HTML.
   A first launch opens a tour, gated on the `onboarding_completed` setting.
+  Copy is written for someone who is not a developer (BUILD_SPEC §0); the
+  header shows the model's own name and a rounded spend. Motion is CSS on the
+  chrome only, never on log-driven content, and stops under reduced motion;
+  text meets WCAG AA in both themes; below 1,100 px the rail becomes a drawer
+  (developer guide, "Motion, contrast and accessibility").
   Discord is the only chat adapter; Telegram was removed on 2026-09-11.
 - A space can schedule runs (Space settings): daily or weekly at a local time,
   or every N hours, started through `RunLauncher` by one scheduler task in the

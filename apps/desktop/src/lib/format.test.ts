@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clockDate, formatDuration } from "./format";
+import { clockDate, formatDuration, modelLabel, moneyShort, providerLabel } from "./format";
 
 describe("formatDuration", () => {
   it.each([
@@ -24,5 +24,25 @@ describe("clockDate", () => {
 
   it("renders nonsense as a placeholder rather than throwing", () => {
     expect(clockDate("not a date")).toBe("-");
+  });
+});
+
+describe("labels a person reads", () => {
+  it("rounds money to cents, and drops the cents from a round figure", () => {
+    expect(moneyShort(20_000_000)).toBe("$20");
+    expect(moneyShort(52_400)).toBe("$0.05");
+    expect(moneyShort(0)).toBe("$0");
+    expect(moneyShort(1_234_567)).toBe("$1.23");
+  });
+
+  it("names models the way their makers do", () => {
+    expect(modelLabel("claude-opus-5")).toBe("Claude Opus 5");
+    expect(modelLabel("claude-haiku-4-5")).toBe("Claude Haiku 4.5");
+    expect(modelLabel("claude-haiku-4-5-20251001")).toBe("Claude Haiku 4.5");
+    expect(modelLabel("gpt-5.5")).toBe("GPT-5.5");
+    expect(modelLabel("gpt-5.4-mini")).toBe("GPT-5.4 mini");
+    expect(modelLabel("gpt-4o")).toBe("GPT-4o");
+    expect(modelLabel("qwen3:4b")).toBe("qwen3:4b");
+    expect(providerLabel("openai")).toBe("OpenAI");
   });
 });

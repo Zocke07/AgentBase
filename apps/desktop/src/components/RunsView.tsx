@@ -14,6 +14,7 @@ import { useStoredSize } from "../state/useStoredSize";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { RunCard } from "./RunCard";
 import { RunPanel } from "./RunPanel";
+import { Skeleton } from "./Skeleton";
 import { Splitter } from "./Splitter";
 
 /**
@@ -47,16 +48,16 @@ function connectionLabel(
   // A gap is the server's "no gaps, no repeats" contract failing on the client
   // side. It should never show; if it does, it is the most important thing on
   // this line.
-  const suffix = gaps === 0 ? "" : ` · ${String(gaps)} gap${gaps === 1 ? "" : "s"} in the log`;
+  const suffix = gaps === 0 ? "" : ` · ${String(gaps)} step${gaps === 1 ? "" : "s"} missing from the record`;
   switch (connection.kind) {
     case "idle":
-      return "no run selected";
+      return "No task selected";
     case "connecting":
-      return `connecting…${suffix}`;
+      return `Connecting…${suffix}`;
     case "live":
-      return `live${suffix}`;
+      return `Live: updates as it happens${suffix}`;
     case "closed":
-      return `run finished: stream closed${suffix}`;
+      return `Finished${suffix}`;
     case "error":
       return `${connection.message}${suffix}`;
   }
@@ -310,20 +311,29 @@ export function RunsView({
           )}
           {runs.length === 0 && (
             <li className="run-list__empty">
-              {!runsLoaded ? "Loading…" : origin === undefined ? "No runs yet." : "No runs of this kind yet."}
+              {!runsLoaded ? (
+                <Skeleton label="Loading your runs" cards={3} />
+              ) : origin === undefined ? (
+                "No runs yet. Start one from Home."
+              ) : (
+                "No runs of this kind yet."
+              )}
             </li>
           )}
         </ul>
       </aside>
 
-      <main className="runs-view__main">
+      <section className="runs-view__main">
         {runId === null ? (
           <p className="runs-view__placeholder">Pick a run to watch it or replay it.</p>
         ) : (
           <>
             <div className="runs-view__strip">
-              <p className="runs-view__connection" data-testid="connection-status">
-                {loading ? "loading…" : connectionLabel(connection, gaps)}
+              <p
+                className={`runs-view__connection runs-view__connection--${loading ? "loading" : connection.kind}`}
+                data-testid="connection-status"
+              >
+                {loading ? "Loading…" : connectionLabel(connection, gaps)}
               </p>
               {cancelError !== null && (
                 <p className="runs-view__strip-error" role="alert">
@@ -387,7 +397,9 @@ export function RunsView({
             <ErrorBoundary resetKey={runId} label="the run view">
               {loadedRunId === null ? (
                 // Nothing to keep on screen yet: the very first open.
-                <p className="runs-view__placeholder">Loading the run…</p>
+                <div className="runs-view__loading">
+                  <Skeleton label="Opening the run" title lines={4} />
+                </div>
               ) : (
                 <RunPanel
                   view={view}
@@ -409,7 +421,7 @@ export function RunsView({
             </ErrorBoundary>
           </>
         )}
-      </main>
+      </section>
     </div>
   );
 }

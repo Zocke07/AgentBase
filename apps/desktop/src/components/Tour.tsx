@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 
 import type { Section } from "../lib/sections";
 import { TOUR_STEPS } from "../lib/tour";
+import { usePresence } from "../state/usePresence";
 
 /**
  * The first-run tour: a handful of steps that each point at a real part of
@@ -72,6 +73,14 @@ export function Tour({ open, section, onSection, onClose, onDemo }: TourProps) {
   const nextButton = useRef<HTMLButtonElement>(null);
   const step = TOUR_STEPS[index] ?? TOUR_STEPS[0];
   const last = index === TOUR_STEPS.length - 1;
+  // Held on screen while it fades and sinks away; the step it showed stays put
+  // until then, and a tour opened again starts from the beginning.
+  const { mounted, closing } = usePresence(open, 200);
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (open) setIndex(0);
+  }
 
   // Each step switches to its section first; the shell applies that on its
   // next render, so the measurement waits a frame for the target to show.
@@ -98,7 +107,6 @@ export function Tour({ open, section, onSection, onClose, onDemo }: TourProps) {
   }, [open, index]);
 
   const close = useCallback(() => {
-    setIndex(0);
     onClose();
   }, [onClose]);
 
@@ -122,7 +130,7 @@ export function Tour({ open, section, onSection, onClose, onDemo }: TourProps) {
     };
   }, [open, last, close]);
 
-  if (!open || step === undefined) return null;
+  if (!mounted || step === undefined) return null;
 
   const viewport = { width: window.innerWidth, height: window.innerHeight };
   const position = place(box, viewport);
@@ -142,7 +150,7 @@ export function Tour({ open, section, onSection, onClose, onDemo }: TourProps) {
   };
 
   return (
-    <div className="tour" data-testid="tour">
+    <div className={`tour${closing ? " tour--closing" : ""}`} data-testid="tour">
       {box !== null ? (
         <div
           className="tour__spotlight"

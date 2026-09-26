@@ -26,6 +26,8 @@ export interface RailProps {
   /** Icons only, with the names in tooltips; the toggle is at the rail's foot. */
   collapsed?: boolean | undefined;
   onToggleCollapsed?: (() => void) | undefined;
+  /** Open over the page as a drawer, in a window too narrow to give it room. */
+  drawer?: boolean | undefined;
 }
 
 
@@ -107,6 +109,7 @@ export function Rail({
   badges,
   collapsed = false,
   onToggleCollapsed,
+  drawer = false,
 }: RailProps) {
   const entry = (id: Section, label: string, icon: ReactNode) => {
     const badge = badges?.[id] ?? 0;
@@ -135,7 +138,11 @@ export function Rail({
   };
 
   return (
-    <nav className={`rail${collapsed ? " rail--collapsed" : ""}`} aria-label="Sections" data-testid="rail">
+    <nav
+      className={`rail${collapsed ? " rail--collapsed" : ""}${drawer ? " rail--drawer" : ""}`}
+      aria-label="Sections"
+      data-testid="rail"
+    >
       <div className="rail__brand">
         <span className="rail__logo" aria-hidden="true" />
         <span className="rail__name">AgentBase</span>

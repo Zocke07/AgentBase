@@ -210,7 +210,7 @@ export function VisualizationView({ space, active }: { space: SpaceResponse | nu
         {files.length === 0 && <p className="visualize__empty">No visualizable files in this space yet.</p>}
       </aside>
 
-      <main className="visualize__workspace">
+      <section className="visualize__workspace">
         <div className="visualize__toolbar">
           <button type="button" className="button" onClick={() => void newChart()}>New chart</button>
           <button type="button" className="button" onClick={newDashboard}>New dashboard</button>
@@ -250,7 +250,7 @@ export function VisualizationView({ space, active }: { space: SpaceResponse | nu
         {artifact?.kind === "diagram" && (
           <DiagramEditor artifact={artifact} onChange={(next) => { setArtifact(next); }} />
         )}
-      </main>
+      </section>
     </div>
   );
 }

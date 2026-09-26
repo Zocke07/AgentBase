@@ -91,3 +91,49 @@ export function summariseArgs(args: Record<string, unknown>): string {
 export function eventFamily(type: string): string {
   return type.split(".")[0] ?? "other";
 }
+
+/**
+ * Dollars for a person to read at a glance: cents, and no cents at all on a
+ * round figure, so a $20 cap reads "$20" and a small spend "$0.05". The
+ * exact four-place figure the ledger keeps is still shown where it matters
+ * (Usage, and the meter's tooltip); this is only for the glance.
+ */
+export function moneyShort(micros: number): string {
+  const cents = Math.round(micros / 10_000);
+  const dollars = cents / 100;
+  return Number.isInteger(dollars) ? `$${String(dollars)}` : `$${dollars.toFixed(2)}`;
+}
+
+/** How each provider is named to a person. */
+export function providerLabel(provider: string): string {
+  switch (provider) {
+    case "anthropic":
+      return "Anthropic";
+    case "openai":
+      return "OpenAI";
+    case "ollama":
+      return "Ollama";
+    default:
+      return provider;
+  }
+}
+
+/**
+ * A model id as its maker names it: `claude-haiku-4-5` reads "Claude Haiku
+ * 4.5" and `gpt-5.4-mini` reads "GPT-5.4 mini". A dated Anthropic snapshot
+ * drops its date. Anything unrecognised (a local Ollama model) is left as
+ * typed, since its name is the user's own.
+ */
+export function modelLabel(model: string): string {
+  const claude = /^claude-([a-z]+)-(\d+(?:-\d+)?)(?:-\d{8})?$/.exec(model);
+  if (claude !== null) {
+    const [, family = "", version = ""] = claude;
+    return `Claude ${family.charAt(0).toUpperCase()}${family.slice(1)} ${version.replace("-", ".")}`;
+  }
+  const gpt = /^gpt-([\d.]+[a-z]?)(?:-(.+))?$/.exec(model);
+  if (gpt !== null) {
+    const [, version = "", variant] = gpt;
+    return variant === undefined ? `GPT-${version}` : `GPT-${version} ${variant}`;
+  }
+  return model;
+}

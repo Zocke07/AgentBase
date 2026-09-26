@@ -282,14 +282,16 @@ describe("the retrieval preview", () => {
     await screen.findByTestId("run-card-run-1");
 
     await user.type(screen.getByTestId("goal-input"), "pick storage");
-    await user.click(screen.getByRole("button", { name: "Preview context" }));
+    await user.click(screen.getByRole("button", { name: "Preview notes" }));
 
     const preview = await screen.findByTestId("retrieval-preview");
-    expect(preview.textContent).toContain("2 kept excerpts (about 16 tokens)");
+    expect(preview.textContent).toContain("These 2 passages from this space's notes");
+    expect(preview.textContent).toContain("(about 16 tokens)");
     expect(preview.textContent).toContain("anthropic · claude-sonnet-5");
     expect(preview.textContent).toContain("matched storag, wal");
     await user.click(screen.getByRole("checkbox", { name: /recipes\/soup/ }));
-    expect(preview.textContent).toContain("1 kept excerpt (about 12 tokens)");
+    expect(preview.textContent).toContain("This passage from this space's notes");
+    expect(preview.textContent).toContain("(about 12 tokens)");
     await user.click(screen.getByRole("button", { name: "Start run" }));
 
     expect(mocked.createRun).toHaveBeenCalledWith("pick storage", "space-lab", ["[[recipes/soup]]"]);

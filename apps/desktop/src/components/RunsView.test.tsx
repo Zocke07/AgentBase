@@ -218,7 +218,7 @@ describe("switching runs", () => {
     expect(screen.getByTestId("run-status").textContent).toBe("completed");
     expect(screen.getByTestId("run-panel").getAttribute("aria-busy")).toBe("true");
     expect(screen.getByLabelText<HTMLInputElement>("Position in the event log").disabled).toBe(true);
-    expect(screen.getByTestId("connection-status").textContent).toContain("loading");
+    expect(screen.getByTestId("connection-status").textContent).toContain("Loading");
     // The new row wears its own status, not the old head's.
     expect(second.textContent).toContain("not started");
     expect(second.textContent).not.toContain("completed");

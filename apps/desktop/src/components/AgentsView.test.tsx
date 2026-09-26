@@ -71,7 +71,8 @@ describe("what it fetches", () => {
     render(<AgentsView workspaceProvider="ollama" />);
 
     expect(screen.queryByText("No agent definitions yet.")).toBeNull();
-    expect(screen.getByTestId("agent-list").textContent).toContain("Loading");
+    // Grey placeholder rows, announced to a screen reader as what they are.
+    expect(screen.getByRole("status", { name: "Loading the agents" })).toBeDefined();
   });
 
   it("shows a failed tool catalogue instead of an editor with no tools", async () => {

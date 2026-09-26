@@ -5,6 +5,8 @@ import * as api from "../lib/api";
 import { clockDate, ellipsise, formatCount, formatMicros, periodLabel } from "../lib/format";
 import { useFetched } from "../state/useFetched";
 
+import { Skeleton } from "./Skeleton";
+
 /**
  * The usage section: a month of model calls from the ledger, sliced by day,
  * model, space and run, with each run's peak context beside its cost. Every
@@ -108,7 +110,11 @@ export function UsageView({ space, active, onOpenRun, onOpenSettings }: UsageVie
       )}
 
       {report === null ? (
-        <p className="usage__loading">{loading ? "Reading the ledger…" : "No report yet."}</p>
+        loading ? (
+          <Skeleton label="Adding up this month's use" cards={4} />
+        ) : (
+          <p className="usage__loading">No report yet.</p>
+        )
       ) : (
         <div className={`usage__body${loading ? " usage__body--stale" : ""}`}>
           <section className="usage__cards" aria-label="Totals">

@@ -24,6 +24,8 @@ import { restartApp, restartAvailable } from "../lib/shell";
 import { THEMES, useThemeStore, type Theme } from "../lib/theme";
 import { useFetched } from "../state/useFetched";
 
+import { Skeleton } from "./Skeleton";
+
 /**
  * The settings screen: every workspace setting, plus keys.
  *
@@ -143,6 +145,24 @@ function diff(opened: Form, form: Form): UpdateSettingsRequest {
   return patch;
 }
 
+/** What each stored secret is, in words; the stored name is shown beneath. */
+const KEY_LABELS: Readonly<Record<string, string>> = {
+  anthropic_api_key: "Anthropic API key",
+  openai_api_key: "OpenAI API key",
+  discord_bot_token: "Discord bot token",
+};
+
+/** The page's sections, in order, for the "On this page" bar. */
+const SETTINGS_SECTIONS: readonly { id: string; label: string }[] = [
+  { id: "settings-provider", label: "Provider" },
+  { id: "settings-keys", label: "Keys" },
+  { id: "settings-budget", label: "Budget" },
+  { id: "settings-limits", label: "Limits" },
+  { id: "settings-channels", label: "Chat" },
+  { id: "settings-appearance", label: "Appearance" },
+  { id: "settings-about", label: "About" },
+];
+
 export function SettingsView({ onSaved, spaces = [], onReplayTour }: SettingsViewProps) {
   const loadSettings = useCallback(() => api.getSettings(), []);
   const loadCatalogue = useCallback(() => api.listProviders(), []);
@@ -165,7 +185,13 @@ export function SettingsView({ onSaved, spaces = [], onReplayTour }: SettingsVie
         </p>
       )}
       {loaded === null ? (
-        <p className="settings__loading">{current.loading ? "Loading…" : "Settings could not be read."}</p>
+        current.loading ? (
+          <div className="settings__form">
+            <Skeleton label="Loading your settings" title lines={5} />
+          </div>
+        ) : (
+          <p className="settings__loading">Settings could not be read.</p>
+        )
       ) : (
         <SettingsForm
           // Start the form from whatever copy is newest.
@@ -275,17 +301,24 @@ function SettingsForm({
       }}
       data-testid="settings-form"
     >
-      {/* Two groups, in the order the spaces design splits them: the rules
-          a run runs under, which a space will own, and the things that are
-          the user's rather than any space's. */}
-      <h2 className="settings__group">Defaults for every space</h2>
+      {/* Jump to a section: the page is long, and the first thing most people
+          come here for (a key) should be one click away. */}
+      <nav className="settings__nav" aria-label="Settings sections">
+        {SETTINGS_SECTIONS.map((entry) => (
+          <a key={entry.id} href={`#${entry.id}`} className="settings__nav-link">
+            {entry.label}
+          </a>
+        ))}
+      </nav>
+
+      <h2 className="settings__group">Get started</h2>
 
       {/* --- provider ------------------------------------------------------ */}
-      <section className="settings__section">
+      <section className="settings__section" id="settings-provider">
         <h2>Provider</h2>
         <p className="settings__hint">
-          Whose models runs use, and so which key. Each space chooses its model in Space settings,
-          and an agent can pick its own; nothing about the model is chosen here.
+          Which company&apos;s AI your agents use. Each space picks the exact model in Space settings,
+          and an agent can pick its own.
         </p>
         {catalogueError !== null && (
           <p className="settings__error" role="alert">
@@ -390,12 +423,51 @@ function SettingsForm({
         </div>
       </section>
 
+      {/* --- keys ---------------------------------------------------------- */}
+      <section className="settings__section" id="settings-keys" data-testid="keys" data-tour="keys">
+        <h2>Keys</h2>
+        <p className="settings__hint">
+          An API key lets AgentBase use your account with the provider above. It is kept in your
+          computer&apos;s secure password store, never in a file, and read when AgentBase starts: after
+          adding or changing one, restart AgentBase with the button that appears. Restarting stops a
+          run that is still going.
+        </p>
+        <KeyRows loaded={loaded} />
+      </section>
+
+      <h2 className="settings__group">Spending and safety</h2>
+
+      {/* --- budget ---------------------------------------------------------- */}
+      <section className="settings__section" id="settings-budget">
+        <h2>Monthly budget</h2>
+        <p className="settings__hint">
+          One spending limit for the whole app each month, across every space. A run that would go over
+          it stops before it asks the AI anything more.
+        </p>
+        <div className="editor__row">
+          <label className="editor__field editor__field--narrow">
+            <span>Monthly cap (USD)</span>
+            <input
+              inputMode="decimal"
+              value={form.cap}
+              onChange={(changed) => {
+                set("cap", changed.target.value);
+                setErrors(({ monthly_cap_micros: _cleared, ...rest }) => rest);
+              }}
+              aria-invalid={errorFor("monthly_cap_micros") !== null}
+              data-testid="setting-cap"
+            />
+            <FieldError field="monthly_cap_micros" message={errorFor("monthly_cap_micros")} />
+          </label>
+        </div>
+      </section>
+
       {/* --- limits and the approval policy ------------------------------- */}
-      <section className="settings__section">
+      <section className="settings__section" id="settings-limits">
         <h2>Limits and approvals</h2>
         <p className="settings__hint">
-          What a run is held to unless its space says otherwise. A space can raise or lower a limit
-          and can narrow the approval policy, never widen it.
+          How long and how much one run may do, and which actions may happen without asking you first.
+          Each space can change the limits for itself, and can make approvals stricter but never looser.
         </p>
         <div className="editor__row">
           <NumberField
@@ -531,46 +603,10 @@ function SettingsForm({
         </fieldset>
       </section>
 
-      <h2 className="settings__group">Your account and this app</h2>
-
-      {/* --- keys ---------------------------------------------------------- */}
-      <section className="settings__section" data-testid="keys" data-tour="keys">
-        <h2>Keys</h2>
-        <p className="settings__hint">
-          Keys live in the operating system&apos;s keychain and are read once, when AgentBase starts. They
-          are never written to a file or sent to the sidecar by this screen; after setting or clearing
-          one, restart AgentBase. A restart stops any run in progress.
-        </p>
-        <KeyRows loaded={loaded} />
-      </section>
-
-      {/* --- budget ---------------------------------------------------------- */}
-      <section className="settings__section">
-        <h2>Monthly budget</h2>
-        <p className="settings__hint">
-          One cap for every run, in every space. A run that would take the month past it is refused
-          before it calls a model.
-        </p>
-        <div className="editor__row">
-          <label className="editor__field editor__field--narrow">
-            <span>Monthly cap (USD)</span>
-            <input
-              inputMode="decimal"
-              value={form.cap}
-              onChange={(changed) => {
-                set("cap", changed.target.value);
-                setErrors(({ monthly_cap_micros: _cleared, ...rest }) => rest);
-              }}
-              aria-invalid={errorFor("monthly_cap_micros") !== null}
-              data-testid="setting-cap"
-            />
-            <FieldError field="monthly_cap_micros" message={errorFor("monthly_cap_micros")} />
-          </label>
-        </div>
-      </section>
+      <h2 className="settings__group">More</h2>
 
       {/* --- channels -------------------------------------------------------- */}
-      <section className="settings__section">
+      <section className="settings__section" id="settings-channels">
         <h2>Chat channels</h2>
         <div className="settings__channels">
           {(["discord"] as const).map((channel) => {
@@ -675,8 +711,13 @@ function SettingsForm({
       )}
 
       <div className="editor__actions settings__actions">
-        {saved && !dirty && <span className="settings__saved">Saved. Applies to the next run.</span>}
-        <button type="submit" className="button button--primary" disabled={saving || !dirty}>
+        {dirty && !saving && <span className="settings__unsaved">You have unsaved changes.</span>}
+        {saved && !dirty && (
+          <span className="settings__saved" role="status">
+            Saved. New runs will use this.
+          </span>
+        )}
+        <button type="submit" className="button button--primary" disabled={saving || !dirty} aria-busy={saving}>
           {saving ? "Saving…" : "Save settings"}
         </button>
       </div>
@@ -705,7 +746,7 @@ function AboutSection({
   };
 
   return (
-    <section className="settings__section about" data-testid="about">
+    <section className="settings__section about" id="settings-about" data-testid="about">
       <h2>About AgentBase</h2>
       <dl className="about__facts">
         <dt>Version</dt>
@@ -750,7 +791,7 @@ function AppearanceSection() {
   const label: Record<Theme, string> = { system: "Follow the system", light: "Light", dark: "Dark" };
 
   return (
-    <section className="settings__section" data-testid="appearance">
+    <section className="settings__section" id="settings-appearance" data-testid="appearance">
       <h2>Appearance</h2>
       <div className="settings__theme" role="radiogroup" aria-label="Theme">
         {THEMES.map((choice) => (
@@ -1029,15 +1070,18 @@ function KeyRows({ loaded }: { loaded: SettingsResponse }) {
         {names.map((name) => {
           const configured = loaded.configured_secrets.includes(name);
           const state = written.has(name)
-            ? "set: restart AgentBase to apply"
+            ? "saved: restart AgentBase to use it"
             : cleared.has(name)
-              ? "cleared: restart AgentBase to apply"
+              ? "removed: restart AgentBase to apply"
               : configured
                 ? "set"
                 : "not set";
           return (
             <li key={name} className="settings__key" data-testid={`secret-${name}`}>
-              <span className="settings__key-name">{name}</span>
+              <span className="settings__key-label">
+                <strong>{KEY_LABELS[name] ?? name}</strong>
+                <code className="settings__key-name">{name}</code>
+              </span>
               <span className={`settings__key-state${configured || written.has(name) ? " settings__key-state--set" : ""}`}>
                 {state}
               </span>

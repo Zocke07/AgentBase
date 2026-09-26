@@ -213,6 +213,31 @@ shape back. The event log remains authoritative for what happened.
 
 ---
 
+### Motion, contrast and accessibility in the window
+
+Motion is CSS only and belongs to the app's chrome: sections easing in
+(`view-in`), menus and dialogs (`pop-in`, `rise-in`), toasts, button presses,
+card hovers, the rail's active bar and loading placeholders (`Skeleton`). The
+run canvas, the event log, the approval panel and the run summary do not
+animate their arrival, because a replay must look like the live run
+(§5 Phase 7, `replayIdentity.test.tsx`); a JS animation library would also
+write inline styles into that DOM. Exit animations use `state/usePresence.ts`,
+which keeps an element mounted for its exit and adds a `--closing` class; where
+motion is reduced or `matchMedia` is missing (tests), it removes the element
+at once, as before. A single `prefers-reduced-motion` block at the end of
+`index.css` shrinks every duration to 1 ms, so `animationend` still fires.
+
+Text colours meet WCAG AA (4.5:1) on every surface in both themes; `--faint`
+is the lightest text allowed, and white on `--accent` is 5:1. There is one
+`<main id="main-content">` (the shell's body) behind a **Skip to content**
+link, one focus ring for everything focusable (`:focus-visible`, 2 px outside
+the element), a folded rail that hides its labels visually but not from
+screen readers, and a `forced-colors` block for Windows High Contrast. The
+window is designed from its minimum of 800 by 600: below 1,100 px the rail
+folds and opens as a drawer (`state/useMediaQuery.ts`), and grid and flex
+columns that hold long rows carry `min-width: 0` so one row cannot push a
+section off the page.
+
 ## Conventions
 
 **From BUILD_SPEC §6.** One phase per session. Do not claim something works

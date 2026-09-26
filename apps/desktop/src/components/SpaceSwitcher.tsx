@@ -2,6 +2,7 @@ import type { CreateSpaceRequest, SpaceResponse } from "@agentbase/schemas";
 import { useEffect, useRef, useState } from "react";
 
 import * as api from "../lib/api";
+import { usePresence } from "../state/usePresence";
 
 /**
  * The space switcher at the top of the rail: the current space, a list to
@@ -24,6 +25,7 @@ type Seed = CreateSpaceRequest["seed"];
 
 export function SpaceSwitcher({ spaces, currentId, onSelect, onCreated, compact = false }: SpaceSwitcherProps) {
   const [open, setOpen] = useState(false);
+  const menu = usePresence(open, 120);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [seed, setSeed] = useState<"builtins" | "empty" | "copy">("builtins");
@@ -106,8 +108,8 @@ export function SpaceSwitcher({ spaces, currentId, onSelect, onCreated, compact 
         </svg>
       </button>
 
-      {open && (
-        <div className="switcher__menu">
+      {menu.mounted && (
+        <div className={`switcher__menu${menu.closing ? " switcher__menu--closing" : ""}`}>
           <ul className="switcher__list" role="listbox" aria-label="Spaces">
             {live.map((space) => (
               <li key={space.id} role="option" aria-selected={space.id === currentId}>

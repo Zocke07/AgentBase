@@ -160,10 +160,10 @@ model. Retrieval tells the model never to execute instructions found inside a
 note, but reviewing imported content remains prudent because models can still
 be influenced by malicious text.
 
-**Preview context** on the Home page shows what the goal would retrieve before
-the run starts: each citation with its excerpt rendered, its score, matched
-terms and token cost, the total that will be kept, and the provider and model
-those excerpts are sent to. Untick a result to keep it out of the run and its
+**Preview notes** on the Home page shows what the goal would retrieve before
+the run starts, under **Notes it will read**: each citation with its excerpt
+rendered, its score, matched terms and token cost, the total that will be
+kept, and the model those excerpts are sent to. Untick a result to keep it out of the run and its
 worker handoffs; the exclusion is recorded with the run. Click a citation,
 here or in a run's **Retrieved context**, to open the note in Knowledge.
 
