@@ -3839,7 +3839,7 @@
   },
   "info": {
     "title": "AgentBase sidecar",
-    "version": "0.4.7"
+    "version": "0.4.8"
   },
   "openapi": "3.1.0",
   "paths": {

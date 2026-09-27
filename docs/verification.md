@@ -1,9 +1,46 @@
 # Verification and remaining work
 
-Updated 2026-09-26. This is the current record; the
+Updated 2026-09-28. This is the current record; the
 [historical session notes](history/README.md) retain earlier evidence and
 superseded gaps. Earlier evidence retains its original product and artifact
 identifiers. A test result below is scoped to what was actually executed.
+
+## 0.4.8: steady canvas, folding log, start-up stages, spend breakdown, space providers
+
+Released 2026-09-28 from a separate worktree at the 0.4.7 commit carrying only
+this work: the maintainer's checkout also held another session's uncommitted
+comment pass, which stays uncommitted there.
+
+- **Canvas flicker.** `layout()` rebuilt every React Flow node on each event
+  without `measured`, so React Flow dropped its handle bounds and unmounted
+  every edge until it measured again. In headless Chrome, a MutationObserver
+  counted edge and label removals while 493 simulated events (three token
+  streams) went through the run store at two per frame: **1,066** before,
+  **6** after (the first draw), with all 4 edges and 2 labels drawn at the end.
+  jsdom draws no edges, so `graph.test.ts` checks the cause. Remaining layout
+  shifts happen once each: the approval panel appearing and going, and the
+  supervisor's account arriving at the end.
+- **Folding log.** In Chrome at 1024 by 700 the folded log was 36 px against
+  128, the canvas 296 px against 204; unfolding restored the newest row, and
+  the choice persisted.
+- **Start screen.** Checked in Chrome against a port with nothing listening:
+  the six-second note appears and no retry count is shown.
+- **Spend breakdown.** Checked in Chrome with seeded spend; it fits the 800 by
+  600 window.
+- **Models.** Prices checked against both providers' pages on 2026-09-27.
+  Migration 016 ran on a real v15 database: the default space gained
+  `anthropic`, moved to Opus 5.5, and the untouched `decision` agent moved too.
+  Switching that space to OpenAI in Chrome listed all ten roster agents, and
+  saving moved the space and every agent (Haiku to Luna, Sonnet and Opus to
+  Sol). The contrast audit found no failures on the new panels in either theme.
+
+The browser checks ran on the maintainer's checkout, whose extra changes are
+comments and two equivalent loader rewrites. On the release tree itself:
+`just check` passed; desktop **49 files, 477 tests**; backend, including the
+DNS-bound files and the tree-wide hygiene test, **892 passed, 26 skipped**. Not
+checked: the Tauri window (WebKit), where the flicker was reported; a real
+model run; a screen reader. The tag workflow builds, smoke-tests and publishes
+the installers.
 
 ## 0.4.7 local release gate, 2026-09-26
 

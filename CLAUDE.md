@@ -21,9 +21,12 @@ future changes do not relocate users' data or disconnect their stored keys.
   transition; current AgentBase values take precedence.
 - Phases 0 through 9 and the spaces redesign are implemented. Do not restart
   Phase 0 or replace completed work from an earlier phase.
-- The current release line is **0.4.7**: complete bounded RSS and Atom input
-  for the news scanner, clearer setup guidance, and a responsive accessible
-  window, over 0.4.6's rename to AgentBase across the product, package, bundle
+- The current release line is **0.4.8**: a steady run canvas, a folding event
+  log, named start-up stages, a spending breakdown in the header, and spaces
+  that own their provider with tier-mapped model switches and Opus 5.5 and
+  GPT-6 in the catalog (migration 016), over 0.4.7's complete bounded RSS and
+  Atom input for the news scanner, clearer setup guidance, and a responsive
+  accessible window, over 0.4.6's rename to AgentBase across the product, package, bundle
   and data identifiers, with one-time adoption of a pre-rename install's data
   and database and read-through fallbacks for its keychain entries, browser
   preferences and saved visualizations, over 0.4.5's
