@@ -22,6 +22,9 @@ vi.mock("../lib/api", async (importOriginal) => ({
   updateSpace: vi.fn(),
   deleteSpace: vi.fn(),
   listSchedules: vi.fn(),
+  planProviderSwitch: vi.fn(),
+  updateAgent: vi.fn(),
+  listAgents: vi.fn(),
 }));
 
 const mocked = vi.mocked(api);
@@ -71,11 +74,22 @@ beforeEach(() => {
   mocked.listProviders.mockResolvedValue({
     providers: [{ name: "ollama", requires_key: false, free_text_model: true }],
     models: { ollama: [] },
+    catalog: {},
   });
   mocked.updateSpace.mockImplementation((_id, patch) =>
     Promise.resolve({ ...lab, ...patch, updated_at: "2026-09-12T00:00:01Z" } as SpaceResponse),
   );
+  mocked.listAgents.mockResolvedValue([]);
 });
+
+const twoProviders = {
+  providers: [
+    { name: "ollama", requires_key: false, free_text_model: true },
+    { name: "anthropic", requires_key: true, free_text_model: false },
+  ],
+  models: { ollama: [], anthropic: ["claude-opus-5-5", "claude-sonnet-5"] },
+  catalog: {},
+};
 
 describe("what is sent", () => {
   it("sends a rule set back to blank as null, so the sidecar reads it as inherit", async () => {
@@ -162,18 +176,13 @@ describe("what is sent", () => {
     });
   });
 
-  it("needs a model of the space's own, and moves it with the provider", async () => {
-    /* The model is the space's, not inherited: Settings only names the
-       provider. A blank one is refused before anything is sent; a change of
-       provider brings that provider's first listed model, or a box to type. */
+  it("needs a model of the space's own, and maps it when the provider changes", async () => {
+    /* A space names its provider and model; there is no "Inherit" provider
+       since 2026-09-27. A blank model is refused before anything is sent; a
+       change of provider asks the sidecar for the model at the same level. */
     const user = userEvent.setup();
-    mocked.listProviders.mockResolvedValue({
-      providers: [
-        { name: "ollama", requires_key: false, free_text_model: true },
-        { name: "anthropic", requires_key: true, free_text_model: false },
-      ],
-      models: { ollama: [], anthropic: ["claude-opus-5", "claude-sonnet-5"] },
-    });
+    mocked.listProviders.mockResolvedValue(twoProviders);
+    mocked.planProviderSwitch.mockResolvedValue({ provider: "anthropic", model: "claude-sonnet-5", agents: [] });
     render(<SpaceSettingsView space={lab} settings={settings} onChanged={vi.fn()} />);
     // A box to type once the catalogue says Ollama's models are free text.
     await waitFor(() => {
@@ -181,7 +190,9 @@ describe("what is sent", () => {
     });
     const model = screen.getByTestId<HTMLInputElement>("space-model");
     expect(model.value).toBe("qwen3:4b");
-    expect(screen.getByTestId("space-provider").textContent).toContain("Inherit (ollama)");
+    // A row from before the change names no provider and shows the one it ran on.
+    expect(screen.getByTestId<HTMLSelectElement>("space-provider").value).toBe("ollama");
+    expect(screen.getByTestId("space-provider").textContent).not.toContain("Inherit");
 
     await user.clear(model);
     await user.click(screen.getByRole("button", { name: "Save space" }));
@@ -189,11 +200,59 @@ describe("what is sent", () => {
     expect(mocked.updateSpace).not.toHaveBeenCalled();
 
     await user.selectOptions(screen.getByTestId("space-provider"), "anthropic");
-    expect(screen.getByTestId<HTMLSelectElement>("space-model").value).toBe("claude-opus-5");
+    expect(mocked.planProviderSwitch).toHaveBeenCalledWith("space-lab", "anthropic");
+    await waitFor(() => {
+      expect(screen.getByTestId<HTMLSelectElement>("space-model").value).toBe("claude-sonnet-5");
+    });
+    // Nothing to move, so nothing asked.
+    expect(screen.queryByTestId("switch-plan")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Save space" }));
     await waitFor(() => {
-      expect(mocked.updateSpace).toHaveBeenLastCalledWith("space-lab", { provider: "anthropic", model: "claude-opus-5" });
+      expect(mocked.updateSpace).toHaveBeenLastCalledWith("space-lab", { provider: "anthropic", model: "claude-sonnet-5" });
     });
+  });
+
+  it("offers to move the agents a switch would strand, and moves only the ticked ones", async () => {
+    /* An agent naming the old provider, or one of its models, would keep
+       asking that provider after the switch. Each is listed with its mapped
+       model, ticked; unticking one leaves it where it is. */
+    const user = userEvent.setup();
+    mocked.listProviders.mockResolvedValue(twoProviders);
+    mocked.planProviderSwitch.mockResolvedValue({
+      provider: "anthropic",
+      model: "claude-opus-5-5",
+      agents: [
+        { id: "a1", name: "scanner", provider: "ollama", model: "qwen3:4b", to_model: "claude-opus-5-5" },
+        { id: "a2", name: "writer", provider: null, model: "llama3", to_model: "claude-opus-5-5" },
+      ],
+    });
+    mocked.updateAgent.mockImplementation((id) => Promise.resolve({ id } as Awaited<ReturnType<typeof api.updateAgent>>));
+    const { rerender } = render(<SpaceSettingsView space={lab} settings={settings} onChanged={vi.fn()} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("space-provider").textContent).toContain("Anthropic");
+    });
+
+    await user.selectOptions(screen.getByTestId("space-provider"), "anthropic");
+    const plan = await screen.findByTestId("switch-plan");
+    expect(plan.textContent).toContain("scanner");
+    expect(plan.textContent).toContain("Claude Opus 5.5");
+    await user.click(screen.getByRole("checkbox", { name: /writer/ }));
+    await user.click(screen.getByRole("button", { name: "Save space" }));
+
+    await waitFor(() => {
+      expect(mocked.updateAgent).toHaveBeenCalledWith("a1", { provider: "anthropic", model: "claude-opus-5-5" });
+    });
+    expect(mocked.updateAgent).toHaveBeenCalledTimes(1);
+
+    // The shell reloads the space, which resets the form; the notice survives it.
+    rerender(
+      <SpaceSettingsView
+        space={{ ...lab, provider: "anthropic", model: "claude-opus-5-5", updated_at: "2026-09-12T00:00:01Z" }}
+        settings={settings}
+        onChanged={vi.fn()}
+      />,
+    );
+    expect((await screen.findByTestId("space-saved")).textContent).toContain("1 agent moved to Anthropic");
   });
 
   it("shows the inherited values as placeholders, never as the space's own", () => {

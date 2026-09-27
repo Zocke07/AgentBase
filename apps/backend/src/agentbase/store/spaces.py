@@ -112,7 +112,10 @@ class Space(BaseModel):
     id: str
     name: str
     description: str = ""
-    #: ``None`` inherits the app-wide default. The two are independent.
+    #: The space's own provider and model; agents may name their own. Every
+    #: row names a provider since migration 016, and ``None`` there is a row
+    #: from before it, run on the app-wide provider. A ``None`` model is an
+    #: Ollama model nobody has typed yet.
     provider: str | None = None
     model: str | None = None
     #: ``None`` inherits the app-wide policy; a list narrows it.

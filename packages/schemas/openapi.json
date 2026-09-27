@@ -101,6 +101,61 @@
         "title": "AgentDef",
         "type": "object"
       },
+      "AgentMove": {
+        "description": "One agent a provider switch would leave on the old provider's model.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "to_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Model"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "provider",
+          "model",
+          "to_model"
+        ],
+        "title": "AgentMove",
+        "type": "object"
+      },
       "ApprovalResponse": {
         "description": "One approval, as the dialog renders it.",
         "properties": {
@@ -1620,6 +1675,46 @@
         "title": "MergeMemoriesRequest",
         "type": "object"
       },
+      "ModelEntry": {
+        "description": "One selectable model: where it sits in the lineup and what it costs.",
+        "properties": {
+          "current": {
+            "title": "Current",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "input_micros_per_million": {
+            "title": "Input Micros Per Million",
+            "type": "integer"
+          },
+          "output_micros_per_million": {
+            "title": "Output Micros Per Million",
+            "type": "integer"
+          },
+          "tier": {
+            "enum": [
+              "frontier",
+              "strong",
+              "balanced",
+              "fast"
+            ],
+            "title": "Tier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tier",
+          "current",
+          "input_micros_per_million",
+          "output_micros_per_million"
+        ],
+        "title": "ModelEntry",
+        "type": "object"
+      },
       "MoveNoteRequest": {
         "properties": {
           "source": {
@@ -1763,6 +1858,16 @@
       "ProviderCatalogueResponse": {
         "description": "What can be selected, and which models are priced, per provider.",
         "properties": {
+          "catalog": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/ModelEntry"
+              },
+              "type": "array"
+            },
+            "title": "Catalog",
+            "type": "object"
+          },
           "models": {
             "additionalProperties": {
               "items": {
@@ -1783,7 +1888,8 @@
         },
         "required": [
           "providers",
-          "models"
+          "models",
+          "catalog"
         ],
         "title": "ProviderCatalogueResponse",
         "type": "object"
@@ -1821,6 +1927,40 @@
           "free_text_model"
         ],
         "title": "ProviderEntry",
+        "type": "object"
+      },
+      "ProviderSwitchPlan": {
+        "description": "What moving a space to ``provider`` would change, before it is saved.",
+        "properties": {
+          "agents": {
+            "items": {
+              "$ref": "#/components/schemas/AgentMove"
+            },
+            "title": "Agents",
+            "type": "array"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "agents"
+        ],
+        "title": "ProviderSwitchPlan",
         "type": "object"
       },
       "ResolveApprovalRequest": {
@@ -3016,7 +3156,7 @@
       },
       "UpdateSpaceRequest": {
         "additionalProperties": false,
-        "description": "A partial update. ``None`` means \"inherit\", so `model_fields_set` tells it from \"not sent\".",
+        "description": "A partial update. ``None`` means \"inherit\", so `model_fields_set` tells it from \"not sent\".\n\nThe provider cannot be cleared: a space names its own.",
         "properties": {
           "archived": {
             "anyOf": [
@@ -3610,7 +3750,7 @@
             "type": "integer"
           },
           "model": {
-            "default": "claude-opus-5",
+            "default": "claude-opus-5-5",
             "title": "Model",
             "type": "string"
           },
@@ -6033,6 +6173,55 @@
           }
         },
         "summary": "Search Knowledge"
+      }
+    },
+    "/spaces/{space_id}/provider-switch": {
+      "get": {
+        "description": "Preview a provider switch: the space's mapped model and the agents it strands.\n\nAn agent that names the old provider, or a model while following the\nspace's provider, would ask the new provider for a model it does not\nserve. Space settings lists these with their tier-mapped models and moves\nthe ones the person keeps ticked, through the ordinary agent update.",
+        "operationId": "plan_provider_switch_spaces__space_id__provider_switch_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "provider",
+            "required": true,
+            "schema": {
+              "title": "Provider",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderSwitchPlan"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Plan Provider Switch"
       }
     },
     "/spaces/{space_id}/seed": {

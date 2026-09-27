@@ -103,7 +103,7 @@ beforeEach(() => {
   mocked.getChannels.mockResolvedValue([]);
   mocked.listAgents.mockResolvedValue([]);
   mocked.listTools.mockResolvedValue([]);
-  mocked.listProviders.mockResolvedValue({ providers: [], models: {} });
+  mocked.listProviders.mockResolvedValue({ providers: [], models: {}, catalog: {} });
   mocked.listFiles.mockResolvedValue({ files: [] });
   mocked.getRunHistory.mockResolvedValue([]);
   mocked.listRuns.mockResolvedValue([row("running")]);

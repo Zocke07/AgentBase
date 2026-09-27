@@ -129,31 +129,75 @@ def test_a_rule_can_be_set_and_set_back_to_inherit(client: TestClient) -> None:
     assert inherited.json()["model"] == "gpt-5"
 
 
-def test_a_space_always_names_its_model(client: TestClient) -> None:
-    """Settings picks the provider; the model is the space's. A space made
-    without one starts on the provider's default, a model set to null lands
-    there again, and a change of provider brings that provider's default."""
+def test_a_space_names_its_own_provider_and_model(client: TestClient) -> None:
+    """Settings' provider is only where a new space starts (2026-09-27). A space
+    made without one takes it and keeps it; nothing clears it afterwards."""
     lab = _create(client, "Lab")
-    assert lab["provider"] is None
-    assert lab["model"] == "claude-opus-5"
+    assert (lab["provider"], lab["model"]) == ("anthropic", "claude-opus-5-5")
 
     own = _create(client, "Own", provider="openai", model="gpt-5.4")
     assert (own["provider"], own["model"]) == ("openai", "gpt-5.4")
 
-    moved = client.patch(f"/spaces/{lab['id']}", json={"provider": "openai"})
-    assert moved.json()["model"] == "gpt-5.5"
+    # Moving the app-wide provider moves new spaces only.
+    assert client.patch("/settings", json={"provider": "openai"}).status_code == 200
+    assert client.get(f"/spaces/{lab['id']}").json()["provider"] == "anthropic"
+    later = _create(client, "Later")
+    assert (later["provider"], later["model"]) == ("openai", "gpt-6-sol")
 
-    reset = client.patch(f"/spaces/{lab['id']}", json={"model": None})
-    assert reset.json()["model"] == "gpt-5.5"
+    cleared = client.patch(f"/spaces/{lab['id']}", json={"provider": None})
+    assert cleared.status_code == 400
+    assert cleared.json()["detail"]["field"] == "provider"
 
-    back = client.patch(f"/spaces/{lab['id']}", json={"provider": None})
-    assert (back.json()["provider"], back.json()["model"]) == (None, "claude-opus-5")
+    reset = client.patch(f"/spaces/{own['id']}", json={"model": None})
+    assert reset.json()["model"] == "gpt-6-sol"
 
-    # Ollama's model is typed, so a space moved there keeps what it had until then.
+    # Ollama's model is typed.
     typed = client.patch(
         f"/spaces/{lab['id']}", json={"provider": "ollama", "model": "qwen3:4b"}
     )
     assert typed.json()["model"] == "qwen3:4b"
+
+
+def test_a_provider_switch_keeps_the_models_tier(client: TestClient) -> None:
+    """A switch without a model maps the model through its tier, not to the new
+    provider's default: a space on a fast model stays on a fast one."""
+    lab = _create(client, "Lab", model="claude-haiku-4-5")
+
+    moved = client.patch(f"/spaces/{lab['id']}", json={"provider": "openai"})
+    assert moved.json()["model"] == "gpt-6-luna"
+
+    back = client.patch(f"/spaces/{lab['id']}", json={"provider": "anthropic"})
+    assert back.json()["model"] == "claude-haiku-4-5"
+
+
+def test_a_switch_preview_lists_the_agents_left_on_the_old_provider(client: TestClient) -> None:
+    """The shipped roster names Anthropic models, so a space switched to OpenAI
+    would leave each one asking Anthropic. The preview maps each by tier and
+    changes nothing itself."""
+    url = f"/spaces/{DEFAULT_SPACE_ID}/provider-switch"
+    plan = client.get(url, params={"provider": "openai"})
+    assert plan.status_code == 200, plan.text
+    body = plan.json()
+    assert body["model"] == "gpt-6-sol"
+    moves = {agent["name"]: agent["to_model"] for agent in body["agents"]}
+    assert moves["news-scanner"] == "gpt-6-luna"
+    assert moves["bull-architect"] == "gpt-6-sol"
+    # Opus has no GPT-6 counterpart; Sol, by the maintainer's choice.
+    assert moves["decision"] == "gpt-6-sol"
+    assert len(moves) == 10
+
+    assert client.get(f"/spaces/{DEFAULT_SPACE_ID}").json()["provider"] == "anthropic"
+    assert client.get(url, params={"provider": "anthropic"}).json()["agents"] == []
+    assert client.get(url, params={"provider": "nope"}).status_code == 400
+
+    # A starter role names nothing and follows its space: never listed.
+    lab = _create(client, "Lab")
+    assert (
+        client.get(
+            f"/spaces/{lab['id']}/provider-switch", params={"provider": "openai"}
+        ).json()["agents"]
+        == []
+    )
 
 
 def test_refusals_name_the_field(client: TestClient) -> None:

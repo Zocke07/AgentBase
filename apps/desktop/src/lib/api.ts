@@ -23,6 +23,7 @@ import type {
   MemoryMergeResult,
   MemoryStatus,
   ProviderCatalogueResponse,
+  ProviderSwitchPlan,
   Run,
   SchedulePreview,
   ScheduleResponse,
@@ -177,10 +178,18 @@ export const createSpace = (body: CreateSpaceRequest): Promise<SpaceResponse> =>
 /**
  * Change a space. A PATCH: fields left out are untouched, and a rule sent as
  * `null` goes back to inheriting the app-wide default, which is why this
- * cannot drop nulls the way `updateSettings` does.
+ * cannot drop nulls the way `updateSettings` does. The provider is the
+ * exception: a space names its own, and a null one is refused.
  */
 export const updateSpace = (id: string, body: UpdateSpaceRequest): Promise<SpaceResponse> =>
   request<SpaceResponse>(`/spaces/${id}`, { method: "PATCH", ...asJson(body) });
+
+/**
+ * What moving a space to `provider` would change, before anything is saved:
+ * its model mapped by tier, and the agents left naming the old provider.
+ */
+export const planProviderSwitch = (spaceId: string, provider: string): Promise<ProviderSwitchPlan> =>
+  request<ProviderSwitchPlan>(`/spaces/${spaceId}/provider-switch${query({ provider })}`);
 
 /** Delete an empty space and its agents. A 409 names why not: the default, or runs. */
 export const deleteSpace = (id: string): Promise<void> =>

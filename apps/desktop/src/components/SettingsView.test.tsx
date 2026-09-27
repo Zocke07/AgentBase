@@ -86,6 +86,7 @@ beforeEach(() => {
       { name: "openai", requires_key: true, free_text_model: false },
     ],
     models: { anthropic: ["claude-opus-5", "claude-sonnet-5"], ollama: [], openai: ["gpt-4o"] },
+    catalog: {},
   });
   mocked.verifySettings.mockResolvedValue({ ok: true, provider: "anthropic", model: "claude-opus-5" });
   mocked.listTools.mockResolvedValue([

@@ -78,6 +78,7 @@ MIGRATION_FILES: tuple[tuple[int, str], ...] = (
     (13, "013_news_scanner_reads.sql"),
     (14, "014_run_cost_limit.sql"),
     (15, "015_news_feed_reader.sql"),
+    (16, "016_space_providers_and_opus_5_5.sql"),
 )
 
 #: The migrations that rebuild a table other tables reference. See

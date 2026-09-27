@@ -58,6 +58,7 @@ beforeEach(() => {
   mocked.listProviders.mockResolvedValue({
     providers: [{ name: "ollama", requires_key: false, free_text_model: true }],
     models: { ollama: [] },
+    catalog: {},
   });
 });
 

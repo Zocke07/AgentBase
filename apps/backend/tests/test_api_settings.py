@@ -45,7 +45,7 @@ def test_settings_start_at_the_documented_defaults(client: TestClient) -> None:
     body = client.get("/settings").json()
 
     assert body["settings"]["provider"] == "anthropic"
-    assert body["settings"]["model"] == "claude-opus-5"
+    assert body["settings"]["model"] == "claude-opus-5-5"
     assert body["settings"]["monthly_cap_micros"] == DEFAULT_MONTHLY_CAP_MICROS
 
 
@@ -432,12 +432,12 @@ def test_the_approval_policy_can_actually_be_set(client: TestClient) -> None:
 
 
 def test_the_app_wide_model_follows_the_provider(client: TestClient) -> None:
-    """Settings no longer chooses a model, only a provider; the fallback model
-    a space without one would inherit moves with the provider so it can
+    """Settings chooses no model, only where a new space starts; the fallback
+    behind a space row that names none moves with the provider so it can
     never name another provider's model. A model sent explicitly still wins."""
     moved = client.patch("/settings", json={"provider": "openai"})
     assert moved.status_code == 200, moved.text
-    assert moved.json()["settings"]["model"] == "gpt-5.5"
+    assert moved.json()["settings"]["model"] == "gpt-6-sol"
 
     explicit = client.patch(
         "/settings", json={"provider": "anthropic", "model": "claude-sonnet-5"}
@@ -448,28 +448,61 @@ def test_the_app_wide_model_follows_the_provider(client: TestClient) -> None:
     assert same.json()["settings"]["model"] == "claude-sonnet-5"
 
 
-def test_a_provider_change_moves_inheriting_spaces_to_its_default_model(
-    client: TestClient,
-) -> None:
-    """A space that inherits the provider was naming a model of the old one,
-    which the new one cannot run; it moves to the new provider's default. A
-    space with a provider of its own is left alone."""
+def test_a_provider_change_moves_no_space(client: TestClient) -> None:
+    """Every space names its provider (migration 016), so the app-wide one is
+    only where the next new space starts. Before 2026-09-27 a change here
+    moved every inheriting space to the new provider's default model."""
     from agentbase.store.spaces import DEFAULT_SPACE_ID
 
     own = client.post("/spaces", json={"name": "Own", "provider": "anthropic"}).json()
-    assert client.get("/spaces").json()[0]["model"] == "claude-opus-5"
+    before = {
+        space["id"]: (space["provider"], space["model"])
+        for space in client.get("/spaces").json()
+    }
+    assert before[DEFAULT_SPACE_ID] == ("anthropic", "claude-opus-5-5")
 
     client.patch("/settings", json={"provider": "openai"})
-    spaces = {space["id"]: space for space in client.get("/spaces").json()}
-    assert spaces[DEFAULT_SPACE_ID]["model"] == "gpt-5.5"
-    assert spaces[own["id"]]["model"] == "claude-opus-5"
-
     client.patch("/settings", json={"provider": "ollama"})
-    assert client.get(f"/spaces/{DEFAULT_SPACE_ID}").json()["model"] is None
+
+    after = {
+        space["id"]: (space["provider"], space["model"])
+        for space in client.get("/spaces").json()
+    }
+    assert after == before
+    assert after[own["id"]] == ("anthropic", "claude-opus-5-5")
 
     catalogue = client.get("/settings/providers").json()
     defaults = {entry["name"]: entry["default_model"] for entry in catalogue["providers"]}
-    assert defaults == {"anthropic": "claude-opus-5", "openai": "gpt-5.5", "ollama": None}
+    assert defaults == {"anthropic": "claude-opus-5-5", "openai": "gpt-6-sol", "ollama": None}
+
+
+def test_the_catalogue_lists_the_current_lineup_first_with_tier_and_price(
+    client: TestClient,
+) -> None:
+    """Pickers read this order and these figures instead of an alphabetical
+    list: the current lineup first, older models still sold after it."""
+    catalogue = client.get("/settings/providers").json()
+    anthropic = catalogue["catalog"]["anthropic"]
+    assert [entry["id"] for entry in anthropic[:4]] == [
+        "claude-fable-5-1",
+        "claude-opus-5-5",
+        "claude-sonnet-5",
+        "claude-haiku-4-5",
+    ]
+    assert all(entry["current"] for entry in anthropic[:4])
+    assert not any(entry["current"] for entry in anthropic[4:])
+    opus = next(entry for entry in anthropic if entry["id"] == "claude-opus-5-5")
+    assert (
+        opus["tier"],
+        opus["input_micros_per_million"],
+        opus["output_micros_per_million"],
+    ) == (
+        "strong",
+        4_000_000,
+        20_000_000,
+    )
+    assert catalogue["models"]["openai"][:3] == ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna"]
+    assert catalogue["catalog"]["ollama"] == []
 
 
 def test_per_tool_answers_can_be_set_and_name_only_real_tools(client: TestClient) -> None:

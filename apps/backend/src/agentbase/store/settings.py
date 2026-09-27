@@ -40,22 +40,25 @@ __all__ = [
 #: loop is survivable.
 DEFAULT_MONTHLY_CAP_MICROS: Final[int] = 20_000_000
 
-#: Default provider and model for a fresh install.
+#: Default provider and model for a fresh install. The app-wide provider is
+#: only where a new space starts; each space names its own provider and model.
 DEFAULT_PROVIDER: Final[str] = "anthropic"
-DEFAULT_MODEL: Final[str] = "claude-opus-5"
+DEFAULT_MODEL: Final[str] = "claude-opus-5-5"
 
-#: The model a space starts with on each provider, and the one the app-wide
-#: fallback follows when the provider changes. Ollama's is typed by the user,
-#: so it has none. Migration 012 carries the same table for existing rows.
+#: The model a new space starts with on each provider, and the one the
+#: app-wide fallback follows when the provider changes: each provider's
+#: current model at `catalog.DEFAULT_TIER`, which a test holds them to.
+#: Ollama's is typed by the user, so it has none. Migrations 012 and 016
+#: carry the table of their day for existing rows.
 DEFAULT_MODELS: Final[dict[str, str | None]] = {
     "anthropic": DEFAULT_MODEL,
-    "openai": "gpt-5.5",
+    "openai": "gpt-6-sol",
     "ollama": None,
 }
 
 
 def default_model_for(provider: str) -> str | None:
-    """The model a space on ``provider`` starts with; ``None`` where it must be typed."""
+    """The model a new space on ``provider`` starts with; ``None`` where it must be typed."""
     return DEFAULT_MODELS.get(provider)
 
 

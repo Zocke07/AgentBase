@@ -64,7 +64,8 @@ ROSTER: Final[dict[str, tuple[str, tuple[str, ...], int, tuple[str, ...]]]] = {
         ("low",),
     ),
     "risk-manager": ("claude-sonnet-5", ("read_file", "list_dir", "write_file"), 10, ("low",)),
-    "decision": ("claude-opus-5", ("read_file", "list_dir", "write_file"), 8, ("low",)),
+    # Seeded on Opus 5; migration 016 moves the untouched row to Opus 5.5.
+    "decision": ("claude-opus-5-5", ("read_file", "list_dir", "write_file"), 8, ("low",)),
     "review-analyst": (
         "claude-sonnet-5",
         ("read_file", "list_dir", "write_file", "propose_memory"),
@@ -358,3 +359,111 @@ def test_migration_015_preserves_an_edited_scanner(app_paths: AppPaths, edited: 
 
     assert scanner["system_prompt"] == original["system_prompt"]
     assert scanner["allowed_tools"] == original["allowed_tools"]
+
+
+def _at_version_fifteen(app_paths: AppPaths) -> Database:
+    """A database migrated through the v0.4.7 schema only."""
+    original = db_module.MIGRATIONS
+    db_module.MIGRATIONS = tuple(migration for migration in original if migration.version <= 15)
+    database = Database(app_paths.db_path)
+    try:
+        database.connect()
+        assert database.schema_version == 15
+    finally:
+        db_module.MIGRATIONS = original
+    return database
+
+
+def test_migration_016_writes_each_space_the_provider_it_ran_on(app_paths: AppPaths) -> None:
+    """From 016 a space owns its provider: an inheriting one keeps running on
+    the app-wide provider of the day, now written into its row."""
+    before = _at_version_fifteen(app_paths)
+    try:
+        with before.write() as connection:
+            connection.execute(
+                "INSERT INTO settings (key, value, updated_at) VALUES ('provider', ?, 't')",
+                ('"openai"',),
+            )
+            # What moving the app-wide provider did to an inheriting space before 016.
+            connection.execute(
+                "UPDATE spaces SET model = 'gpt-5.5' WHERE id = ?", (DEFAULT_SPACE_ID,)
+            )
+            for space_id, provider, model in (
+                ("a", None, "gpt-5.5"),
+                ("b", "ollama", "qwen3:4b"),
+                ("c", "anthropic", "claude-sonnet-5"),
+            ):
+                connection.execute(
+                    "INSERT INTO spaces (id, name, provider, model, created_at, updated_at)"
+                    " VALUES (?, ?, ?, ?, 't', 't')",
+                    (space_id, space_id.upper(), provider, model),
+                )
+    finally:
+        before.close()
+
+    after = Database(app_paths.db_path)
+    after.connect()
+    try:
+        with after.read() as connection:
+            rows = connection.execute("SELECT id, provider, model FROM spaces").fetchall()
+    finally:
+        after.close()
+
+    assert {row["id"]: (row["provider"], row["model"]) for row in rows} == {
+        DEFAULT_SPACE_ID: ("openai", "gpt-5.5"),
+        "a": ("openai", "gpt-5.5"),
+        "b": ("ollama", "qwen3:4b"),
+        "c": ("anthropic", "claude-sonnet-5"),
+    }
+
+
+def test_migration_016_moves_what_nobody_chose_from_opus_5_to_opus_5_5(
+    app_paths: AppPaths,
+) -> None:
+    """Anthropic spaces on Opus 5 and the untouched shipped decision agent move
+    to Opus 5.5; an edited shipped agent and one a person made keep Opus 5."""
+    before = _at_version_fifteen(app_paths)
+    try:
+        with before.write() as connection:
+            connection.execute(
+                "INSERT INTO spaces (id, name, provider, model, created_at, updated_at)"
+                " VALUES ('lab', 'Lab', 'anthropic', 'claude-opus-5', 't', 't')"
+            )
+            connection.execute(
+                "UPDATE agent_defs SET role = 'Mine now.', updated_at = 'later'"
+                " WHERE name = 'risk-manager'"
+            )
+            connection.execute(
+                "UPDATE agent_defs SET model = 'claude-opus-5' WHERE name = 'risk-manager'"
+            )
+            connection.execute(
+                "INSERT INTO agent_defs (id, space_id, name, role, system_prompt, provider,"
+                " model, allowed_tools, max_steps, auto_approve, is_builtin, enabled,"
+                " created_at, updated_at) VALUES ('own', ?, 'mine', 'r', 'p', 'anthropic',"
+                " 'claude-opus-5', '[]', 5, '[]', 0, 1, 't', 't')",
+                (DEFAULT_SPACE_ID,),
+            )
+    finally:
+        before.close()
+
+    after = Database(app_paths.db_path)
+    after.connect()
+    try:
+        roster = _roster(after)
+        with after.read() as connection:
+            spaces = {
+                row["id"]: row["model"]
+                for row in connection.execute("SELECT id, model FROM spaces").fetchall()
+            }
+            fallback = connection.execute(
+                "SELECT value FROM settings WHERE key = 'model'"
+            ).fetchone()
+    finally:
+        after.close()
+
+    assert spaces == {DEFAULT_SPACE_ID: "claude-opus-5-5", "lab": "claude-opus-5-5"}
+    assert roster["decision"]["model"] == "claude-opus-5-5"
+    assert roster["risk-manager"]["model"] == "claude-opus-5"
+    assert roster["mine"]["model"] == "claude-opus-5"
+    # No stored app-wide model on a fresh database: nothing to follow.
+    assert fallback is None

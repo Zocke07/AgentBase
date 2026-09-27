@@ -19,6 +19,7 @@ import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
 import { openChatGPTAuthUrl } from "../lib/external";
 import { revealAvailable, revealFolder } from "../lib/folder";
+import { providerLabel } from "../lib/format";
 import { clearSecret, keychainAvailable, setSecret } from "../lib/keychain";
 import { restartApp, restartAvailable } from "../lib/shell";
 import { THEMES, useThemeStore, type Theme } from "../lib/theme";
@@ -73,7 +74,7 @@ const MICROS_PER_DOLLAR = 1_000_000;
 /** The key for a refusal the server did not attribute to a field. */
 const FORM = "__form__";
 
-const EMPTY_CATALOGUE: ProviderCatalogueResponse = { providers: [], models: {} };
+const EMPTY_CATALOGUE: ProviderCatalogueResponse = { providers: [], models: {}, catalog: {} };
 const NO_CHANNELS: ChannelStatusResponse[] = [];
 const NO_TOOLS: ToolResponse[] = [];
 
@@ -317,8 +318,8 @@ function SettingsForm({
       <section className="settings__section" id="settings-provider">
         <h2>Provider</h2>
         <p className="settings__hint">
-          Which company&apos;s AI your agents use. Each space picks the exact model in Space settings,
-          and an agent can pick its own.
+          Which company&apos;s AI a new space starts with. After that each space keeps its own provider
+          and model (Space settings), and an agent can pick its own, so changing this moves none of them.
         </p>
         {catalogueError !== null && (
           <p className="settings__error" role="alert">
@@ -327,7 +328,7 @@ function SettingsForm({
         )}
         <div className="editor__row">
           <label className="editor__field">
-            <span>Provider</span>
+            <span>New spaces use</span>
             <select
               value={form.provider}
               onChange={(changed) => {
@@ -338,7 +339,7 @@ function SettingsForm({
             >
               {catalogue.providers.map((entry) => (
                 <option key={entry.name} value={entry.name}>
-                  {entry.name}
+                  {providerLabel(entry.name)}
                   {entry.requires_key ? "" : " (no key needed)"}
                 </option>
               ))}
@@ -347,7 +348,9 @@ function SettingsForm({
           </label>
         </div>
 
-        {freeText && (
+        {/* Every provider's connection, whatever new spaces use: a space may
+            be on any of them. */}
+        {(freeText || catalogue.providers.some((entry) => entry.free_text_model)) && (
           <label className="editor__field">
             <span>Ollama address</span>
             <input
@@ -358,11 +361,14 @@ function SettingsForm({
               aria-invalid={errorFor("ollama_base_url") !== null}
               data-testid="setting-ollama-url"
             />
+            <span className="editor__hint editor__hint--field">
+              Only for spaces that run models on this computer with Ollama.
+            </span>
             <FieldError field="ollama_base_url" message={errorFor("ollama_base_url")} />
           </label>
         )}
 
-        {form.provider === "openai" && (
+        {catalogue.providers.some((entry) => entry.name === "openai") && (
           <fieldset className="editor__tools" data-testid="openai-access">
             <legend>OpenAI access</legend>
             <label className="editor__tool">
@@ -392,7 +398,7 @@ function SettingsForm({
               <span className="editor__tool-description">Your personal monthly plan</span>
             </label>
             <p className="settings__hint">
-              Both modes use the same OpenAI provider, the spaces' model choices, agent loop, tool approvals,
+              For every space on OpenAI. Both modes use the same OpenAI provider, the spaces&apos; model choices, agent loop, tool approvals,
               event log, and limits. Subscription calls count at the model&apos;s API-equivalent price
               only for AgentBase&apos;s safety cap; they are not API charges.
             </p>

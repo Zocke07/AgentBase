@@ -1,5 +1,6 @@
 import type {
   ProviderCatalogueResponse,
+  ProviderSwitchPlan,
   RiskLevel,
   SettingsResponse,
   SpaceResponse,
@@ -7,13 +8,16 @@ import type {
   ToolResponse,
   UpdateSpaceRequest,
 } from "@agentbase/schemas";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
 import { revealFolder, revealAvailable } from "../lib/folder";
+import { modelLabel, providerLabel } from "../lib/format";
+import { useRoster } from "../state/roster";
 import { useFetched } from "../state/useFetched";
 
+import { ModelOptions } from "./ModelOptions";
 import { Schedules } from "./Schedules";
 
 /**
@@ -60,7 +64,7 @@ const LIMIT_LABEL: Record<(typeof LIMITS)[number], string> = {
   max_run_seconds: "Seconds per run",
 };
 const FORM = "__form__";
-const EMPTY_CATALOGUE: ProviderCatalogueResponse = { providers: [], models: {} };
+const EMPTY_CATALOGUE: ProviderCatalogueResponse = { providers: [], models: {}, catalog: {} };
 const NO_TOOLS: ToolResponse[] = [];
 
 const POLICY_WORD: Record<ToolPolicy, string> = {
@@ -85,11 +89,12 @@ function limitText(value: number | null | undefined): string {
   return value === null || value === undefined ? "" : String(value);
 }
 
-function fromSpace(space: SpaceResponse): Form {
+/** A row from before migration 016 may name no provider: it ran on the app-wide one. */
+function fromSpace(space: SpaceResponse, appProvider: string): Form {
   return {
     name: space.name,
     description: space.description ?? "",
-    provider: space.provider ?? "",
+    provider: space.provider ?? appProvider,
     model: space.model ?? "",
     auto_approve: space.auto_approve === undefined || space.auto_approve === null ? null : [...space.auto_approve],
     tool_policies: space.tool_policies === undefined || space.tool_policies === null ? null : { ...space.tool_policies },
@@ -115,7 +120,7 @@ function diff(opened: Form, form: Form): UpdateSpaceRequest {
   const patch: UpdateSpaceRequest = {};
   if (form.name !== opened.name) patch.name = form.name.trim();
   if (form.description !== opened.description) patch.description = form.description.trim();
-  if (form.provider !== opened.provider) patch.provider = form.provider === "" ? null : form.provider;
+  if (form.provider !== opened.provider) patch.provider = form.provider;
   if (form.model !== opened.model) patch.model = form.model.trim() === "" ? null : form.model.trim();
   if (JSON.stringify(form.auto_approve) !== JSON.stringify(opened.auto_approve)) {
     patch.auto_approve = form.auto_approve;
@@ -139,8 +144,9 @@ export function SpaceSettingsView({ space, settings, onChanged, onOpenRun }: Spa
   const tools = useFetched(loadTools, NO_TOOLS);
   // Held above the form: a save reloads the space list, the row's
   // `updated_at` changes, and the form remounts from it, which would lose a
-  // "saved" note kept inside it before it was read.
-  const [saved, setSaved] = useState(false);
+  // "saved" note kept inside it before it was read, or what became of the
+  // agents a provider switch moved.
+  const [saved, setSaved] = useState<string | null>(null);
 
   return (
     <div className="settings">
@@ -154,10 +160,11 @@ export function SpaceSettingsView({ space, settings, onChanged, onOpenRun }: Spa
           tools={tools.data}
           saved={saved}
           onEdited={() => {
-            setSaved(false);
+            setSaved(null);
           }}
+          onSaved={setSaved}
           onChanged={(changed) => {
-            setSaved(changed !== null);
+            if (changed === null) setSaved(null);
             onChanged(changed);
           }}
         />
@@ -175,14 +182,17 @@ function SpaceForm({
   tools,
   saved,
   onEdited,
+  onSaved,
   onChanged,
 }: SpaceSettingsViewProps & {
   catalogue: ProviderCatalogueResponse;
   tools: readonly ToolResponse[];
-  saved: boolean;
+  /** What the last save did, in a sentence; null before one. */
+  saved: string | null;
   onEdited: () => void;
+  onSaved: (notice: string) => void;
 }) {
-  const [opened] = useState<Form>(() => fromSpace(space));
+  const [opened] = useState<Form>(() => fromSpace(space, settings?.settings.provider ?? ""));
   const [form, setForm] = useState<Form>(opened);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
   const [saving, setSaving] = useState(false);
@@ -198,11 +208,43 @@ function SpaceForm({
   const patch = diff(opened, form);
   const dirty = Object.keys(patch).length > 0;
   const inherited = settings?.settings;
-  // The model belongs to the provider the space runs on: its own, or the app-wide one.
-  const effectiveProvider = form.provider === "" ? (inherited?.provider ?? "") : form.provider;
-  const providerEntry = catalogue.providers.find((entry) => entry.name === effectiveProvider);
-  const knownModels = catalogue.models[effectiveProvider] ?? [];
+  // The model belongs to the provider the space runs on, which is its own.
+  const providerEntry = catalogue.providers.find((entry) => entry.name === form.provider);
+  const knownModels = catalogue.models[form.provider] ?? [];
   const freeText = providerEntry?.free_text_model ?? false;
+
+  // A provider switch, previewed before saving: the model mapped by tier, and
+  // the agents that name the old provider's models, ticked to move with it.
+  const [switchPlan, setSwitchPlan] = useState<ProviderSwitchPlan | null>(null);
+  const [planError, setPlanError] = useState<string | null>(null);
+  const [moving, setMoving] = useState<ReadonlySet<string>>(() => new Set());
+  const asked = useRef<string | null>(null);
+  const chooseProvider = (provider: string) => {
+    set("provider", provider);
+    setSwitchPlan(null);
+    setPlanError(null);
+    asked.current = provider;
+    if (provider === opened.provider) {
+      set("model", opened.model);
+      return;
+    }
+    // Stand-in until the plan answers: the provider's own default.
+    const entry = catalogue.providers.find((candidate) => candidate.name === provider);
+    set("model", entry?.default_model ?? "");
+    api
+      .planProviderSwitch(space.id, provider)
+      .then((plan) => {
+        if (asked.current !== provider) return;
+        setSwitchPlan(plan);
+        setMoving(new Set(plan.agents.map((agent) => agent.id)));
+        setForm((prior) => ({ ...prior, model: plan.model ?? "" }));
+      })
+      .catch((failure: unknown) => {
+        if (asked.current !== provider) return;
+        setPlanError(failure instanceof Error ? failure.message : String(failure));
+      });
+  };
+  const planned = switchPlan !== null && switchPlan.provider === form.provider ? switchPlan : null;
 
   const save = async () => {
     setErrors({});
@@ -224,7 +266,29 @@ function SpaceForm({
     if (!dirty) return;
     setSaving(true);
     try {
-      onChanged(await api.updateSpace(space.id, patch));
+      const updated = await api.updateSpace(space.id, patch);
+      const moves = planned === null ? [] : planned.agents.filter((agent) => moving.has(agent.id));
+      const stuck: string[] = [];
+      for (const agent of moves) {
+        try {
+          await api.updateAgent(agent.id, {
+            ...(agent.provider === null ? {} : { provider: form.provider }),
+            ...(agent.model === null ? {} : { model: agent.to_model }),
+          });
+        } catch (failure) {
+          stuck.push(`${agent.name} (${failure instanceof Error ? failure.message : String(failure)})`);
+        }
+      }
+      if (moves.length > 0) void useRoster.getState().load();
+      const moved = moves.length - stuck.length;
+      onSaved(
+        stuck.length > 0
+          ? `Saved, but ${String(stuck.length)} agent${stuck.length === 1 ? "" : "s"} could not be moved: ${stuck.join("; ")}.`
+          : moved > 0
+            ? `Saved. ${String(moved)} agent${moved === 1 ? "" : "s"} moved to ${providerLabel(form.provider)}. Applies to the next run.`
+            : "Saved. Applies to the next run.",
+      );
+      onChanged(updated);
     } catch (failure) {
       if (failure instanceof ApiError) setErrors({ [failure.field ?? FORM]: failure.message });
       else setErrors({ [FORM]: failure instanceof Error ? failure.message : String(failure) });
@@ -314,9 +378,9 @@ function SpaceForm({
       <section className="settings__section">
         <h2>Model</h2>
         <p className="settings__hint">
-          Runs in this space use this model unless an agent picks its own. The provider is the
-          app-wide one{inherited !== undefined && ` (${inherited.provider ?? "?"})`} unless this
-          space chooses another.
+          Runs in this space use this model unless an agent picks its own. Changing the provider
+          moves the model to the one at the same level there; pick another before saving if you
+          prefer. Prices are dollars per million tokens read in and written out.
         </p>
         <div className="editor__row">
           <label className="editor__field">
@@ -324,20 +388,13 @@ function SpaceForm({
             <select
               value={form.provider}
               onChange={(changed) => {
-                // A model belongs to a provider, so the choice moves with it:
-                // the new provider's first listed model, or blank to type.
-                const provider = changed.target.value;
-                const next = provider === "" ? (inherited?.provider ?? "") : provider;
-                const entry = catalogue.providers.find((candidate) => candidate.name === next);
-                set("provider", provider);
-                set("model", entry?.default_model ?? catalogue.models[next]?.[0] ?? "");
+                chooseProvider(changed.target.value);
               }}
               data-testid="space-provider"
             >
-              <option value="">Inherit{inherited !== undefined && ` (${inherited.provider ?? "?"})`}</option>
               {catalogue.providers.map((entry) => (
                 <option key={entry.name} value={entry.name}>
-                  {entry.name}
+                  {providerLabel(entry.name)}
                 </option>
               ))}
             </select>
@@ -366,19 +423,56 @@ function SpaceForm({
                 data-testid="space-model"
               >
                 {form.model !== "" && !knownModels.includes(form.model) && (
-                  <option value={form.model}>{form.model} (not in this provider&apos;s list)</option>
+                  <option value={form.model}>{modelLabel(form.model)} (not in this provider&apos;s list)</option>
                 )}
                 {form.model === "" && <option value="">choose a model</option>}
-                {knownModels.map((model) => (
-                  <option key={model} value={model}>
-                    {model}
-                  </option>
-                ))}
+                <ModelOptions entries={catalogue.catalog[form.provider]} models={knownModels} />
               </select>
             )}
             <FieldError field="model" message={errorFor("model")} />
           </label>
         </div>
+
+        {planError !== null && (
+          <p className="field-error" role="alert">
+            Could not work out what the switch would change: {planError}
+          </p>
+        )}
+        {planned !== null && planned.agents.length > 0 && (
+          <fieldset className="switch-plan" data-testid="switch-plan">
+            <legend>Also move these agents to {providerLabel(planned.provider)}?</legend>
+            <p className="settings__hint">
+              They name {providerLabel(opened.provider)} models, so left alone they keep using{" "}
+              {providerLabel(opened.provider)} and its key. Each moves to the model at the same level.
+            </p>
+            <ul className="switch-plan__list">
+              {planned.agents.map((agent) => (
+                <li key={agent.id}>
+                  <label className="switch-plan__agent">
+                    <input
+                      type="checkbox"
+                      checked={moving.has(agent.id)}
+                      onChange={(changed) => {
+                        const checked = changed.target.checked;
+                        setMoving((current) => {
+                          const next = new Set(current);
+                          if (checked) next.add(agent.id);
+                          else next.delete(agent.id);
+                          return next;
+                        });
+                      }}
+                    />
+                    <strong>{agent.name}</strong>
+                    <span className="switch-plan__models">
+                      {agent.model === null ? "the space's model" : modelLabel(agent.model)} {"→"}{" "}
+                      {agent.to_model === null ? "the space's model" : modelLabel(agent.to_model)}
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </fieldset>
+        )}
       </section>
 
       <section className="settings__section">
@@ -553,7 +647,11 @@ function SpaceForm({
       )}
 
       <div className="editor__actions settings__actions">
-        {saved && !dirty && <span className="settings__saved">Saved. Applies to the next run.</span>}
+        {saved !== null && !dirty && (
+          <span className="settings__saved" role="status" data-testid="space-saved">
+            {saved}
+          </span>
+        )}
         <button type="submit" className="button button--primary" disabled={saving || !dirty}>
           {saving ? "Saving…" : "Save space"}
         </button>

@@ -23,7 +23,7 @@ import { AgentList } from "./AgentList";
  */
 
 const NO_TOOLS: ToolResponse[] = [];
-const NO_CATALOGUE: ProviderCatalogueResponse = { providers: [], models: {} };
+const NO_CATALOGUE: ProviderCatalogueResponse = { providers: [], models: {}, catalog: {} };
 
 export interface AgentsViewProps {
   /** The provider a run in this space uses, so the editor knows what "inherit" means. */

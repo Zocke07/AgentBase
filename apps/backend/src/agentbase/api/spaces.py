@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING, Any, Literal
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
+from agentbase.providers.catalog import equivalent
+from agentbase.providers.factory import SUPPORTED_PROVIDERS
 from agentbase.store.agents import AgentDef
 from agentbase.store.settings import default_model_for
 from agentbase.store.spaces import (
@@ -42,8 +44,8 @@ class CopyFrom(BaseModel):
 class CreateSpaceRequest(BaseModel):
     name: str = Field(min_length=1, max_length=60)
     description: str = ""
-    #: The space's provider (``None`` inherits the app-wide one) and its model.
-    #: A space always has a model: left out, it starts with the provider's default.
+    #: Provider and model. A space names both: an omitted provider is the
+    #: app-wide one for new spaces, an omitted model that provider's default.
     provider: str | None = None
     model: str | None = None
     #: How the roster starts: empty, fresh copies of the three starter roles,
@@ -52,7 +54,10 @@ class CreateSpaceRequest(BaseModel):
 
 
 class UpdateSpaceRequest(BaseModel):
-    """A partial update. ``None`` means "inherit", so `model_fields_set` tells it from "not sent"."""
+    """A partial update. ``None`` means "inherit", so `model_fields_set` tells it from "not sent".
+
+    The provider cannot be cleared: a space names its own.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -98,27 +103,35 @@ def _settings(request: Request) -> SettingsStore:
 
 
 async def _with_model(request: Request, changes: dict[str, Any], current: Space | None) -> None:
-    """Give ``changes`` a model where it would otherwise leave the space without one.
+    """Fill in the provider and model a space must name.
 
-    A space always names its model, since the app-wide one is only a
-    fallback that follows the provider. A create without a model, a PATCH
-    that sets the model to null, or one that changes the provider without
-    naming a model, all land on the effective provider's default; Ollama has
-    none, and a space there keeps whatever it had until one is typed.
+    A new space without a provider starts on the app-wide one, and a PATCH
+    cannot clear it. A provider change without a model maps the current model
+    to the same tier on the new provider (`catalog.equivalent`), so a switch
+    does not jump to a different class of model. A create without a model, or
+    a null-model PATCH, takes the provider's default. Ollama models are typed,
+    so an existing space keeps its model until one is.
     """
-    provider_changing = "provider" in changes
-    model_changing = "model" in changes and changes["model"] is not None
-    if model_changing or (
-        current is not None and not provider_changing and "model" not in changes
-    ):
+    if "provider" in changes and changes["provider"] is None:
+        if current is not None:
+            raise _reject("A space names its provider. Choose one.", "provider")
+        del changes["provider"]
+    app_provider = (await _settings(request).get()).provider
+    if current is None:
+        changes.setdefault("provider", app_provider)
+    # A row from before migration 016 may still read null: it ran on the app-wide one.
+    was = (current.provider if current is not None else None) or app_provider
+    provider: str = changes.get("provider", was)
+
+    if changes.get("model") is not None:
         return
-    provider = (
-        changes.get("provider")
-        if provider_changing
-        else (current.provider if current else None)
-    )
-    if provider is None:
-        provider = (await _settings(request).get()).provider
+    if current is not None and "provider" in changes and provider != was:
+        mapped = equivalent(current.model, was, provider)
+        if mapped is not None:
+            changes["model"] = mapped
+        return
+    if current is not None and "model" not in changes:
+        return
     fallback = default_model_for(provider)
     if fallback is not None:
         changes["model"] = fallback
@@ -199,6 +212,72 @@ async def update_space(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except SpaceValidationError as exc:
         raise _reject(str(exc), exc.field) from exc
+
+
+class AgentMove(BaseModel):
+    """One agent a provider switch would leave on the old provider's model."""
+
+    id: str
+    name: str
+    #: What it names now; ``None`` follows the space.
+    provider: str | None
+    model: str | None
+    #: The model it would name after moving; ``None`` follows the space.
+    to_model: str | None
+
+
+class ProviderSwitchPlan(BaseModel):
+    """What moving a space to ``provider`` would change, before it is saved."""
+
+    provider: str
+    #: The space's model on the new provider; ``None`` where one must be typed.
+    model: str | None
+    #: Agents naming the current provider or one of its models.
+    agents: list[AgentMove]
+
+
+@router.get("/spaces/{space_id}/provider-switch")
+async def plan_provider_switch(
+    request: Request, space_id: str, provider: str
+) -> ProviderSwitchPlan:
+    """Preview a provider switch: the space's mapped model and the agents it strands.
+
+    An agent that names the old provider, or a model while following the
+    space's provider, would ask the new provider for a model it does not
+    serve. Space settings lists these with their tier-mapped models and moves
+    the ones the person keeps ticked, through the ordinary agent update.
+    """
+    if provider not in SUPPORTED_PROVIDERS:
+        raise _reject(f"unknown provider {provider!r}", "provider")
+    try:
+        space = await _spaces(request).require(space_id)
+    except SpaceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    was = space.provider or (await _settings(request).get()).provider
+    if provider == was:
+        return ProviderSwitchPlan(provider=provider, model=space.model, agents=[])
+    stranded = [
+        definition
+        for definition in await _agents(request).list_all(space_id)
+        if definition.provider == was
+        or (definition.provider is None and definition.model is not None)
+    ]
+    return ProviderSwitchPlan(
+        provider=provider,
+        model=equivalent(space.model, was, provider),
+        agents=[
+            AgentMove(
+                id=definition.id,
+                name=definition.name,
+                provider=definition.provider,
+                model=definition.model,
+                to_model=None
+                if definition.model is None
+                else equivalent(definition.model, was, provider),
+            )
+            for definition in stranded
+        ],
+    )
 
 
 @router.delete("/spaces/{space_id}", status_code=204)

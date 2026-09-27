@@ -1,3 +1,5 @@
+import type { ModelEntry } from "@agentbase/schemas";
+
 /**
  * Rendering helpers shared by the dashboard. All pure functions of their
  * argument: a relative timestamp would make the same event render differently
@@ -118,6 +120,9 @@ export function providerLabel(provider: string): string {
   }
 }
 
+/** GPT variants that name a size rather than a model. */
+const SIZE_VARIANTS: ReadonlySet<string> = new Set(["mini", "nano"]);
+
 /**
  * A model id as its maker names it: `claude-haiku-4-5` reads "Claude Haiku
  * 4.5" and `gpt-5.4-mini` reads "GPT-5.4 mini". A dated Anthropic snapshot
@@ -133,7 +138,31 @@ export function modelLabel(model: string): string {
   const gpt = /^gpt-([\d.]+[a-z]?)(?:-(.+))?$/.exec(model);
   if (gpt !== null) {
     const [, version = "", variant] = gpt;
-    return variant === undefined ? `GPT-${version}` : `GPT-${version} ${variant}`;
+    if (variant === undefined) return `GPT-${version}`;
+    // Sizes stay lower case, as OpenAI writes them; names (Astra, Sol) do not.
+    const shown = SIZE_VARIANTS.has(variant) ? variant : `${variant.charAt(0).toUpperCase()}${variant.slice(1)}`;
+    return `GPT-${version} ${shown}`;
   }
   return model;
+}
+
+/** Where a model sits in its provider's lineup, in words. */
+export const TIER_LABEL: Record<ModelEntry["tier"], string> = {
+  frontier: "flagship",
+  strong: "high",
+  balanced: "balanced",
+  fast: "fast",
+};
+
+const MICROS_PER_DOLLAR = 1_000_000;
+
+/** "$4", "$0.10", "$1.25": dollars per million tokens, cents only when there are some. */
+export function perMillion(micros: number): string {
+  const dollars = micros / MICROS_PER_DOLLAR;
+  return Number.isInteger(dollars) ? `$${String(dollars)}` : `$${dollars.toFixed(2)}`;
+}
+
+/** "Claude Opus 5.5 · high · $4 in / $20 out". */
+export function modelOptionLabel(entry: ModelEntry): string {
+  return `${modelLabel(entry.id)} · ${TIER_LABEL[entry.tier]} · ${perMillion(entry.input_micros_per_million)} in / ${perMillion(entry.output_micros_per_million)} out`;
 }

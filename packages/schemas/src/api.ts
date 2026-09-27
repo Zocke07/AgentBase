@@ -25,6 +25,15 @@ export interface AgentDef {
   updated_at: string;
 }
 
+/** One agent a provider switch would leave on the old provider's model. */
+export interface AgentMove {
+  id: string;
+  name: string;
+  provider: string | null;
+  model: string | null;
+  to_model: string | null;
+}
+
 /** One approval, as the dialog renders it. */
 export interface ApprovalResponse {
   id: string;
@@ -369,6 +378,15 @@ export interface MergeMemoriesRequest {
   title?: string | null;
 }
 
+/** One selectable model: where it sits in the lineup and what it costs. */
+export interface ModelEntry {
+  id: string;
+  tier: "frontier" | "strong" | "balanced" | "fast";
+  current: boolean;
+  input_micros_per_million: number;
+  output_micros_per_million: number;
+}
+
 export interface MoveNoteRequest {
   source: string;
   target: string;
@@ -402,6 +420,7 @@ export interface PreviewRequest {
 export interface ProviderCatalogueResponse {
   providers: ProviderEntry[];
   models: Record<string, string[]>;
+  catalog: Record<string, ModelEntry[]>;
 }
 
 /** One selectable provider. */
@@ -410,6 +429,13 @@ export interface ProviderEntry {
   requires_key: boolean;
   free_text_model: boolean;
   default_model?: string | null;
+}
+
+/** What moving a space to ``provider`` would change, before it is saved. */
+export interface ProviderSwitchPlan {
+  provider: string;
+  model: string | null;
+  agents: AgentMove[];
 }
 
 /** A decision on one approval. A misspelled field must not be read as a denial. */
@@ -617,7 +643,11 @@ export interface UpdateSettingsRequest {
   onboarding_completed?: boolean | null;
 }
 
-/** A partial update. ``None`` means "inherit", so `model_fields_set` tells it from "not sent". */
+/**
+ * A partial update. ``None`` means "inherit", so `model_fields_set` tells it from "not sent".
+ *
+ * The provider cannot be cleared: a space names its own.
+ */
 export interface UpdateSpaceRequest {
   name?: string | null;
   description?: string | null;

@@ -89,12 +89,15 @@ def _dollars_to_micros(dollars: str) -> int:
 
 
 #: List prices per million tokens, one table per provider, so the settings API
-#: can say which models belong to which. Anthropic rows checked 2026-06-24
-#: against the bundled `claude-api` reference; OpenAI rows checked 2026-09-09
-#: against developers.openai.com. Standard-tier, short-context, non-batch.
+#: can say which models belong to which. Both checked 2026-09-27: Anthropic rows
+#: against platform.claude.com/docs/en/about-claude/pricing, OpenAI rows against
+#: developers.openai.com/api/docs/pricing. Standard-tier, short-context,
+#: non-batch. `catalog.py` gives each one a tier; a model priced here and
+#: missing there fails a test.
 _ANTHROPIC: Final[dict[str, ModelPrice]] = {
     "claude-fable-5-1": _usd("10.00", "50.00"),
     "claude-fable-5": _usd("10.00", "50.00"),
+    "claude-opus-5-5": _usd("4.00", "20.00"),
     "claude-opus-5": _usd("5.00", "25.00"),
     "claude-opus-4-8": _usd("5.00", "25.00"),
     "claude-opus-4-7": _usd("5.00", "25.00"),
@@ -106,6 +109,8 @@ _ANTHROPIC: Final[dict[str, ModelPrice]] = {
 
 _OPENAI: Final[dict[str, ModelPrice]] = {
     "gpt-6-astra": _usd("10.00", "50.00"),
+    "gpt-6-sol": _usd("2.00", "10.00"),
+    "gpt-6-luna": _usd("0.10", "0.50"),
     "gpt-5.6-sol": _usd("4.00", "20.00"),
     "gpt-5.6-terra": _usd("2.00", "12.00"),
     "gpt-5.6-luna": _usd("0.20", "1.20"),
@@ -136,7 +141,8 @@ _LOCAL: Final[dict[str, ModelPrice]] = {
 
 PRICES: Final[dict[str, ModelPrice]] = {**_ANTHROPIC, **_OPENAI, **_LOCAL}
 
-#: The selectable models of each provider, derived from the same tables as ``PRICES``.
+#: The priced models of each provider, derived from the same tables as ``PRICES``.
+#: Pickers use `catalog.py`'s order instead.
 MODELS_BY_PROVIDER: Final[dict[str, list[str]]] = {
     "anthropic": sorted(_ANTHROPIC),
     "openai": sorted(_OPENAI),

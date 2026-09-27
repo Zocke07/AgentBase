@@ -9,7 +9,9 @@ import type {
 import { useEffect, useState } from "react";
 
 import { ApiError } from "../lib/api";
+import { providerLabel } from "../lib/format";
 
+import { ModelOptions } from "./ModelOptions";
 
 /**
  * Create or edit one agent definition.
@@ -308,7 +310,7 @@ export function AgentEditor({
             <option value={INHERIT}>inherit the space default</option>
             {catalogue.providers.map((entry) => (
               <option key={entry.name} value={entry.name}>
-                {entry.name}
+                {providerLabel(entry.name)}
               </option>
             ))}
           </select>
@@ -340,11 +342,10 @@ export function AgentEditor({
               data-testid="field-model"
             >
               <option value={INHERIT}>inherit the space default</option>
-              {knownModels.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
+              <ModelOptions
+                entries={effectiveProvider === null ? undefined : catalogue.catalog[effectiveProvider]}
+                models={knownModels}
+              />
               {strayModel !== null && <option value={strayModel}>{strayModel}</option>}
             </select>
           )}

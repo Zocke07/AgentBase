@@ -44,6 +44,7 @@ const CATALOGUE: ProviderCatalogueResponse = {
     ollama: [],
     openai: ["gpt-4o", "gpt-5.4-mini"],
   },
+  catalog: {},
 };
 
 /**

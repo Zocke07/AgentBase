@@ -41,6 +41,8 @@ describe("labels a person reads", () => {
     expect(modelLabel("claude-haiku-4-5-20251001")).toBe("Claude Haiku 4.5");
     expect(modelLabel("gpt-5.5")).toBe("GPT-5.5");
     expect(modelLabel("gpt-5.4-mini")).toBe("GPT-5.4 mini");
+    expect(modelLabel("gpt-6-astra")).toBe("GPT-6 Astra");
+    expect(modelLabel("claude-opus-5-5")).toBe("Claude Opus 5.5");
     expect(modelLabel("gpt-4o")).toBe("GPT-4o");
     expect(modelLabel("qwen3:4b")).toBe("qwen3:4b");
     expect(providerLabel("openai")).toBe("OpenAI");

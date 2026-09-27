@@ -5253,6 +5253,50 @@ button.md__tag:hover {
   font-size: 0.8667rem;
 }
 
+/* A space's provider switch, before saving: the agents left on the old
+   provider, each with the model it would move to. */
+.switch-plan {
+  display: grid;
+  gap: 0.5rem;
+  min-inline-size: 0;
+  margin: 0.75rem 0 0;
+  padding: 0.75rem 1rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  animation: pop-in var(--dur-base) var(--ease-out) backwards;
+}
+
+.switch-plan legend {
+  padding: 0 0.3rem;
+  font-weight: 600;
+}
+
+.switch-plan .settings__hint {
+  margin: 0;
+}
+
+.switch-plan__list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.switch-plan__agent {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.6rem;
+  align-items: baseline;
+  cursor: pointer;
+}
+
+.switch-plan__models {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
 .editor__tools {
   display: flex;
   flex-direction: column;

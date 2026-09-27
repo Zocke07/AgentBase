@@ -17,6 +17,7 @@ from agentbase.budget.ledger import current_period
 from agentbase.budget.usage import UsageReport, UsageStore
 from agentbase.channels.identity import ChannelIdentity
 from agentbase.providers.base import ProviderAuthError
+from agentbase.providers.catalog import Tier, catalog_for
 from agentbase.providers.chatgpt import ChatGPTRuntime
 from agentbase.providers.factory import (
     SUPPORTED_PROVIDERS,
@@ -24,7 +25,7 @@ from agentbase.providers.factory import (
     build_provider,
     qualified_model,
 )
-from agentbase.providers.pricing import MODELS_BY_PROVIDER, PRICES, format_micros, is_priced
+from agentbase.providers.pricing import PRICES, format_micros, is_priced
 from agentbase.secrets import SECRET_KEYS
 from agentbase.store.settings import (
     ChannelApprovalPolicy,
@@ -201,9 +202,9 @@ async def update_settings(request: Request, body: UpdateSettingsRequest) -> Sett
             f"unknown provider {changes['provider']!r}. Supported: {supported}.", "provider"
         )
     if "provider" in changes and "model" not in changes:
-        # The app-wide model is the fallback a space without one inherits, and
-        # since spaces name their own it is no longer chosen here: it follows
-        # the provider, so it can never name a model of another provider.
+        # The app-wide model only backs a space row that names none, and since
+        # spaces name their own it is not chosen here: it follows the provider,
+        # so it can never name a model of another provider.
         current = await _settings_store(request).get()
         if changes["provider"] != current.provider:
             changes["model"] = default_model_for(changes["provider"]) or ""
@@ -222,7 +223,6 @@ async def update_settings(request: Request, body: UpdateSettingsRequest) -> Sett
                     "channel_space_id",
                 )
 
-    before = await _settings_store(request).get()
     try:
         updated = await _settings_store(request).update(changes)
     except ValidationError as exc:
@@ -230,16 +230,8 @@ async def update_settings(request: Request, body: UpdateSettingsRequest) -> Sett
     except ValueError as exc:
         raise _reject(str(exc), None) from exc
 
-    # A model belongs to a provider. A space that inherits the provider was
-    # naming a model of the old one, which the new one cannot run, so each
-    # such space moves to the new provider's default; a space with a provider
-    # of its own is untouched. Ollama's model is typed, so those become blank.
-    if updated.provider != before.provider:
-        fallback = default_model_for(updated.provider)
-        spaces = _spaces(request)
-        for space in await spaces.list_all():
-            if space.provider is None:
-                await spaces.update(space.id, {"model": fallback})
+    # The app-wide provider is where a new space starts (migration 016): every
+    # space names its own, so changing it moves none of them.
 
     # A channel just enabled has to connect now; this product has no restart button.
     if changes.keys() & _CHANNEL_SETTINGS:
@@ -261,12 +253,26 @@ class ProviderEntry(BaseModel):
     default_model: str | None = None
 
 
+class ModelEntry(BaseModel):
+    """One selectable model: where it sits in the lineup and what it costs."""
+
+    id: str
+    tier: Tier
+    #: In the provider's current lineup rather than an older model still sold.
+    current: bool
+    input_micros_per_million: int
+    output_micros_per_million: int
+
+
 class ProviderCatalogueResponse(BaseModel):
     """What can be selected, and which models are priced, per provider."""
 
     providers: list[ProviderEntry]
-    #: Priced models by provider. A free-text provider's list is empty.
+    #: Priced models by provider, in picker order with the current lineup
+    #: first. A free-text provider's list is empty.
     models: dict[str, list[str]]
+    #: The same models with their tier and price.
+    catalog: dict[str, list[ModelEntry]]
 
 
 @router.get("/settings/providers")
@@ -285,7 +291,23 @@ async def list_providers() -> ProviderCatalogueResponse:
             )
             for name, secret in sorted(SUPPORTED_PROVIDERS.items())
         ],
-        models={name: MODELS_BY_PROVIDER.get(name, []) for name in sorted(SUPPORTED_PROVIDERS)},
+        models={
+            name: [entry.model for entry in catalog_for(name)]
+            for name in sorted(SUPPORTED_PROVIDERS)
+        },
+        catalog={
+            name: [
+                ModelEntry(
+                    id=entry.model,
+                    tier=entry.tier,
+                    current=entry.current,
+                    input_micros_per_million=PRICES[entry.model].input_micros_per_million,
+                    output_micros_per_million=PRICES[entry.model].output_micros_per_million,
+                )
+                for entry in catalog_for(name)
+            ]
+            for name in sorted(SUPPORTED_PROVIDERS)
+        },
     )
 
 
