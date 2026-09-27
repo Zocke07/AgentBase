@@ -463,7 +463,21 @@ export function App() {
                 {effectiveModel === null ? providerLabel(effectiveProvider) : modelLabel(effectiveModel)}
               </span>
             )}
-            <BudgetMeter budget={budget} />
+            <BudgetMeter
+              budget={budget}
+              spaceName={space?.name ?? null}
+              runLimitMicros={space?.max_run_cost_micros ?? settings?.settings.max_run_cost_micros ?? null}
+              onOpenUsage={() => {
+                setSection("usage");
+              }}
+              onOpenSettings={() => {
+                setSection("settings");
+                // The section is shown on the next frame; then go to its limits.
+                requestAnimationFrame(() => {
+                  document.getElementById("settings-budget")?.scrollIntoView({ block: "start" });
+                });
+              }}
+            />
           </div>
         </header>
 
