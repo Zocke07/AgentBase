@@ -15,6 +15,7 @@ import { Rail, type Section } from "./components/Rail";
 import { RunsView } from "./components/RunsView";
 import { SettingsView } from "./components/SettingsView";
 import { SpaceSettingsView } from "./components/SpaceSettingsView";
+import { StartupScreen } from "./components/StartupScreen";
 import { Tour } from "./components/Tour";
 import { UsageView } from "./components/UsageView";
 import { VisualizationView } from "./components/VisualizationView";
@@ -44,11 +45,17 @@ import { useStoredFlag } from "./state/useStoredFlag";
 /** How often to re-read the run list and the meter while some run is unfinished. */
 const BACKGROUND_REFRESH_MS = 5_000;
 
+/** How long the start screen waits on the first settings and spaces reads
+    once the engine answers; past it the window opens and they finish there. */
+const FIRST_LOAD_PATIENCE_MS = 10_000;
+
 export function App() {
   const [status, setStatus] = useState<SidecarStatus>({ kind: "connecting", attempt: 0 });
   const [section, setSection] = useState<Section>("home");
   const [budget, setBudget] = useState<BudgetResponse | null>(null);
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
+  // The start screen's middle stage: the first settings read has settled.
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [verified, setVerified] = useState<VerifyResponse | null>(null);
   const [pendingApprovals, setPendingApprovals] = useState<ApprovalResponse[]>([]);
   // Which run is open: held here so it survives a section switch and can be
@@ -81,6 +88,7 @@ export function App() {
 
   // Which space the window is looking at, also a fact about this window.
   const spaces = useSpaces((state) => state.spaces);
+  const spacesLoaded = useSpaces((state) => state.loaded);
   const spaceId = useSpaces((state) => state.currentId);
   const loadSpaces = useSpaces((state) => state.load);
   const selectSpace = useSpaces((state) => state.select);
@@ -129,7 +137,13 @@ export function App() {
   const refreshWorkspace = useCallback(() => {
     // The meter and the pre-flight are about the space on screen.
     void api.getBudget(spaceId ?? undefined).then(setBudget).catch(() => undefined);
-    void api.getSettings().then(setSettings).catch(() => undefined);
+    void api
+      .getSettings()
+      .then(setSettings)
+      .catch(() => undefined)
+      .finally(() => {
+        setSettingsLoaded(true);
+      });
     void api.verifySettings(spaceId ?? undefined).then(setVerified).catch(() => undefined);
     // Every question waiting anywhere, including on runs not being looked at.
     void api
@@ -320,39 +334,26 @@ export function App() {
         ? `This month's cap of ${budget.cap_display} is reached, so further runs are refused.`
         : null;
 
-  if (status.kind !== "ready") {
+  // The start screen stays until the first screen has what it is drawn from,
+  // so the window does not open half-filled; then it never comes back.
+  const [opened, setOpened] = useState(false);
+  const [impatient, setImpatient] = useState(false);
+  useEffect(() => {
+    if (status.kind !== "ready") return undefined;
+    const timer = window.setTimeout(() => {
+      setImpatient(true);
+    }, FIRST_LOAD_PATIENCE_MS);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [status.kind]);
+  if (!opened && status.kind === "ready" && ((settingsLoaded && spacesLoaded) || impatient)) {
+    setOpened(true);
+  }
+
+  if (status.kind !== "ready" || !opened) {
     return (
-      <main className="shell shell--waiting">
-        <span className="shell__logo" aria-hidden="true" />
-        <h1 className="shell__title">AgentBase</h1>
-
-        {status.kind === "connecting" && (
-          <p className="shell__status" role="status">
-            <span className="spinner" aria-hidden="true" /> Starting up
-            {status.attempt > 1 && ` (try ${String(status.attempt)})`}…
-          </p>
-        )}
-
-        {status.kind === "failed" && (
-          <>
-            <p className="shell__status" role="alert">
-              <span className="dot dot--bad" /> AgentBase could not start its engine.
-            </p>
-            <p className="shell__detail">
-              Try again in a moment. If this keeps happening, quit AgentBase and open it again.
-            </p>
-            <details className="shell__technical">
-              <summary>Technical details</summary>
-              <p>
-                No answer from <code>{status.baseUrl}</code>: {status.message}
-              </p>
-            </details>
-            <button className="button button--primary" type="button" onClick={connect}>
-              Try again
-            </button>
-          </>
-        )}
-      </main>
+      <StartupScreen status={status} settingsLoaded={settingsLoaded} spacesLoaded={spacesLoaded} onRetry={connect} />
     );
   }
 
@@ -394,7 +395,7 @@ export function App() {
           <div className="app__lost" role="alert" data-testid="sidecar-lost">
             {lost.kind === "connecting" ? <span className="spinner" aria-hidden="true" /> : <span className="dot dot--bad" />}
             {lost.kind === "connecting" &&
-              `Lost touch with AgentBase's engine. Reconnecting (attempt ${String(lost.attempt)})…`}
+              "Lost touch with AgentBase's engine. Reconnecting…"}
             {lost.kind === "failed" && `AgentBase's engine stopped answering (${lost.message}).`}
             {lost.kind === "failed" && (
               <button

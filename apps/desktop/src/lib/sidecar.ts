@@ -30,7 +30,9 @@ export interface SidecarIdentity {
 }
 
 export type SidecarStatus =
-  | { kind: "connecting"; attempt: number }
+  /** `blocked`: the last answer came from another process holding the port,
+      usually an earlier AgentBase still closing. */
+  | { kind: "connecting"; attempt: number; blocked?: boolean }
   | { kind: "ready"; health: Health; baseUrl: string }
   | { kind: "failed"; message: string; baseUrl: string };
 
@@ -73,6 +75,9 @@ export async function resolveSidecarIdentity(): Promise<SidecarIdentity> {
   }
 }
 
+/** Something other than this launch's sidecar answered on its port. */
+export class PortTakenError extends Error {}
+
 /**
  * Fetch `/health`, rejecting on anything but a well-formed 200, or, when
  * `expected` is given, on a healthy answer from the wrong process: the port is
@@ -102,7 +107,7 @@ export async function fetchHealth(
       health.instance === null
         ? "a sidecar not started by this app: a dev sidecar in a terminal, most likely"
         : "another AgentBase, still running or still shutting down";
-    throw new Error(
+    throw new PortTakenError(
       `Something else is listening on ${baseUrl}: ${who}. Close it and relaunch; this app's own sidecar could not take the port.`,
     );
   }
@@ -126,12 +131,13 @@ export async function connectWithRetry(
 
   // A wrong instance is retried, not failed at once: a copy of this app closed
   // a second ago answers for a moment more. A stranger that stays is reported.
+  let blocked = false;
   for (let attempt = 1; attempt <= STARTUP_ATTEMPTS; attempt += 1) {
     if (aborted()) {
       return;
     }
 
-    onStatus({ kind: "connecting", attempt });
+    onStatus(blocked ? { kind: "connecting", attempt, blocked } : { kind: "connecting", attempt });
 
     try {
       const health = await fetchHealth(baseUrl, signal, instance);
@@ -141,6 +147,7 @@ export async function connectWithRetry(
       if (aborted()) {
         return;
       }
+      blocked = error instanceof PortTakenError;
       if (attempt === STARTUP_ATTEMPTS) {
         onStatus({
           kind: "failed",

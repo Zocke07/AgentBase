@@ -95,6 +95,28 @@ describe("connectWithRetry", () => {
     }
   });
 
+  it("says while another launch holds the port, and stops once it lets go", async () => {
+    /* The start screen tells "an earlier AgentBase is still closing" apart
+       from "still starting", instead of a bare retry count. */
+    const leave = insideTauri();
+    try {
+      fetchStub
+        .mockResolvedValueOnce(ok("someone-else"))
+        .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+        .mockResolvedValueOnce(ok("launch-1"));
+      const seen: SidecarStatus[] = [];
+
+      const loop = connectWithRetry((status) => seen.push(status));
+      await vi.runAllTimersAsync();
+      await loop;
+
+      const blocked = seen.map((status) => (status.kind === "connecting" ? (status.blocked ?? false) : null));
+      expect(blocked).toEqual([false, true, false, null]);
+    } finally {
+      leave();
+    }
+  });
+
   it("is ready the moment the sidecar answering is the one the shell launched", async () => {
     const leave = insideTauri();
     try {

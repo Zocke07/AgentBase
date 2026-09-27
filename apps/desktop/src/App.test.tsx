@@ -138,6 +138,41 @@ describe("pre-flight", () => {
   });
 });
 
+describe("starting up", () => {
+  it("names the stage it is on instead of counting retries", () => {
+    vi.mocked(sidecar.connectWithRetry).mockImplementation((onStatus) => {
+      onStatus({ kind: "connecting", attempt: 7 });
+      return new Promise(() => undefined);
+    });
+
+    render(<App />);
+
+    const stages = screen.getByTestId("startup-stages");
+    expect(stages.textContent).toContain("Starting the engine: in progress");
+    expect(stages.textContent).toContain("Loading your spaces: not started");
+    expect(document.body.textContent).not.toMatch(/try 7|attempt/i);
+  });
+
+  it("stays on the start screen until the first screen's spaces have arrived", async () => {
+    /* The shell used to open the moment `/health` answered, and then filled
+       in: no model in the header, "Loading the space" in two sections. */
+    let deliver: (value: SpaceResponse[]) => void = () => undefined;
+    mocked.listSpaces.mockReturnValue(new Promise((resolve) => (deliver = resolve)));
+
+    render(<App />);
+
+    expect((await screen.findByTestId("startup-stages")).textContent).toContain("Loading your spaces: in progress");
+    expect(screen.queryByTestId("run-list")).toBeNull();
+
+    await act(async () => {
+      deliver([space("space-main", "Main", { is_default: true })]);
+      await Promise.resolve();
+    });
+
+    expect(await screen.findByTestId("run-list")).toBeDefined();
+  });
+});
+
 describe("losing the sidecar after startup", () => {
   it("says so, and goes back to reconnecting until it answers again", async () => {
     /* `/health` was checked once at launch. A sidecar that died afterwards left
@@ -162,7 +197,9 @@ describe("losing the sidecar after startup", () => {
       await Promise.resolve();
     });
 
-    expect(screen.getByTestId("sidecar-lost").textContent).toContain("attempt 3");
+    // What is happening, not how many times it has been tried.
+    expect(screen.getByTestId("sidecar-lost").textContent).toContain("Reconnecting");
+    expect(screen.getByTestId("sidecar-lost").textContent).not.toMatch(/attempt|3/);
     expect(vi.mocked(sidecar.connectWithRetry)).toHaveBeenCalledTimes(2);
     // The rest of the window is still there underneath.
     expect(screen.getByTestId("run-list")).toBeDefined();
