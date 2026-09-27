@@ -56,6 +56,18 @@ describe("layout", () => {
     }
   });
 
+  it("marks every node as already measured, at its declared size", () => {
+    /* The layout is rebuilt as new objects on every event. React Flow reads a
+       node without `measured` as a new one, forgets the handle positions it
+       measured and unmounts every edge touching it until it measures again:
+       during a streamed answer that redrew every arrow and label about once a
+       frame, the flicker on the run canvas. jsdom draws no edges, so this
+       checks the cause; the redraw count was measured in a browser. */
+    for (const node of layout(view(), null)) {
+      expect(node.measured).toEqual({ width: node.width, height: node.height });
+    }
+  });
+
   it("carries the goal and the outcome on their own cards", () => {
     const nodes = layout(view(), null);
 

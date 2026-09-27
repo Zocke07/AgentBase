@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { ellipsise, formatCount, formatMicros, summariseArgs } from "../lib/format";
 import { activityLabel, nowLine } from "../state/describe";
 import type { AgentNode, Denial, Handoff, RunView, ToolCall } from "../state/reducer";
+import { useStoredFlag } from "../state/useStoredFlag";
 import { useStoredSize } from "../state/useStoredSize";
 
 import { ApprovalPanel, type ApprovalPanelProps } from "./ApprovalPanel";
@@ -85,6 +86,8 @@ export function RunPanel({
   const [summaryHeight, setSummaryHeight] = useStoredSize("runs.summary");
   const [canvasHeight, setCanvasHeight] = useStoredSize("runs.canvas");
   const [detailWidth, setDetailWidth] = useStoredSize("runs.detail");
+  // A viewer can fold the log to its latest step; the canvas takes the room.
+  const [logCollapsed, setLogCollapsed] = useStoredFlag("runs.log.collapsed");
   const projection = useRef<HTMLDivElement>(null);
   const summary = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLDivElement>(null);
@@ -167,11 +170,11 @@ export function RunPanel({
       />
 
       <div
-        className="run-projection"
+        className={`run-projection${logCollapsed ? " run-projection--log-collapsed" : ""}`}
         data-testid="run-projection"
         ref={projection}
         style={
-          canvasHeight === null
+          canvasHeight === null || logCollapsed
             ? undefined
             : { gridTemplateRows: `auto auto minmax(${String(CANVAS_HEIGHT_MIN)}px, ${String(canvasHeight)}px) minmax(${String(LOG_HEIGHT_MIN)}px, 1fr)` }
         }
@@ -236,7 +239,7 @@ export function RunPanel({
             />
           )}
 
-          {!expanded && (
+          {!expanded && !logCollapsed && (
             <Splitter
               axis="y"
               side="end"
@@ -257,6 +260,8 @@ export function RunPanel({
           selectedAgent={selectedName}
           onSelectAgent={onSelectAgent}
           onCapture={onCapture}
+          collapsed={logCollapsed}
+          onCollapsedChange={setLogCollapsed}
         />
       </div>
     </div>

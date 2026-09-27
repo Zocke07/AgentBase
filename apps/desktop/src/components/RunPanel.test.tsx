@@ -137,3 +137,35 @@ describe("the panels", () => {
     expect(canvas?.className).not.toContain("run-panel__canvas--expanded");
   });
 });
+
+describe("the event log's fold", () => {
+  it("gives the log's room to the canvas and remembers the choice", () => {
+    const events = twoAgentRun();
+    const panel = () => (
+      <RunPanel
+        view={reduceAll(events)}
+        events={events}
+        cursor={events.length}
+        selectedAgent={null}
+        onSelectAgent={vi.fn()}
+        onCursorChange={vi.fn()}
+        approvalReadOnly="finished"
+        onResolveApproval={() => Promise.resolve()}
+      />
+    );
+    localStorage.removeItem("agentbase.flag.runs.log.collapsed");
+    const { unmount } = render(panel());
+    expect(screen.getByLabelText("Resize the canvas")).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Event log" }));
+
+    expect(screen.getByTestId("run-projection").className).toContain("run-projection--log-collapsed");
+    // Nothing below the canvas to divide the room with.
+    expect(screen.queryByLabelText("Resize the canvas")).toBeNull();
+    unmount();
+
+    render(panel());
+    expect(screen.getByRole("button", { name: "Event log" }).getAttribute("aria-expanded")).toBe("false");
+    localStorage.removeItem("agentbase.flag.runs.log.collapsed");
+  });
+});

@@ -29,7 +29,18 @@ export interface EventLogProps {
   onSelectAgent: (agent: string | null) => void;
   /** Save an event's prose as a vault note; absent where no vault is reachable. */
   onCapture?: ((event: Event) => void) | undefined;
+  /**
+   * Folded to one line naming the latest step. The rows stay mounted behind
+   * `hidden`, so filters, opened rows and the reading position survive.
+   */
+  collapsed?: boolean;
+  /** Offer the fold control; absent, the log is always open. */
+  onCollapsedChange?: ((collapsed: boolean) => void) | undefined;
 }
+
+/** The rows' element id, for the fold control's `aria-controls`. Fixed rather
+    than `useId`, which differs between two renders the replay test compares. */
+const ROWS_ID = "event-log-rows";
 
 export function EventLog({
   events,
@@ -38,6 +49,8 @@ export function EventLog({
   selectedAgent,
   onSelectAgent,
   onCapture,
+  collapsed = false,
+  onCollapsedChange,
 }: EventLogProps) {
   const [chosenType, setType] = useState<string>("all");
   const [showTokens, setShowTokens] = useState(false);
@@ -65,6 +78,9 @@ export function EventLog({
     const familyNames = [...new Set(sorted.map(eventFamily))];
     return { families: familyNames, types: sorted, tokenCount: tokens };
   }, [applied]);
+
+  // The folded log's one line: the newest step, never a streamed token.
+  const latest = useMemo(() => applied.findLast((event) => event.type !== "llm.token") ?? null, [applied]);
 
   // A filter value the current rows do not contain is "all", not a filter that hides everything.
   const type =
@@ -120,12 +136,16 @@ export function EventLog({
     };
   }, []);
 
-  // Follow the tail while the reader is at it.
+  // Follow the tail while the reader is at it. A hidden element loses its
+  // scroll offset, so unfolding puts the reader back where they were.
   useEffect(() => {
     const element = scroller.current;
-    if (element === null || !atEnd) return;
-    element.scrollTop = total;
-  }, [total, atEnd]);
+    if (element === null || collapsed) return;
+    if (atEnd) element.scrollTop = total;
+    else if (element.scrollTop !== viewport.scrollTop) element.scrollTop = viewport.scrollTop;
+    // The reading position is only restored on unfolding, not chased on scroll.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [total, atEnd, collapsed]);
 
   const onScroll = () => {
     const element = scroller.current;
@@ -165,80 +185,109 @@ export function EventLog({
   };
 
   return (
-    <section className="log" data-testid="event-log">
+    <section className={`log${collapsed ? " log--collapsed" : ""}`} data-testid="event-log">
       <header className="log__filters">
-        <label>
-          <span className="log__filter-label">Agent</span>
-          <select
-            value={selectedAgent ?? "all"}
-            onChange={(changed) => {
-              onSelectAgent(changed.target.value === "all" ? null : changed.target.value);
+        {onCollapsedChange !== undefined && (
+          <button
+            type="button"
+            className="log__fold"
+            aria-expanded={!collapsed}
+            aria-controls={ROWS_ID}
+            title={collapsed ? "Show every step of the run" : "Hide the steps and keep only the latest one"}
+            onClick={() => {
+              onCollapsedChange(!collapsed);
             }}
           >
-            <option value="all">all agents</option>
-            {agents.map((agent) => (
-              <option key={agent} value={agent}>
-                {agent}
-              </option>
-            ))}
-          </select>
-        </label>
+            <span className="log__fold-icon" aria-hidden="true" />
+            Event log
+          </button>
+        )}
+        {collapsed ? (
+          <>
+            <span className="log__latest" data-testid="log-latest" title={latest === null ? undefined : sentenceFor(latest)}>
+              {latest === null ? "Nothing has happened yet." : sentenceFor(latest)}
+            </span>
+            <span className="log__count">
+              {cursor} event{cursor === 1 ? "" : "s"}
+            </span>
+          </>
+        ) : (
+          <>
+            <label>
+              <span className="log__filter-label">Agent</span>
+              <select
+                value={selectedAgent ?? "all"}
+                onChange={(changed) => {
+                  onSelectAgent(changed.target.value === "all" ? null : changed.target.value);
+                }}
+              >
+                <option value="all">all agents</option>
+                {agents.map((agent) => (
+                  <option key={agent} value={agent}>
+                    {agent}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-        <label>
-          <span className="log__filter-label">Type</span>
-          <select
-            value={type}
-            onChange={(changed) => {
-              setType(changed.target.value);
-            }}
-          >
-            <option value="all">all types</option>
-            {families.map((family) => (
-              <optgroup key={family} label={`${family}.*`}>
-                <option value={family}>{family}.* (all)</option>
-                {types
-                  .filter((name) => eventFamily(name) === family)
-                  .map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-              </optgroup>
-            ))}
-          </select>
-        </label>
+            <label>
+              <span className="log__filter-label">Type</span>
+              <select
+                value={type}
+                onChange={(changed) => {
+                  setType(changed.target.value);
+                }}
+              >
+                <option value="all">all types</option>
+                {families.map((family) => (
+                  <optgroup key={family} label={`${family}.*`}>
+                    <option value={family}>{family}.* (all)</option>
+                    {types
+                      .filter((name) => eventFamily(name) === family)
+                      .map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
 
-        <label className="log__search">
-          <span className="log__filter-label">Find</span>
-          <input
-            type="search"
-            value={search}
-            placeholder="text in any row"
-            onChange={(changed) => {
-              setSearch(changed.target.value);
-            }}
-          />
-        </label>
+            <label className="log__search">
+              <span className="log__filter-label">Find</span>
+              <input
+                type="search"
+                value={search}
+                placeholder="text in any row"
+                onChange={(changed) => {
+                  setSearch(changed.target.value);
+                }}
+              />
+            </label>
 
-        <label className="log__toggle">
-          <input
-            type="checkbox"
-            checked={showTokens}
-            onChange={(changed) => {
-              setShowTokens(changed.target.checked);
-            }}
-          />
-          <span>show tokens ({tokenCount})</span>
-        </label>
+            <label className="log__toggle">
+              <input
+                type="checkbox"
+                checked={showTokens}
+                onChange={(changed) => {
+                  setShowTokens(changed.target.checked);
+                }}
+              />
+              <span>show tokens ({tokenCount})</span>
+            </label>
 
-        <span className="log__count">
-          {rows.length} of {cursor} events
-        </span>
+            <span className="log__count">
+              {rows.length} of {cursor} events
+            </span>
+          </>
+        )}
       </header>
 
-      <div className="log__rows" ref={scroller} onScroll={onScroll}>
+      <div className="log__rows" id={ROWS_ID} ref={scroller} onScroll={onScroll} hidden={collapsed}>
         <ol className="log__list" style={{ height: `${String(total)}px` }}>
-          {rows.slice(start, end).map((event, offset) => {
+          {/* Folded, the spacer keeps its height and no row is built. */}
+          {(collapsed ? [] : rows.slice(start, end)).map((event, offset) => {
             const isOpen = opened.has(event.seq);
             return (
               <li
@@ -295,11 +344,11 @@ export function EventLog({
               </li>
             );
           })}
-          {rows.length === 0 && <li className="log__empty">No events match this filter.</li>}
+          {rows.length === 0 && !collapsed && <li className="log__empty">No events match this filter.</li>}
         </ol>
       </div>
 
-      {!atEnd && (
+      {!atEnd && !collapsed && (
         <button
           type="button"
           className="button button--small log__newest"

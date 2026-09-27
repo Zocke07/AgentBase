@@ -6990,6 +6990,61 @@ input[type="radio"] {
   }
 }
 
+/* The event log folded to its newest step: one line under the canvas, which
+   takes the room the rows had. Two classes, so the short-window rows above
+   do not win. */
+.run-projection.run-projection--log-collapsed {
+  grid-template-rows: auto auto minmax(12rem, 1fr) auto;
+}
+
+.log--collapsed .log__filters {
+  flex-wrap: nowrap;
+  border-bottom: 0;
+}
+
+.log__fold {
+  display: inline-flex;
+  flex: none;
+  gap: 0.45rem;
+  align-items: center;
+  margin-left: -0.45rem;
+  padding: 0.2rem 0.5rem 0.2rem 0.45rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--dur-quick) var(--ease-out);
+}
+
+.log__fold:hover {
+  background: var(--surface-2);
+}
+
+/* A chevron drawn from two borders: down while open, right while folded. */
+.log__fold-icon {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-right: 2px solid currentcolor;
+  border-bottom: 2px solid currentcolor;
+  transform: translateY(-0.1rem) rotate(45deg);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.log--collapsed .log__fold-icon {
+  transform: rotate(-45deg);
+}
+
+.log__latest {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* The run's connection, as a dot and a word: pulsing while live. */
 .runs-view__connection--live::before,
 .runs-view__connection--connecting::before {

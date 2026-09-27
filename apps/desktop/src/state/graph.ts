@@ -113,8 +113,7 @@ export function layout(view: RunView, selected: string | null): WorkflowNode[] {
     id: GOAL,
     type: "goal",
     position: { x: columnX(0), y: centred(END_HEIGHT) },
-    width: END_WIDTH,
-    height: END_HEIGHT,
+    ...sized(END_WIDTH, END_HEIGHT),
     data: {
       goal: view.goal,
       status: view.status,
@@ -146,8 +145,7 @@ export function layout(view: RunView, selected: string | null): WorkflowNode[] {
     id: OUTCOME,
     type: "outcome",
     position: { x: columnX(column), y: centred(END_HEIGHT) },
-    width: END_WIDTH,
-    height: END_HEIGHT,
+    ...sized(END_WIDTH, END_HEIGHT),
     data: {
       status: view.status,
       claim: view.claim,
@@ -161,6 +159,18 @@ export function layout(view: RunView, selected: string | null): WorkflowNode[] {
   return nodes;
 }
 
+/**
+ * A node's declared size, also given as already `measured`. The layout is
+ * rebuilt as new objects on every event, and React Flow treats a node without
+ * `measured` as new: it drops the handle positions it measured, unmounts every
+ * edge touching the node and measures again. On a streaming run that tore down
+ * and redrew every arrow and edge label about once a frame, which is the
+ * canvas flicker. With `measured` present it keeps the handles it has.
+ */
+function sized(width: number, height: number) {
+  return { width, height, measured: { width, height } };
+}
+
 function agentNode(
   view: RunView,
   agent: AgentNode,
@@ -172,8 +182,7 @@ function agentNode(
     id: agent.name,
     type: "agent",
     position,
-    width: NODE_WIDTH,
-    height: NODE_HEIGHT,
+    ...sized(NODE_WIDTH, NODE_HEIGHT),
     data: {
       agent,
       selected: selected === agent.name,

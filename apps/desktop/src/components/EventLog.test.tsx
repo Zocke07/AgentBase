@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { sentenceFor } from "../state/describe";
 import { LogBuilder, twoAgentRun } from "../test/log";
 
 import { EventLog } from "./EventLog";
@@ -203,5 +204,81 @@ describe("a long log", () => {
     log(longLog(1000));
     const list = document.querySelector<HTMLElement>(".log__list");
     expect(list?.style.height).toBe(`${String(1000 * 30)}px`);
+  });
+});
+
+describe("folding", () => {
+  function folded(collapsed: boolean, events = twoAgentRun(), cursor = events.length) {
+    const onCollapsedChange = vi.fn();
+    render(
+      <EventLog
+        events={events}
+        cursor={cursor}
+        agents={["supervisor", "researcher"]}
+        selectedAgent={null}
+        onSelectAgent={vi.fn()}
+        collapsed={collapsed}
+        onCollapsedChange={onCollapsedChange}
+      />,
+    );
+    return onCollapsedChange;
+  }
+
+  it("shows one line, the newest step, instead of the rows", () => {
+    /* Folded is for someone who wants what is happening now, not the
+       record: no rows, no filters, one sentence and how much is behind it. */
+    const events = twoAgentRun();
+    const last = events.at(-1);
+    if (last === undefined) throw new Error("fixture is empty");
+    folded(true, events);
+
+    expect(document.querySelectorAll(".log__item")).toHaveLength(0);
+    expect(screen.queryByLabelText("Type")).toBeNull();
+    expect(screen.getByTestId("log-latest").textContent).toBe(sentenceFor(last));
+    expect(screen.getByTestId("event-log").textContent).toContain(`${String(events.length)} events`);
+  });
+
+  it("never names a streamed token as the newest step", () => {
+    /* Mid-answer, the newest events are tokens: a fragment of a word is not a
+       step anyone can follow. */
+    const events = twoAgentRun();
+    const token = events.findIndex((event) => event.type === "llm.token");
+    const before = events[token - 1];
+    if (token < 1 || before === undefined) throw new Error("fixture has no token after an event");
+    folded(true, events, token + 1);
+
+    expect(screen.getByTestId("log-latest").textContent).toBe(sentenceFor(before));
+  });
+
+  it("says which way the control goes and asks the owner to change it", async () => {
+    const user = userEvent.setup();
+    const onCollapsedChange = folded(false);
+
+    const control = screen.getByRole("button", { name: "Event log" });
+    expect(control.getAttribute("aria-expanded")).toBe("true");
+    expect(control.getAttribute("aria-controls")).toBe("event-log-rows");
+    await user.click(control);
+
+    expect(onCollapsedChange).toHaveBeenCalledWith(true);
+  });
+
+  it("keeps a chosen filter while folded", async () => {
+    /* The rows stay mounted behind `hidden`, so folding to glance at the
+       canvas does not throw away a filter the person set up. */
+    const user = userEvent.setup();
+    const events = twoAgentRun();
+    const { rerender } = render(
+      <EventLog events={events} cursor={events.length} agents={[]} selectedAgent={null} onSelectAgent={vi.fn()} onCollapsedChange={vi.fn()} />,
+    );
+    await user.selectOptions(typeFilter(), "tool");
+
+    rerender(
+      <EventLog events={events} cursor={events.length} agents={[]} selectedAgent={null} onSelectAgent={vi.fn()} collapsed onCollapsedChange={vi.fn()} />,
+    );
+    rerender(
+      <EventLog events={events} cursor={events.length} agents={[]} selectedAgent={null} onSelectAgent={vi.fn()} collapsed={false} onCollapsedChange={vi.fn()} />,
+    );
+
+    expect(typeFilter().value).toBe("tool");
   });
 });
