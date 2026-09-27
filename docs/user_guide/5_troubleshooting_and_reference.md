@@ -4,10 +4,13 @@
 
 ## Startup and model setup
 
-**The app stays on “Starting up…” or says it “could not start its engine.”**
+**The app stays on “Starting the engine” or says it “could not start its engine.”**
 The local server could not start or another process is holding port 8787.
-Quit other AgentBase instances or development servers and reopen the app,
-or use **Try again**. **Technical details** under the message shows the
+**Waiting for an earlier AgentBase to finish closing** means something else
+answers on that port; it is usually a copy of AgentBase that is still
+quitting. Quit other AgentBase instances or development servers and reopen
+the app, or use **Try again**. A first start after installing or updating can
+take a minute or two. **Technical details** under the message shows the
 address it tried and the error. A message about a different sidecar means the app found a
 server from another launch on that port and refused to attach to it. The
 installed app uses the fixed address `127.0.0.1:8787`.

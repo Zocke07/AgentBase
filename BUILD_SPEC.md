@@ -550,8 +550,8 @@ CREATE TABLE spaces (
   id            TEXT PRIMARY KEY,        -- uuid4; the default space's is a fixed literal
   name          TEXT NOT NULL UNIQUE,
   description   TEXT NOT NULL DEFAULT '',
-  provider      TEXT,                    -- NULL = inherit the app-wide default
-  model         TEXT,                    -- NULL = inherit
+  provider      TEXT,                    -- NULL only before migration 016; see below
+  model         TEXT,                    -- NULL only for an untyped Ollama model
   auto_approve  TEXT,                    -- NULL = inherit; else JSON array, narrows only
   max_steps_per_agent INTEGER,           -- NULL = inherit; a space may set these either way
   max_agents_per_run  INTEGER,
@@ -685,7 +685,12 @@ every step.
   commands are granted to the webview. 2026-09-19: the model left the app page at the
   maintainer's request: Settings chooses the provider, every space names its model, with
   no Inherit, and an agent may pick its own; migration 012 gave existing spaces the model
-  they were inheriting. Limits and the approval policy still inherit from the app page.)*
+  they were inheriting. Limits and the approval policy still inherit from the app page.
+  2026-09-27, at the maintainer's request: a space also names its provider, with no
+  Inherit (migration 016 wrote in the one each space was using); the app-wide provider is
+  only where a new space starts. A provider switch maps the model by tier
+  (`providers/catalog.py`), and Space settings offers to move the agents that name the old
+  provider's models.)*
 - **Windowed event log.** Long runs render only the rows in view. Deferred from the frontend
   pass as "nothing larger than 291 events has been measured"; the redesign touches every row
   anyway, and the Home screen's cards mean the log is no longer the first thing loaded.

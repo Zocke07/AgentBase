@@ -69,12 +69,25 @@ settings and that space's roster before the run starts. Renaming or editing a
 space does not rewrite a running or historical run.
 
 Run limits resolve from the app defaults through space overrides and, where
-applicable, agent definitions. The provider is chosen app-wide and a space may
-override it; the model is the space's own (Settings no longer shows one; the
-app-wide `model` field is a fallback that `PATCH /settings` moves to the
-provider's default whenever the provider changes, and migration 012 gave every
-existing space the model it was inheriting). `api/spaces.py` fills a missing or
-nulled model with the effective provider's default from `DEFAULT_MODELS`. A
+applicable, agent definitions. A space names its own provider and model
+(2026-09-27; migration 016 wrote each inheriting space's provider into its
+row). The app-wide `provider` is only where `POST /spaces` starts a space
+that names none, and changing it moves no space; the app-wide `model` backs a
+row that names no model and follows the provider. `api/spaces.py` refuses a
+null provider on PATCH, fills a new space's missing model from
+`DEFAULT_MODELS`, and on a provider change without a model maps the current
+one through `providers/catalog.py`. That catalog gives every priced model a
+tier (`frontier`, `strong`, `balanced`, `fast`) and a current-or-older flag;
+`equivalent` picks the target's current model at the same tier, else the
+nearest, a tie going to the faster, cheaper tier (so Opus 5.5 lands on GPT-6
+Sol), and returns `None` for Ollama, whose models are typed. The mapping is
+not symmetric; `GET /spaces/{id}/provider-switch?provider=` previews a
+switch without changing anything: the space's mapped model and every agent
+naming the old provider or a model while following the space, each with its
+mapped model. Space settings moves the ticked agents through the ordinary
+`PATCH /agents/{id}` after saving the space. `GET /settings/providers`
+returns the catalog in picker order with tiers and prices, and a test holds
+`DEFAULT_MODELS` to the model an untiered one would map to. A
 schedule's `max_run_seconds` reaches `execute_run` through the launcher and
 replaces the space's for that run only. Approval policy can only narrow: a space's
 `null` means inherit, while `[]` means ask for everything. An agent definition's

@@ -60,6 +60,13 @@ shows that prose formatted above the raw payload, with **Save as note**. The
 log follows new events while you are at the bottom; **↓ newest** returns
 there after you scroll up.
 
+To follow only what is happening, click **Event log** at the log's top left.
+The log folds to one line naming the latest step (never a streamed fragment)
+and the number of events, and the canvas takes its room; the sentence above
+the canvas still says what the run is doing now. Click **Event log** again to
+unfold it where you left it, with its filters as they were. The window
+remembers the choice.
+
 When a run finishes, **The supervisor's account of the run** shows what the
 model says it did, with its Markdown rendered; a long account starts folded,
 with **Show the whole summary** beneath it, so the canvas and the log stay in

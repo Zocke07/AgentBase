@@ -61,9 +61,12 @@ builds have an ad-hoc code identity, another build may ask again. If you choose
 
 ## Find your way around
 
-On launch, **Starting up…** means the app is starting its local engine.
-After it connects, you land on **Home** in the default space. The
-first launch opens a short tour that points at each part of the window and
+On launch, a short list shows what the app is waiting on: **Starting the
+engine** (its local engine), then **Checking your settings** and **Loading your
+spaces**, each ticked as it finishes. The first start after installing or
+updating can take a minute or two, and the screen says so if it does. If an
+earlier AgentBase is still closing, it says it is waiting for that. Once all
+three are done, you land on **Home** in the default space. The first launch opens a short tour that points at each part of the window and
 ends on the demo run; **Skip the tour** or Esc closes it for good, and
 **Settings → About AgentBase → Replay the tour** brings it back.
 
@@ -86,9 +89,13 @@ outside it, or choosing a section closes it again. Pressing Tab first
 offers **Skip to content**, which jumps past the rail to the section.
 
 The header shows the model the selected space uses (by the name its maker
-gives it, such as **Claude Opus 5**; hover for the provider), this month's
-spending against your monthly limit (hover for the exact figures), and any
-approvals waiting across spaces. While setup is unfinished, **Finish setup**
+gives it, such as **Claude Opus 5.5**; hover for the provider), this month's
+spending against your monthly limit, and any approvals waiting across spaces.
+Click the spending for a breakdown: this space's share, how many runs there
+were and what one cost on average, the models and spaces the money went to
+(the three largest of each), and the limit per run, with **See all usage** and
+**Change limits**. Esc or a click elsewhere closes it; hover the figure for the
+ledger's exact amounts. While setup is unfinished, **Finish setup**
 in the header opens Settings. Switching spaces changes what you are viewing;
 it does not stop runs already in progress.
 
@@ -100,7 +107,7 @@ Settings is one long page. The row of buttons at its top (**Provider**,
 **Keys**, **Budget**, **Limits**, **Chat**, **Appearance**, **About**) jumps
 to each section, and **Save settings** stays at the bottom of the window
 however far down you are. The first group, **Get started**, holds the two
-things a new install needs: the provider and its key.
+things a new install needs: the provider new spaces start on, and its key.
 
 ## Connect a model
 
@@ -115,19 +122,23 @@ things a new install needs: the provider and its key.
    stored in the OS credential store and read when the app starts, so a
    change takes effect only after a restart, and a restart stops any run in
    progress. **Save settings** is separate from **Save key**.
-4. Under **Settings → Provider**, choose the provider, then click **Save
-   settings**. The default is Anthropic. The model is not chosen here: each
-   space names the model its runs use, under **Space settings → Model**, and
-   a new space starts on the provider's default (`claude-opus-5` for
-   Anthropic, `gpt-5.5` for OpenAI; an Ollama model is typed). An agent can
-   pick its own model in its definition.
+4. Under **Settings → Provider**, choose where new spaces start (**New spaces
+   use**), then click **Save settings**. The default is Anthropic. Each space
+   then keeps its own provider and model under **Space settings → Model**; a
+   new one starts on its provider's default (`claude-opus-5-5` for Anthropic,
+   `gpt-6-sol` for OpenAI; an Ollama model is typed). Changing this setting
+   moves no existing space: to move one, change its provider in Space settings
+   (see [Create and configure spaces](#create-and-configure-spaces)). An agent
+   can pick its own model in its definition.
 5. Click **Check** under **Provider**. A **Ready** result means the saved
    configuration can construct a provider. It does not contact the provider,
    authenticate the key remotely or spend money. Your first run checks the
    real connection.
 
 A space's model dropdown lists the cloud models whose prices this build
-knows. A model that is not in its price table is refused before a model call;
+knows: the provider's current models first, then older ones it still sells,
+each with its level (**flagship**, **high**, **balanced** or **fast**) and its
+price in dollars per million tokens read in and written out. A model that is not in its price table is refused before a model call;
 an Anthropic dated snapshot such as `claude-haiku-4-5-20251001` is priced as
 its alias `claude-haiku-4-5`, so either id works in a space or agent. Keys
 are shared by every space. AgentBase displays their names and whether they
@@ -210,9 +221,21 @@ there before asking an agent to read them. File tools are confined to this
 folder; shell commands have broader access, as explained in
 [Approvals](2_running_tasks.md#approvals).
 
-A space names its own model under **Model**; it starts on the app-wide
-provider's default, and you can change the model or choose another provider
-for the space. Limits are entered under **Limits and approvals**; a blank
+A space names its own provider and model under **Model**. A new space starts
+on the provider chosen in Settings and that provider's default model; change
+either here. Choosing another provider moves the model to the one at the same
+level there (Haiku to GPT-6 Luna, Sonnet to GPT-6 Sol, Fable to GPT-6 Astra,
+and back), and you can pick a different one before saving. OpenAI's GPT-6
+lineup has nothing at Opus's level, so Opus moves to GPT-6 Sol, which costs
+less and may be less capable; switching back brings Sonnet, not Opus.
+
+Agents that name a model of the old provider, such as every agent in the
+investment roster, would keep using that provider (and need its key). The
+switch lists them under **Also move these agents to …?**, each with the model
+it would move to, all ticked; untick any to leave it where it is. **Save
+space** saves the space and moves the ticked agents, and says how many moved.
+
+Limits are entered under **Limits and approvals**; a blank
 limit uses the app default. Click **Save space** to apply changes to future
 runs.
 
@@ -236,7 +259,7 @@ The default space cannot be archived or deleted.
 
 | Section | Controls |
 |---|---|
-| **Model** | Provider, model, OpenAI API-key or ChatGPT access, and local Ollama address. |
+| **Provider** | The provider new spaces start on, OpenAI API-key or ChatGPT access, and the local Ollama address. |
 | **Limits and approvals** | Default **Steps per agent** (20), **Agents per run** (5), **Seconds per run** (600), and calls that may run automatically. |
 | **Keys** | Store or clear cloud API keys and the Discord bot token; restart to apply. |
 | **Monthly budget** | **Monthly cap (USD)**, $20.00 by default, shared across spaces. Enter dollars directly. |
@@ -247,5 +270,5 @@ The default space cannot be archived or deleted.
 Click **Save settings** for changed settings. Model, limit and approval
 changes affect future runs; an active run keeps its starting configuration.
 Discord settings take effect when saved, but changing its stored token still
-requires restarting the app. A space or agent with its own model setting
-continues using that setting instead of the changed app default.
+requires restarting the app. Every space keeps its own provider and model,
+so changing the provider here affects only spaces created afterwards.

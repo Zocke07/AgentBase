@@ -49,7 +49,12 @@ future changes do not relocate users' data or disconnect their stored keys.
   serves notes, agent prose and excerpts without ever emitting raw HTML.
   A first launch opens a tour, gated on the `onboarding_completed` setting.
   Copy is written for someone who is not a developer (BUILD_SPEC §0); the
-  header shows the model's own name and a rounded spend. Motion is CSS on the
+  header shows the model's own name and a rounded spend that opens a
+  breakdown (space share, runs, top models and spaces, per-run limit). The
+  start screen names its stages (engine, settings, spaces) instead of a retry
+  count. The run's event log folds to its latest step. React Flow nodes are
+  declared `measured`, or every new layout remounts every edge (the canvas
+  flicker). Motion is CSS on the
   chrome only, never on log-driven content, and stops under reduced motion;
   text meets WCAG AA in both themes; below 1,100 px the rail becomes a drawer
   (developer guide, "Motion, contrast and accessibility").
@@ -69,15 +74,21 @@ future changes do not relocate users' data or disconnect their stored keys.
   space is seeded from (`store/builtins.py`); 010 retires them from the
   default space only while untouched. The prompts assume scripts and config
   files the app does not ship; the user guide says which.
-- Settings chooses the provider only; every space names its own model
-  (`spaces.model`, filled by migration 012 for existing rows), an agent may
-  pick its own, and the app-wide `settings.model` remains as the fallback
-  that follows the provider and is not shown. A schedule may carry its own
+- Every space names its own provider and model (2026-09-27; migration 016
+  wrote each inheriting space's provider into its row) and an agent may pick
+  its own. The app-wide provider is only where a new space starts, and
+  changing it moves no space; `settings.model` backs a row naming no model
+  and follows the provider. `providers/catalog.py` gives every priced model
+  a tier and a current flag: a provider switch maps the model to the
+  target's current model at that tier or the nearest, a tie going cheaper
+  (Opus 5.5 to GPT-6 Sol, by the maintainer's choice), and
+  `GET /spaces/{id}/provider-switch` previews the switch and the agents it
+  would strand, which Space settings offers to move. New spaces start on
+  Opus 5.5 or GPT-6 Sol; 016 moved Anthropic spaces on Opus 5 and never-edited
+  shipped agents on it to Opus 5.5. A schedule may carry its own
   `max_run_seconds`, laid over the space's for its runs alone. `GET /runs`
-  takes `origin`. A change of the app-wide provider moves every space that
-  inherits the provider to the new provider's default model, since a model
-  belongs to a provider. The Knowledge tree can delete a folder (backed up
-  first); the rail folds to icons (Ctrl/Cmd+B).
+  takes `origin`. The Knowledge tree can delete a folder (backed up first);
+  the rail folds to icons (Ctrl/Cmd+B).
 - Three guards on runaway runs, all in `orchestrator/agent.py`: model
   answers may carry `MAX_OUTPUT_TOKENS` (16,384); an answer that hit the
   output limit is not run as a broken call but reported and nudged; an agent
@@ -93,8 +104,8 @@ future changes do not relocate users' data or disconnect their stored keys.
   `.mermaid` holds a diagram. Mermaid uses strict mode and its SVG is sanitized
   again before insertion. These are ordinary space files written through the
   existing gate; there is no visualization database or service.
-- The latest recorded database migration is 015 (complete feed input for an
-  untouched `news-scanner`). Existing workspace files are
+- The latest recorded database migration is 016 (spaces own their provider;
+  untouched Opus 5 becomes Opus 5.5). Existing workspace files are
   adopted into the default space once; new spaces get their own folders. Each
   space folder is also an Obsidian-compatible Markdown vault. The Knowledge
   section provides notes, properties, tags, links, backlinks, unresolved links,

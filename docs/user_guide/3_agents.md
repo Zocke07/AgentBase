@@ -30,9 +30,12 @@ and `config/limits.json` for the collectors to read.
 | `review-analyst` | Sonnet | Scores predictions against outcomes and diagnoses misses without hindsight. | `read_file`, `list_dir`, `write_file`, `propose_memory` |
 
 Each definition names its provider and model (Anthropic's Haiku, Sonnet or
-Opus), so the pipeline's cost shape does not depend on the app-wide default:
+Opus), so the pipeline's cost shape does not depend on the space's model:
 what runs often is cheap, reasoning is mid-tier, and Opus runs once per
-decision. Change a model in the agent's editor if you use another provider.
+decision. The decision agent moved from Opus 5 to Opus 5.5 in an update unless
+you had edited it. To run the roster on OpenAI, switch the space's provider in
+Space settings and keep its agents ticked: collectors move to GPT-6 Luna,
+analysts and the decision agent to GPT-6 Sol.
 The prompts treat fetched pages and files under `raw/` as untrusted text, and
 no built-in can run a shell command. Their **Calls this agent may make
 without asking** lists narrow the app-wide policy (the collectors to low and
@@ -82,7 +85,7 @@ fields and save the definition.
 | **Name** | Unique within this space. Use lowercase letters, digits, `-` or `_`, starting with a letter, up to 40 characters. |
 | **Role** | A one-line description the supervisor uses when choosing a worker. |
 | **System prompt** | Instructions for the worker's task and behavior. The app supplies the coordination instructions. |
-| **Provider / Model** | Inherit the space's provider and model, or choose a model for this agent. |
+| **Provider / Model** | Inherit the space's provider and model, or choose a model for this agent. The list shows current models first, each with its level and price per million tokens. When a space moves to another provider, Space settings offers to move agents that name the old one's models. |
 | **Max steps** | A saved ceiling on this agent's turns. Blank selects the lower of 20 and the current app-wide step limit; it is not a value that grows automatically when settings change. |
 | **Tools this agent may call** | The tools the agent is permitted to request. An agent with no file, shell or network tools can still reason and report back. |
 | **Calls this agent may make without asking** | Optional restriction on automatic approvals. Nothing ticked inherits the space policy; selected levels are intersected with that policy. |
