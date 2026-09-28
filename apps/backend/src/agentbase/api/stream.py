@@ -1,12 +1,10 @@
-"""`GET /runs/{id}/events`: the SSE projection of the event log.
+"""`GET /runs/{id}/events`: SSE projection of the event log.
 
-A client that reconnects with `Last-Event-ID` receives every event after that
-id, exactly once, in order, across reconnects, slow consumers and concurrent
-commits. The bus is never trusted for that: the stream subscribes *before*
-reading the backlog (the reverse order drops anything appended in between),
-keeps its own cursor, and on any anomaly (a gap, a repeat, a dropped buffer)
-re-reads the range from SQLite rather than reasoning about it. Out-of-order
-publication is real, since appends commit on worker threads.
+Reconnects with `Last-Event-ID` receive later events exactly once and in
+order, despite slow consumers and concurrent commits. Subscribe before reading
+the backlog or an intervening append is lost. On gaps, repeats, or dropped
+buffers, reread SQLite from the cursor; worker-thread commits can publish out
+of order.
 """
 
 from __future__ import annotations
@@ -35,28 +33,26 @@ __all__ = [
 
 logger = logging.getLogger("agentbase.api")
 
-#: How long to wait for an event before emitting a keepalive comment.
+#: Wait this long before emitting a keepalive comment.
 KEEPALIVE_SECONDS: Final[float] = 15.0
 
-#: EventSource's reconnect delay; loopback can afford a prompt one.
+#: Prompt EventSource reconnect delay is viable on loopback.
 RETRY_MILLISECONDS: Final[int] = 1000
 
 SSE_HEADERS: Final[dict[str, str]] = {
     "Cache-Control": "no-cache, no-transform",
     "Connection": "keep-alive",
-    # Belt and braces for any buffering proxy between here and the webview.
+    # Disable buffering by proxies between the sidecar and webview.
     "X-Accel-Buffering": "no",
 }
 
 
 def format_sse(event: Event) -> str:
-    """Render one event as an SSE frame.
+    """Render an event as an SSE frame.
 
-    ``id`` is the per-run ``seq``, which is what ``Last-Event-ID`` hands back.
-    There is deliberately no ``event:`` field: a named SSE event never fires
-    ``EventSource.onmessage``, so any type the client had not registered would
-    be dropped silently. The type travels in the JSON body instead, and an
-    unrecognised one reaches the reducer where it can be logged.
+    ``id`` is the per-run ``seq`` returned by ``Last-Event-ID``. Omit
+    ``event:``: named events bypass ``EventSource.onmessage`` and silently
+    drop unregistered types. Carry type in JSON so the reducer can log unknowns.
     """
     data = json.dumps(
         {
@@ -74,10 +70,7 @@ def format_sse(event: Event) -> str:
 
 
 def parse_last_event_id(raw: str | None) -> int:
-    """Turn a ``Last-Event-ID`` header into a cursor.
-
-    A malformed value replays from the start.
-    """
+    """Parse ``Last-Event-ID`` as a cursor; malformed values replay from start."""
     if raw is None:
         return 0
 
@@ -91,7 +84,7 @@ def parse_last_event_id(raw: str | None) -> int:
 
 
 class _RunStream:
-    """Cursor and anomaly handling for one connected client."""
+    """Per-client cursor and anomaly handling."""
 
     def __init__(self, store: EventStore, bus: EventBus, run_id: str, after_seq: int) -> None:
         self._store = store
@@ -101,7 +94,7 @@ class _RunStream:
         self._finished = False
 
     async def _catch_up(self) -> AsyncIterator[Event]:
-        """Emit everything the database holds beyond the cursor: the one authoritative path."""
+        """Emit database events beyond the cursor; this is the authoritative path."""
         for event in await self._store.read(self._run_id, after_seq=self._last_seq):
             self._last_seq = event.seq
             if event.type in TERMINAL_RUN_EVENTS:
@@ -109,23 +102,18 @@ class _RunStream:
             yield event
 
     async def _run_is_over(self) -> bool:
-        """Whether the run reached a terminal status, or no longer exists.
+        """Return whether the run ended or no longer exists.
 
-        A client resuming a finished run past its head sees no terminal event
-        and would otherwise wait forever. The status is set after the last
-        event is appended, so a terminal status means one more catch-up
-        drains everything.
+        A client resuming past a finished run's head sees no terminal event and
+        would wait forever. Status follows the final append, so one catch-up
+        drains all events.
         """
         run = await self._store.get_run(self._run_id)
         return run is None or run.status in TERMINAL_RUN_STATUSES
 
     async def stream(self) -> AsyncIterator[Event | None]:
-        """Yield this run's events in order; ``None`` is an idle tick.
-
-        The SSE renderer turns the tick into a keepalive comment.
-        """
-        # Subscribe first, then read the backlog. The reverse order silently
-        # drops anything appended in between.
+        """Yield ordered run events; ``None`` is an idle tick rendered as a keepalive."""
+        # Subscribe before reading backlog or an intervening append is lost.
         with self._bus.subscribe(self._run_id) as subscription:
             async for backlog in self._catch_up():
                 yield backlog
@@ -140,8 +128,7 @@ class _RunStream:
                     yield None
                     continue
 
-                # Any anomaly re-reads from the cursor; an event already
-                # emitted yields nothing, so no duplicate is possible.
+                # Reread from cursor on anomalies; emitted events cannot repeat.
                 if event is None or subscription.stale or event.seq != self._last_seq + 1:
                     async for caught in self._catch_up():
                         yield caught
@@ -161,10 +148,10 @@ class _RunStream:
 def run_events(
     store: EventStore, bus: EventBus, run_id: str, after_seq: int = 0
 ) -> AsyncIterator[Event | None]:
-    """This run's events, gap-free and in order, until it ends; ``None`` is an idle tick.
+    """Yield this run's gap-free ordered events until it ends; ``None`` is idle.
 
-    The cursor `GET /runs/{id}/events` uses, one layer below the framing, so
-    the channel adapters get the same guarantee without a second implementation.
+    This underlies `GET /runs/{id}/events`, giving channel adapters the same
+    guarantee without another implementation.
     """
     return _RunStream(store, bus, run_id, after_seq).stream()
 
@@ -172,9 +159,7 @@ def run_events(
 async def run_stream(
     store: EventStore, bus: EventBus, run_id: str, after_seq: int
 ) -> AsyncIterator[str]:
-    """Build the SSE body for one client attaching to ``run_id``: the only place the wire format
-    lives.
-    """
+    """Build one client's SSE body; the only wire-format implementation."""
     yield f"retry: {RETRY_MILLISECONDS}\n\n"
 
     async for event in run_events(store, bus, run_id, after_seq):

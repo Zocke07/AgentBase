@@ -44,11 +44,9 @@ import type {
 import { resolveSidecarBaseUrl } from "./sidecar";
 
 /**
- * Typed calls to the sidecar. Every type comes from `@agentbase/schemas`,
- * generated from the OpenAPI document, so a backend model change breaks the
- * typecheck rather than the runtime. Nothing here touches the run store:
- * events reach the UI through the stream and the reducer, and history fetched
- * here goes through the same reducer.
+ * Typed sidecar calls using OpenAPI-generated `@agentbase/schemas` types, so
+ * backend model changes fail typechecking. Run events and fetched history both
+ * flow through the stream and reducer, never directly into the run store.
  */
 
 /** A 4xx from the sidecar, carrying the field it blames when it named one. */
@@ -65,20 +63,20 @@ export class ApiError extends Error {
 
 let cachedBaseUrl: Promise<string> | null = null;
 
-/** The sidecar's origin, resolved once per page load. */
+/** Cached sidecar origin, resolved once per page load. */
 export function baseUrl(): Promise<string> {
   cachedBaseUrl ??= resolveSidecarBaseUrl();
   return cachedBaseUrl;
 }
 
-/** Forget the cached origin. Exists so tests do not leak one into the next. */
+/** Clear the cached origin to isolate tests. */
 export function resetBaseUrl(): void {
   cachedBaseUrl = null;
 }
 
 /**
- * Turn a FastAPI error body into an {@link ApiError}. Three shapes reach here:
- * `{message, field}`, a plain string `detail`, and Pydantic's `[{loc, msg}]`.
+ * Convert FastAPI `{message, field}`, string `detail`, or Pydantic
+ * `[{loc, msg}]` errors into {@link ApiError}.
  */
 function toApiError(status: number, body: unknown): ApiError {
   const detail = (body as { detail?: unknown } | null)?.detail;
@@ -90,7 +88,7 @@ function toApiError(status: number, body: unknown): ApiError {
   if (Array.isArray(detail)) {
     const first = detail[0] as { loc?: unknown; msg?: unknown } | undefined;
     const loc = Array.isArray(first?.loc) ? first.loc : [];
-    // `loc` is ["body", "field_name"]; the last segment is the field.
+    // Pydantic `loc` ends with the field name.
     const field = loc.length > 0 ? String(loc[loc.length - 1]) : null;
     const message = typeof first?.msg === "string" ? first.msg : `HTTP ${String(status)}`;
     return new ApiError(status, message, field);
@@ -112,8 +110,8 @@ type TransportListener = () => void;
 const transportListeners = new Set<TransportListener>();
 
 /**
- * Be told when a request could not reach the sidecar at all (a failed
- * connection, not a 4xx or 5xx). The shell uses it to re-enter its reconnect loop.
+ * Subscribe to connection failures only, excluding sidecar 4xx/5xx responses.
+ * The shell uses these to resume reconnecting.
  */
 export function onTransportFailure(listener: TransportListener): () => void {
   transportListeners.add(listener);
@@ -123,8 +121,7 @@ export function onTransportFailure(listener: TransportListener): () => void {
 }
 
 async function send(path: string, init?: RequestInit): Promise<Response> {
-  // Built as a plain record rather than spread from `init.headers`, which is a
-  // union including a string-pair array, spreading that yields numeric indices.
+  // Avoid spreading `init.headers`: its tuple-array variant creates numeric keys.
   const headers: Record<string, string> =
     init?.body === undefined ? {} : { "Content-Type": "application/json" };
 
@@ -132,13 +129,13 @@ async function send(path: string, init?: RequestInit): Promise<Response> {
   try {
     response = await fetch(`${await baseUrl()}${path}`, { ...init, headers });
   } catch (failure) {
-    // `fetch` rejects only when no response came back at all.
+    // `fetch` rejects only when no response arrives.
     for (const listener of transportListeners) listener();
     throw failure;
   }
 
   if (!response.ok) {
-    // A body that is not JSON is not a reason to lose the status code.
+    // Retain the status code when the body is not JSON.
     const body: unknown = await response.json().catch(() => null);
     throw toApiError(response.status, body);
   }
@@ -176,10 +173,9 @@ export const createSpace = (body: CreateSpaceRequest): Promise<SpaceResponse> =>
   request<SpaceResponse>("/spaces", { method: "POST", ...asJson(body) });
 
 /**
- * Change a space. A PATCH: fields left out are untouched, and a rule sent as
- * `null` goes back to inheriting the app-wide default, which is why this
- * cannot drop nulls the way `updateSettings` does. The provider is the
- * exception: a space names its own, and a null one is refused.
+ * PATCH a space: omitted fields stay unchanged and `null` restores app-wide
+ * inheritance, so unlike `updateSettings`, nulls are retained. The provider
+ * is the exception: a space names its own, and a null one is refused.
  */
 export const updateSpace = (id: string, body: UpdateSpaceRequest): Promise<SpaceResponse> =>
   request<SpaceResponse>(`/spaces/${id}`, { method: "PATCH", ...asJson(body) });
@@ -191,7 +187,7 @@ export const updateSpace = (id: string, body: UpdateSpaceRequest): Promise<Space
 export const planProviderSwitch = (spaceId: string, provider: string): Promise<ProviderSwitchPlan> =>
   request<ProviderSwitchPlan>(`/spaces/${spaceId}/provider-switch${query({ provider })}`);
 
-/** Delete an empty space and its agents. A 409 names why not: the default, or runs. */
+/** Delete an empty space and its agents; 409 identifies a default space or runs. */
 export const deleteSpace = (id: string): Promise<void> =>
   requestNoContent(`/spaces/${id}`, { method: "DELETE" });
 
@@ -225,7 +221,7 @@ export const previewSchedule = (cadence: CreateScheduleRequest["cadence"]): Prom
 
 // --- knowledge -------------------------------------------------------------
 
-/** The live Markdown vault index. It is rebuilt so external Obsidian edits appear immediately. */
+/** Rebuild the live Markdown vault index so external Obsidian edits appear. */
 export const listKnowledge = (spaceId: string): Promise<KnowledgeIndex> =>
   request<KnowledgeIndex>(`/spaces/${spaceId}/knowledge`);
 
@@ -257,7 +253,7 @@ export const writeFile = (spaceId: string, path: string, content: string): Promi
 export const deleteFile = (spaceId: string, path: string): Promise<void> =>
   requestNoContent(`/spaces/${spaceId}/knowledge/file${query({ path })}`, { method: "DELETE" });
 
-/** Delete a folder and everything in it; the sidecar copies it under `.agentbase/backups/` first. */
+/** Back up then delete a folder and all descendants. */
 export const deleteKnowledgeFolder = (spaceId: string, path: string): Promise<KnowledgeFolderDeleteResult> =>
   request<KnowledgeFolderDeleteResult>(`/spaces/${spaceId}/knowledge/folder${query({ path })}`, { method: "DELETE" });
 
@@ -308,7 +304,7 @@ export const updateMemory = (
     ...asJson({ path, ...changes }),
   });
 
-/** Fold several memories into one note; the originals are archived with a backup. */
+/** Merge memories into one note; archive originals with a backup. */
 export const mergeMemories = (
   spaceId: string,
   paths: string[],
@@ -366,23 +362,20 @@ export const createRun = (
   });
 
 /**
- * Ask a run to stop. Answers 202 with the row as it stands: the run stops at
- * its next check and writes `run.cancelled` itself, which arrives over the
- * stream like everything else. A 409 names the status of a run that cannot
- * be cancelled.
+ * Request cancellation. The 202 returns the current row; the run stops at its
+ * next check and streams `run.cancelled`. A 409 reports an ineligible status.
  */
 export const cancelRun = (runId: string): Promise<Run> =>
   request<Run>(`/runs/${runId}/cancel`, { method: "POST" });
 
 /**
- * Remove a finished run, its log and its approvals. Its spend stays in the
- * month's figure. A 409 names why not: the run has not ended (cancel it
- * first), or the sidecar is still letting go of it.
+ * Delete a finished run, log, and approvals while preserving monthly spend. A
+ * 409 reports a nonterminal run or sidecar cleanup still in progress.
  */
 export const deleteRun = (runId: string): Promise<void> =>
   requestNoContent(`/runs/${runId}`, { method: "DELETE" });
 
-/** A run's event log as an array, for opening one and then resuming its stream from the end. */
+/** Fetch a run log before resuming its stream from the final event. */
 export const getRunHistory = (runId: string): Promise<Event[]> =>
   request<Event[]>(`/runs/${runId}/events/history`);
 
@@ -401,7 +394,7 @@ export const createAgent = (body: CreateAgentRequest): Promise<AgentDef> =>
 export const updateAgent = (id: string, body: UpdateAgentRequest): Promise<AgentDef> =>
   request<AgentDef>(`/agents/${id}`, { method: "PATCH", ...asJson(body) });
 
-/** A copy of a definition on another space's roster: a new row with a new id. */
+/** Copy a definition to another roster as a new row with a new ID. */
 export const copyAgent = (id: string, spaceId: string): Promise<AgentDef> =>
   request<AgentDef>(`/agents/${id}/copy`, { method: "POST", ...asJson({ space_id: spaceId }) });
 
@@ -412,11 +405,11 @@ export const listTools = (): Promise<ToolResponse[]> => request<ToolResponse[]>(
 
 // --- approvals --------------------------------------------------------------
 
-/** Approvals still awaiting an answer, including ones raised before this window connected. */
+/** Fetch unanswered approvals, including those raised before window connection. */
 export const listApprovals = (runId?: string): Promise<ApprovalResponse[]> =>
   request<ApprovalResponse[]>(runId === undefined ? "/approvals" : `/approvals?run_id=${runId}`);
 
-/** Answer one approval; a yes with scope "run" also answers every later call to that tool in the run. */
+/** Answer an approval; a `run`-scope yes covers later calls to that tool. */
 export const resolveApproval = (
   id: string,
   approved: boolean,
@@ -433,9 +426,8 @@ export const getBudget = (spaceId?: string): Promise<BudgetResponse> =>
 export const getSettings = (): Promise<SettingsResponse> => request<SettingsResponse>("/settings");
 
 /**
- * Change some settings. A PATCH: fields left out are untouched. A refusal is a
- * 400 carrying `{message, field}`, which the settings screen puts on the input
- * the server named.
+ * PATCH settings, preserving omitted fields. A rejected 400 includes
+ * `{message, field}` for the named input.
  */
 export const updateSettings = (patch: UpdateSettingsRequest): Promise<SettingsResponse> =>
   request<SettingsResponse>("/settings", { method: "PATCH", ...asJson(patch) });
@@ -452,13 +444,13 @@ export const listProviders = (): Promise<ProviderCatalogueResponse> =>
   request<ProviderCatalogueResponse>("/settings/providers");
 
 /**
- * Whether the current settings can build a provider: the same refusal a run
- * would get, without a model call. The dashboard's pre-flight before Start.
+ * Check whether settings can build a provider without a model call; dashboard
+ * preflight yields the same refusal as starting a run.
  */
 export const verifySettings = (spaceId?: string): Promise<VerifyResponse> =>
   request<VerifyResponse>(`/settings/verify${query({ space_id: spaceId })}`, { method: "POST" });
 
-/** OAuth state only. Tokens stay inside the pinned Codex runtime and OS keychain. */
+/** Fetch OAuth state only; tokens remain in the pinned runtime and OS keychain. */
 export const getChatGPTAuth = (): Promise<ChatGPTAuthResponse> =>
   request<ChatGPTAuthResponse>("/auth/chatgpt");
 

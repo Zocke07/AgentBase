@@ -1,8 +1,7 @@
 """Settings and budget endpoints.
 
-No endpoint ever returns a key. `configured_secrets` reports *which* names
-arrived over stdin; a read-back endpoint would be an exfiltration endpoint for
-anything that reaches loopback.
+Never return a key. ``configured_secrets`` reports only names received over
+stdin; read-back would let any loopback client exfiltrate credentials.
 """
 
 from __future__ import annotations
@@ -47,39 +46,36 @@ __all__ = ["router"]
 
 router = APIRouter()
 
-#: Settings that change which adapters should be connected. Derived from the
-#: model rather than hand-listed, so a later channel setting cannot be missed.
+#: Settings that affect connected adapters. Derive from the model so future
+#: channel settings cannot be missed.
 _CHANNEL_SETTINGS: frozenset[str] = frozenset(
     name for name in WorkspaceSettings.model_fields if name.startswith("discord_")
 )
 
 
 class SettingsResponse(BaseModel):
-    """Workspace settings plus the read-only facts the UI needs beside them."""
+    """Workspace settings plus UI read-only facts."""
 
     settings: WorkspaceSettings
-    #: Which API keys are present. Names only, never values.
+    #: Present API-key names; never values.
     configured_secrets: list[str]
-    #: Every secret name the sidecar accepts, present or not, one row each.
+    #: Every sidecar secret name, present or not.
     known_secrets: list[str]
     supported_providers: list[str]
-    #: False means every run will be refused; the UI says so before Start.
+    #: False means every run will be refused; show this before Start.
     model_is_priced: bool
-    #: The sidecar's release, for the About box. The window is built from the
-    #: same version; showing this one says which sidecar actually answered.
+    #: Sidecar release for About; identifies the sidecar that answered.
     version: str
-    #: Where the database and space folders live, for the same box.
+    #: Database and space-folder location for About.
     data_dir: str
 
 
 class UpdateSettingsRequest(BaseModel):
-    """A partial update. Every field optional; omitted fields are untouched.
+    """Partial update; omitted fields stay unchanged.
 
-    Unknown fields are rejected, not dropped: Pydantic's default turns a
-    misspelled setting into a `200 OK` that changed nothing. This model must
-    list every field of :class:`~agentbase.store.settings.WorkspaceSettings`
-    (they differ in bounds and optionality, so it cannot be the same class),
-    and `test_every_workspace_setting_can_be_patched` keeps the two in step.
+    Reject unknown fields: Pydantic would otherwise return ``200 OK`` for a
+    misspelling. Mirror every :class:`~agentbase.store.settings.WorkspaceSettings`
+    field here; bounds and optionality differ, and the paired test detects drift.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -90,25 +86,25 @@ class UpdateSettingsRequest(BaseModel):
     monthly_cap_micros: int | None = Field(default=None, ge=0)
     ollama_base_url: str | None = Field(default=None, min_length=1)
 
-    # Bounds mirror `WorkspaceSettings`: a limit of zero is not a stricter setting.
+    # Mirror `WorkspaceSettings` bounds: zero is not a stricter limit.
     max_steps_per_agent: int | None = Field(default=None, ge=1)
     max_agents_per_run: int | None = Field(default=None, ge=1)
     max_run_seconds: int | None = Field(default=None, ge=1)
     max_run_cost_micros: int | None = Field(default=None, ge=0)
 
-    # An empty list is meaningful (it turns pre-authorization off), and
-    # `exclude_none` keeps it distinguishable from "not sent".
+    # An empty list disables pre-authorization; `exclude_none` distinguishes
+    # it from an omitted field.
     auto_approve: list[RiskLevel] | None = None
-    #: The whole map replaces the stored one; `{}` clears every per-tool answer.
+    #: Replace the stored map wholesale; ``{}`` clears all per-tool answers.
     tool_policies: dict[str, ToolPolicy] | None = None
 
-    # `channel_identities: []` revokes everyone and must not read as "not sent".
+    # ``channel_identities: []`` revokes everyone, not an omitted field.
     discord_enabled: bool | None = None
     channel_identities: list[ChannelIdentity] | None = None
     channel_approvals: ChannelApprovalPolicy | None = None
 
-    # Where a chat-started run happens. `exclude_none` means null cannot be
-    # sent, so an empty string means "the default space" and is stored as null.
+    # Chat-run location. `exclude_none` rejects sent null, so an empty string
+    # means the default space and is stored as null.
     channel_space_id: str | None = None
 
     onboarding_completed: bool | None = None
@@ -121,7 +117,7 @@ class BudgetResponse(BaseModel):
     percent_used: int
     spent_display: str
     cap_display: str
-    #: This space's share of the period's spend. The cap is app-wide; there is no per-space cap.
+    #: This space's period spend; caps are app-wide, not per-space.
     space_spent_micros: int | None = None
     space_spent_display: str | None = None
 
@@ -157,8 +153,7 @@ async def _response(request: Request, settings: WorkspaceSettings) -> SettingsRe
         configured_secrets=list(_secrets(request).names),
         known_secrets=sorted(SECRET_KEYS),
         supported_providers=sorted(SUPPORTED_PROVIDERS),
-        # `qualified_model`, not `settings.model`: the price is looked up
-        # under the id the provider namespaces to (`ollama/<name>`).
+        # Price the provider-qualified model (for example, ``ollama/<name>``).
         model_is_priced=is_priced(qualified_model(settings.provider, settings.model)),
         version=__version__,
         data_dir=str(request.app.state.paths.data_dir),
@@ -171,26 +166,23 @@ async def get_settings(request: Request) -> SettingsResponse:
 
 
 def _reject(message: str, field: str | None) -> HTTPException:
-    """A 400 carrying `{message, field}`, so the form can put it on the right input."""
+    """Build a field-aware 400 response for the form."""
     return HTTPException(status_code=400, detail={"message": message, "field": field})
 
 
 def _reject_validation(exc: ValidationError) -> HTTPException:
-    """The first pydantic error, as one line, on the field it names."""
+    """Return the first Pydantic error as one line on its field."""
     first = exc.errors()[0]
     location = first.get("loc", ())
     field = str(location[0]) if location else None
     message = str(first.get("msg", "invalid value"))
-    # Pydantic prefixes a `ValueError` raised in a validator with "Value error, ".
+    # Pydantic prefixes validator ValueErrors with ``Value error, ``.
     return _reject(message.removeprefix("Value error, "), field)
 
 
 @router.patch("/settings")
 async def update_settings(request: Request, body: UpdateSettingsRequest) -> SettingsResponse:
-    """Apply a partial settings update.
-
-    Validation failures are 400s carrying `{message, field}`.
-    """
+    """Apply a partial settings update; validation failures return field-aware 400s."""
     changes: dict[str, Any] = body.model_dump(exclude_none=True)
 
     if not changes:
@@ -202,9 +194,8 @@ async def update_settings(request: Request, body: UpdateSettingsRequest) -> Sett
             f"unknown provider {changes['provider']!r}. Supported: {supported}.", "provider"
         )
     if "provider" in changes and "model" not in changes:
-        # The app-wide model only backs a space row that names none, and since
-        # spaces name their own it is not chosen here: it follows the provider,
-        # so it can never name a model of another provider.
+        # The app-wide model only backs a space row that names none. It follows
+        # its provider so it cannot name a model from a different provider.
         current = await _settings_store(request).get()
         if changes["provider"] != current.provider:
             changes["model"] = default_model_for(changes["provider"]) or ""
@@ -233,7 +224,7 @@ async def update_settings(request: Request, body: UpdateSettingsRequest) -> Sett
     # The app-wide provider is where a new space starts (migration 016): every
     # space names its own, so changing it moves none of them.
 
-    # A channel just enabled has to connect now; this product has no restart button.
+    # Reconcile now: the product has no restart button.
     if changes.keys() & _CHANNEL_SETTINGS:
         channels: ChannelService | None = getattr(request.app.state, "channels", None)
         if channels is not None:
@@ -243,13 +234,13 @@ async def update_settings(request: Request, body: UpdateSettingsRequest) -> Sett
 
 
 class ProviderEntry(BaseModel):
-    """One selectable provider."""
+    """Selectable provider."""
 
     name: str
     requires_key: bool
-    #: True when the model name is typed rather than picked (Ollama).
+    #: Whether the model is typed rather than selected (Ollama).
     free_text_model: bool
-    #: The model a space on this provider starts with; ``None`` where it is typed.
+    #: Default space model, or ``None`` when typed.
     default_model: str | None = None
 
 
@@ -265,11 +256,11 @@ class ModelEntry(BaseModel):
 
 
 class ProviderCatalogueResponse(BaseModel):
-    """What can be selected, and which models are priced, per provider."""
+    """Selectable and priced models by provider."""
 
     providers: list[ProviderEntry]
-    #: Priced models by provider, in picker order with the current lineup
-    #: first. A free-text provider's list is empty.
+    #: Priced models by provider in picker order, current lineup first;
+    #: free-text providers have empty lists.
     models: dict[str, list[str]]
     #: The same models with their tier and price.
     catalog: dict[str, list[ModelEntry]]
@@ -277,9 +268,9 @@ class ProviderCatalogueResponse(BaseModel):
 
 @router.get("/settings/providers")
 async def list_providers() -> ProviderCatalogueResponse:
-    """What can be selected, and which models are priced, grouped per provider.
+    """List selectable and priced models by provider.
 
-    The dropdowns read this rather than a list that would drift from `pricing.py`.
+    Dropdowns use this instead of a list that could drift from ``pricing.py``.
     """
     return ProviderCatalogueResponse(
         providers=[
@@ -313,7 +304,7 @@ async def list_providers() -> ProviderCatalogueResponse:
 
 @router.get("/budget")
 async def get_budget(request: Request, space_id: str | None = None) -> BudgetResponse:
-    """Month-to-date spend against the cap; ``space_id`` adds that space's share beside it."""
+    """Return month-to-date spend and cap; ``space_id`` adds that space's share."""
     ledger = _ledger(request)
     spent = await ledger.spent_micros()
     cap = await ledger.cap_micros()
@@ -335,11 +326,11 @@ async def get_budget(request: Request, space_id: str | None = None) -> BudgetRes
 async def get_usage(
     request: Request, period: str | None = None, space_id: str | None = None
 ) -> UsageReport:
-    """A month of model calls from the ledger: totals, by model, space and day, and the costliest runs.
+    """Report ledger calls by total, model, space, day, and costly run.
 
-    ``period`` is ``YYYY-MM`` and defaults to this month; ``space_id`` narrows
-    to one space's runs. Read from the same rows the cap is enforced on, so the
-    report and the meter cannot disagree.
+    ``period`` is ``YYYY-MM`` and defaults to this month; ``space_id`` limits
+    results to one space. Use the same rows as cap enforcement, so report and
+    meter agree.
     """
     chosen = period if period is not None else current_period()
     if len(chosen) != 7 or chosen[4] != "-" or not (chosen[:4] + chosen[5:]).isdigit():
@@ -349,22 +340,22 @@ async def get_usage(
 
 
 class VerifyResponse(BaseModel):
-    """Whether the current settings can build a provider, and why not if not."""
+    """Whether current settings can build a provider, with a failure reason."""
 
     ok: bool
-    #: Set when ``ok`` is false: the sentence to show the user.
+    #: User-facing failure sentence when ``ok`` is false.
     reason: str | None = None
-    #: Set when ``ok`` is true: what was built.
+    #: Built provider and model when ``ok`` is true.
     provider: str | None = None
     model: str | None = None
 
 
 @router.post("/settings/verify")
 async def verify_provider(request: Request, space_id: str | None = None) -> VerifyResponse:
-    """Check the current settings can build a provider, without calling the model.
+    """Check whether settings can build a provider without calling it.
 
-    The dashboard's pre-flight: the refusal a run would get, shown before
-    Start. With ``space_id`` the space's effective settings are checked.
+    This dashboard pre-flight shows a run's refusal before Start. ``space_id``
+    checks effective space settings.
     """
     settings = await _settings_store(request).get()
     if space_id is not None:

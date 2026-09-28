@@ -1,8 +1,7 @@
-"""The provider protocol every model backend implements.
+"""Protocol implemented by every model backend.
 
-Nothing above this module can tell which provider it is talking to: vendor
-shapes stop here, and every provider's token counts arrive as
-:class:`TokenUsage`. A provider may have no API key and no cost (Ollama).
+Vendor shapes stop here: callers receive :class:`TokenUsage` regardless of
+provider. Some providers, such as Ollama, have neither API keys nor cost.
 """
 
 from __future__ import annotations
@@ -40,17 +39,17 @@ class Role(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class Message:
-    """One conversation turn, in the neutral shape."""
+    """Provider-neutral conversation turn."""
 
     role: Role
     content: str
-    #: Set on ``TOOL`` messages: which tool call this is the result of.
+    #: Tool call whose result this ``TOOL`` message carries.
     tool_call_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class ToolSpec:
-    """A tool offered to the model. JSON Schema, because all three take that."""
+    """Tool offered to the model; all providers take JSON Schema."""
 
     name: str
     description: str
@@ -59,7 +58,7 @@ class ToolSpec:
 
 @dataclass(frozen=True, slots=True)
 class ToolCall:
-    """A tool the model asked to call. Nothing here executes it."""
+    """Tool call requested by model; this object never executes it."""
 
     id: str
     name: str
@@ -68,7 +67,7 @@ class ToolCall:
 
 @dataclass(frozen=True, slots=True)
 class TokenUsage:
-    """Normalized token counts: integers, non-negative, zero rather than ``None``."""
+    """Normalized nonnegative integer token counts; use zero, not ``None``."""
 
     input_tokens: int = 0
     output_tokens: int = 0
@@ -85,7 +84,7 @@ class TokenUsage:
 
 @dataclass(frozen=True, slots=True)
 class Completion:
-    """One model response, normalized."""
+    """Normalized model response."""
 
     provider: str
     model: str
@@ -93,43 +92,40 @@ class Completion:
     usage: TokenUsage
     tool_calls: tuple[ToolCall, ...] = ()
     stop_reason: str | None = None
-    #: What this call cost, in integer micros, filled in by the budget wrapper
-    #: as it records the spend. ``None`` from a provider that was not wrapped.
+    #: Integer micros recorded by budget wrapper; ``None`` from unwrapped provider.
     cost_micros: int | None = None
-    #: Reasoning the provider exposed beside its answer (Ollama's
-    #: ``message.thinking``, Anthropic's thinking blocks). ``None`` when none
-    #: was exposed, distinct from ``""``, so a replay can tell silence from
-    #: thought. Never part of ``text`` and never a :class:`TextDelta`.
+    #: Provider reasoning (Ollama ``message.thinking``, Anthropic blocks), or
+    #: ``None`` when absent, distinct from ``""`` for replay. Never in ``text``
+    #: or :class:`TextDelta`.
     thinking: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class TextDelta:
-    """One incremental chunk of assistant text from a streaming call.
+    """Incremental assistant-text chunk from a stream.
 
-    Only text: partial tool calls are accumulated inside each adapter and
-    surface complete on the final :class:`Completion`, since nobody can act
-    on two thirds of an argument object.
+    Adapters accumulate partial tool calls and surface complete ones only in
+    final :class:`Completion`; callers cannot act on partial argument objects.
     """
 
     text: str
 
 
-#: What :meth:`Provider.stream` yields: zero or more :class:`TextDelta`, then
-#: exactly one :class:`Completion`, which carries usage, tool calls and the stop reason.
+#: :meth:`Provider.stream` yields zero or more :class:`TextDelta`, then exactly
+#: one :class:`Completion` with usage, tool calls, and stop reason.
 StreamEvent = TextDelta | Completion
 
 
 class ProviderError(RuntimeError):
-    """Base class for every provider failure. Callers catch this and nothing vendor-specific."""
+    """Base provider failure; callers catch this, never vendor-specific types."""
 
 
 class ProviderAuthError(ProviderError):
-    """Missing, rejected or expired credentials. Not retryable."""
+    """Missing, rejected, or expired credentials; not retryable."""
 
 
 class ProviderRateLimitedError(ProviderError):
-    """429 or equivalent. Retryable after a delay."""
+    """429 or equivalent; retryable after delay."""
 
     def __init__(self, message: str, retry_after_seconds: float | None = None) -> None:
         super().__init__(message)
@@ -137,12 +133,12 @@ class ProviderRateLimitedError(ProviderError):
 
 
 class ProviderUnavailableError(ProviderError):
-    """Transport failure or a 5xx. Retryable."""
+    """Transport failure or 5xx; retryable."""
 
 
 @runtime_checkable
 class Provider(Protocol):
-    """What the orchestrator is allowed to know about a model."""
+    """Model information and operations visible to orchestrator."""
 
     @property
     def name(self) -> str:
@@ -151,7 +147,7 @@ class Provider(Protocol):
 
     @property
     def model(self) -> str:
-        """The model this instance calls."""
+        """Model this instance calls."""
         ...
 
     async def complete(
@@ -162,7 +158,7 @@ class Provider(Protocol):
         system: str | None = None,
         max_tokens: int = 4096,
     ) -> Completion:
-        """Send one request and return the normalized response."""
+        """Send a request and return normalized response."""
         ...
 
     def stream(
@@ -173,10 +169,10 @@ class Provider(Protocol):
         system: str | None = None,
         max_tokens: int = 4096,
     ) -> AsyncIterator[StreamEvent]:
-        """Send one request and yield the response as it arrives.
+        """Send request and yield response as it arrives.
 
-        Zero or more :class:`TextDelta`, then exactly one :class:`Completion`
-        equivalent to what :meth:`complete` would have returned. Declared
-        ``def`` because calling an async generator returns the iterator.
+        Yield zero or more :class:`TextDelta`, then one :class:`Completion`
+        equivalent to :meth:`complete`. Use ``def`` because async-generator
+        calls return the iterator.
         """
         ...

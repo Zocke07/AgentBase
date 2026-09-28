@@ -1,12 +1,10 @@
 -- Migration 015 - news-scanner receives complete, bounded feed entries.
 --
--- `http_get` returns at most 20,000 characters, while one Google News RSS
--- response is commonly over 100,000. The old scanner therefore saw XML cut
--- through an item and correctly refused to fabricate records. It was also
--- asked to calculate SHA-1 identifiers without a deterministic tool.
+-- `http_get` caps responses at 20,000 characters; Google News RSS often exceeds
+-- 100,000, truncating entries. The old scanner also lacked a deterministic
+-- SHA-1 tool.
 --
--- Replace the untouched definition only. Built-ins are editable, so a user
--- who changed either its prompt or its allowlist keeps both changes.
+-- Replace only the untouched definition; preserve edited prompts and allowlists.
 
 UPDATE agent_defs
    SET system_prompt = 'You are a data collector. You do not analyze, predict, rate, or recommend.

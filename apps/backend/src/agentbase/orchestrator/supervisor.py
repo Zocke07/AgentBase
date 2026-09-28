@@ -1,11 +1,9 @@
-"""The supervisor: decompose a goal, put roster agents to work, report.
+"""Supervisor: decompose goals, delegate roster work, report.
 
-An :class:`~agentbase.orchestrator.agent.Agent` with one extra control call,
-`spawn_agent`, the same loop and the same step limit. It is orchestration
-machinery, not a definition: no `allowed_tools`, never a catalogue tool, so
-the one agent in every run is the one that touches nothing. Delegation is
-sequential, and a worker's result reaches the supervisor through the
-`agent.message` row it wrote, not the return value.
+It is an :class:`~agentbase.orchestrator.agent.Agent` with ``spawn_agent``
+and the same loop/step limit. It has no ``allowed_tools`` or catalogue access,
+so every run's root agent touches nothing. Delegation is sequential; workers
+return results via written ``agent.message`` rows, not Python return values.
 """
 
 from __future__ import annotations
@@ -31,17 +29,14 @@ __all__ = ["SUPERVISOR_NAME", "SUPERVISOR_ROLE", "Supervisor", "supervisor_promp
 
 logger = logging.getLogger("agentbase.orchestrator")
 
-#: The supervisor's `agent_id` in the log: fixed, so a replay can find the root.
+#: Fixed supervisor ``agent_id`` so replay can find the root.
 SUPERVISOR_NAME = "supervisor"
 
 SUPERVISOR_ROLE = "Plans the work and delegates it"
 
 
 def supervisor_prompt(goal: str, roster: str, knowledge_context: str = "") -> str:
-    """The supervisor's system prompt.
-
-    The roster is here, not in `spawn_agent`, because it differs per run.
-    """
+    """Build supervisor system prompt; roster differs per run, not per spawn."""
     knowledge = f"\n\n{knowledge_context}" if knowledge_context else ""
     return (
         "You are the supervisor of a small team of AI agents.\n\n"
@@ -61,7 +56,7 @@ def supervisor_prompt(goal: str, roster: str, knowledge_context: str = "") -> st
 
 
 class Supervisor(Agent):
-    """An agent that can also put the roster to work."""
+    """Agent that can delegate work to its roster."""
 
     def __init__(
         self,
@@ -85,19 +80,19 @@ class Supervisor(Agent):
                 name=SUPERVISOR_NAME,
                 role=SUPERVISOR_ROLE,
                 system_prompt=supervisor_prompt(goal, registry.describe(), knowledge_context),
-                # No definition, no allowlist.
+                # No definition or allowlist.
                 max_steps=run.limits.max_steps_per_agent,
                 control_names=SUPERVISOR_CONTROL_NAMES,
             ),
             tools=SUPERVISOR_TOOLS,
-            # The supervisor's own `agent.message` is addressed to the user.
+            # Supervisor's ``agent.message`` goes to user.
             supervisor_name="user",
-            # No runtime: with no `allowed_tools` it would be unreachable.
+            # No runtime: without ``allowed_tools`` it is unreachable.
             runtime=None,
         )
         self._registry = registry
         self._providers = providers
-        #: Handed to the workers this supervisor spawns, never used by itself.
+        #: Worker runtime only; supervisor never uses it.
         self._runtime_for_workers = runtime
         self._knowledge = knowledge
         self._space_id = space_id
@@ -110,11 +105,10 @@ class Supervisor(Agent):
         return await super()._dispatch(call, step)
 
     async def _spawn(self, call: ToolCall) -> ToolReply:
-        """Put one roster agent to work, and report what it produced.
+        """Put one roster agent to work and report its result.
 
-        Every failure here is a `tool.error` that leaves the run alive: one
-        bad call should not destroy the other agents' work, and the step
-        limit stops a supervisor that only makes bad calls.
+        Every failure is ``tool.error`` and leaves run alive; one bad call must
+        not destroy other work, while step limit stops an all-error supervisor.
         """
         requested = _text(call.arguments, "agent")
         task = _text(call.arguments, "task")
@@ -127,7 +121,7 @@ class Supervisor(Agent):
                 f"{', '.join(self._registry.names) or 'none'}.",
             )
 
-        # Before claiming an agent slot, so a bad provider does not spend one.
+        # Resolve provider before claiming a slot.
         try:
             provider = self._providers.for_definition(definition)
         except (UnknownProviderError, ProviderAuthError) as exc:
@@ -136,7 +130,7 @@ class Supervisor(Agent):
         try:
             name = self._run.register_agent(definition.name)
         except SpawnRefusedError as exc:
-            # Not a run failure: the supervisor carries on with the workers it has.
+            # Not a run failure; continue with existing workers.
             return await self._spawn_error(call, str(exc))
 
         spec = self._registry.spec_for(definition, name)
@@ -170,11 +164,10 @@ class Supervisor(Agent):
         augmented_task = f"{task}\n\n{worker_context}" if worker_context else task
         outcome = await worker.execute(augmented_task)
 
-        # From the log, not the return value: a result the log lacks stops the run here.
+        # Read log, not return value: missing durable result stops here.
         result = await self._mailbox.collect(sender=name, recipient=self.name)
 
-        # A worker cannot spawn, so a handoff comes back as a request, with
-        # what to call or why the name is not on the roster.
+        # Workers cannot spawn; handoffs return a request and roster guidance.
         payload: dict[str, Any] = {
             "tool": call.name,
             "call_id": call.id,

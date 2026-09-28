@@ -3,9 +3,8 @@ import { useCallback, useState } from "react";
 import { readRenamedStorage } from "../lib/storage";
 
 /**
- * A yes-or-no the viewer chose, kept in this browser's storage: a collapsed
- * sidebar, a folded section. Storage is a convenience, not state the app
- * depends on: it can be empty or refuse, and the page renders either way.
+ * Persist a viewer choice, such as a collapsed sidebar, in browser storage.
+ * Unavailable storage never blocks rendering.
  */
 export function useStoredFlag(name: string, fallback = false): [boolean, (value: boolean) => void] {
   const key = `agentbase.flag.${name}`;
@@ -21,7 +20,7 @@ export function useStoredFlag(name: string, fallback = false): [boolean, (value:
       try {
         localStorage.setItem(key, next ? "1" : "0");
       } catch {
-        // Nothing to do: the choice still holds for this view.
+        // Choice still holds for this view.
       }
     },
     [key],

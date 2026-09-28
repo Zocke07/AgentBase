@@ -12,10 +12,9 @@ import {
 import { insideTauri } from "../lib/tauri";
 
 /**
- * Obsidian-flavoured Markdown as React elements. Everything is built from the
- * parsed tree, never from strings, so a note or an agent's prose cannot inject
- * markup. The same component renders a vault note, the supervisor's summary
- * and a retrieved excerpt; what differs is which callbacks are wired.
+ * Render Obsidian Markdown from parsed trees, never strings, preventing note or
+ * agent markup injection. Shared by vault notes, summaries, and excerpts with
+ * callback-specific behavior.
  */
 
 export interface MarkdownProps {
@@ -24,7 +23,7 @@ export interface MarkdownProps {
   onLink?: ((target: string, heading: string | null) => void) | undefined;
   /** A `#tag` was clicked. Without it tags are plain chips. */
   onTag?: ((tag: string) => void) | undefined;
-  /** A task's checkbox was toggled; `line` indexes the whole source. Without it boxes are read-only. */
+  /** Toggled task checkbox; `line` indexes full source. Omit for read-only. */
   onToggleTask?: ((line: number, checked: boolean) => void) | undefined;
   /** Show the frontmatter as a properties panel above the body. */
   properties?: boolean;
@@ -283,9 +282,8 @@ function Tag({ tag, onTag }: { tag: string; onTag: MarkdownProps["onTag"] }) {
 }
 
 /**
- * The webview is granted no opener, so inside the shell an external address
- * is copied for the person to open where they choose; in a browser tab it is
- * an ordinary link.
+ * Shell webviews lack an opener, so copy external addresses; browser tabs use
+ * ordinary links.
  */
 function ExternalLink({ href, children }: { href: string; children: ReactNode }) {
   const shell = insideTauri();

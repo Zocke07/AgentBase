@@ -4,17 +4,15 @@
 
 ## The roster belongs to a space
 
-Choose a space, then open **Agents** in the left rail. Its enabled definitions
-are the workers the supervisor can delegate to. The supervisor itself is
-part of the orchestrator and is not a row you edit here.
+Choose a space and open **Agents**. Its enabled definitions are workers the
+supervisor can delegate to; the orchestrator's supervisor is not editable here.
 
-A fresh install's default space, **Main**, holds a ten-agent investment
-research pipeline. Every one of them is a built-in: editable, disableable
-and movable, but not deletable. They pass work to each other through files
-in the space folder (`config/`, `raw/`, `knowledge/`, `portfolio/`,
-`theses/`, `risk/`, `decisions/`, `scores/`), so read each system prompt
-before the first run and create `config/watchlist.json`, `config/sources.json`
-and `config/limits.json` for the collectors to read.
+Fresh-install **Main** contains a ten-agent investment-research pipeline.
+Built-ins are editable, disableable, and movable but not deletable. They
+exchange files in `config/`, `raw/`, `knowledge/`, `portfolio/`, `theses/`,
+`risk/`, `decisions/`, and `scores/`; read their prompts and create
+`config/watchlist.json`, `config/sources.json`, and `config/limits.json`
+before the first collector run.
 
 | Agent | Model | What it does | Tools |
 |---|---|---|---|
@@ -29,96 +27,81 @@ and `config/limits.json` for the collectors to read.
 | `decision` | Opus | Arbitrates bull, bear and risk into a dated recommendation table for you to approve. Executes nothing. | `read_file`, `list_dir`, `write_file` |
 | `review-analyst` | Sonnet | Scores predictions against outcomes and diagnoses misses without hindsight. | `read_file`, `list_dir`, `write_file`, `propose_memory` |
 
-Each definition names its provider and model (Anthropic's Haiku, Sonnet or
-Opus), so the pipeline's cost shape does not depend on the space's model:
-what runs often is cheap, reasoning is mid-tier, and Opus runs once per
-decision. The decision agent moved from Opus 5 to Opus 5.5 in an update unless
-you had edited it. To run the roster on OpenAI, switch the space's provider in
-Space settings and keep its agents ticked: collectors move to GPT-6 Luna,
-analysts and the decision agent to GPT-6 Sol.
-The prompts treat fetched pages and files under `raw/` as untrusted text, and
-no built-in can run a shell command. Their **Calls this agent may make
-without asking** lists narrow the app-wide policy (the collectors to low and
-medium risk, the analysts to low) and never widen it, so nothing runs
-unattended until you tick a level in Settings.
+Definitions specify Haiku, Sonnet, or Opus, so the pipeline's cost mix does
+not follow the space's model: frequent work is cheap, reasoning mid-tier, and
+Opus runs once per decision. The decision agent moved from Opus 5 to Opus 5.5
+in an update unless you had edited it. To run the roster on OpenAI, switch the
+space's provider in Space settings and keep its agents ticked: collectors move
+to GPT-6 Luna, analysts and the decision agent to GPT-6 Sol.
+Prompts treat fetched pages and `raw/` files as untrusted; no built-in uses
+shell. Their **Calls this agent may make without asking** narrows, never
+widens, app policy (collectors: low/medium; analysts: low), so no work runs
+unattended until Settings enables a level.
 
-Before the first collector run, create the configuration the prompts read,
-under **Knowledge → Data files**: the empty list offers `config/watchlist.json`,
-`config/sources.json` and `config/limits.json` as templates to edit and save,
-and JSON is checked before it is written. (The same files can be put in the
-space folder by hand, under a `config` folder.) `config/watchlist.json` lists the tickers:
-any JSON the prompt can read works, for example a `watchlist` array of
-objects with `ticker`, `company_name` and `aliases`, since the prompt says to
-take tickers only from this file. `config/sources.json` names the feeds and
-their URL templates, for example a Google News RSS template with `{ticker}`
-in it for `news-scanner`, a Stooq template for `market-movers`, and any keyed
-endpoint with its key in the query string for `event-calendar`; a note field
-per source is fine, the agent reads the file as text. The agents read these
-with `read_file`, so the files must be inside the space folder, not on the
-web. `news-scanner` expands each configured feed template and asks
-`read_feed` for complete entries. The tool parses RSS and Atom locally,
-returns at most 20 entries per call, normalizes dates and domains, and supplies
-deterministic IDs and title deduplication keys. `config/limits.json` holds the hard risk rules `portfolio-review` and
-`risk-manager` restate.
+Before the first collector run, create its configuration under **Knowledge →
+Data files**. An empty list offers JSON-validated templates for
+`config/watchlist.json`, `config/sources.json`, and `config/limits.json`; you
+can instead create them under the space's `config/` folder. `watchlist.json`
+can be any readable JSON, such as a `watchlist` array of `ticker`,
+`company_name`, and `aliases` objects; prompts take tickers only from it.
+`sources.json` defines feeds and URL templates: for example, Google News RSS
+with `{ticker}` for `news-scanner`, Stooq for `market-movers`, or a keyed URL
+for `event-calendar`; sources may include a note. Because agents use
+`read_file`, these files must be inside the space, not on the web.
+`news-scanner` expands each template and calls `read_feed`, which parses RSS/
+Atom locally, returns at most 20 complete entries, normalizes dates/domains,
+and supplies deterministic IDs and title-deduplication keys. `limits.json`
+contains the hard rules `portfolio-review` and `risk-manager` restate.
 
-Two things the prompts assume that AgentBase does not provide: scripts
-(`scripts/compute_movers.py`, `compute_portfolio.py`, `check_limits.py`,
-`score_predictions.py`, `fetch_keyed.py`) that do the arithmetic and the
-header-requiring fetches, and a `portfolio/positions.csv` you export by
-hand. Arithmetic is deliberately never done by a model. Until those exist,
-an agent that finds its input missing is told to say so and stop.
+Prompts also require external scripts (`scripts/compute_movers.py`,
+`compute_portfolio.py`, `check_limits.py`, `score_predictions.py`,
+`fetch_keyed.py`) for arithmetic and header-requiring fetches, plus a manually
+exported `portfolio/positions.csv`. Models never do the arithmetic. Missing
+input instructs agents to report it and stop.
 
-A new space is seeded with three **starter roles** instead: `researcher`
-(`read_file`, `list_dir`, `search_knowledge`, `propose_memory`), `writer`
-(`read_file`, `write_file`, `search_knowledge`, `propose_memory`) and
-`reviewer` (as the researcher). These copies are editable and deletable. An
-empty space can add them with **Start from the starter roles** on Home, and
-so can the default space, or you can define your own agents.
+New spaces instead get three editable, deletable **starter roles**:
+`researcher` (`read_file`, `list_dir`, `search_knowledge`, `propose_memory`),
+`writer` (`read_file`, `write_file`, `search_knowledge`, `propose_memory`),
+and `reviewer` (researcher tools). Add them from Home with **Start from the
+starter roles**, including in the default space, or define your own.
 
 ## Create or edit an agent
 
-Click **New agent**, or select an existing agent in the list. Fill in its
-fields and save the definition.
+Click **New agent** or select an existing agent, then save its fields.
 
 | Field | Meaning |
 |---|---|
 | **Name** | Unique within this space. Use lowercase letters, digits, `-` or `_`, starting with a letter, up to 40 characters. |
 | **Role** | A one-line description the supervisor uses when choosing a worker. |
-| **System prompt** | Instructions for the worker's task and behavior. The app supplies the coordination instructions. |
+| **System prompt** | Worker task/behavior instructions; the app supplies coordination. |
 | **Provider / Model** | Inherit the space's provider and model, or choose a model for this agent. The list shows current models first, each with its level and price per million tokens. When a space moves to another provider, Space settings offers to move agents that name the old one's models. |
-| **Max steps** | A saved ceiling on this agent's turns. Blank selects the lower of 20 and the current app-wide step limit; it is not a value that grows automatically when settings change. |
-| **Tools this agent may call** | The tools the agent is permitted to request. An agent with no file, shell or network tools can still reason and report back. |
-| **Calls this agent may make without asking** | Optional restriction on automatic approvals. Nothing ticked inherits the space policy; selected levels are intersected with that policy. |
+| **Max steps** | Saved ceiling on agent turns. Blank selects the lower of 20 and the current app-wide limit; it does not grow automatically with settings. |
+| **Tools this agent may call** | Tools it may request. Without file, shell, or network tools, it can still reason and report. |
+| **Calls this agent may make without asking** | Optional automatic-approval restriction. Nothing inherits space policy; selected levels intersect it. |
 | **Available to the supervisor** | Disable to keep the definition but remove it from future runs' rosters. |
 
-Errors appear beside the relevant field. An explicit **Max steps** must fit
-within the app-wide limit when saved; at run time it is also clamped to the
-space's effective step limit. Changing only a space's limit does not raise
-an agent's saved ceiling.
+Errors appear beside their field. Explicit **Max steps** must fit the app-wide
+limit on save and is clamped to the effective space limit at run time. Changing
+only a space limit does not raise the saved agent ceiling.
 
-Allowing a tool lets an agent request it; the approval gate still decides
-whether the call may execute. An agent cannot add tools to its own allowlist.
-See [Approvals](2_running_tasks.md#approvals) for each tool's effects.
+Allowing a tool permits requests, not execution; the approval gate still
+decides. Agents cannot extend their allowlists. See
+[Approvals](2_running_tasks.md#approvals) for effects.
 
-An active run keeps the roster and definitions it started with. Editing,
-disabling, moving or deleting a definition changes future runs, while old
-runs retain the definitions recorded in their event logs.
+Active runs keep their starting roster/definitions. Editing, disabling, moving,
+or deleting changes future runs; historical logs retain their definitions.
 
 ## Move, copy or delete
 
-With an existing agent open, **Move to** transfers its definition to another
-active space. **Copy to** creates an independent definition there. Choose the
-destination in the dropdown to perform the action. A copy receives a unique
-name if that name is already used in the destination and is deletable even
-when its source is a built-in.
+For an open agent, **Move to** transfers it to another active space; **Copy to**
+creates an independent definition there. Select the destination. Copies get a
+unique destination name and remain deletable even when sourced from a built-in.
 
-Use the list's **Delete** control and confirmation to remove a definition.
-Attempting to delete one of the default space's built-ins reports that it is
-protected; disable it instead if you do not want the supervisor using it.
+Use **Delete** and confirm to remove a definition. Default-space built-ins are
+protected; disable them to remove them from supervisor use.
 
 ## Custom tools
 
-The app lets you combine the registered tools into an agent's allowlist.
-It has no UI for installing or writing another tool. Adding a tool requires
-a code change; see the
+The app combines registered tools into agent allowlists; it cannot install or
+write tools. Adding one requires code; see the
 [developer checklist](../developer_guide/5_checklists.md).

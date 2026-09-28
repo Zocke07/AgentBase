@@ -1,11 +1,9 @@
-"""The hard limits a run cannot exceed (§5 Phase 4).
+"""Hard run limits (§5 Phase 4).
 
-Resolved once at run start and written into `run.started`, so the log says
-what rules a run was held to. ``max_steps_per_agent`` ends the *agent* with
-`agent.completed` (§4 has no `agent.failed`); ``max_run_seconds`` ends the
-run with `run.failed`; ``max_agents_per_run`` ends nothing: the spawn is
-refused through a `tool.error` and the supervisor carries on, since killing a
-run for asking for one worker too many trades real work for strictness.
+Resolve once at start and record in ``run.started``. ``max_steps_per_agent``
+ends an agent with ``agent.completed`` (§4 has no ``agent.failed``);
+``max_run_seconds`` ends a run with ``run.failed``; ``max_agents_per_run``
+refuses only the spawn via ``tool.error`` so the supervisor can continue.
 """
 
 from __future__ import annotations
@@ -27,29 +25,24 @@ __all__ = [
 #: Matches the `agent_defs.max_steps` default in §4.
 DEFAULT_MAX_STEPS_PER_AGENT: Final[int] = 20
 
-#: A supervisor plus workers: low enough that a spawn loop is caught in seconds.
+#: Supervisor plus workers; low enough to catch spawn loops within seconds.
 DEFAULT_MAX_AGENTS_PER_RUN: Final[int] = 5
 
-#: Ten minutes: so an unattended run cannot burn a month's budget overnight.
+#: Ten minutes: prevents unattended overnight budget burn.
 DEFAULT_MAX_RUN_SECONDS: Final[int] = 600
 
-#: Two dollars, in micros: what one run may spend before it is stopped. The
-#: monthly cap bounds the month; this bounds the one run that goes wrong. 0
-#: turns it off.
+#: Two dollars in micros: per-run ceiling alongside monthly cap; 0 disables it.
 DEFAULT_MAX_RUN_COST_MICROS: Final[int] = 2_000_000
 
 
 @dataclass(frozen=True, slots=True)
 class RunLimits:
-    """The ceilings one run is held to, fixed at the moment it starts.
-
-    A setting edited mid-run applies to the next run.
-    """
+    """Run ceilings fixed at start; mid-run setting edits affect the next run."""
 
     max_steps_per_agent: int = DEFAULT_MAX_STEPS_PER_AGENT
     max_agents_per_run: int = DEFAULT_MAX_AGENTS_PER_RUN
     max_run_seconds: int = DEFAULT_MAX_RUN_SECONDS
-    #: In micros; 0 means the monthly cap is the only ceiling.
+    #: Micros; 0 leaves monthly cap as the sole ceiling.
     max_run_cost_micros: int = DEFAULT_MAX_RUN_COST_MICROS
 
     @classmethod
@@ -62,7 +55,7 @@ class RunLimits:
         )
 
     def as_payload(self) -> dict[str, Any]:
-        """The shape written into `run.started`."""
+        """Build the ``run.started`` payload."""
         return {
             "max_steps_per_agent": self.max_steps_per_agent,
             "max_agents_per_run": self.max_agents_per_run,

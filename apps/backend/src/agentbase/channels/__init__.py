@@ -1,11 +1,10 @@
-"""Chat channels: Discord, reaching the same run the UI does.
+"""Chat channels, including Discord, use the UI's run path.
 
-A channel is a second projection of the event log, not a second path into
-the orchestrator: inbound, an adapter's message becomes an
-:class:`~agentbase.channels.base.InboundMessage` and the run starts through
-the same :class:`~agentbase.orchestrator.launcher.RunLauncher` as
-`POST /runs`; outbound, the chat message is `render(fold(events))`. Nothing
-here is privileged (§1 constraint 5): the gate never learns where a run came from.
+Channels project the event log; they do not bypass orchestration. Inbound
+messages become :class:`~agentbase.channels.base.InboundMessage` instances and
+start through the same :class:`~agentbase.orchestrator.launcher.RunLauncher`
+as `POST /runs`; outbound text is ``render(fold(events))``. Channel origin
+never grants privilege (§1 constraint 5).
 """
 
 from __future__ import annotations
@@ -26,9 +25,8 @@ from agentbase.channels.identity import (
 from agentbase.channels.render import ChatView, fold, render
 from agentbase.channels.throttle import Throttle
 
-# `service` and the adapter are deliberately not re-exported: the settings
-# model imports `ChannelIdentity` from here, and reaching the adapter would
-# make loading settings import `discord.py`.
+# Do not re-export service/adapter: settings imports ``ChannelIdentity`` here,
+# and reaching the adapter would import ``discord.py`` while loading settings.
 
 __all__ = [
     "CHANNEL_NAMES",

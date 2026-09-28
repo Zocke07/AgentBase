@@ -1,10 +1,9 @@
-//! The Tauri shell: spawn the frozen sidecar at startup, hand it its data
-//! directory and its keys, and make sure it is gone at exit.
+//! Tauri shell: spawn the frozen sidecar with its data directory and keys, then
+//! stop it at exit.
 //!
-//! With PyInstaller's `--onefile` the PID this shell holds is the bootloader's,
-//! not the server's, so killing it would orphan the server on port 8787.
-//! Shutdown writes `shutdown` to the sidecar's stdin and drops the handle;
-//! the sidecar stops itself on either. `kill` is only a timeout backstop.
+//! PyInstaller `--onefile` exposes the bootloader PID, not the server's; killing
+//! it would orphan port 8787. Send `shutdown` and close stdin instead; `kill` is
+//! a timeout backstop.
 
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -14,44 +13,38 @@ use tauri::{AppHandle, Manager, RunEvent};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
-/// Matches the `externalBin` entry in `tauri.conf.json`. Tauri appends the
-/// target triple when resolving it on disk.
+/// Matches `tauri.conf.json` `externalBin`; Tauri appends the target triple.
 const SIDECAR_NAME: &str = "agentbase-sidecar";
 
-/// Must match `agentbase.config.DEFAULT_BIND_PORT` and the `connect-src` in
-/// the CSP. The sidecar binds 127.0.0.1 only, hardcoded on its side
-/// (BUILD_SPEC §1 constraint 3).
+/// Matches `agentbase.config.DEFAULT_BIND_PORT` and CSP `connect-src`. The
+/// sidecar hardcodes localhost-only binding (BUILD_SPEC §1 constraint 3).
 const SIDECAR_PORT: u16 = 8787;
 
-/// Written to the sidecar's stdin to request a clean stop. Must match
-/// `agentbase.main.SHUTDOWN_COMMAND`.
+/// Clean-stop stdin command; matches `agentbase.main.SHUTDOWN_COMMAND`.
 const SHUTDOWN_LINE: &[u8] = b"shutdown\n";
 
-/// How long to let the sidecar exit on its own before forcing the issue.
+/// Grace period before forced sidecar shutdown.
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(5);
 
-/// Keychain service name. Matches the bundle identifier so the entries are
-/// attributable to this app in the Windows Credential Manager UI.
+/// Keychain service matches the bundle identifier for Credential Manager.
 const KEYCHAIN_SERVICE: &str = "dev.agentbase.desktop";
 
-/// Service used by AgentSpace before the project rename. Read-only fallback
-/// keeps existing credentials available until the user writes an AgentBase key.
+/// Pre-rename AgentSpace service; read-only fallback preserves credentials until
+/// an AgentBase key is written.
 const LEGACY_KEYCHAIN_SERVICE: &str = "dev.agentspace.desktop";
 
-/// Keychain account names, which double as the JSON field names in the stdin
-/// handshake. Must match `agentbase.secrets.SECRET_KEYS`; a test compares them.
+/// Keychain accounts and stdin JSON fields; matches `agentbase.secrets.SECRET_KEYS`.
 const SECRET_NAMES: [&str; 3] = ["anthropic_api_key", "openai_api_key", "discord_bot_token"];
 
 #[derive(Default)]
 struct SidecarState(Mutex<Option<CommandChild>>);
 
-/// Environment variable carrying this launch's tag to the sidecar, which
-/// echoes it from `/health`. Must match `agentbase.main.INSTANCE_ENV_VAR`.
+/// Per-launch tag env var echoed from `/health`; matches
+/// `agentbase.main.INSTANCE_ENV_VAR`.
 const INSTANCE_ENV: &str = "AGENTBASE_INSTANCE";
 
-/// The tag for this launch, handed to both the sidecar and the webview so the
-/// webview can tell the shell's own sidecar from whatever else holds the fixed
-/// port. Not a secret; unique per launch is all it has to be.
+/// Per-launch, non-secret tag lets the webview distinguish this sidecar from
+/// another process on the fixed port.
 struct Instance(String);
 
 impl Instance {
@@ -64,50 +57,45 @@ impl Instance {
     }
 }
 
-/// The origin the webview should talk to.
+/// Return the sidecar origin for the webview.
 #[tauri::command]
 fn sidecar_base_url() -> String {
     format!("http://127.0.0.1:{SIDECAR_PORT}")
 }
 
-/// The tag `/health` must echo for the webview to trust what answered.
+/// Return the `/health` tag the webview requires for trust.
 #[tauri::command]
 fn sidecar_instance(instance: tauri::State<'_, Instance>) -> String {
     instance.0.clone()
 }
 
-/// The keychain service the settings screen writes secrets under, handed to
-/// the webview rather than duplicated there. Reading back stays in Rust.
+/// Return the settings keychain service; Rust alone reads secrets.
 #[tauri::command]
 fn keychain_service() -> String {
     KEYCHAIN_SERVICE.to_string()
 }
 
-/// The predecessor service name. The webview may use it only to remove a
-/// credential that was adopted through the rename fallback; it never reads a
-/// value from either keychain service.
+/// Return the predecessor service for removing adopted credentials only; the
+/// webview never reads either keychain service.
 #[tauri::command]
 fn legacy_keychain_service() -> String {
     LEGACY_KEYCHAIN_SERVICE.to_string()
 }
 
-/// Environment variable the sidecar reads its data directory from. Must match
-/// `agentbase.config.DATA_DIR_ENV_VAR`.
+/// Sidecar data-directory env var; matches `agentbase.config.DATA_DIR_ENV_VAR`.
 const DATA_DIR_ENV: &str = "AGENTBASE_DATA_DIR";
 
-/// The data directory: the one the justfile exported for a dev run, else the
-/// one Tauri derives from the bundle identifier. One function, because the
-/// sidecar is spawned with it and `reveal_folder` refuses anything outside it.
+/// Return the justfile-provided dev directory or Tauri's bundle-derived local
+/// data directory; sidecar spawning and folder validation share it.
 fn data_dir(app: &AppHandle) -> Result<PathBuf, tauri::Error> {
     match std::env::var_os(DATA_DIR_ENV) {
         Some(inherited) => Ok(PathBuf::from(inherited)),
-        // `app_local_data_dir()`, not `app_data_dir()`: on Windows the latter
-        // is the roaming profile, and this one matches the sidecar's own fallback.
+        // Avoid roaming `app_data_dir()` on Windows; match the sidecar fallback.
         None => app.path().app_local_data_dir(),
     }
 }
 
-/// Resolve one existing directory and prove it belongs to AgentBase's data.
+/// Canonicalize an existing directory and require it under AgentBase data.
 fn validated_data_directory(app: &AppHandle, path: &str) -> Result<PathBuf, String> {
     let root = data_dir(app).map_err(|error| error.to_string())?;
     let root = std::fs::canonicalize(&root).map_err(|error| error.to_string())?;
@@ -122,8 +110,7 @@ fn validated_data_directory(app: &AppHandle, path: &str) -> Result<PathBuf, Stri
     Ok(wanted)
 }
 
-/// Show a space's folder in the OS file manager: the one path-opening command
-/// the webview may call, and it refuses any path outside the data directory.
+/// Open a validated space folder; the webview's only path-opening command.
 #[tauri::command]
 fn reveal_folder(app: AppHandle, path: String) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
@@ -142,11 +129,8 @@ fn obsidian_vault_url(path: &std::path::Path) -> Result<tauri::Url, String> {
     tauri::Url::parse(&format!("obsidian://open?path={encoded}")).map_err(|error| error.to_string())
 }
 
-/// Where Obsidian's own installer puts it. The vault button is offered only
-/// when one of these exists: without Obsidian the `obsidian://` link has no
-/// handler and the launcher fails with an exit status nobody can act on. An
-/// install elsewhere loses only the shortcut; the folder is a vault that
-/// Obsidian's picker opens.
+/// Return standard Obsidian install locations. Offer the vault shortcut only
+/// when one exists; other installs can use Obsidian's vault picker.
 fn obsidian_candidates() -> Vec<PathBuf> {
     #[cfg(target_os = "macos")]
     {
@@ -158,7 +142,7 @@ fn obsidian_candidates() -> Vec<PathBuf> {
     }
     #[cfg(target_os = "windows")]
     {
-        // The per-user installer, in its current and its older location.
+        // Current and legacy per-user installer locations.
         let mut found = Vec::new();
         if let Some(local) = std::env::var_os("LOCALAPPDATA") {
             let local = PathBuf::from(local);
@@ -173,8 +157,7 @@ fn obsidian_candidates() -> Vec<PathBuf> {
     }
 }
 
-/// Whether Obsidian is installed where the Knowledge section can expect the
-/// vault link to work.
+/// Report whether the Knowledge vault link can work.
 #[tauri::command]
 fn obsidian_available() -> bool {
     obsidian_candidates()
@@ -182,7 +165,7 @@ fn obsidian_available() -> bool {
         .any(|candidate| candidate.exists())
 }
 
-/// Open a validated space folder as a vault through Obsidian's documented URI.
+/// Open a validated space folder through Obsidian's documented vault URI.
 #[tauri::command]
 fn open_obsidian_vault(app: AppHandle, path: String) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
@@ -192,8 +175,7 @@ fn open_obsidian_vault(app: AppHandle, path: String) -> Result<(), String> {
     app.opener()
         .open_url(url.as_str(), None::<&str>)
         .map_err(|error| {
-            // The launcher's exit status is for the log; the message says
-            // what still works.
+            // Log the launcher status; tell the user the remaining workaround.
             eprintln!("[obsidian] {error}");
             format!(
                 "Obsidian did not open the folder. Open it as a vault from Obsidian's own \
@@ -203,9 +185,8 @@ fn open_obsidian_vault(app: AppHandle, path: String) -> Result<(), String> {
         })
 }
 
-/// Open the OAuth page returned by Codex App Server. The webview cannot use
-/// the opener plugin directly, and this command accepts only OpenAI-owned
-/// HTTPS hosts rather than becoming a general URL launcher.
+/// Open a Codex App Server OAuth page. The webview cannot call the plugin;
+/// permit only OpenAI-owned HTTPS hosts, not arbitrary URLs.
 #[tauri::command]
 fn open_auth_url(app: AppHandle, url: String) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
@@ -226,14 +207,9 @@ fn auth_url_is_allowed(url: &str) -> bool {
     parsed.scheme() == "https" && allowed_host
 }
 
-/// Quit and relaunch, so a key written to the keychain reaches the next
-/// spawn's handshake without the user finding the app in the Dock. The work
-/// runs on a thread of its own: `restart` from the main thread would skip the
-/// `RunEvent::Exit` callback and orphan the sidecar on its port, while from
-/// any other thread it requests an exit, waits for that callback (which stops
-/// the sidecar) and then execs a fresh copy of this binary. The sidecar is
-/// stopped here first anyway, so the new instance never races the old one for
-/// port 8787 whichever path Tauri takes.
+/// Relaunch after a key write so the next spawn receives it. Run off the main
+/// thread so `RunEvent::Exit` stops the sidecar; stop it first as well, avoiding
+/// a port-8787 race regardless of Tauri's restart path.
 #[tauri::command]
 fn restart_app(app: AppHandle) {
     std::thread::spawn(move || {
@@ -242,15 +218,13 @@ fn restart_app(app: AppHandle) {
     });
 }
 
-/// Start the sidecar and keep its handle for shutdown. The data directory is
-/// resolved here and handed over in the environment, so the two sides cannot
-/// guess it separately.
+/// Start the sidecar, retain its shutdown handle, and pass the resolved data
+/// directory through the environment.
 fn spawn_sidecar(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let data_dir = data_dir(app)?;
     std::fs::create_dir_all(&data_dir)?;
 
-    // Otherwise silent: the sidecar cannot bind and exits, and the webview
-    // refuses whatever holds the port by its tag. This line is for the log.
+    // Log binding failure; the webview rejects a port occupant with another tag.
     if port_is_open(SIDECAR_PORT) {
         eprintln!(
             "[sidecar] port {SIDECAR_PORT} is already in use: another AgentBase, or a dev \
@@ -266,7 +240,7 @@ fn spawn_sidecar(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         .env(INSTANCE_ENV, &instance)
         .spawn()?;
 
-    // Logged, not propagated: a missing key must not stop the window opening.
+    // Log, rather than propagate, a missing-key handshake error.
     if let Err(error) = send_secrets(&mut child) {
         eprintln!("[sidecar] could not send the key handshake: {error}");
     }
@@ -277,8 +251,7 @@ fn spawn_sidecar(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         .expect("sidecar state poisoned")
         .replace(child);
 
-    // Drain the sidecar's output. Without a reader the pipe fills and the
-    // sidecar blocks on its own logging.
+    // Drain output so a full pipe cannot block sidecar logging.
     tauri::async_runtime::spawn(async move {
         while let Some(event) = rx.recv().await {
             match event {
@@ -299,29 +272,25 @@ fn spawn_sidecar(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Read the API keys from the OS keychain and write them to the sidecar's stdin
-/// as one JSON line, first, before the stream becomes the shutdown watchdog
-/// (§1 constraint 4). stdin, never `argv`, which any process can read. The line
-/// is always written, even empty.
+/// Read API keys and write one JSON line to sidecar stdin before it becomes the
+/// shutdown watchdog (§1 constraint 4). Never use `argv`, which other processes
+/// can read; write the line even when empty.
 ///
-/// The read goes to the `keyring` crate directly, not the plugin's
-/// `get_password`, which folds every failure into `None`: on macOS a user
-/// clicking Deny on the keychain prompt then looked like an unset key.
-/// `NoEntry` is the one error that means "not set".
+/// Read directly through `keyring`: the plugin turns every error into `None`,
+/// making a macOS Deny prompt appear unset. Only `NoEntry` means "not set".
 enum KeychainLookup {
     Value(String),
     Missing,
     Unavailable,
 }
 
-/// Read one keychain entry without turning a keychain failure into a missing
-/// entry. That distinction prevents an old AgentSpace credential from bypassing
-/// a denied or unavailable AgentBase entry.
+/// Read one keychain entry without conflating failures with absence, preventing
+/// a legacy AgentSpace key from bypassing a denied or unavailable AgentBase key.
 fn read_keychain_entry(service: &str, name: &str) -> KeychainLookup {
     match keyring::Entry::new(service, name).and_then(|entry| entry.get_password()) {
         Ok(value) => KeychainLookup::Value(value),
         Err(keyring::Error::NoEntry) => KeychainLookup::Missing,
-        // The service and account are identifiers, never secret values.
+        // Service and account are identifiers, never secret values.
         Err(error) => {
             eprintln!("[keychain] could not read {name} from {service}: {error}");
             KeychainLookup::Unavailable
@@ -329,9 +298,8 @@ fn read_keychain_entry(service: &str, name: &str) -> KeychainLookup {
     }
 }
 
-/// Read an AgentBase key first. The legacy service is considered only after an
-/// explicit `NoEntry` result, so a current empty entry or keychain failure is
-/// authoritative and cannot be replaced by an older value.
+/// Prefer AgentBase keys; consult the legacy service only after explicit
+/// `NoEntry`. Empty or unavailable current entries remain authoritative.
 fn secret_for_name(
     name: &str,
     mut lookup: impl FnMut(&str, &str) -> KeychainLookup,
@@ -356,7 +324,7 @@ fn send_secrets(child: &mut CommandChild) -> Result<(), Box<dyn std::error::Erro
         }
     }
 
-    // Names only; the values must not reach the console.
+    // Log names only; never write values to the console.
     let names: Vec<&str> = secrets.keys().map(String::as_str).collect();
     eprintln!("[keychain] sending {} key(s): {:?}", names.len(), names);
 
@@ -367,7 +335,7 @@ fn send_secrets(child: &mut CommandChild) -> Result<(), Box<dyn std::error::Erro
     Ok(())
 }
 
-/// Stop the sidecar, preferring the mechanisms that reach the real server.
+/// Stop the sidecar through mechanisms that reach the real server.
 fn shutdown_sidecar(app: &AppHandle) {
     let Some(mut child) = app
         .state::<SidecarState>()
@@ -379,29 +347,29 @@ fn shutdown_sidecar(app: &AppHandle) {
         return;
     };
 
-    // 1. Ask nicely. The sidecar's stdin watchdog stops the server on this.
+    // 1. Request shutdown through the stdin watchdog.
     if let Err(error) = child.write(SHUTDOWN_LINE) {
         eprintln!("[sidecar] could not write shutdown command: {error}");
     }
 
-    // 2. Give it a moment to go on its own.
+    // 2. Allow graceful exit.
     let deadline = Instant::now() + SHUTDOWN_GRACE;
     while Instant::now() < deadline {
         if !port_is_open(SIDECAR_PORT) {
-            // Dropping `child` closes stdin: even a sidecar that ignored the command sees EOF.
+            // Dropping `child` closes stdin, so an ignored command still yields EOF.
             return;
         }
         std::thread::sleep(Duration::from_millis(100));
     }
 
-    // 3. Backstop. `kill` consumes the handle, so stdin closes here too.
+    // 3. Backstop: `kill` consumes the handle and closes stdin.
     eprintln!("[sidecar] did not exit within {SHUTDOWN_GRACE:?}; killing");
     if let Err(error) = child.kill() {
         eprintln!("[sidecar] kill failed: {error}");
     }
 }
 
-/// Whether anything is still listening on the sidecar's port.
+/// Return whether anything listens on the sidecar port.
 fn port_is_open(port: u16) -> bool {
     use std::net::{Ipv4Addr, SocketAddr, TcpStream};
 
@@ -413,7 +381,8 @@ fn port_is_open(port: u16) -> bool {
 ///
 /// # Panics
 ///
-/// Panics if the Tauri application cannot be built (a malformed `tauri.conf.json`).
+/// Panics when Tauri cannot build the application, for example from malformed
+/// `tauri.conf.json`.
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())

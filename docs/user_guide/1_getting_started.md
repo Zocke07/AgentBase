@@ -4,12 +4,12 @@
 
 ## Install and open AgentBase
 
-The 0.4.8 downloads are a Windows x64 installer and a macOS Apple Silicon disk
-image. Python, Node and Rust are bundled or unnecessary for installed users.
-Use the [0.4.8 release](https://github.com/Zocke07/AgentBase/releases/tag/v0.4.8)
-or the matching artifact from a successful
+Version 0.4.8 ships a Windows x64 installer and a macOS Apple Silicon disk
+image. Installed users need neither Python, Node, nor Rust. Use the
+[0.4.8 release](https://github.com/Zocke07/AgentBase/releases/tag/v0.4.8) or the
+matching artifact from a successful
 [build run](https://github.com/Zocke07/AgentBase/actions/workflows/build.yml).
-See the [release notes](../releases/0.4.8.md) for release status and limitations.
+See the [release notes](../releases/0.4.8.md) for status and limitations.
 
 ### Windows
 
@@ -26,13 +26,12 @@ See the [release notes](../releases/0.4.8.md) for release status and limitations
 
 1. Download `AgentBase_0.4.8_aarch64.dmg` for an Apple Silicon Mac. This
    image is not an Intel or universal build.
-2. Open the disk image and drag **AgentBase** onto the **Applications** link
-   in the window that appears, then eject the image. Installing it there is
-   what makes Spotlight list the app; an app run straight from
-   the image or from Downloads is started by macOS as a temporary copy each
-   time, which can show up as several AgentBase entries in Finder searches.
-   Releases before 0.3.2 shipped a zip; if you kept one of those apps in
-   Downloads, delete it and use the one in Applications.
+2. Open the disk image, drag **AgentBase** onto the **Applications** link, and
+   eject the image. Installing it there makes it appear in Spotlight. macOS
+   treats apps run directly from the image or Downloads as temporary copies,
+   which can produce multiple AgentBase entries in Finder searches. Releases
+   before 0.3.2 shipped a zip; delete any of those copies in Downloads and use
+   the one in Applications.
 3. Open the app from **Applications**. It has no Developer ID signature or
    Apple notarization. If macOS blocks it as an unidentified developer,
    attempt to open it once, then go to **System Settings → Privacy & Security
@@ -41,7 +40,7 @@ See the [release notes](../releases/0.4.8.md) for release status and limitations
    [Apple's instructions](https://support.apple.com/en-us/102445) explain the
    prompts and the exception.
 
-If the installed app remains quarantined, an alternative in Terminal is:
+If the installed app remains quarantined, use this Terminal alternative:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/AgentBase.app
@@ -51,7 +50,7 @@ Adjust the path if you installed it elsewhere. This removes the quarantine
 attribute from this app and its contents; it does not add a trusted Developer
 ID signature or notarization.
 
-A separate **keychain access** prompt can appear after you have stored a key,
+A separate **keychain access** prompt can appear after you store a key,
 particularly after an upgrade. It names **AgentBase** and
 `dev.agentbase.desktop` and may request your **login keychain password**.
 Choose **Allow** for this access, or **Always Allow** for this build. It is
@@ -66,9 +65,10 @@ engine** (its local engine), then **Checking your settings** and **Loading your
 spaces**, each ticked as it finishes. The first start after installing or
 updating can take a minute or two, and the screen says so if it does. If an
 earlier AgentBase is still closing, it says it is waiting for that. Once all
-three are done, you land on **Home** in the default space. The first launch opens a short tour that points at each part of the window and
-ends on the demo run; **Skip the tour** or Esc closes it for good, and
-**Settings → About AgentBase → Replay the tour** brings it back.
+three are done, you land on **Home** in the default space. The first launch opens a
+short tour of the window and ends on the demo run; **Skip the tour** or Esc
+dismisses it permanently, and **Settings → About AgentBase → Replay the tour**
+brings it back.
 
 | Control | What it opens |
 |---|---|
@@ -78,36 +78,35 @@ ends on the demo run; **Skip the tour** or Esc closes it for good, and
 | **Agents** | Create and edit this space's agent definitions. |
 | **Knowledge** | The space folder as a Markdown vault, and the memory inbox. |
 | **Visualize** | Charts from data files, saved dashboards and Mermaid diagrams. |
-| **Usage** | What this month's model calls cost and carried, by day, model, space and run. |
+| **Usage** | This month's model-call costs, tokens, and carried context by day, model, space, and run. |
 | **Space settings** | Name, description, folder, model, limits, approval answers and schedules for this space. |
 | **Settings**, at the bottom | App defaults, keys, shared budget, Discord, theme and the About box. |
-| **Hide the sidebar**, beneath Settings | Folds the rail to icons (Ctrl/Cmd+B does the same); the names stay in tooltips and the space's initial stands in for its name. |
+| **Hide the sidebar**, beneath Settings | Folds the rail to icons (Ctrl/Cmd+B does the same); names remain in tooltips and the space initial replaces its name. |
 
-In a window narrower than about 1,100 pixels the rail folds to icons by
-itself, and **Show the sidebar** opens it over the page; Esc, a click
-outside it, or choosing a section closes it again. Pressing Tab first
-offers **Skip to content**, which jumps past the rail to the section.
+In windows narrower than about 1,100 pixels, the rail folds to icons
+automatically, and **Show the sidebar** opens it over the page. Esc, a click
+outside it, or choosing a section closes it again. Pressing Tab first offers
+**Skip to content**, which jumps past the rail to the section.
 
-The header shows the model the selected space uses (by the name its maker
-gives it, such as **Claude Opus 5.5**; hover for the provider), this month's
-spending against your monthly limit, and any approvals waiting across spaces.
-Click the spending for a breakdown: this space's share, how many runs there
-were and what one cost on average, the models and spaces the money went to
-(the three largest of each), and the limit per run, with **See all usage** and
-**Change limits**. Esc or a click elsewhere closes it; hover the figure for the
-ledger's exact amounts. While setup is unfinished, **Finish setup**
-in the header opens Settings. Switching spaces changes what you are viewing;
-it does not stop runs already in progress.
+The header shows the selected space's model (using its maker's name, such as
+**Claude Opus 5.5**; hover for the provider), this month's spending against your
+monthly limit, and approvals waiting across spaces. Click the spending for a
+breakdown: this space's share, how many runs there were and what one cost on
+average, the models and spaces the money went to (the three largest of each),
+and the limit per run, with **See all usage** and **Change limits**. Esc or a
+click elsewhere closes it; hover the figure for the ledger's exact amounts. While
+setup is unfinished, **Finish setup** opens Settings. Switching spaces changes
+what you see; it does not stop runs already in progress.
 
 A fresh install has no cloud key. **Home** says so in **One step before
 your first run** and offers **Open settings**. **Try a demo run** in that
 notice shows a scripted run without calling a model or using a key.
 
-Settings is one long page. The row of buttons at its top (**Provider**,
-**Keys**, **Budget**, **Limits**, **Chat**, **Appearance**, **About**) jumps
-to each section, and **Save settings** stays at the bottom of the window
-however far down you are. The first group, **Get started**, holds the two
-things a new install needs: the provider new spaces start on, and its key.
+Settings is a single page. Its top buttons (**Provider**, **Keys**, **Budget**,
+**Limits**, **Chat**, **Appearance**, **About**) jump to each section, and
+**Save settings** remains at the bottom of the window. The first group, **Get
+started**, holds the two things a new install needs: the provider new spaces
+start on, and its key.
 
 ## Connect a model
 
@@ -117,19 +116,19 @@ things a new install needs: the provider new spaces start on, and its key.
 2. In the AgentBase window, open **Settings → Keys**. Click **Set…** beside
    **Anthropic API key** (`anthropic_api_key`) or **OpenAI API key**
    (`openai_api_key`), paste the key, and click **Save key**.
-3. Click **Restart AgentBase**, which appears under the key list once a key
-   has been saved or cleared, or quit and reopen the app yourself. The key is
-   stored in the OS credential store and read when the app starts, so a
-   change takes effect only after a restart, and a restart stops any run in
-   progress. **Save settings** is separate from **Save key**.
+3. Click **Restart AgentBase**, which appears under the key list after you save
+   or clear a key, or restart the app yourself. Keys are stored in the OS
+   credential store and read when the app starts, so changes take effect only
+   after a restart, which stops any run in progress. **Save settings** is
+   separate from **Save key**.
 4. Under **Settings → Provider**, choose where new spaces start (**New spaces
-   use**), then click **Save settings**. The default is Anthropic. Each space
+   use**), then click **Save settings**. Anthropic is the default. Each space
    then keeps its own provider and model under **Space settings → Model**; a
    new one starts on its provider's default (`claude-opus-5-5` for Anthropic,
-   `gpt-6-sol` for OpenAI; an Ollama model is typed). Changing this setting
-   moves no existing space: to move one, change its provider in Space settings
-   (see [Create and configure spaces](#create-and-configure-spaces)). An agent
-   can pick its own model in its definition.
+   `gpt-6-sol` for OpenAI; type an Ollama model). Changing this setting moves
+   no existing space: to move one, change its provider in Space settings (see
+   [Create and configure spaces](#create-and-configure-spaces)). An agent can
+   choose its own model in its definition.
 5. Click **Check** under **Provider**. A **Ready** result means the saved
    configuration can construct a provider. It does not contact the provider,
    authenticate the key remotely or spend money. Your first run checks the

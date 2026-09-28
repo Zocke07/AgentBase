@@ -1,10 +1,9 @@
-"""`GET /channels`: whether the chat adapters are actually connected.
+"""`GET /channels`: actual chat-adapter connectivity.
 
-`PATCH /settings` knows what was asked for; only the running
-:class:`~agentbase.channels.service.ChannelService` knows what happened. A
-missing token, a library that failed to freeze and a gateway that will not
-connect all look like a silent bot otherwise. No token is ever returned or
-confirmed by value.
+`PATCH /settings` records intent; only
+:class:`~agentbase.channels.service.ChannelService` knows the outcome. Missing
+tokens, frozen-library failures, and rejected gateways otherwise look like a
+silent bot. Never return or confirm a token value.
 """
 
 from __future__ import annotations
@@ -23,20 +22,20 @@ router = APIRouter()
 
 
 class ChannelStatusResponse(BaseModel):
-    """One adapter, as the settings screen renders it."""
+    """Adapter status rendered by the settings screen."""
 
     channel: str
-    #: What the workspace settings ask for.
+    #: Whether workspace settings request it.
     enabled: bool
-    #: Whether a bot token of the matching name reached the sidecar.
+    #: Whether the matching bot token reached the sidecar.
     configured: bool
-    #: Whether the gateway connection is currently up.
+    #: Whether its gateway connection is up.
     running: bool
-    #: Consecutive failures since the last successful connection.
+    #: Consecutive failures since its last successful connection.
     failures: int
     #: The last failure, if any.
     last_error: str | None = None
-    #: Senders this workspace refused, newest first, bounded; not in the event log.
+    #: Recent refused senders, newest first; not stored in the event log.
     refused: list[str] = []
 
 

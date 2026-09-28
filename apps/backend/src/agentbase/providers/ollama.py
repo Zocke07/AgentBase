@@ -1,8 +1,6 @@
-"""Ollama, normalized to the provider protocol.
+"""Ollama adapter for the provider protocol.
 
-The provider with no API key, no cost and no remote host, which is what keeps
-the protocol from quietly assuming cloud. Tests use a mock transport; the real
-daemon has been run against it since (see CLAUDE.md).
+Ollama uses a local daemon with no API key or usage cost.
 """
 
 from __future__ import annotations
@@ -32,10 +30,10 @@ if TYPE_CHECKING:
 
 __all__ = ["DEFAULT_BASE_URL", "MODEL_PREFIX", "OllamaProvider"]
 
-#: The daemon's default address: an outbound address, not a bind.
+#: Default daemon address for outbound requests.
 DEFAULT_BASE_URL: Final[str] = "http://127.0.0.1:11434"
 
-#: Model ids are namespaced so pricing recognises them as free without a list.
+#: Namespace local models so pricing recognizes them as free.
 MODEL_PREFIX: Final[str] = "ollama/"
 
 
@@ -50,7 +48,7 @@ class OllamaProvider:
         base_url: str = DEFAULT_BASE_URL,
         client: httpx2.AsyncClient | None = None,
     ) -> None:
-        # Kept namespaced so `pricing.cost_micros` resolves it as local/free.
+        # Keep local models namespaced for pricing.
         self._model = model if model.startswith(MODEL_PREFIX) else MODEL_PREFIX + model
         self._base_url = base_url.rstrip("/")
         self._client = client or httpx2.AsyncClient(timeout=DEFAULT_TIMEOUT_SECONDS)
@@ -61,7 +59,7 @@ class OllamaProvider:
 
     @property
     def remote_model(self) -> str:
-        """The name the daemon knows, without this app's namespace prefix."""
+        """Return the daemon model name without the application namespace."""
         return self._model[len(MODEL_PREFIX) :]
 
     def _payload(
@@ -94,7 +92,7 @@ class OllamaProvider:
             ]
         return payload
 
-    # No auth header: there is no key.
+    # Ollama requires no authentication header.
     _HEADERS: Final[dict[str, str]] = {"content-type": "application/json"}
 
     async def complete(
@@ -123,12 +121,7 @@ class OllamaProvider:
         system: str | None = None,
         max_tokens: int = 4096,
     ) -> AsyncIterator[StreamEvent]:
-        """Stream `POST /api/chat`: newline-delimited JSON, not SSE.
-
-        Every line is a whole response object; the last carries the usage and
-        no content, so the lines are folded into one object and parsed by the
-        same `_to_completion` the blocking path uses.
-        """
+        """Stream newline-delimited JSON and fold it into a completion response."""
         final: dict[str, Any] = {}
 
         async for frame in stream_ndjson(
@@ -157,11 +150,10 @@ class OllamaProvider:
             provider=self.name,
             model=self._model,
             text=content if isinstance(content, str) else "",
-            # Ollama keeps a thinking model's reasoning out of `content` and
-            # in its own field. Absent or empty is "none exposed".
+            # Keep model reasoning separate from answer text.
             thinking=thinking if isinstance(thinking, str) and thinking else None,
             usage=TokenUsage(
-                # Ollama's names for input and output tokens.
+                # Ollama names input and output usage differently.
                 input_tokens=_non_negative_int(body.get("prompt_eval_count")),
                 output_tokens=_non_negative_int(body.get("eval_count")),
             ),
@@ -185,7 +177,7 @@ def _to_ollama_messages(
 
 
 def _tool_calls(raw: Any) -> list[ToolCall]:
-    """Ollama returns `arguments` as an object, unlike OpenAI's JSON string."""
+    """Parse Ollama's object-valued tool arguments."""
     if not isinstance(raw, list):
         return []
 
@@ -199,8 +191,7 @@ def _tool_calls(raw: Any) -> list[ToolCall]:
 
         calls.append(
             ToolCall(
-                # Ollama does not assign call ids; the orchestrator needs one
-                # to correlate a result with its request, so index is used.
+                # Use index when Ollama omits a call ID.
                 id=str(entry.get("id") or f"call_{index}"),
                 name=str(function.get("name", "")),
                 arguments=arguments if isinstance(arguments, dict) else {},
@@ -229,9 +220,9 @@ def _frame_text(frame: dict[str, Any]) -> str:
 
 
 def _merge_frame(accumulated: dict[str, Any], frame: dict[str, Any]) -> dict[str, Any]:
-    """Fold one streamed line into a response object shaped like a blocking one.
+    """Fold one streamed line into blocking-response shape.
 
-    Later fields win, except `message.content` and `message.thinking`, which concatenate.
+    Later fields win except concatenated message content and thinking.
     """
     merged = dict(accumulated)
     merged.update(frame)
@@ -243,8 +234,7 @@ def _merge_frame(accumulated: dict[str, Any], frame: dict[str, Any]) -> dict[str
         if isinstance(previous, dict):
             message["content"] = _text_of(previous) + _text_of(incoming)
             message["thinking"] = _thinking_of(previous) + _thinking_of(incoming)
-            # A tool call arrives on one line only; a later empty message
-            # must not erase it.
+            # Preserve one-frame tool calls through later empty messages.
             if not incoming.get("tool_calls") and previous.get("tool_calls"):
                 message["tool_calls"] = previous["tool_calls"]
         merged["message"] = message

@@ -1,8 +1,7 @@
-"""Workspace settings: everything the user can configure that is not a secret.
+"""Non-secret workspace settings.
 
-The `settings` table sits on disk in the clear beside the event log, so no
-credential is ever stored here; keys reach the sidecar over stdin and stay in
-memory (§1 constraint 4).
+The on-disk settings table never stores credentials; keys arrive over stdin
+and remain in memory (§1 constraint 4).
 """
 
 from __future__ import annotations
@@ -35,9 +34,7 @@ __all__ = [
     "default_model_for",
 ]
 
-#: The default monthly spending cap, $20.00 in micros: not "unlimited", so
-#: the cap exists without anyone looking for it; low enough that a runaway
-#: loop is survivable.
+#: Default monthly cap: $20.00 in micros.
 DEFAULT_MONTHLY_CAP_MICROS: Final[int] = 20_000_000
 
 #: Default provider and model for a fresh install. The app-wide provider is
@@ -45,11 +42,8 @@ DEFAULT_MONTHLY_CAP_MICROS: Final[int] = 20_000_000
 DEFAULT_PROVIDER: Final[str] = "anthropic"
 DEFAULT_MODEL: Final[str] = "claude-opus-5-5"
 
-#: The model a new space starts with on each provider, and the one the
-#: app-wide fallback follows when the provider changes: each provider's
-#: current model at `catalog.DEFAULT_TIER`, which a test holds them to.
-#: Ollama's is typed by the user, so it has none. Migrations 012 and 016
-#: carry the table of their day for existing rows.
+#: Provider defaults for new spaces: each provider's current model at
+#: `catalog.DEFAULT_TIER`, which a test holds them to. Ollama's are typed.
 DEFAULT_MODELS: Final[dict[str, str | None]] = {
     "anthropic": DEFAULT_MODEL,
     "openai": "gpt-6-sol",
@@ -62,38 +56,25 @@ def default_model_for(provider: str) -> str | None:
     return DEFAULT_MODELS.get(provider)
 
 
-#: Which credential transport the OpenAI provider uses. It is app-wide like
-#: credentials themselves; spaces and agent definitions still select only a
-#: provider and model.
+#: App-wide OpenAI credential transport; spaces still select provider and model.
 OpenAIAccess = Literal["api_key", "chatgpt"]
 DEFAULT_OPENAI_ACCESS: Final[OpenAIAccess] = "api_key"
 
 #: Where a local Ollama daemon listens. Loopback, like everything else.
 DEFAULT_OLLAMA_BASE_URL: Final[str] = "http://127.0.0.1:11434"
 
-#: Risk levels the workspace pre-authorizes, so a call at that level runs
-#: without asking. Empty by default (§5 Phase 6: manual-approve-everything),
-#: which means a fresh install stops on `read_file`; pre-approving `low` is
-#: the user's decision to make.
+#: Pre-authorized risk levels; empty means every tool call asks by default.
 DEFAULT_AUTO_APPROVE: Final[tuple[RiskLevel, ...]] = ()
 
-#: The run limits. Settings rather than constants, because a limit nobody can
-#: change is not configurable.
+#: Configurable run limits.
 DEFAULT_MAX_STEPS_PER_AGENT: Final[int] = 20
 DEFAULT_MAX_AGENTS_PER_RUN: Final[int] = 5
 DEFAULT_MAX_RUN_SECONDS: Final[int] = 600
-#: The most one run may spend, in micros ($2.00); 0 turns the ceiling off.
-#: The monthly cap bounds the month; this bounds the one run that goes wrong.
-#: `orchestrator/limits.py` carries the same figure; a test compares them.
+#: Per-run $2.00 ceiling in micros; 0 disables it.
 DEFAULT_MAX_RUN_COST_MICROS: Final[int] = 2_000_000
 
-#: Who may answer the approval gate for a run that came from a chat channel.
-#: ``dashboard_only`` shows the question in chat and takes the answer at the
-#: machine the call would run on; ``originator`` also lets the person who
-#: started the run answer from chat. Strict by default: an approval decides
-#: whether something touches the owner's disk, and that decision should not
-#: move onto a phone in a group chat by default. Neither value is a
-#: privileged path; the setting decides who is asked, never whether the gate applies.
+#: Chat-run approval responder. ``dashboard_only`` is strict by default;
+#: ``originator`` also permits the chat requester to answer.
 ChannelApprovalPolicy = Literal["dashboard_only", "originator"]
 DEFAULT_CHANNEL_APPROVALS: Final[ChannelApprovalPolicy] = "dashboard_only"
 
@@ -170,10 +151,7 @@ class WorkspaceSettings(BaseModel):
 
 
 class SettingsStore:
-    """Reads and writes :class:`WorkspaceSettings`, one row per field.
-
-    One row per field so a partial update cannot clobber a field it did not touch.
-    """
+    """Read and write :class:`WorkspaceSettings` one field per row."""
 
     def __init__(self, db: Database) -> None:
         self._db = db
@@ -193,24 +171,19 @@ class SettingsStore:
         return WorkspaceSettings(**stored)
 
     async def update(self, changes: dict[str, Any]) -> WorkspaceSettings:
-        """Apply a partial update and return the full resulting settings.
-
-        Validated through the model before anything is written.
-        """
+        """Validate and apply a partial update, returning complete settings."""
         return await asyncio.to_thread(self._update_sync, changes)
 
     def _update_sync(self, changes: dict[str, Any]) -> WorkspaceSettings:
         current = self._get_sync()
 
-        # Merge as plain data, then validate once. `model_copy(update=...)`
-        # does not validate, so a list of dicts would sit in a field typed
-        # `list[ChannelIdentity]` and Pydantic would warn on every write.
+        # Merge plain data, then validate once; ``model_copy`` skips validation.
         merged = current.model_dump()
         merged.update(changes)
 
         validated = WorkspaceSettings.model_validate(merged)
 
-        # `mode="json"`: `channel_identities` is a list of models, not JSON as an object.
+        # ``channel_identities`` needs JSON-mode model serialization.
         dumped = validated.model_dump(mode="json")
 
         now = datetime.now(UTC).isoformat()

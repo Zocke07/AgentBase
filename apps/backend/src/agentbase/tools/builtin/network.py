@@ -1,11 +1,8 @@
-"""The bounded network readers that leave the machine.
+"""Bounded network readers.
 
-The URL goes through :meth:`~agentbase.tools.sandbox.Sandbox.resolve_url` in
-`prepare`, which refuses `file:`, `data:` and every non-public address. The
-connection is then made to the address that was checked, with the name in the
-`Host` header and the SNI, so the resolver is asked once and DNS rebinding has
-nothing to rebind. `http_get` returns bounded text; `read_feed` turns a larger
-bounded RSS or Atom document into complete entries locally.
+URLs are checked in ``prepare``; execution connects to the checked address,
+uses the original host for TLS, and never follows redirects. ``http_get``
+returns bounded text; ``read_feed`` parses bounded RSS or Atom input locally.
 """
 
 from __future__ import annotations
@@ -42,18 +39,13 @@ __all__ = [
 #: How much of a response body reaches the model and the event log.
 MAX_BODY_CHARS: Final[int] = 20_000
 
-#: A page that will not answer in half a minute is not worth a run's budget.
+#: Per-request timeout within a run's budget.
 REQUEST_TIMEOUT_SECONDS: Final[float] = 30.0
 
-#: A feed is downloaded completely before parsing, but never without a hard
-#: network-input ceiling. This is intentionally much larger than the text a
-#: model sees: local parsing discards channel decoration and all but a bounded
-#: number of complete entries.
+#: Input ceiling for full feed parsing; parsed output is further bounded.
 MAX_FEED_BYTES: Final[int] = 2_000_000
 
-#: Ten headlines per source is enough for a scanner run without multiplying a
-#: watchlist into an enormous context. A caller can ask for more, but never more
-#: than twenty complete entries from one feed.
+#: Default and absolute per-feed entry limits.
 DEFAULT_FEED_ENTRIES: Final[int] = 10
 MAX_FEED_ENTRIES: Final[int] = 20
 
@@ -68,7 +60,7 @@ class HttpGetTool:
     name = "http_get"
 
     def __init__(self, client: httpx2.AsyncClient | None = None) -> None:
-        #: Injected by tests through a `MockTransport`.
+        #: Optional injected HTTP client.
         self._client = client
 
     @property
@@ -131,8 +123,7 @@ class HttpGetTool:
         if client is None:
             client = httpx2.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS)
 
-        # Connect to the checked address; present the name. `httpx2` would set
-        # `Host` from the URL (the address), so the header is given explicitly.
+        # Connect to checked address but preserve host for HTTP and TLS.
         parsed = httpx2.URL(url)
         pinned = parsed.copy_with(host=address)
         headers = {"host": host if parsed.port is None else f"{host}:{parsed.port}"}
@@ -153,9 +144,7 @@ class HttpGetTool:
             msg = f"{url} returned HTTP {response.status_code}."
             raise ToolExecutionError(msg)
 
-        # Reported rather than followed: a `Location` header is how a checked
-        # public URL becomes an unchecked private one. Asking again puts the
-        # target through the check and the gate.
+        # Do not follow redirects; each target needs sandbox and gate checks.
         if 300 <= response.status_code < 400:
             location = response.headers.get("location", "(no Location header)")
             return (
@@ -180,7 +169,7 @@ class ReadFeedTool:
     name = "read_feed"
 
     def __init__(self, client: httpx2.AsyncClient | None = None) -> None:
-        #: Injected by tests through a `MockTransport`.
+        #: Optional injected HTTP client.
         self._client = client
 
     @property

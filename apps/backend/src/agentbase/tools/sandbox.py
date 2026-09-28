@@ -1,20 +1,8 @@
-"""Where a tool call may reach, decided before anything runs or anyone is asked.
+"""Sandbox boundaries checked before tools run or approval is requested.
 
-A path outside the workspace root is refused before an approval prompt is
-composed (§5 Phase 6): a dialog asking whether an agent may write to
-`../../etc/hosts` puts the user one misclick from the thing the sandbox exists
-to prevent. This module answers one question, *is this reachable?*, with no
-reference to risk, policy or who is asking.
-
-Every check compares fully resolved paths. A string search for `".."` rejects
-the legitimate `reports/../notes.txt` and misses a symlink, which is the escape
-that works; :meth:`Path.resolve` covers traversal, symlinks, drive letters and
-UNC paths in one comparison.
-
-For network readers, the machine's own services are inside the boundary:
-without :meth:`Sandbox.check_url` an agent can read this application's API
-from inside a run. :meth:`Sandbox.resolve_url` also hands back the address it
-checked so the tool connects to that one rather than resolving the name again.
+Resolve paths before policy prompts, preventing traversal and symlink escapes.
+Network tools may reach only public addresses; :meth:`Sandbox.resolve_url`
+returns the checked address to prevent DNS rebinding.
 """
 
 from __future__ import annotations
@@ -34,62 +22,48 @@ __all__ = [
     "UrlNotAllowedError",
 ]
 
-#: How long `run_shell` may run before it is killed: long enough for a build,
-#: short enough that a command waiting on input does not eat the run's budget.
+#: ``run_shell`` timeout; caps commands waiting on input.
 SHELL_TIMEOUT_SECONDS: Final[float] = 60.0
 
-#: Schemes network readers will fetch. An allowlist: `file:` is a filesystem read
-#: that bypasses the path sandbox, and `data:` launders the model's own text.
+#: Fetchable schemes. ``file:`` bypasses the path sandbox; ``data:`` launders input.
 _ALLOWED_SCHEMES: Final[frozenset[str]] = frozenset({"http", "https"})
 
 
 class SandboxViolationError(Exception):
-    """A path that resolves outside the workspace root.
-
-    The message reaches the user via `tool.denied`.
-    """
+    """Path outside the workspace root; reported as ``tool.denied``."""
 
 
 class UrlNotAllowedError(Exception):
-    """A URL network tools will not fetch. Same contract as the path refusal."""
+    """URL refused by network tools; same contract as a path refusal."""
 
 
 @dataclass(frozen=True, slots=True)
 class CheckedUrl:
-    """A URL a network tool may fetch, and the address that was checked.
-
-    The connection must be made to ``address``: resolving the name again
-    would give a second answer, which is the whole of a rebinding attack.
-    """
+    """Fetchable URL and its checked address; connect to ``address`` to avoid rebinding."""
 
     url: str
-    #: The hostname as written, for the `Host` header and the TLS handshake.
+    #: Original hostname for ``Host`` and TLS.
     host: str
-    #: The address the check saw, and the one to connect to.
+    #: Checked address to connect to.
     address: ipaddress.IPv4Address | ipaddress.IPv6Address
 
 
 @dataclass(frozen=True, slots=True)
 class Sandbox:
-    """The workspace root, and the questions that can be asked about it.
-
-    The root is resolved once, in :meth:`__post_init__`: an unresolved root
-    rejects everything on macOS, where `/var` is a symlink to `/private/var`.
-    """
+    """Resolved workspace root and reachability checks."""
 
     root: Path
 
     def __post_init__(self) -> None:
-        # `object.__setattr__` because the dataclass is frozen.
+        # Frozen dataclass requires ``object.__setattr__``.
         object.__setattr__(self, "root", Path(self.root).expanduser().resolve())
 
     # --- paths -------------------------------------------------------------
 
     def resolve_path(self, candidate: str) -> Path:
-        """Resolve ``candidate`` against the root, or refuse it.
+        """Resolve a candidate to a path inside the root.
 
-        The result is absolute and inside the root. It need not exist:
-        `write_file` names its target before creating it.
+        The result may not exist yet, for example before ``write_file`` creates it.
 
         :raises SandboxViolationError: when the path resolves outside the root,
             is empty, or names an alternate data stream.
@@ -102,12 +76,8 @@ class Sandbox:
             )
             raise SandboxViolationError(msg)
 
-        # A colon in a relative path is refused on every platform: on Windows
-        # `notes.txt:hidden` writes an NTFS alternate data stream, inside the
-        # root and invisible to most tools. Checked before joining, because
-        # `Path` drops the suffix on some operations. Applied on POSIX too, so
-        # a definition that works on one platform does not fail on the other.
-        # A drive letter is absolute and falls through to the containment check.
+        # Refuse NTFS alternate data streams consistently across platforms.
+        # Drive letters are absolute and use the containment check below.
         if ":" in text and not Path(text).is_absolute():
             msg = (
                 f"{candidate!r} is not a valid workspace path: ':' is not "
@@ -117,14 +87,13 @@ class Sandbox:
             )
             raise SandboxViolationError(msg)
 
-        # An absolute candidate replaces the root under `/`: it is judged by
-        # where it points, not rejected for being absolute.
+        # Judge absolute candidates by containment, not their spelling.
         joined = self.root / text
 
         try:
             resolved = joined.resolve()
         except (OSError, RuntimeError) as exc:
-            # A resolution loop, or a path the OS refuses: a refusal, not a crash.
+            # Treat resolution loops and OS errors as a refusal.
             msg = f"{candidate!r} is not a usable workspace path: {exc}"
             raise SandboxViolationError(msg) from exc
 
@@ -149,21 +118,14 @@ class Sandbox:
     # --- urls --------------------------------------------------------------
 
     def check_url(self, candidate: str) -> str:
-        """Return ``candidate`` if a network reader may fetch it, else refuse.
-
-        :meth:`resolve_url` without the address.
-        """
+        """Return a fetchable URL without exposing its checked address."""
         return self.resolve_url(candidate).url
 
     def resolve_url(self, candidate: str) -> CheckedUrl:
-        """Check ``candidate`` and say which address was checked.
+        """Validate a public URL and return the address that was checked.
 
-        A private, loopback, link-local or reserved address is refused, and
-        so is a hostname any of whose addresses is one. The address handed
-        back is the resolver's first, and every one of them passed. It
-        travels with the answer because a name can resolve public when checked
-        and private when connected (DNS rebinding); the reader connects to it
-        and carries ``host`` in the `Host` header and the TLS handshake.
+        Reject hosts with any non-public address; connecting to the returned
+        address prevents a public-to-private DNS rebinding.
 
         :raises UrlNotAllowedError: for a bad scheme, a missing host, or a host
             that is or resolves to a non-public address.
@@ -213,8 +175,7 @@ class Sandbox:
     def _addresses_for(
         self, hostname: str, candidate: str
     ) -> list[ipaddress.IPv4Address | ipaddress.IPv6Address]:
-        """Every address ``hostname`` stands for: all of them, so a host with one
-        public and one private address does not pass on a coin flip."""
+        """Resolve every address for ``hostname``; one private address rejects it."""
         try:
             return [ipaddress.ip_address(hostname)]
         except ValueError:

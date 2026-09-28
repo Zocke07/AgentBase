@@ -1,9 +1,8 @@
 """Append-only event storage and run bookkeeping.
 
-Every method is `async def` over a blocking SQLite driver via
-`asyncio.to_thread`: it keeps the loop free, and it gives the concurrency
-tests real thread contention on the write lock rather than a cooperative
-interleaving that could never expose a race.
+Methods wrap blocking SQLite in ``asyncio.to_thread``: this frees the loop and
+gives concurrency tests real write-lock contention instead of cooperative
+interleaving that cannot expose races.
 """
 
 from __future__ import annotations
@@ -40,10 +39,10 @@ __all__ = [
     "RunUnfinishedError",
 ]
 
-#: How many runs :meth:`EventStore.list_runs` returns when nobody says.
+#: Default :meth:`EventStore.list_runs` result count.
 DEFAULT_RUN_LIST_LIMIT: Final[int] = 50
 
-#: The ceiling `GET /runs` accepts: the picker renders them all at once.
+#: `GET /runs` ceiling; the picker renders all returned rows.
 MAX_RUN_LIST_LIMIT: Final[int] = 500
 
 #: Statuses after which a run is over and `finished_at` is stamped.
@@ -55,7 +54,7 @@ class RunNotFoundError(LookupError):
 
 
 class RunUnfinishedError(RuntimeError):
-    """The run has not ended, so its log is still being written."""
+    """Run has not ended; its log is still being written."""
 
     def __init__(self, run_id: str, status: str) -> None:
         super().__init__(f"run {run_id} is still {status}")
@@ -65,18 +64,17 @@ class RunUnfinishedError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class DeletedRun:
-    """What a delete removed, for the caller to report."""
+    """Data removed by a delete, for caller reporting."""
 
     run_id: str
     events: int
     approvals: int
-    #: Spend rows that now name no run. Kept; see :meth:`EventStore.delete_run`.
+    #: Retained spend rows that no longer name a run; see :meth:`EventStore.delete_run`.
     spend_detached: int
 
 
-#: One statement, so reading the current maximum and writing the next value
-#: cannot be separated by another writer. With `BEGIN IMMEDIATE` and
-#: `UNIQUE(run_id, seq)` behind it, a duplicate `seq` is impossible.
+#: One statement prevents another writer splitting max-sequence read and write.
+#: With ``BEGIN IMMEDIATE`` and ``UNIQUE(run_id, seq)``, duplicate ``seq`` is impossible.
 _APPEND_SQL = """
 INSERT INTO events (run_id, seq, agent_id, type, payload, ts)
 VALUES (
@@ -92,7 +90,7 @@ RETURNING id, seq
 
 
 def _now() -> datetime:
-    """Timezone-aware UTC. ruff's DTZ rules ban the naive alternative."""
+    """Return timezone-aware UTC; Ruff DTZ rejects naive timestamps."""
     return datetime.now(UTC)
 
 
@@ -123,10 +121,9 @@ def _row_to_run(row: sqlite3.Row) -> Run:
 
 
 class EventStore:
-    """Reads and writes the event log, and publishes what it wrote.
+    """Read/write the event log and publish committed events.
 
-    Publication happens after the transaction commits, so a subscriber never
-    sees an event a rollback later erased.
+    Publish after commit so subscribers never see rolled-back events.
     """
 
     def __init__(self, db: Database, bus: EventBus | None = None) -> None:
@@ -148,7 +145,7 @@ class EventStore:
         )
 
         if self._bus is not None:
-            # Synchronous, and deliberately so; see EventBus.publish.
+            # Deliberately synchronous; see EventBus.publish.
             self._bus.publish(event)
 
         return event
@@ -188,10 +185,10 @@ class EventStore:
         after_seq: int = 0,
         until_seq: int | None = None,
     ) -> list[Event]:
-        """Return events for ``run_id`` ordered by ``seq``.
+        """Return ``run_id`` events ordered by ``seq``.
 
-        ``after_seq`` is exclusive: it names the last event the caller already
-        holds, which is exactly what ``Last-Event-ID`` means.
+        ``after_seq`` is exclusive: the caller's last-held event, like
+        ``Last-Event-ID``.
         """
         return await asyncio.to_thread(self._read_sync, run_id, after_seq, until_seq)
 
@@ -231,10 +228,7 @@ class EventStore:
         origin_ref: str | None = None,
         space_id: str = DEFAULT_SPACE_ID,
     ) -> Run:
-        """Insert a run row.
-
-        The space defaults so callers that predate spaces land in the default one.
-        """
+        """Insert a run row; pre-spaces callers use the default space."""
         return await asyncio.to_thread(
             self._create_run_sync, goal, origin, origin_ref, space_id
         )
@@ -275,10 +269,9 @@ class EventStore:
         space_id: str | None = None,
         origin: str | None = None,
     ) -> list[Run]:
-        """Recent runs, newest first, optionally narrowed to one space and one origin.
+        """List recent runs, newest first, optionally by space and origin.
 
-        Reads the `runs` table, not the log: the log says what happened in a
-        run, and a run created but never started has no events at all.
+        Read ``runs``, not the log: a created-but-never-started run has no events.
         """
         return await asyncio.to_thread(self._list_runs_sync, limit, space_id, origin)
 
@@ -297,7 +290,7 @@ class EventStore:
         params.append(limit)
         with self._db.read() as connection:
             rows = connection.execute(
-                # `rowid` breaks ties between runs created in the same microsecond.
+                # ``rowid`` breaks ties between same-microsecond runs.
                 f"SELECT * FROM runs{where} ORDER BY created_at DESC, rowid DESC LIMIT ?",  # noqa: S608
                 params,
             ).fetchall()
@@ -327,16 +320,13 @@ class EventStore:
             )
 
     async def delete_run(self, run_id: str) -> DeletedRun:
-        """Remove a finished run and everything that hangs off it.
+        """Remove a finished run and its dependent records.
 
-        The log is append-only *within* a run; removing a whole run leaves
-        every surviving log complete. Three rules: only a finished run (an
-        unfinished one has an orchestrator appending to it); events and
-        approvals go with it in one transaction (§4 declares no ``ON DELETE``,
-        so the cascade lives here and a forgotten table fails loudly under
-        ``PRAGMA foreign_keys``); and spend is kept with ``run_id`` cleared,
-        so deleting runs is not a way past the monthly cap. Files the run
-        wrote in its space's folder are the user's and are not touched.
+        Removing a whole run leaves surviving append-only logs complete. Only
+        finished runs may go; events and approvals delete in one transaction
+        because §4 declares no ``ON DELETE`` (omitted tables fail under
+        ``PRAGMA foreign_keys``). Retain spend with cleared ``run_id`` so
+        deletion cannot bypass the cap. Never touch user-created space files.
         """
         return await asyncio.to_thread(self._delete_run_sync, run_id)
 
@@ -367,11 +357,10 @@ class EventStore:
         )
 
     async def fail_orphaned_runs(self, reason: str) -> list[str]:
-        """Fail every run a previous process left unfinished. Called at startup.
+        """Fail runs a previous process left unfinished at startup.
 
-        Its orchestrator died with that process, so nothing will ever append
-        its terminal event. The event is appended first and the row moved to
-        match, so a replay shows the run ending with a reason.
+        Their orchestrators died, so append terminal failure before updating
+        status and preserve the reason in replay.
         """
         orphaned = await asyncio.to_thread(self._unfinished_run_ids_sync)
         for run_id in orphaned:

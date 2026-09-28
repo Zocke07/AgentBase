@@ -1,11 +1,9 @@
-"""In-process asyncio fan-out of appended events.
+"""In-process asyncio fan-out for appended events.
 
-The bus is a hint, not a channel: SQLite is the source of truth. Events can
-reach `publish` out of sequence (appends commit on worker threads), so the
-consumer keeps its own cursor and re-reads on any jump. Queues are bounded:
-on overflow the subscription is flagged stale and its buffer dropped, which
-costs nothing because the rows are durable. Subscriptions are context
-managers so a cancelled SSE task is still unregistered.
+The bus is a hint; SQLite is authoritative. Worker-thread commits can publish
+out of order, so consumers keep a cursor and reread jumps. Overflow marks a
+bounded queue stale and drops its buffer because rows are durable. Context
+managed subscriptions unregister cancelled SSE tasks.
 """
 
 from __future__ import annotations
@@ -24,12 +22,12 @@ __all__ = ["DEFAULT_QUEUE_SIZE", "EventBus", "Subscription"]
 
 logger = logging.getLogger("agentbase.events")
 
-#: Buffered events per subscriber before the subscription is declared stale.
+#: Events buffered per subscriber before marking it stale.
 DEFAULT_QUEUE_SIZE: Final[int] = 512
 
 
 class Subscription:
-    """One subscriber's view of a single run's event flow."""
+    """One subscriber's view of one run's event flow."""
 
     def __init__(self, run_id: str, maxsize: int = DEFAULT_QUEUE_SIZE) -> None:
         self.run_id = run_id
@@ -38,11 +36,11 @@ class Subscription:
 
     @property
     def stale(self) -> bool:
-        """True when events were dropped and the consumer must re-read the DB."""
+        """Whether dropped events require the consumer to reread the database."""
         return self._stale
 
     def offer(self, event: Event) -> None:
-        """Non-blocking hand-off. Drops rather than waits when full."""
+        """Hand off without blocking; drop rather than wait when full."""
         if self._stale:
             return
 
@@ -52,7 +50,7 @@ class Subscription:
             self.mark_stale()
 
     def mark_stale(self) -> None:
-        """Flag a resync and release the buffer; the consumer will re-read from SQLite."""
+        """Flag resync and clear the buffer; the consumer rereads SQLite."""
         self._stale = True
         while True:
             try:
@@ -62,11 +60,11 @@ class Subscription:
         logger.warning("subscriber for run %s fell behind; will resync", self.run_id)
 
     def clear_stale(self) -> None:
-        """Called by the consumer once it has caught up from the database."""
+        """Clear stale after the consumer catches up from the database."""
         self._stale = False
 
     async def get(self, wait_seconds: float | None = None) -> Event | None:
-        """Wait for the next event, or return None once ``wait_seconds`` elapses."""
+        """Wait for the next event, or return ``None`` after ``wait_seconds``."""
         if wait_seconds is None:
             return await self._queue.get()
 
@@ -77,17 +75,16 @@ class Subscription:
 
 
 class EventBus:
-    """Fan-out to every subscription registered for a run."""
+    """Fan out events to a run's subscriptions."""
 
     def __init__(self, queue_size: int = DEFAULT_QUEUE_SIZE) -> None:
         self._queue_size = queue_size
         self._subscriptions: dict[str, set[Subscription]] = {}
 
     def publish(self, event: Event) -> None:
-        """Offer ``event`` to every subscriber of its run.
+        """Offer ``event`` to its run's subscribers.
 
-        Synchronous: an await here would widen the window between a commit and
-        its event being offered.
+        Stay synchronous to avoid widening the commit-to-offer window.
         """
         for subscription in tuple(self._subscriptions.get(event.run_id, ())):
             subscription.offer(event)
@@ -108,7 +105,5 @@ class EventBus:
                     del self._subscriptions[run_id]
 
     def subscriber_count(self, run_id: str) -> int:
-        """Live subscriptions for ``run_id``, so a test can assert a disconnected client is
-        unregistered.
-        """
+        """Return live ``run_id`` subscriptions; tests verify disconnected clients unregister."""
         return len(self._subscriptions.get(run_id, ()))

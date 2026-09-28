@@ -1,17 +1,13 @@
-"""The scheduler: starts each schedule's run when its time comes (§5 Phase 13).
+"""Schedule runner (§5 Phase 13).
 
-One loop in the sidecar, sleeping until the earliest ``next_run_at`` and
-launching what is due through :class:`~agentbase.orchestrator.launcher.RunLauncher`,
-so a scheduled run is an ordinary run in its space: same roster, rules,
-folder, approval gate and budget. A call that needs approval waits for the
-user like any other, up to the run's time limit; the scheduler never answers
-for them.
+One sidecar loop sleeps to earliest ``next_run_at`` and launches due work via
+:class:`~agentbase.orchestrator.launcher.RunLauncher`. Scheduled work is an
+ordinary space run with the same roster, rules, folder, gate, and budget; the
+scheduler never answers approvals.
 
-The sidecar only lives while the window does, so the loop's first pass is a
-catch-up: a schedule whose time passed while the app was closed runs once now
-or is moved on, as its ``missed`` policy says. Either way the next time is
-computed from the clock, never from the time that was missed, so a laptop
-closed for a week does not fire seven times.
+Its startup pass catches up schedules missed while the window was closed:
+run once or advance according to ``missed``. Compute the next time from now,
+not missed time, so a week-closed laptop does not fire seven runs.
 """
 
 from __future__ import annotations
@@ -33,18 +29,16 @@ __all__ = ["DEFAULT_POLL_SECONDS", "Fired", "Scheduler"]
 
 logger = logging.getLogger("agentbase.scheduler")
 
-#: The longest the loop sleeps between looks, so an edit made through the
-#: API is picked up soon even if the wake-up were missed.
+#: Maximum sleep so API edits are soon seen even if wake-up was missed.
 DEFAULT_POLL_SECONDS: Final[float] = 60.0
 
-#: A schedule due longer ago than this when the loop starts is one the app
-#: was closed for, not one that came due while the sidecar was starting.
+#: Startup-due threshold distinguishing closed-app work from sidecar startup.
 MISSED_AFTER: Final[timedelta] = timedelta(minutes=2)
 
 
 @dataclass(frozen=True, slots=True)
 class Fired:
-    """What one pass did with one due schedule."""
+    """Outcome for one due schedule in one pass."""
 
     schedule_id: str
     run_id: str | None
@@ -73,7 +67,7 @@ class Scheduler:
         self._task = None
 
     def wake(self) -> None:
-        """A schedule changed: look again now rather than at the next poll."""
+        """Wake now after a schedule change instead of waiting for poll."""
         self._wake.set()
 
     # --- the loop ----------------------------------------------------------
@@ -91,7 +85,7 @@ class Scheduler:
             try:
                 await self.tick()
             except Exception:
-                # One bad pass must not end scheduling for the session.
+                # One failed pass must not end session scheduling.
                 logger.exception("a scheduler pass failed")
 
     async def _seconds_until_next(self) -> float:
@@ -104,7 +98,7 @@ class Scheduler:
     # --- passes ------------------------------------------------------------
 
     async def catch_up(self) -> list[Fired]:
-        """The first pass after a launch: settle what came due while the app was closed."""
+        """Startup pass: settle work due while the app was closed."""
         now = self.schedules.now()
         fired: list[Fired] = []
         for schedule in await self.schedules.due(now):
@@ -127,7 +121,7 @@ class Scheduler:
         return fired
 
     async def tick(self) -> list[Fired]:
-        """One ordinary pass: launch everything due right now."""
+        """Ordinary pass: launch all currently due schedules."""
         now = self.schedules.now()
         return [await self._fire(schedule, now) for schedule in await self.schedules.due(now)]
 
@@ -167,7 +161,7 @@ class Scheduler:
         return Fired(schedule.id, run.id, outcome)
 
     def _still_running(self, schedule: Schedule) -> bool:
-        """Whether the run this schedule last started is still going in this process."""
+        """Whether this schedule's last run remains active in this process."""
         last = schedule.last_run_id
         return last is not None and (
             last in self.launcher.live or last in self.launcher.driving
@@ -175,5 +169,5 @@ class Scheduler:
 
 
 def _local_words(when: datetime, schedules: ScheduleStore) -> str:
-    """A due time in the machine's own words, for an outcome the user reads."""
+    """Format a due time in the machine zone for user-facing outcomes."""
     return when.astimezone(schedules.zone).strftime("%H:%M on %A %d %B")

@@ -1,9 +1,8 @@
 import type { ModelEntry } from "@agentbase/schemas";
 
 /**
- * Rendering helpers shared by the dashboard. All pure functions of their
- * argument: a relative timestamp would make the same event render differently
- * on every fold, so times are absolute and come from the event's own `ts`.
+ * Pure dashboard rendering helpers. Use each event's absolute `ts`; relative
+ * timestamps would change every render.
  */
 
 /** `12:00:05`: the event's own clock time, in the viewer's timezone. */
@@ -50,7 +49,7 @@ export function periodLabel(period: string): string {
   return at.toLocaleString(undefined, { month: "long", year: "numeric" });
 }
 
-/** `27s`, `1m 32s`, `1h 23m`: a span between two of the log's own timestamps. */
+/** Format a span between two log timestamps: `27s`, `1m 32s`, or `1h 23m`. */
 export function formatDuration(milliseconds: number): string {
   const total = Math.max(0, Math.round(milliseconds / 1000));
   const hours = Math.floor(total / 3600);
@@ -61,7 +60,7 @@ export function formatDuration(milliseconds: number): string {
   return `${String(seconds)}s`;
 }
 
-/** Integer micros as money, mirroring the backend's `format_micros`, for figures inside payloads. */
+/** Format integer micros as money, matching backend `format_micros`. */
 export function formatMicros(micros: number): string {
   return `$${(Math.round(micros) / 1_000_000).toFixed(4)}`;
 }
@@ -71,7 +70,7 @@ export function formatCount(value: number): string {
   return value.toLocaleString("en-US");
 }
 
-/** Truncate for a single line, without lying about it. */
+/** Truncate a single line with an ellipsis. */
 export function ellipsise(value: string, limit: number): string {
   const collapsed = value.replace(/\s+/gu, " ").trim();
   return collapsed.length <= limit ? collapsed : `${collapsed.slice(0, limit - 1)}…`;
@@ -95,10 +94,8 @@ export function eventFamily(type: string): string {
 }
 
 /**
- * Dollars for a person to read at a glance: cents, and no cents at all on a
- * round figure, so a $20 cap reads "$20" and a small spend "$0.05". The
- * exact four-place figure the ledger keeps is still shown where it matters
- * (Usage, and the meter's tooltip); this is only for the glance.
+ * Format glanceable dollars with cents except for whole values. Usage and the
+ * meter tooltip retain the ledger's exact four-place figure.
  */
 export function moneyShort(micros: number): string {
   const cents = Math.round(micros / 10_000);
@@ -124,10 +121,8 @@ export function providerLabel(provider: string): string {
 const SIZE_VARIANTS: ReadonlySet<string> = new Set(["mini", "nano"]);
 
 /**
- * A model id as its maker names it: `claude-haiku-4-5` reads "Claude Haiku
- * 4.5" and `gpt-5.4-mini` reads "GPT-5.4 mini". A dated Anthropic snapshot
- * drops its date. Anything unrecognised (a local Ollama model) is left as
- * typed, since its name is the user's own.
+ * Format known model IDs as vendor names, dropping dated Anthropic snapshots.
+ * Preserve unknown user-supplied (for example, Ollama) names unchanged.
  */
 export function modelLabel(model: string): string {
   const claude = /^claude-([a-z]+)-(\d+(?:-\d+)?)(?:-\d{8})?$/.exec(model);

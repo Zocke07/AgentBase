@@ -4,61 +4,42 @@
 
 ## Start a run
 
-1. Select the space that should own the task. If it needs existing files,
-   put them in the folder opened by **Space settings → Open folder**.
+1. Select the task's space. Put needed files in **Space settings → Open folder**.
 2. Open **Home** and enter a concrete task, for example:
 
    > Write a short note explaining SQLite in plain language and save it as
    > sqlite.txt in this space's folder.
 
-3. Click **Start run**, or press **Enter** in the task box. **Shift+Enter**
-   inserts a new line. If setup is incomplete, the notice above the box
-   explains what needs attention.
+3. Click **Start run** or press **Enter**. **Shift+Enter** adds a line. If setup
+   is incomplete, the notice explains what to fix.
 
-The run opens in **Runs**. The supervisor works with the agents enabled in
-this space when the run starts. **New run** in the Runs list returns to
-Home's task box.
+The run opens in **Runs** with agents enabled in that space at start. **New
+run** returns to Home's task box.
 
 ## Watch the work
 
-The list on the left holds every run in this space, newest first. **Show**
-above it narrows the list to the runs you started here, the ones a schedule
-started, or the ones that came from Discord; a card says **from schedule** or
-**from discord** either way.
+The left list shows selected-space runs, newest first. **Show** narrows by UI,
+schedule, or Discord origin; cards label schedule/Discord runs.
 
-The run view shows its status and counts of agents, tool calls, denials,
-tokens, errors and cost. The sentence above the canvas describes what is
-happening now. The canvas reads left to right as a workflow: the **Goal**
-card, the supervisor, the workers it handed work to, and the **Outcome**
-card. Each agent card carries a state pill (ready, thinking, model, tool,
-approval, done), a sentence for what it is doing, its model, and chips that
-sum what it did with each tool: a green count for executions, a red one for
-denials, and a pulsing chip while a call runs. Arrows carry the handoff task
-as a short label beside the card it goes to; a handoff back to the supervisor
-is drawn beneath the cards, labelled under the card it leaves. Hover over any
-cut-short text on the canvas, a label, a role, the goal or the outcome, to
-read the whole of it. Click a card to open the inspector beside the canvas:
-the agent's last message, whom it handed off to, every tool call with its
-result or the reason it was refused, and its system prompt and streamed
-output. Scroll to zoom and drag to pan; the camera frames the whole run again
-when a new agent appears unless you have moved it.
+The run view shows status and agent/tool/denial/token/error/cost counts; the
+sentence above the canvas gives current activity. Read the canvas left to
+right: **Goal**, supervisor, delegated workers, **Outcome**. Agent cards show
+state (ready, thinking, model, tool, approval, done), activity, model, and
+tool chips: green executions, red denials, pulsing active calls. Arrows label
+handoffs; return handoffs run beneath cards and label their source. Hover
+truncated canvas text for all content. Select a card for its last message,
+handoffs, tool results/refusals, system prompt, and streamed output. Scroll to
+zoom, drag to pan; new agents refit the camera unless you moved it.
 
-The panels are yours to size: drag the edge between the run list and the run,
-the lower edge of the supervisor's account, the edge between the canvas and
-the log, or the inspector's left edge. Each handle also takes the arrow keys,
-and double-click (or Home) puts a panel back to its default. An account
-given a height scrolls within it instead of folding. The sizes are remembered
-in this window. The canvas's controls include **Full screen**, which fills
-the window with the canvas and its inspector until Esc or the same button;
-the button beside it fits the whole run into view.
+Resize the list/run, supervisor account, canvas/log, and inspector edges by
+dragging or arrow keys; double-click/Home resets them. Sized accounts scroll
+instead of folding; sizes persist in the window. **Full screen** shows canvas
+and inspector until Esc/reselect; its adjacent control fits the run.
 
-The event log below the graph tells the story in order. Use **Agent** and
-**Type** to filter it, **Find** to search, and **show tokens** to include
-streaming chunks that are hidden by default. Click a row to inspect its
-recorded details; a row that carries an agent's message or the run's summary
-shows that prose formatted above the raw payload, with **Save as note**. The
-log follows new events while you are at the bottom; **↓ newest** returns
-there after you scroll up.
+The graph's event log is chronological. Filter by **Agent**/**Type**, search
+with **Find**, or **show tokens** for hidden streaming chunks. Select a row for
+details; message/summary rows render prose above raw payload and offer **Save
+as note**. It follows events at bottom; **↓ newest** returns there.
 
 To follow only what is happening, click **Event log** at the log's top left.
 The log folds to one line naming the latest step (never a streamed fragment)
@@ -67,31 +48,24 @@ the canvas still says what the run is doing now. Click **Event log** again to
 unfold it where you left it, with its filters as they were. The window
 remembers the choice.
 
-When a run finishes, **The supervisor's account of the run** shows what the
-model says it did, with its Markdown rendered; a long account starts folded,
-with **Show the whole summary** beneath it, so the canvas and the log stay in
-view. Verify the result with the event log and the actual files.
-A `tool.called` entry shows that a call executed; inspect `tool.result` or
-`tool.error` to see how it ended. Tool-call totals also include coordination
-calls, so a nonzero count alone does not prove that a file was written.
+At finish, **The supervisor's account of the run** renders its summary; long
+ones fold behind **Show the whole summary**. Verify it against files and the
+event log. `tool.called` proves execution; inspect `tool.result` / `tool.error`
+for outcome. Tool totals include coordination calls, so they do not prove writes.
 
-Under the account, **Saved as a memory at** names the note the run wrote and
-its status: **proposed** until you decide, **approved** once later runs may
-retrieve it, **pinned** or **archived**. **Approve** decides it right there;
-**Open in the inbox** opens the note beside the Knowledge inbox, where it can
-also be pinned, merged or forgotten (see
+**Saved as a memory at** names the note and status: **proposed**, **approved**
+(retrievable), **pinned**, or **archived**. **Approve** acts in place; **Open
+in the inbox** opens it for pinning, merging, or forgetting (see
 [The memory inbox](6_knowledge_and_memory.md#the-memory-inbox)).
 
-A model may send text in large chunks, or call tools without sending prose.
-The graph and log can show activity even when no text is streaming.
+Models can send large text chunks or call tools without prose, so graph/log
+activity need not stream text.
 
 ## Approvals
 
-A fresh install asks before every file, shell or network tool call, including
-reads. **Approval needed** appears in a panel above the graph, with the risk
-level, the requested action, the agent's name and **Deny / Allow / Allow for
-this run** buttons. The graph, log and replay controls stay available while
-you consider it.
+A fresh install asks before all file, shell, and network calls, including
+reads. **Approval needed** above the graph shows risk, action, agent, and
+**Deny / Allow / Allow for this run**; graph, log, and replay remain available.
 
 | Tool | Risk | Effect |
 |---|---|---|
@@ -103,67 +77,56 @@ you consider it.
 | `read_feed` | medium | Fetch public RSS or Atom and return bounded, complete entries; local and private network addresses are refused. |
 | `run_shell` | high | Run a shell command as your user, starting in this space's folder, with a timeout. |
 
-File-tool attempts outside the space folder are refused before an approval
-question appears. That check does not make every requested action harmless:
-a permitted write can overwrite your work. **Shell commands can reach the
-rest of your disk and the network.** Their starting folder and timeout do
-not isolate them from your user account. Read the command before allowing it.
+File calls outside the space folder are refused before approval. Permitted
+writes can still overwrite work. **Shell commands can reach the rest of your
+disk and network.** Their start folder and timeout do not isolate them from
+your account. Read them before allowing.
 
-**Deny** stops that call and tells the agent it was refused. The run can
-continue. If any agent in the same run repeats the same tool and arguments,
-the earlier denial is applied automatically and recorded **by your earlier
-answer**. Different arguments can produce a new question. A denial does not
-carry over to another run.
+**Deny** stops that call and tells the agent; the run may continue. Any agent's
+same-run repeat of identical tool/arguments is automatically denied and logged
+**by your earlier answer**. Different arguments can ask again. Denials never
+carry to another run.
 
-**Allow for this run** allows the call and every later call to the same tool
-in this run, whatever its arguments, from any agent. Each of those later
-calls is still recorded, marked **by your earlier answer**, and the answer
-that started it is marked **for the rest of the run** in the panel's history.
-Another tool still asks, and the next run starts with no answers. To answer
-for every run, use **Answers by tool** in Settings (below).
+**Allow for this run** permits this tool's later calls in this run from any
+agent, regardless of arguments. They remain logged **by your earlier answer**;
+the originating answer is **for the rest of the run**. Other tools and next
+runs still ask. Use **Answers by tool** for every-run policy.
 
-An unanswered request expires when the run reaches its time limit. Cancelling
-the run also ends its waiting approvals. If the app closes while a question
-is pending, it is expired on the next start. No pending call is approved by
-waiting or restarting.
+Unanswered requests expire at the run time limit; cancelling ends waiting
+approvals. Pending requests at app close expire on next start. Waiting/restart
+never approves them.
 
-The header's approvals indicator covers all spaces. Click it to open a
-waiting run. If you are replaying an earlier point, click **Jump to end** to
-answer a current question. Old questions in a finished run are read-only.
+The header's all-space approvals indicator opens waiting runs. While replaying,
+use **Jump to end** to answer a current request. Finished-run questions are
+read-only.
 
 ## Replay, cancel or delete
 
-Select a run in **Runs**, then drag **Replay** to see the graph and log at
-an earlier event. **Jump to end** returns to the latest event. Viewing an
-earlier point does not pause an active run.
+Select a run, then drag **Replay** to view graph/log at earlier events.
+**Jump to end** returns latest; replay never pauses active work.
 
-**Cancel run** stops an unfinished run and records why it ended. It does not
-undo files or other effects from calls that already ran. Switching sections
-or spaces leaves runs running; quitting AgentBase stops its local server.
+**Cancel run** stops unfinished work and records why; it does not undo prior
+effects. Switching sections/spaces leaves runs active; quitting stops the local
+server.
 
-A finished run offers **Delete run…** and an inline **Delete / Keep**
-confirmation. Deletion removes the run, its event log and approval history.
-Its spending stays in the monthly total, and files it wrote stay in the
-space folder. Cancel an active run and let it finish stopping before deleting
-it.
+Finished runs offer **Delete run…** with **Delete / Keep** confirmation.
+Deletion removes run, event log, and approvals but keeps monthly spend and
+written files. Cancel active runs and wait for them to stop before deleting.
 
-Discord runs appear under the space selected in
-**Settings → Chat channels → Where a chat command runs**. They can be
-watched and replayed in the same way.
+Discord runs appear in **Settings → Chat channels → Where a chat command runs**
+and support the same watching/replay.
 
 ## Budget and limits
 
-The header's meter shows this month's spending across **all spaces**, against
-one cap. Change it at **Settings → Monthly budget → Monthly cap (USD)**.
-The default is $20.00. The app records a warning at 80% and checks its price
-estimate before a model call, refusing calls that would exceed the remaining
-budget. The accounting month uses UTC.
+The header meter shows all-space monthly spending against one cap. Set it in
+**Settings → Monthly budget → Monthly cap (USD)** (default $20.00). At 80%,
+the app warns; before each model call it refuses estimates over remaining
+budget. Accounting uses UTC months.
 
-Spending uses token counts and the prices bundled with this build. Your
-provider's bill is authoritative. For ChatGPT subscription access, this is an
-API-equivalent safety estimate and is not an API charge; it keeps the same
-AgentBase cap in force for both OpenAI access modes. Ollama adds no cost.
-Choosing a different space or deleting run history does not reset spending.
+Spending uses this build's token prices; provider bills are authoritative.
+ChatGPT subscription usage is an API-equivalent safety estimate, not an API
+charge, enforcing the same AgentBase cap. Ollama costs zero. Changing space or
+deleting history does not reset spend.
 
 | Limit | What happens when it is reached |
 |---|---|

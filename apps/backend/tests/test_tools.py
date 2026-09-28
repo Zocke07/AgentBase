@@ -1,8 +1,8 @@
 """The built-in tools: what each one does, and what each one refuses.
 
 The difference between the two failures matters: `ToolArgumentError` is a
-malformed call the agent can retry (`tool.error`), `ToolExecutionError` a
-correct call that did not work. Neither is a refusal; a tool that raised
+malformed call the agent can retry (`tool.error`), and `ToolExecutionError` is
+a correct call that did not work. Neither is a refusal; a tool that raised
 `ToolArgumentError` for an out-of-bounds path would downgrade a `tool.denied`
 into a `tool.error`.
 """

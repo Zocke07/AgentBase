@@ -1,9 +1,6 @@
-"""What an agent needs in order to call a tool: the implementations, the sandbox and the gate.
+"""Tool implementations, sandbox, and approval gate for an agent.
 
-One bundle rather than separate arguments, because a sandbox without a gate
-is an ungated path to the disk and a gate without a sandbox asks the user to
-judge paths that should have been refused. There is no way to assemble an
-agent holding only some of them.
+Keep them together so calls are both sandboxed and gated.
 """
 
 from __future__ import annotations
@@ -32,11 +29,9 @@ class ToolRuntime:
     tools: Mapping[str, Tool]
     sandbox: Sandbox
     approvals: ApprovalService
-    #: The workspace's pre-authorized risk levels, frozen at run start like the
-    #: rest of the run's rules.
+    #: Workspace pre-authorized risk levels, frozen at run start.
     workspace_auto_approve: tuple[RiskLevel, ...] = ()
-    #: The workspace's per-tool answers, frozen the same way. A tool absent
-    #: here is `ToolPolicy.ASK`: its risk level decides.
+    #: Frozen workspace per-tool answers; absence means ``ToolPolicy.ASK``.
     workspace_tool_policies: Mapping[str, ToolPolicy] = field(default_factory=dict)
 
     @classmethod
@@ -61,15 +56,10 @@ class ToolRuntime:
         return self.tools.get(name)
 
     def auto_approve_for(self, definition_levels: Iterable[RiskLevel]) -> frozenset[RiskLevel]:
-        """What this agent may skip the dialog for.
+        """Return risk levels this agent may run without a prompt.
 
-        An empty `auto_approve` on a definition means "inherit", not "none":
-        §4 defaults the column to `'[]'`, so a strict intersection would make
-        the workspace policy inert. Under both readings the result is a subset
-        of :attr:`workspace_auto_approve`, so no definition can widen it; a
-        definition that names levels narrows through
-        :func:`~agentbase.tools.catalogue.effective_auto_approve`. See
-        CLAUDE.md before restoring the strict reading.
+        Empty definition policy inherits workspace levels; nonempty policy
+        narrows them by intersection.
         """
         levels = tuple(definition_levels)
         if not levels:
@@ -77,12 +67,10 @@ class ToolRuntime:
         return effective_auto_approve(levels, self.workspace_auto_approve)
 
     def policy_for(self, tool: str, definition_levels: Iterable[RiskLevel]) -> ToolPolicy:
-        """The workspace's answer for one tool, as this agent's definition leaves it.
+        """Return a tool policy after definition-level narrowing.
 
-        A definition that names levels narrows even an app-wide ``allow``: the
-        tool then runs unasked only if its risk is among them. That keeps one
-        rule for every layer, that a lower one can only make the answer
-        stricter; ``deny`` is already as strict as it gets.
+        Named levels turn an app-wide ``allow`` into ``ask`` unless they include
+        the tool's risk; ``deny`` remains final.
         """
         policy = self.workspace_tool_policies.get(tool, ToolPolicy.ASK)
         if policy is not ToolPolicy.ALLOW:

@@ -1,8 +1,7 @@
-"""What tools exist, and how dangerous each one is. Names and risk levels only.
+"""Tool declarations and risk levels.
 
-The allowlist validator and the agent editor's checkboxes both read this, so
-the level shown beside a checkbox is the level the gate enforces. A tool
-reads its own risk from here rather than declaring it twice.
+Allowlist validation, editor controls, and tool implementations share this
+catalogue, keeping declared and enforced risk aligned.
 """
 
 from __future__ import annotations
@@ -29,7 +28,7 @@ __all__ = [
 
 
 class RiskLevel(StrEnum):
-    """How much damage a tool call can do. Policy is a *set* of levels, never a threshold."""
+    """Potential damage from a tool call; policy uses a set, not a threshold."""
 
     LOW = "low"
     MEDIUM = "medium"
@@ -37,11 +36,10 @@ class RiskLevel(StrEnum):
 
 
 class ToolPolicy(StrEnum):
-    """What the gate does with a call to one tool, by name, before its risk level is read.
+    """Per-tool gate decision before risk-level policy.
 
-    ``ASK`` is the default and means the risk-level rule decides; ``ALLOW``
-    runs the call without asking; ``DENY`` refuses it without asking. A tool
-    absent from a policy is ``ASK``.
+    Absent tools default to ``ASK``; ``ALLOW`` bypasses the prompt and ``DENY``
+    refuses the call.
     """
 
     ASK = "ask"
@@ -49,7 +47,7 @@ class ToolPolicy(StrEnum):
     DENY = "deny"
 
 
-#: Strictness, for narrowing: a space may move a tool along this order, never back.
+#: Strictness order for space-level narrowing.
 _STRICTNESS: Final[dict[ToolPolicy, int]] = {
     ToolPolicy.ALLOW: 0,
     ToolPolicy.ASK: 1,
@@ -64,16 +62,15 @@ def stricter(left: ToolPolicy, right: ToolPolicy) -> ToolPolicy:
 
 @dataclass(frozen=True, slots=True)
 class ToolDeclaration:
-    """One tool's name, purpose and risk. No implementation, by design."""
+    """Tool name, purpose, and risk; implementation lives elsewhere."""
 
     name: str
     description: str
     risk: RiskLevel
 
 
-#: The built-ins a definition may allow. A definition may only allow a tool
-#: listed here. Reads inside the sandbox are low; anything that writes, or
-#: that leaves the machine, is not.
+#: Built-ins agent definitions may allow. Sandboxed reads are low risk; writes
+#: and network access are not.
 CATALOGUE: Final[tuple[ToolDeclaration, ...]] = (
     ToolDeclaration(
         name="read_file",
@@ -103,13 +100,13 @@ CATALOGUE: Final[tuple[ToolDeclaration, ...]] = (
     ToolDeclaration(
         name="write_file",
         description="Create or overwrite a file inside the workspace.",
-        # Medium: confined to the workspace, so the worst case is lost work there.
+        # Confined to the workspace, but may destroy work.
         risk=RiskLevel.MEDIUM,
     ),
     ToolDeclaration(
         name="http_get",
         description="Fetch a URL over HTTP and return the response body.",
-        # Medium despite being a read: it can carry the workspace off the machine.
+        # Reads can exfiltrate workspace data.
         risk=RiskLevel.MEDIUM,
     ),
     ToolDeclaration(
@@ -118,7 +115,7 @@ CATALOGUE: Final[tuple[ToolDeclaration, ...]] = (
             "Fetch an RSS or Atom URL and return bounded, complete entries with "
             "deterministic identifiers."
         ),
-        # The same network boundary as http_get, with local parsing afterwards.
+        # Same network boundary as ``http_get``.
         risk=RiskLevel.MEDIUM,
     ),
     ToolDeclaration(
@@ -152,12 +149,10 @@ def effective_tool_policies(
     requested: Mapping[str, ToolPolicy],
     policy: Mapping[str, ToolPolicy],
 ) -> dict[str, ToolPolicy]:
-    """Narrow the workspace's per-tool policies by a space's.
+    """Narrow workspace per-tool policy with a space policy.
 
-    Each tool ends up with the stricter of the two answers, so a space can
-    turn an allowed tool into a question or a refusal and a question into a
-    refusal, and can never widen what the app-wide policy permits. A tool
-    neither names stays absent, which reads as ``ASK``.
+    Each result takes the stricter answer; unnamed tools remain absent and
+    therefore read as ``ASK``.
     """
     merged = dict(policy)
     for tool, wanted in requested.items():
@@ -169,10 +164,8 @@ def effective_auto_approve(
     requested: Iterable[RiskLevel],
     policy: Iterable[RiskLevel],
 ) -> frozenset[RiskLevel]:
-    """Intersect a definition's `auto_approve` with the workspace policy.
+    """Intersect definition auto-approval with workspace policy.
 
-    An intersection is the whole implementation: no value of ``requested``
-    can add to ``policy``, which is §5 Phase 5's rule that a definition may
-    only narrow what the policy permits.
+    Intersection ensures definitions cannot widen policy.
     """
     return frozenset(requested) & frozenset(policy)

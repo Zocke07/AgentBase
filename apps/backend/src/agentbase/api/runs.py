@@ -1,8 +1,7 @@
-"""Run endpoints, and the scripted debug run.
+"""Run endpoints and the scripted debug run.
 
-The debug run exercises the whole event spine and SSE path with no provider,
-no key and no spend, so it works from a test, from `curl`, and from the
-window before a key is configured.
+The debug run exercises event storage and SSE without a provider, key, or
+spend, so tests, `curl`, and an unconfigured window can use it.
 """
 
 from __future__ import annotations
@@ -38,9 +37,8 @@ logger = logging.getLogger("agentbase.api")
 
 router = APIRouter()
 
-#: The scripted debug sequence: 20 events over 10 seconds at the default step
-#: (§5 Phase 2), shaped exactly like a real run so the dashboard renders it
-#: the same way. Each payload carries the keys the real emitters write.
+#: Scripted debug sequence: 20 events over 10 seconds at the default step
+#: (§5 Phase 2), shaped and keyed like a real run for identical rendering.
 _FAKE_RUN_SCRIPT: Final[tuple[tuple[EventType, str | None, dict[str, Any]], ...]] = (
     (EventType.RUN_STARTED, None, {"goal": "Summarise the quarterly report"}),
     (
@@ -134,16 +132,16 @@ _FAKE_RUN_SCRIPT: Final[tuple[tuple[EventType, str | None, dict[str, Any]], ...]
     (EventType.RUN_COMPLETED, None, {"summary": "Quarterly report summarised."}),
 )
 
-#: Statuses after which a run cannot be cancelled: it has already ended.
+#: Ended statuses; runs in these states cannot be cancelled.
 _TERMINAL: Final[frozenset[str]] = frozenset({"completed", "failed", "cancelled"})
 
-#: Milliseconds between scripted events. 20 x 500 ms = the 10 seconds in §5.
+#: Milliseconds between scripted events; 20 x 500 ms = §5's 10 seconds.
 DEFAULT_STEP_MS: Final[int] = 500
 
 
 class CreateRunRequest(BaseModel):
     goal: str = Field(min_length=1, max_length=10_000)
-    #: Where the run happens. Omitted means the default space.
+    #: Run location; omitted selects the default space.
     space_id: str | None = None
     origin: RunOrigin = "ui"
     origin_ref: str | None = None
@@ -172,11 +170,10 @@ async def _require_run(request: Request, run_id: str) -> Run:
 
 @router.post("/runs", status_code=201)
 async def create_run(request: Request, body: CreateRunRequest) -> Run:
-    """Create a run and start the orchestrator on it.
+    """Create a run and start its orchestrator.
 
-    Returns as soon as the row exists; the client watches the run over SSE.
-    Starting it is :class:`~agentbase.orchestrator.launcher.RunLauncher`'s
-    job, shared with the chat channels.
+    Return after creating its row; clients follow it over SSE. The shared
+    :class:`~agentbase.orchestrator.launcher.RunLauncher` also serves channels.
     """
     try:
         return await _launcher(request).launch(
@@ -198,10 +195,9 @@ def _launcher(request: Request) -> RunLauncher:
 
 
 def _spawn(request: Request, coroutine: Coroutine[Any, Any, None]) -> None:
-    """Run a coroutine in the background, keeping a strong reference to it.
+    """Run a coroutine in the background and retain a strong task reference.
 
-    `asyncio` holds only a weak reference to a bare task. The set is drained
-    by the lifespan handler on shutdown.
+    `asyncio` only weakly retains bare tasks; lifespan drains this set at shutdown.
     """
     task = asyncio.create_task(coroutine)
     tasks: set[asyncio.Task[None]] = request.app.state.background_tasks
@@ -216,8 +212,7 @@ async def list_runs(
     space_id: str | None = None,
     origin: RunOrigin | None = None,
 ) -> list[Run]:
-    """Recent runs, newest first: what the run picker reads. ``origin`` keeps
-    only the runs started from the window, by a schedule, or from Discord."""
+    """List recent runs, newest first; ``origin`` filters UI, schedule, or Discord runs."""
     return await _store(request).list_runs(limit, space_id, origin)
 
 
@@ -230,9 +225,8 @@ async def get_run(request: Request, run_id: str) -> Run:
 async def cancel_run(request: Request, run_id: str) -> Run:
     """Ask a run to stop.
 
-    202: the run stops at its next deadline check and writes `run.cancelled`
-    itself, so the row returned here may still say `running`. A finished run,
-    or one this process is not driving, is a 409.
+    202 means it stops at its next deadline check and writes `run.cancelled`,
+    so its returned row may remain `running`. Finished or nonlocal runs return 409.
     """
     run = await _require_run(request, run_id)
     if run.status in _TERMINAL:
@@ -249,13 +243,12 @@ async def cancel_run(request: Request, run_id: str) -> Run:
 
 @router.delete("/runs/{run_id}", status_code=204)
 async def delete_run(request: Request, run_id: str) -> Response:
-    """Remove a finished run, its events and its approvals. Its spend stays.
+    """Remove a finished run, events, and approvals; retain its spend.
 
-    A run that has not ended is a 409: the log must never be deleted from
-    under an orchestrator still appending to it. A run this process is still
-    driving is refused even if its row just turned terminal, since the
-    orchestrator lets go a moment after writing the status. See
-    :meth:`~agentbase.events.store.EventStore.delete_run` for what is kept.
+    Return 409 for unfinished runs so their orchestrator cannot lose its log.
+    Also refuse a locally driven run that just turned terminal: the
+    orchestrator releases it shortly after status write. See
+    :meth:`~agentbase.events.store.EventStore.delete_run` for retained data.
     """
     launcher: RunLauncher = request.app.state.launcher
     if run_id in launcher.live:
@@ -277,7 +270,7 @@ async def delete_run(request: Request, run_id: str) -> Response:
 
 @router.get("/runs/{run_id}/events/history")
 async def get_run_events(request: Request, run_id: str, after_seq: int = 0) -> list[Event]:
-    """The event log as a plain array, for the dashboard's history load, tests and `curl`."""
+    """Return the event log as an array for dashboard history, tests, and `curl`."""
     await _require_run(request, run_id)
     return await _store(request).read(run_id, after_seq=after_seq)
 
@@ -291,10 +284,10 @@ async def stream_run_events(
     run_id: str,
     after_seq: Annotated[int, Query(ge=0)] = 0,
 ) -> StreamingResponse:
-    """Server-sent events for one run, resumable via `Last-Event-ID`.
+    """Stream one run as resumable SSE via `Last-Event-ID`.
 
-    ``after_seq`` is the same cursor for a first connection, which cannot
-    carry the header. On a reconnect the header wins if it is further along.
+    ``after_seq`` is the first-connection cursor; on reconnect, the further
+    header cursor wins.
     """
     await _require_run(request, run_id)
 
@@ -322,7 +315,7 @@ async def _play_script(store: EventStore, run_id: str, step_ms: int) -> None:
 
         await store.set_run_status(run_id, "completed")
     except asyncio.CancelledError:
-        # App shutting down mid-run. The log keeps whatever was committed.
+        # On shutdown mid-run, retain already committed log entries.
         raise
     except Exception:
         logger.exception("fake run %s failed", run_id)
@@ -335,7 +328,7 @@ async def fake_run(
     request: Request,
     step_ms: Annotated[int, Query(ge=0, le=5000)] = DEFAULT_STEP_MS,
 ) -> Run:
-    """Start a scripted run so the event spine can be exercised without a model."""
+    """Start a scripted run that exercises events without a model."""
     store = _store(request)
     run = await store.create_run(goal="Debug run: scripted event sequence", origin="ui")
 

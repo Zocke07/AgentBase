@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 
 /**
- * Load something from the sidecar on mount, and again on demand. `load` must
- * be stable (`useCallback`) or the effect refetches every render; `token` is
- * what makes `reload()` refetch. `loading` is derived from the token rather
- * than stored, so no render sees a moved-on token with a stale flag.
+ * Load sidecar data on mount and demand. `load` must be `useCallback`-stable;
+ * `token` drives `reload()`. Derive loading from token to avoid stale flags.
  */
 export function useFetched<T>(
   load: () => Promise<T>,
@@ -16,9 +14,8 @@ export function useFetched<T>(
   const [settledToken, setSettledToken] = useState(-1);
 
   useEffect(() => {
-    // Guards against a response arriving after the component went away, or
-    // after a newer request was issued: both ordinary when a user switches
-    // tabs or clicks retry while a request is in flight.
+    // Ignore responses after unmount or a newer request, such as tab switches
+    // or in-flight retries.
     let live = true;
     const mine = token;
 
@@ -42,7 +39,7 @@ export function useFetched<T>(
   }, [load, token]);
 
   const reload = useCallback(() => {
-    // A retry is a fresh question: the old answer's error does not apply to it.
+    // Retry invalidates the previous response error.
     setError(null);
     setToken((current) => current + 1);
   }, []);

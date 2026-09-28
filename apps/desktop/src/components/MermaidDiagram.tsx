@@ -4,9 +4,8 @@ import { useEffect, useId, useRef, useState } from "react";
 let renderQueue: Promise<void> = Promise.resolve();
 
 /**
- * Mermaid source rendered with strict security, then parsed and sanitized once
- * more before it reaches the document. Keeping the source as a normal `.mmd`
- * file means an agent can propose a diagram through the existing file gate.
+ * Render Mermaid with strict security, then parse and sanitize again before DOM
+ * insertion. `.mmd` sources pass through the existing agent file gate.
  */
 export function MermaidDiagram({ source, title }: { source: string; title: string }) {
   const rawId = useId();

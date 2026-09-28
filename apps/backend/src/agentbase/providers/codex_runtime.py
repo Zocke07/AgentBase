@@ -1,10 +1,7 @@
-"""The Codex App Server runtime, fetched once instead of frozen into the sidecar.
+"""Install and verify the Codex App Server runtime on demand.
 
-The runtime is a 220 MB signed binary. Bundling it made every launch of the
-one-file sidecar unpack it, so it lives in the app data directory instead:
-downloaded on the first ChatGPT sign-in from the exact wheel `uv.lock` pins,
-verified against that wheel's SHA-256 and size before anything is unpacked,
-and reused on every later launch. API-key users never fetch it.
+The runtime is downloaded from the ``uv.lock``-pinned wheel, verified before
+unpacking, and reused from application data. API-key users do not need it.
 """
 
 from __future__ import annotations
@@ -43,7 +40,7 @@ __all__ = [
 
 MANIFEST_RESOURCE: Final[str] = "codex_runtime.json"
 RUNTIME_PACKAGE: Final[str] = "openai-codex-cli-bin"
-#: The wheel members the SDK uses. `bin/codex-code-mode-host` is not one of them.
+#: Wheel members used by the SDK; exclude ``codex-code-mode-host``.
 _WANTED_PREFIXES: Final[tuple[str, ...]] = (
     "codex_cli_bin/codex-package.json",
     "codex_cli_bin/bin/codex",
@@ -127,7 +124,7 @@ class CodexRuntimeManifest:
 
 
 def manifest_from_lock(lock_text: str) -> CodexRuntimeManifest:
-    """Read the pinned wheels out of `uv.lock`, the single source of the pin."""
+    """Build the runtime manifest from ``uv.lock``, the pin source of truth."""
     import tomllib
 
     lock = tomllib.loads(lock_text)
@@ -162,11 +159,7 @@ def platform_tag(
 
 
 def development_codex_path() -> Path | None:
-    """A checkout with the runtime wheel installed uses it directly, offline.
-
-    The frozen sidecar excludes `codex_cli_bin`, so there the import fails and
-    the installer's own copy is the only one.
-    """
+    """Return a development checkout's installed runtime, if available."""
     try:
         module = importlib.import_module("codex_cli_bin")
         found = module.bundled_codex_path()
@@ -177,16 +170,16 @@ def development_codex_path() -> Path | None:
 
 @dataclass
 class CodexRuntimeInstaller:
-    """Owns `<data dir>/codex-runtime/<version>/<tag>/`, one install at a time."""
+    """Own one installation at ``<data dir>/codex-runtime/<version>/<tag>/``."""
 
     root: Path
     manifest: CodexRuntimeManifest = field(default_factory=CodexRuntimeManifest.load)
     tag: str = field(default_factory=platform_tag)
-    #: Swapped in tests for a client bound to a local server.
+    #: Optional HTTP client factory.
     client_factory: Callable[[], httpx2.AsyncClient] = field(
         default=lambda: httpx2.AsyncClient(timeout=httpx2.Timeout(30.0, read=120.0))
     )
-    #: The runtime a development checkout already has installed, if importable.
+    #: Optional development runtime resolver.
     development_codex: Callable[[], Path | None] | None = development_codex_path
     _task: asyncio.Task[Path] | None = field(default=None, init=False)
     _downloaded: int = field(default=0, init=False)
@@ -201,7 +194,7 @@ class CodexRuntimeInstaller:
         return "codex.exe" if self.tag.startswith("win") else "codex"
 
     def installed_codex(self) -> Path | None:
-        """The verified runtime's executable, or None until one is installed."""
+        """Return the verified executable, if installed."""
         if self.development_codex is not None:
             found = self.development_codex()
             if found is not None:
@@ -211,7 +204,7 @@ class CodexRuntimeInstaller:
         return binary if marker.is_file() and binary.is_file() else None
 
     def path_dirs(self) -> tuple[Path, ...]:
-        """Directories the SDK would put on PATH when it resolved the bundle itself."""
+        """Return runtime directories the SDK would add to ``PATH``."""
         codex = self.installed_codex()
         if codex is None:
             return ()
@@ -234,7 +227,7 @@ class CodexRuntimeInstaller:
         return CodexRuntimeStatus(state="missing", version=version)
 
     def start(self) -> asyncio.Task[Path]:
-        """Begin the fetch once; every caller shares the same task."""
+        """Start one shared installation task."""
         if self._task is None or self._task.done():
             self._error = None
             self._task = asyncio.create_task(self._install(), name="codex-runtime-install")
@@ -343,7 +336,7 @@ class CodexRuntimeInstaller:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with bundle.open(info) as source, target.open("wb") as sink:
                     shutil.copyfileobj(source, sink, _CHUNK_BYTES)
-                # The wheel records POSIX modes; restore its executables as they were.
+                # Restore executable mode stored by the wheel.
                 if os.name != "nt" and (info.external_attr >> 16) & stat.S_IXUSR:
                     target.chmod(
                         target.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH

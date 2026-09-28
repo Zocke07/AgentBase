@@ -10,23 +10,21 @@ import { MetricBar } from "./MetricBar";
 import { RunCard } from "./RunCard";
 
 /**
- * The Home screen: what a person sees when nothing is open. Top to bottom:
- * the pre-flight (why a run would be refused, if it would), the goal box,
- * "Now" (runs in progress and approvals waiting), recent runs as cards, and
- * the roster with its enable toggles. A fresh install gets the goal box as
- * the whole screen. Nothing here is about a particular run.
+ * Home when no run is open: preflight, goal, active/pending "Now", recent-run
+ * cards, and roster toggles. Fresh installs show only goal; no state is tied
+ * to a specific run.
  */
 
 export interface HomeViewProps {
-  /** The space this screen is about; null until the list has loaded. */
+  /** Screen space; null until list loads. */
   space: SpaceResponse | null;
-  /** Why a run started now would be refused, or null when one can start. */
+  /** Current start refusal or null. */
   blocker: string | null;
-  /** Every approval waiting anywhere, so a card can say its run is stuck on one. */
+  /** All pending approvals, identifying blocked cards. */
   pendingApprovals: readonly ApprovalResponse[];
-  /** What the open run's log says its status is, when the table lags it. */
+  /** Open-run log status when table lags. */
   liveStatus: { runId: string; status: Run["status"] } | null;
-  /** "provider · model" a run here would use, so the retrieval preview can say where excerpts go. */
+  /** Effective `provider · model` for retrieval preview. */
   modelLabel: string | null;
   onOpenRun: (runId: string) => void;
   onOpenRuns: () => void;
@@ -34,7 +32,7 @@ export interface HomeViewProps {
   onOpenSettings: () => void;
   /** Open a cited note in the Knowledge section. */
   onOpenNote?: ((path: string, heading: string | null) => void) | undefined;
-  /** Spend or settings may have changed: the shell re-reads its header. */
+  /** Spend/settings may change; shell reloads header. */
   onWorkspaceChanged: () => void;
 }
 
@@ -42,8 +40,7 @@ export interface HomeViewProps {
 const RECENT = 6;
 
 /**
- * "10 agents ready: news-scanner, decision and 8 more." A roster can be long;
- * three names say what kind of team it is, and the count says the rest.
+ * Summarize a long roster with three names and total count.
  */
 function readyLine(names: readonly string[]): string {
   const count = `${String(names.length)} agent${names.length === 1 ? "" : "s"} ready`;
@@ -94,7 +91,7 @@ export function HomeView({
   const statusOf = (run: Run): Run["status"] =>
     liveStatus !== null && liveStatus.runId === run.id ? liveStatus.status : run.status;
 
-  // "Now": anything still going, plus anything a person is being asked about.
+  // "Now" includes ongoing runs and user questions.
   const now = runs.filter((run) => unfinished({ ...run, status: statusOf(run) }) || waitingOn.has(run.id));
   const recent = runs.filter((run) => !now.includes(run)).slice(0, RECENT);
   const firstLaunch = runsLoaded && runs.length === 0;
@@ -141,7 +138,7 @@ export function HomeView({
     }
   };
 
-  // The scripted run: twenty events, no model, no key.
+  // Scripted run has twenty events, no model or key.
   const demo = async () => {
     setDemoError(null);
     try {
@@ -153,7 +150,7 @@ export function HomeView({
     }
   };
 
-  // An empty roster gets the three starter roles on request.
+  // Empty roster can seed three starter roles.
   const seed = async () => {
     if (space === null) return;
     setRosterError(null);
@@ -230,7 +227,7 @@ export function HomeView({
               setExcludedCitations([]);
             }}
             onKeyDown={(pressed) => {
-              // Enter sends, like a chat box; Shift+Enter is a new line.
+              // Enter submits; Shift+Enter adds line.
               if (pressed.key === "Enter" && !pressed.shiftKey) {
                 pressed.preventDefault();
                 void start();

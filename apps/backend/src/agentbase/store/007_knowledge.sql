@@ -1,9 +1,7 @@
 -- Migration 007 - local Markdown retrieval and durable agent memory.
 --
--- The knowledge itself remains in each space folder, not in SQLite. This
--- migration only makes the new read-only search tool available to seeded
--- roles that still carry an exact shipped allowlist. A user-edited allowlist
--- is preserved.
+-- Knowledge remains in each space folder. Grant read-only search only to
+-- seeded roles with an exact shipped allowlist; preserve user edits.
 
 UPDATE agent_defs
    SET allowed_tools = '["read_file","list_dir","search_knowledge"]',
@@ -18,4 +16,3 @@ UPDATE agent_defs
  WHERE is_builtin = 1
    AND name = 'writer'
    AND allowed_tools IN ('["read_file","write_file"]', '["read_file", "write_file"]');
-

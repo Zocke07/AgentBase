@@ -1,24 +1,15 @@
-"""Everything a channel does that is not platform-specific.
+"""Platform-independent chat-channel behavior.
 
-:func:`converse` is one chat conversation from the command arriving to the run
-ending: identity, refusal, starting the run, folding the log, throttling the
-edits, surfacing the approval gate. :class:`ChannelService` owns the adapters:
-starts the enabled ones, restarts them when they fall over, stops them on
-shutdown.
+:func:`converse` handles identity, refusal, run launch, log folding, edit
+throttling, and approvals for one conversation. :class:`ChannelService`
+starts enabled adapters, restarts failures, and stops them at shutdown.
 
-Chat platforms differ in exactly one thing that matters, how you edit a message
-you already sent, so that is all an adapter implements
-(:class:`~agentbase.channels.base.ChannelReply`); the rest is shared here so a
-bug fixed once is fixed for every channel.
-
-Adapters run in-process, supervised, rather than in their own OS process (a
-recorded deviation from §5 Phase 8): :meth:`ChannelService._supervise` gives
-the crash isolation a process would, without a second frozen binary and a
-second shutdown handshake. Nothing here touches a tool, a sandbox or an
-approval on an agent's behalf; a chat-originated run is the same `Run` in the
-same process, and a chat answer to an approval goes through the same
-:meth:`~agentbase.tools.approval.ApprovalService.resolve` the dashboard uses
-(§1 constraint 5).
+Adapters only edit already-sent messages via
+:class:`~agentbase.channels.base.ChannelReply`; shared logic keeps channel
+behavior consistent. They run in-process under supervision (a recorded §5
+Phase 8 deviation), providing crash isolation without another frozen binary
+or shutdown handshake. Channel origin grants no tool, sandbox, or approval
+privilege: approval answers use the dashboard's same resolve path (§1 constraint 5).
 """
 
 from __future__ import annotations
@@ -59,20 +50,19 @@ __all__ = [
 
 logger = logging.getLogger("agentbase.channels")
 
-#: Per-channel message ceiling and edit cadence: the two numbers `converse` needs.
+#: Per-channel message ceiling and edit cadence used by ``converse``.
 _LIMITS: Final[dict[str, tuple[int, float]]] = {
     "discord": (DISCORD_MESSAGE_LIMIT, DISCORD_EDIT_INTERVAL),
 }
 
-#: The keychain names the shell delivers over stdin (§1 constraint 4). A bot
-#: token is a credential in exactly the sense an API key is.
+#: Keychain names delivered over stdin (§1 constraint 4); bot tokens are
+#: credentials like API keys.
 _TOKEN_SECRET: Final[dict[str, str]] = {
     "discord": "discord_bot_token",
 }
 
-#: Consecutive immediate failures before an adapter is left stopped. A dropped
-#: gateway connection is retried forever; a bad token fails instantly every
-#: time, and retrying that until shutdown hides a fixable mistake.
+#: Consecutive immediate failures before stopping an adapter. Retry dropped
+#: gateways indefinitely, but stop bad tokens that fail immediately each time.
 _MAX_CONSECUTIVE_FAILURES: Final[int] = 5
 
 _BACKOFF_SECONDS: Final[tuple[float, ...]] = (1.0, 2.0, 5.0, 15.0, 30.0)
@@ -85,10 +75,10 @@ _FORCE_RENDER_ON: Final[frozenset[EventType]] = frozenset(
 
 @dataclass(frozen=True, slots=True)
 class ChannelDeps:
-    """What a channel needs from the rest of the application.
+    """Application dependencies for a channel.
 
-    Every object here is one the HTTP API already uses, so a channel cannot
-    reach anything a dashboard user could not.
+    Each is already used by HTTP, so channels reach nothing unavailable to a
+    dashboard user.
     """
 
     store: EventStore
@@ -100,7 +90,7 @@ class ChannelDeps:
 
 @dataclass(slots=True)
 class ChannelStatus:
-    """What `GET /channels` reports about one adapter."""
+    """One adapter's `GET /channels` status."""
 
     channel: ChannelName
     enabled: bool
@@ -108,7 +98,7 @@ class ChannelStatus:
     running: bool = False
     failures: int = 0
     last_error: str | None = None
-    #: Recent refused senders, newest first. Bounded, and not in the event log.
+    #: Recent refused senders, newest first; bounded and not event-logged.
     refused: list[str] = field(default_factory=list)
 
 
@@ -122,14 +112,12 @@ async def converse(
     *,
     on_refusal: Callable[[str], None] | None = None,
 ) -> str | None:
-    """Handle one command: authorize it, run it, and report it as it goes.
+    """Authorize, run, and report one command.
 
-    Returns the run id, or ``None`` if the sender was refused.
-
-    A refusal is not written to the event log. `events.run_id` is NOT NULL, so
-    it would need a run row that never ran, in the user's run list, creatable
-    without bound by any stranger who can see the bot. It goes to
-    ``on_refusal``, which `GET /channels` renders from a bounded list.
+    Return its run ID, or ``None`` for a refusal. Do not event-log refusals:
+    non-null ``events.run_id`` would require never-run rows in the user's list,
+    unboundedly creatable by bot-visible strangers. Pass them to
+    ``on_refusal`` for `GET /channels`' bounded list.
     """
     settings = await deps.settings.get()
     directory = IdentityDirectory(settings.channel_identities)
@@ -146,11 +134,10 @@ async def converse(
     goal = inbound.text.strip()
 
     async def prologue(run: Any) -> None:
-        # First event of the run: the message did arrive before the run started.
+        # Record message arrival as the run's first event.
         await deps.store.append(run.id, EventType.CHANNEL_INBOUND, inbound.as_payload(identity))
 
-    # A stored space id that no longer exists falls back to the default rather
-    # than turning every command into an error nobody in the channel can fix.
+    # Fall back when stored space no longer exists; chat users cannot repair it.
     space_id = settings.channel_space_id
     if space_id is not None and await deps.launcher.space_exists(space_id) is False:
         logger.warning("channel_space_id %r is not a space; using the default", space_id)
@@ -178,9 +165,7 @@ async def _report(
 ) -> None:
     """Keep the chat message current until the run ends.
 
-    The message is re-rendered from the whole log on every edit, never
-    appended to, so a reconnect or a resend shows what the log says rather
-    than what this process happened to witness.
+    Rerender the full log on each edit so reconnects/resends show durable state.
     """
     limit, interval = _LIMITS.get(inbound.channel, (DISCORD_MESSAGE_LIMIT, 2.0))
     throttle = Throttle(interval)
@@ -201,7 +186,7 @@ async def _report(
             if batch and throttle.due(force=forced):
                 await reply.update(render(fold(seen), limit=limit))
                 if not delivered:
-                    # On the first delivery, not the last: see `_record_outbound`.
+                    # Record first delivery, not last; see ``_record_outbound``.
                     delivered = True
                     await _record_outbound(deps, run_id, inbound, "report")
 
@@ -211,8 +196,7 @@ async def _report(
             if ended:
                 return
 
-            # Events arriving during the wait are drained as one batch, so a
-            # talkative run costs one edit per interval, not one per event.
+            # Batch arrivals during waits so chatty runs cost one edit per interval.
             await asyncio.sleep(throttle.seconds_until_due())
     finally:
         pump.cancel()
@@ -222,11 +206,9 @@ async def _report(
 
 
 async def _pump(deps: ChannelDeps, run_id: str, queue: asyncio.Queue[Event | None]) -> None:
-    """Feed the run's events into ``queue``, then a ``None`` to say it ended.
+    """Feed run events to ``queue``, then ``None`` at end.
 
-    Consumes :func:`~agentbase.api.stream.run_events`, the same gap-free
-    cursor the dashboard's SSE endpoint uses, so chat and browser cannot
-    disagree about which events happened.
+    Use the dashboard SSE endpoint's gap-free cursor so chat and browser agree.
     """
     async for event in run_events(deps.store, deps.bus, run_id):
         if event is not None:
@@ -235,7 +217,7 @@ async def _pump(deps: ChannelDeps, run_id: str, queue: asyncio.Queue[Event | Non
 
 
 async def _drain(queue: asyncio.Queue[Event | None]) -> tuple[list[Event], bool]:
-    """Block for one item, then take everything else already waiting."""
+    """Block for one item, then drain already queued items."""
     batch: list[Event] = []
     ended = False
 
@@ -262,10 +244,9 @@ async def _offer_approvals(
     seen: list[Event],
     asked: set[str],
 ) -> None:
-    """Offer an Allow/Deny affordance for anything still outstanding.
+    """Offer Allow/Deny controls for outstanding approvals.
 
-    Derived from the fold, not from the event that just arrived, so a question
-    raised while the adapter was reconnecting is still offered.
+    Derive from the fold, not arrivals, so reconnect-time questions still appear.
     """
     for pending in fold(seen).approvals:
         if pending.approval_id in asked:
@@ -278,16 +259,11 @@ async def _offer_approvals(
 async def _record_outbound(
     deps: ChannelDeps, run_id: str, inbound: InboundMessage, kind: str
 ) -> None:
-    """Record that something was sent to the conversation.
+    """Record outbound conversation traffic.
 
-    ``kind`` is ``"report"`` for the run's own message and ``"approval"`` for a
-    question pushed to the chat.
-
-    Written while the run is alive, never as a tally after it ends: the SSE
-    stream closes on a terminal event, so an append after `run.completed`
-    reaches no live watcher while a replay finds it, and live and replay
-    disagree by one event. That was measured on a real run (38 in the table,
-    37 delivered) before the placement moved.
+    ``kind`` is ``"report"`` for the run message or ``"approval"`` for a chat
+    question. Append while the run lives: SSE closes at a terminal event, so a
+    later append reaches replay but not live watchers, causing a one-event split.
     """
     with contextlib.suppress(Exception):
         await deps.store.append(
@@ -304,17 +280,14 @@ async def _record_outbound(
 
 # --- the adapters, supervised ------------------------------------------------
 
-#: ``(deps, token, on_refusal) -> adapter``. The refusal sink is a constructor
-#: argument so a test can build an adapter without a :class:`ChannelService`.
-#:
-#: `Callable` is a runtime import: `from __future__ import annotations`
-#: postpones annotations and does nothing for this assignment, so a
-#: TYPE_CHECKING-only import typechecks and raises `NameError` on import.
+#: ``(deps, token, on_refusal) -> adapter``. Constructor injection lets tests
+#: build adapters without :class:`ChannelService`. ``Callable`` must import at
+#: runtime: postponed annotations do not apply to this assignment.
 AdapterFactory = Callable[["ChannelDeps", str, Callable[[str], None]], "ChannelAdapter"]
 
 
 class ChannelService:
-    """Starts, supervises and stops the enabled channel adapters."""
+    """Start, supervise, and stop enabled channel adapters."""
 
     def __init__(
         self,
@@ -330,15 +303,14 @@ class ChannelService:
         self._status: dict[ChannelName, ChannelStatus] = {}
 
     async def start(self) -> None:
-        """Start every channel that is both enabled and has a token."""
+        """Start channels that are enabled and have a token."""
         await self.reconcile()
 
     async def reconcile(self) -> None:
-        """Make the running adapters match the settings, in both directions.
+        """Make running adapters match settings in both directions.
 
-        Called at startup and whenever `PATCH /settings` touches a channel
-        field. Without the second call `discord_enabled` reports success and
-        changes nothing until a restart, and this product has no restart button.
+        Call at startup and after channel-setting PATCHes; otherwise
+        ``discord_enabled`` would not take effect until unavailable restart.
         """
         settings = await self._deps.settings.get()
         enabled: dict[str, bool] = {
@@ -347,8 +319,7 @@ class ChannelService:
 
         for channel in CHANNEL_NAMES:
             token = self._secrets.get(_TOKEN_SECRET[channel])
-            # Preserved across a reconcile: `refused` is the only trace of a
-            # refusal, since one writes no event.
+            # Preserve refusals: they are not event-logged.
             status = self._status.setdefault(
                 channel, ChannelStatus(channel=channel, enabled=False, configured=False)
             )
@@ -356,7 +327,7 @@ class ChannelService:
             status.configured = token is not None
 
             running = self._is_running(channel)
-            # `token is not None` stays inline so mypy's narrowing reaches the branch.
+            # Keep inline so mypy narrows ``token`` in this branch.
             should_run = status.enabled and token is not None and channel in self._factories
 
             if should_run and not running and token is not None:
@@ -383,7 +354,7 @@ class ChannelService:
         return task is not None and not task.done()
 
     async def _stop(self, channel: ChannelName) -> None:
-        """Cancel one adapter's supervisor and release its connection."""
+        """Cancel an adapter supervisor and release its connection."""
         task = self._tasks.pop(channel, None)
         if task is not None:
             task.cancel()
@@ -400,7 +371,7 @@ class ChannelService:
             status.running = False
 
     async def aclose(self) -> None:
-        """Stop every adapter. Safe to call when none were started."""
+        """Stop every adapter; safe when none started."""
         for task in self._tasks.values():
             task.cancel()
         if self._tasks:
@@ -421,8 +392,7 @@ class ChannelService:
     def note_refusal(self, channel: ChannelName, who: str) -> None:
         """Record a refused sender for `GET /channels`.
 
-        Bounded: the people in it are unauthenticated by definition, and an
-        unbounded list they can append to is a memory leak.
+        Bound it: unauthenticated senders could otherwise create a memory leak.
         """
         status = self._status.get(channel)
         if status is None:
@@ -432,10 +402,9 @@ class ChannelService:
             del status.refused[8:]
 
     async def _supervise(self, channel: ChannelName, token: str) -> None:
-        """Run one adapter, restarting it when it falls over.
+        """Run one adapter and restart failures.
 
-        An adapter that raises takes down its own task and nothing else; the
-        sidecar keeps serving the dashboard either way.
+        A failure ends only its task; the sidecar still serves the dashboard.
         """
         status = self._status[channel]
         failures = 0
@@ -463,7 +432,7 @@ class ChannelService:
                 with contextlib.suppress(Exception):
                     await adapter.close()
             else:
-                # A clean return means the adapter was asked to stop.
+                # Clean return means requested stop.
                 status.running = False
                 return
 
@@ -480,11 +449,10 @@ class ChannelService:
 
 
 def _default_factories() -> dict[ChannelName, AdapterFactory]:
-    """Build the real adapters, importing their libraries only if asked.
+    """Build real adapters, importing libraries only when needed.
 
-    A late import, so a build in which `discord.py` failed to freeze degrades
-    to the channel being unavailable (with the reason in `GET /channels`)
-    instead of a sidecar that will not start.
+    Late import turns a frozen ``discord.py`` failure into reported channel
+    unavailability rather than a sidecar startup failure.
     """
 
     def discord_factory(

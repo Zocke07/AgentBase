@@ -1,14 +1,8 @@
-"""Agent definitions: the `agent_defs` row as a typed object, and the CRUD that writes one.
+"""Typed ``agent_defs`` rows and their CRUD store.
 
-Validation is enforced here, the only place a row can be written, and
-:mod:`agentbase.api.agents` maps each error to a status code. A definition
-describes an agent and never grants privilege: it cannot name a tool that does
-not exist, and its `auto_approve` can only narrow the workspace policy.
-
-A definition belongs to exactly one space and its name is unique within that
-roster, so two spaces may each have a `writer`. A move is a `space_id`
-change that leaves in-flight runs alone (their roster is a snapshot); a copy
-is a new row the user may delete, whatever the original was.
+Validation lives at the write boundary. Definitions can name only registered
+tools and may narrow, never widen, workspace approval. Names are unique within
+a space; in-flight runs retain roster snapshots.
 """
 
 from __future__ import annotations
@@ -45,22 +39,15 @@ __all__ = [
     "DuplicateAgentNameError",
 ]
 
-#: What a definition may be called. A model has to type the name back exactly
-#: to spawn the agent, so it is limited to what models render consistently;
-#: it starts with a letter so `register_agent`'s `-2` suffix stays legal.
+#: Definition names models can reproduce; leading letters keep ``-2`` suffixes valid.
 NAME_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9_-]{0,39}$")
 
-#: §4's `agent_defs.max_steps DEFAULT 20`, used when a caller does not say.
-#: A fallback clamped to the workspace cap, never asserted: asserting it made
-#: every agent uncreatable whenever the cap was set below 20.
+#: ``agent_defs.max_steps`` default, clamped to the workspace cap when used.
 DEFAULT_AGENT_MAX_STEPS: Final[int] = 20
 
 
 class AgentValidationError(ValueError):
-    """A definition was rejected.
-
-    ``field`` names the input, so the editor can show it inline.
-    """
+    """Rejected definition with a field name for inline editor feedback."""
 
     def __init__(self, message: str, field: str) -> None:
         super().__init__(message)
@@ -145,11 +132,7 @@ def _row_to_def(row: sqlite3.Row) -> AgentDef:
 
 
 class AgentDefStore:
-    """Reads and writes `agent_defs`, refusing to write an invalid row.
-
-    Holds a :class:`~agentbase.store.settings.SettingsStore` because the
-    `max_steps` rule compares against a workspace setting.
-    """
+    """Read and write valid ``agent_defs`` rows against workspace limits."""
 
     def __init__(self, db: Database, settings: SettingsStore) -> None:
         self._db = db

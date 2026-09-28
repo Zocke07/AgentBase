@@ -1,9 +1,7 @@
 /**
- * Writing secrets to the OS keychain, from the settings screen (§1 constraint
- * 4). The service name comes from the shell and the account names from the
- * sidecar, so this module holds no list of its own. The webview may set and
- * delete only; reading back is done in Rust at spawn, so every caller says
- * "restart to apply".
+ * Settings writes secrets to the OS keychain (§1 constraint 4). Shell supplies
+ * the service and sidecar supplies account names, so no local list exists. The
+ * webview only writes or deletes; Rust reads at spawn, requiring restart.
  */
 
 export { insideTauri as keychainAvailable } from "./tauri";
@@ -29,9 +27,8 @@ export async function clearSecret(name: string): Promise<void> {
     try {
       await invoke("plugin:keyring|delete_password", { service: target, user: name });
     } catch (failure) {
-      // The keyring crate reports a missing entry as an error; clearing what is
-      // already clear is what the user asked for. Removing the predecessor
-      // entry prevents a renamed credential from appearing again on restart.
+      // Missing entries are errors, but clearing them is successful. Remove the
+      // predecessor so a renamed credential cannot return after restart.
       if (!/no entry|not found|NoEntry/iu.test(String(failure))) throw failure;
     }
   }

@@ -6,10 +6,9 @@ import { SECTION_ORDER, type Section } from "../lib/sections";
 import { SpaceSwitcher } from "./SpaceSwitcher";
 
 /**
- * The left rail: the product's name, the space switcher, the current space's
- * sections (Home, Runs, Agents, Space settings) and, pinned to the bottom,
- * the app-wide Settings. Buttons, not links: there is no router, and every
- * section stays mounted behind `hidden`.
+ * Left rail with product, space switcher, current-space sections, and pinned
+ * app Settings. Use buttons: no router, and sections remain mounted under
+ * `hidden`.
  */
 
 export type { Section } from "../lib/sections";
@@ -21,12 +20,12 @@ export interface RailProps {
   currentSpaceId: string | null;
   onSelectSpace: (id: string) => void;
   onSpaceCreated: (space: SpaceResponse) => void;
-  /** A count worth a glance beside a section's name: approvals waiting, memories to decide on. */
+  /** Glanceable section count, such as approvals or memory decisions. */
   badges?: Partial<Record<Section, number>> | undefined;
-  /** Icons only, with the names in tooltips; the toggle is at the rail's foot. */
+  /** Icon-only mode with names in tooltips; toggle lives at rail foot. */
   collapsed?: boolean | undefined;
   onToggleCollapsed?: (() => void) | undefined;
-  /** Open over the page as a drawer, in a window too narrow to give it room. */
+  /** Narrow-window drawer over page content. */
   drawer?: boolean | undefined;
 }
 

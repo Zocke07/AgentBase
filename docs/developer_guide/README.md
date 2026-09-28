@@ -1,17 +1,15 @@
 # AgentBase: Developer Guide
 
-This guide is for the person changing the code. If you just want to run the
-app, see the [User Guide](../user_guide/README.md).
+For code changes. To run the app, see the [User Guide](../user_guide/README.md).
 
 Read these alongside the guide:
 
-- **[BUILD_SPEC.md](../../BUILD_SPEC.md)** is the design and the constraints. Read
-  it first. If you are touching the core loop or the Tauri shell, a constraint
-  applies.
-- **[CLAUDE.md](../../CLAUDE.md)** holds current project context and working rules.
-- **[Project history](../history/README.md)** preserves previous sessions' decisions,
-  verification results and unresolved observations.
-- **[User Guide](../user_guide/README.md)** is how the product behaves from the outside.
+- **[BUILD_SPEC.md](../../BUILD_SPEC.md)** defines the design and constraints; read it
+  first, especially before changing the core loop or Tauri shell.
+- **[CLAUDE.md](../../CLAUDE.md)** has current project context and working rules.
+- **[Project history](../history/README.md)** records decisions, verification, and
+  unresolved observations.
+- **[User Guide](../user_guide/README.md)** describes product behavior.
 
 ---
 

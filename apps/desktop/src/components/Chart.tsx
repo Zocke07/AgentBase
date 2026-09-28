@@ -3,9 +3,8 @@ import { useMemo, useRef, useState } from "react";
 import { prepareChart, type DataSet, type Scalar, type VisualizationSpec } from "../lib/visualization";
 
 /**
- * Dependency-free SVG charts for saved visualizations and dashboards. The
- * same figure always carries a readable table, and export serializes only the
- * SVG we drew rather than taking a screenshot of the window.
+ * Dependency-free SVG charts for saved visualizations and dashboards. Each has
+ * a readable table; export serializes SVG, not a window screenshot.
  */
 
 export interface ChartProps {

@@ -6,24 +6,21 @@ import { ApiError } from "../lib/api";
 import { useFetched } from "../state/useFetched";
 
 /**
- * The plain-text files beside the notes: the configuration and data the
- * agents read and write (`config/watchlist.json`, `raw/*.json`, a CSV of
- * positions). One list and one editor, source only: a file is what it says,
- * with JSON checked before it is saved so a config an agent reads is never
- * left broken. Everything happens in the space folder through the sidecar,
- * under the same path rules as the notes.
+ * Space-folder plain-text config/data files (for example, watchlist JSON, raw
+ * JSON, positions CSV). Source-only list/editor validates JSON before saving
+ * and uses sidecar note-equivalent path rules.
  */
 
 export interface FilesPanelProps {
   spaceId: string;
-  /** Which half to draw: the list in the browser, or the editor in the workspace. */
+  /** Render browser list or workspace editor. */
   part: "list" | "editor";
-  /** The file open in the editor, shared by both halves through the parent. */
+  /** Parent-shared editor file. */
   open: OpenFile | null;
   onOpen: (file: OpenFile | null) => void;
-  /** A file was written or deleted; the parent may reload anything that reads the folder. */
+  /** File write/delete; parent may reload folder consumers. */
   onChanged?: (() => void) | undefined;
-  /** Bumped by the parent when the other half changed a file, so this list re-reads. */
+  /** Parent bump after other-half file changes; reload list. */
   reloadNonce?: number | undefined;
 }
 

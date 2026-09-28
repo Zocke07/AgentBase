@@ -2,17 +2,15 @@ import type { NoteSummary } from "@agentbase/schemas";
 import { useState } from "react";
 
 /**
- * The vault as folders, the way Obsidian's file explorer shows it. Folders
- * fold; the fold state is a fact about this window and lives here. Every
- * note is a button named by its title, so the same list works for a person
- * and for a screen reader.
+ * Obsidian-style vault folders with window-local fold state. Notes are
+ * title-named buttons for visual and screen-reader use.
  */
 
 export interface NoteTreeProps {
   notes: readonly NoteSummary[];
   activePath: string | null;
   onOpen: (path: string) => void;
-  /** Ask to delete a folder and everything in it; absent where folders cannot be deleted. */
+  /** Request folder-and-contents deletion; absent when unavailable. */
   onDeleteFolder?: ((path: string, notes: number) => void) | undefined;
 }
 

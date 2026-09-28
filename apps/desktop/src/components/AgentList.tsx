@@ -4,15 +4,14 @@ import { useState } from "react";
 import { Skeleton } from "./Skeleton";
 
 /**
- * The roster: every definition, enabled or not, with the toggle that decides
- * whether the supervisor may draw on it. Delete asks first, is offered on
- * every row, and renders the server's 409 for a built-in rather than hiding
- * the button.
+ * Roster of enabled and disabled definitions. Toggle determines supervisor
+ * availability; deletion confirms and renders built-in 409s instead of hiding
+ * the control.
  */
 
 export interface AgentListProps {
   agents: readonly AgentDef[];
-  /** The roster is being fetched; `agents` is whatever was last known. */
+  /** Roster fetch in progress; `agents` retains last known data. */
   loading: boolean;
   selectedId: string | null;
   onSelect: (id: string) => void;
@@ -20,7 +19,7 @@ export interface AgentListProps {
   onToggleEnabled: (agent: AgentDef) => void;
   onDelete: (agent: AgentDef) => void;
   error: string | null;
-  /** The row whose request is in flight; its controls are disabled meanwhile. */
+  /** Row with in-flight request; disable its controls. */
   busyId: string | null;
 }
 

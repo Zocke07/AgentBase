@@ -1,13 +1,8 @@
-"""SQLite connection management and the migration runner.
+"""SQLite connection and migration management.
 
-One connection behind a :class:`threading.Lock`, not one per thread: pool
-threads never deterministically close theirs, which on Windows keeps the file
-locked through test teardown and app shutdown. The lock only keeps one
-connection off two threads at once; `seq` atomicity comes from
-``BEGIN IMMEDIATE`` and ``UNIQUE(run_id, seq)`` and holds without it.
-
-Migrations step one version at a time via ``PRAGMA user_version``, each in
-its own transaction, so a failed one is retried at the next launch.
+One lock-protected connection avoids leaked thread-local files. Migrations
+advance ``PRAGMA user_version`` one transaction at a time, retrying failures
+at the next launch.
 """
 
 from __future__ import annotations
@@ -42,26 +37,19 @@ class Migration:
     version: int
     sql: str
 
-    #: Bundled filename this SQL came from (``None`` in a test), so a test can
-    #: check the packaging glob carries every file.
+    #: Bundled SQL filename; ``None`` for inline test migrations.
     source: str | None = None
 
-    #: Run with ``PRAGMA foreign_keys`` off and verify with
-    #: ``PRAGMA foreign_key_check`` before committing. A table rebuild is the
-    #: only way SQLite adds a ``NOT NULL REFERENCES`` column, and the pragma
-    #: cannot change inside a transaction, so the runner handles it.
+    #: Disable foreign-key checks for a table rebuild, then verify before commit.
     defer_foreign_keys: bool = False
 
 
 def _load_sql(filename: str) -> str:
-    """Read a bundled ``.sql`` file through ``importlib.resources``.
-
-    ``Path(__file__)`` would not work inside the frozen binary.
-    """
+    """Read bundled SQL through ``importlib.resources`` for frozen builds."""
     return (resources.files("agentbase.store") / filename).read_text(encoding="utf-8")
 
 
-#: Version to bundled filename. Kept as data so the packaging test can walk it.
+#: Migration version-to-filename map, also used by packaging tests.
 MIGRATION_FILES: tuple[tuple[int, str], ...] = (
     (1, "schema.sql"),
     (2, "002_spend_and_settings.sql"),
@@ -81,8 +69,7 @@ MIGRATION_FILES: tuple[tuple[int, str], ...] = (
     (16, "016_space_providers_and_opus_5_5.sql"),
 )
 
-#: The migrations that rebuild a table other tables reference. See
-#: :attr:`Migration.defer_foreign_keys`.
+#: Migrations requiring deferred foreign-key checks.
 _REBUILDS: frozenset[int] = frozenset({6})
 
 #: Applied in order, each exactly once, lowest version first.
@@ -119,16 +106,16 @@ class Database:
 
         connection = sqlite3.connect(
             self._path,
-            # The lock provides what the same-thread check is a proxy for.
+            # The lock guarantees single-threaded connection access.
             check_same_thread=False,
-            # Transactions are opened explicitly in `write()`.
+            # ``write()`` opens transactions explicitly.
             isolation_level=None,
         )
         connection.row_factory = sqlite3.Row
 
-        # WAL: an SSE backlog read does not block a run appending events.
+        # WAL keeps event appends available during SSE backlog reads.
         connection.execute("PRAGMA journal_mode = WAL")
-        # Off by default; §4's foreign keys are worthless without it.
+        # SQLite disables foreign-key enforcement by default.
         connection.execute("PRAGMA foreign_keys = ON")
         connection.execute("PRAGMA synchronous = NORMAL")
         connection.execute("PRAGMA busy_timeout = 5000")
@@ -158,11 +145,7 @@ class Database:
 
     @contextmanager
     def write(self) -> Iterator[sqlite3.Connection]:
-        """Borrow the connection inside a ``BEGIN IMMEDIATE`` transaction.
-
-        The write lock is taken up front, so a read-then-write inside the
-        block cannot interleave with another writer.
-        """
+        """Borrow the connection inside a ``BEGIN IMMEDIATE`` transaction."""
         with self._lock:
             connection = self._require_connection()
             connection.execute("BEGIN IMMEDIATE")
@@ -193,14 +176,10 @@ class Database:
             current = migration.version
 
     def _apply(self, migration: Migration) -> None:
-        """Run one migration and bump ``user_version``, atomically.
+        """Apply one migration and advance ``user_version`` atomically.
 
-        The BEGIN lives inside the script: ``executescript`` commits any open
-        transaction before it runs, so a surrounding one would be committed
-        away and a failed migration left half applied. ``user_version`` is set
-        in the same script (an f-string, since a pragma takes no binding), so
-        it advances only if every statement succeeded. A rebuild runs with
-        the foreign-key check off and is checked by hand before the commit.
+        Keep ``BEGIN`` in the script because ``executescript`` commits an open
+        transaction. Rebuild migrations verify foreign keys before commit.
         """
         script = (
             "BEGIN IMMEDIATE;\n"

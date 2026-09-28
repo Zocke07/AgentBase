@@ -1,8 +1,7 @@
-"""The built-in tools, and the registry that holds them.
+"""Built-in tools and their registry.
 
-Each implements :class:`~agentbase.tools.base.Tool`, reads its risk from the
-catalogue rather than restating it, and resolves every path and URL through
-the sandbox in `prepare`, before the gate is consulted.
+Each implements :class:`~agentbase.tools.base.Tool`, reads risk from the
+catalogue, and resolves paths or URLs before approval.
 """
 
 from __future__ import annotations
@@ -31,7 +30,7 @@ __all__ = [
     "build_registry",
 ]
 
-#: Every implemented tool, in catalogue order; a test pins it against the catalogue.
+#: Implemented tools in catalogue order; tests pin the two lists together.
 BUILTIN_TOOLS: Final[tuple[type[Tool], ...]] = (
     ReadFileTool,
     ListDirTool,
@@ -45,7 +44,7 @@ BUILTIN_TOOLS: Final[tuple[type[Tool], ...]] = (
 
 
 def build_registry() -> dict[str, Tool]:
-    """Instantiate every built-in, keyed by name. Tools are stateless; one instance each."""
+    """Create one stateless instance of every built-in, keyed by name."""
     tools: dict[str, Tool] = {}
     for factory in BUILTIN_TOOLS:
         tool = factory()

@@ -1,16 +1,15 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
 /**
- * The one class component in the tree, since React catches render errors no
- * other way. Shows what threw and offers to try again; `key`ing the subtree
- * on `attempt` makes that a real remount. One per section and one around the
- * app, so nothing is ever a blank page.
+ * Only class component because React requires it for render-error catches.
+ * Show failure and retry through `attempt`-keyed remount; boundaries wrap each
+ * section and app root to avoid blank pages.
  */
 
 export interface ErrorBoundaryProps {
-  /** Names the region in the fallback: "the run view", "AgentBase". */
+  /** Fallback region name, such as "the run view". */
   label: string;
-  /** When this changes, a boundary showing its fallback tries again; a healthy subtree keeps its DOM. */
+  /** Change retries fallback; healthy subtree retains DOM. */
   resetKey?: string | null;
   children: ReactNode;
 }
@@ -28,8 +27,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
-    // The stack goes to the console, where a bug report can find it; the
-    // message goes on screen, where a person can.
+    // Log stack for reports; display message for users.
     console.error(`agentbase: ${this.props.label} failed to render`, error, info.componentStack);
   }
 

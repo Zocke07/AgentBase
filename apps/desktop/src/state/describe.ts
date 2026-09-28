@@ -6,15 +6,12 @@ import { display, flag, int, record, text, type Payload } from "../lib/payload";
 import { pendingApprovals, type AgentNode, type RunStatus, type RunView } from "./reducer";
 
 /**
- * The plain-language layer: a sentence for every event, a label for every
- * agent state, and the "Now" line about the whole run at this cursor.
+ * Plain-language event sentences, agent-state labels, and cursor-specific run
+ * "Now" text.
  *
- * All of it is a pure function of the event or the fold, because it renders
- * inside `run-projection` and is compared live against replay at every
- * position. The sentences must not improve on the log: a terminal `summary`
- * is a model's claim and reads "the supervisor says", and an approval's
- * `prompt` is the sidecar's wording of the resolved call, quoted, never
- * rebuilt from the raw arguments.
+ * Pure event/fold functions keep live and replay identical. Do not improve on
+ * the log: terminal `summary` is a model claim, and approval `prompt` quotes
+ * the sidecar's resolved-call wording instead of rebuilding arguments.
  */
 
 /** A tool call in three tenses, for the three events a call passes through. */
@@ -28,9 +25,8 @@ interface CallPhrase {
 }
 
 /**
- * How a call reads, from the tool's name and its arguments. Unknown tools are
- * rendered as the raw call. The path shown is what the model asked for, not
- * the resolved one, which for a sandbox denial is the thing worth seeing.
+ * Render a tool call from its name and arguments. Unknown calls stay raw; show
+ * the model-requested path, especially for sandbox denials.
  */
 export function callPhrase(tool: string, args: Payload): CallPhrase {
   const arg = (key: string): string => ellipsise(display(args, key, "?"), 60);
@@ -96,7 +92,7 @@ export function sentenceFor(event: Event): string {
     }
     case "run.completed": {
       const summary = read("summary");
-      // A claim, and worded as one.
+      // Render as a claim.
       return summary === null
         ? "The run completed."
         : `The run completed. The supervisor says: ${quote(summary, 160)}`;
@@ -137,7 +133,7 @@ export function sentenceFor(event: Event): string {
     case "llm.response": {
       const tool = read("stop_reason") === "tool_use" ? ", with a tool call" : "";
       const tokens = `${shown("input_tokens")} tokens in, ${shown("output_tokens")} out${tool}`;
-      // No text and no tool call: the model said nothing, reasoned or not.
+      // No text or tool call: the model said nothing.
       if ((read("text") ?? "") === "" && tool === "") {
         const thinking = read("thinking") ?? "";
         return thinking === ""
@@ -153,10 +149,10 @@ export function sentenceFor(event: Event): string {
     case "tool.requested":
       return `${who} wants to ${phrase.infinitive}.`;
     case "tool.approved":
-      // Carries the sidecar's `summary`; the arguments are not repeated here.
+      // Use the sidecar `summary`, not repeated arguments.
       return `${who} may ${read("summary") ?? phrase.infinitive}: ${flag(payload, "automatic") ? "allowed by policy" : "you allowed it"}.`;
     case "tool.denied": {
-      // Three refusals share this event: the sandbox, a person, the allowlist.
+      // Covers sandbox, person, and allowlist refusals.
       const reason = ellipsise(read("reason") ?? "", 140);
       if (read("blocked_by") === "sandbox") {
         return `The sandbox stopped ${who} from ${phrase.progressive}: ${reason}`;
@@ -169,7 +165,7 @@ export function sentenceFor(event: Event): string {
     case "tool.called":
       return `${who} is ${phrase.progressive}.`;
     case "tool.result": {
-      // No arguments travel on the result, so the call is named by its tool.
+      // Results carry no arguments, so name the tool.
       const tool = read("tool") ?? "tool";
       const result = read("result");
       if (tool === "spawn_agent") {
@@ -183,9 +179,9 @@ export function sentenceFor(event: Event): string {
 
     // --- approvals ----------------------------------------------------------
     case "approval.requested": {
-      // `summary` is the sidecar's rendering of the resolved call.
+      // `summary` is the sidecar's resolved-call rendering.
       const summary = read("summary") ?? phrase.infinitive;
-      // `precedent` names an earlier denial in this run that settles this one.
+      // `precedent` names the earlier in-run denial that settles this call.
       if (read("precedent") !== null) {
         return `${who} wants to ${summary}: already denied earlier in this run.`;
       }
@@ -231,15 +227,14 @@ export function sentenceFor(event: Event): string {
       return `The reply in ${read("channel") ?? "chat"} was updated ${shown("edits")} times.`;
 
     default:
-      // A type this build does not know: the raw name is the whole sentence.
+      // Unknown build event: use its raw name.
       return event.type;
   }
 }
 
 /**
- * The calls that touch nothing. An agent "executing" one is delegating or
- * finishing, not running a tool; a supervisor's `spawn_agent` stays open for
- * as long as its worker works.
+ * Calls that touch nothing. An agent "executing" one is delegating or
+ * finishing; a supervisor `spawn_agent` remains open while its worker runs.
  */
 const CONTROL_CALLS: ReadonlySet<string> = new Set(["spawn_agent", "handoff", "finish"]);
 
@@ -297,10 +292,8 @@ function plural(count: number, noun: string): string {
 }
 
 /**
- * One sentence about the whole run at this cursor: the "Now" line. The cases
- * are in the order a person cares about: a question waiting on them, then
- * what is executing, then who is asking the model, then who is between steps.
- * A run with nothing happening says so rather than saying nothing.
+ * Render the cursor's "Now" line. Prioritize a waiting question, executing
+ * work, model requests, then between-step agents; report idle runs explicitly.
  */
 export function nowLine(view: RunView): string {
   const agents = view.agentOrder.map((name) => view.agents[name]).filter((agent) => agent !== undefined);
@@ -341,7 +334,7 @@ export function nowLine(view: RunView): string {
         const done = finished.length === 0 ? "" : `${plural(finished.length, "agent")} finished; `;
         return `${done}${list(thinking.map((agent) => agent.name))} ${thinking.length === 1 ? "is" : "are"} deciding what to do next.`;
       }
-      // Only delegating agents left: a worker has not yet produced an event.
+      // Only delegators remain; workers have not emitted events.
       const delegating = agents.filter((agent) => agent.activity === "executing");
       if (delegating.length > 0) {
         const [first] = delegating;

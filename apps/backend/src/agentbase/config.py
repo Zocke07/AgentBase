@@ -1,9 +1,8 @@
 """Process-wide configuration.
 
-The bind address is a module constant with no setting, variable or flag that
-moves it (§1 constraint 3); :func:`assert_loopback_only` lets a test assert
-that. Every path is a :class:`pathlib.Path`. API keys are absent by design:
-they live in the OS keychain and arrive over stdin (§1 constraint 4).
+The bind address is fixed (§1 constraint 3) and asserted by
+:func:`assert_loopback_only`. Paths use :class:`pathlib.Path`; API keys stay
+in the OS keychain and arrive over stdin (§1 constraint 4).
 """
 
 from __future__ import annotations
@@ -29,42 +28,35 @@ __all__ = [
 
 APP_NAME: Final[str] = "AgentBase"
 
-#: The Tauri bundle identifier, from ``tauri.conf.json``; a test keeps them in step.
+#: Tauri bundle identifier from ``tauri.conf.json``; a test keeps them aligned.
 #:
-#: The data directory derives from this, not :data:`APP_NAME`: the NSIS
-#: installer installs into ``%LOCALAPPDATA%\\AgentBase``, which is exactly
-#: where an ``APP_NAME``-based data directory would land, inside the
-#: installation. ``%LOCALAPPDATA%\\dev.agentbase.desktop`` is also what the
-#: shell's ``app_local_data_dir()`` gives (not ``app_data_dir()``, which on
-#: Windows is the roaming profile), so the two name the same place.
+#: The data directory derives from this, not :data:`APP_NAME`: an
+#: ``APP_NAME``-based path would fall inside the Windows NSIS installation.
+#: It also matches the shell's ``app_local_data_dir()`` (not roaming
+#: ``app_data_dir()``) on Windows.
 APP_IDENTIFIER: Final[str] = "dev.agentbase.desktop"
 
 #: The database filename used by AgentBase inside :func:`default_data_dir`.
 DATABASE_FILENAME: Final[str] = "agentbase.sqlite3"
 
-#: Identifiers from the immediately preceding AgentSpace release. They are
-#: deliberately separate from the AgentBase constants above: new installs use
-#: only the AgentBase names, while startup can safely adopt an existing install.
+#: Identifiers from the preceding AgentSpace release. New installs use only
+#: AgentBase names; startup may safely adopt an existing installation.
 LEGACY_APP_IDENTIFIER: Final[str] = "dev.agentspace.desktop"
 LEGACY_DATABASE_FILENAME: Final[str] = "agentspace.sqlite3"
 
 _DATABASE_AUXILIARY_SUFFIXES: Final[tuple[str, ...]] = ("", "-wal", "-shm")
 
-#: The only interface this application ever binds. Hardcoded on purpose; see
-#: BUILD_SPEC §1 constraint 3. Do not make this configurable.
+#: The only bind interface. Intentionally fixed; see BUILD_SPEC §1 constraint 3.
 BIND_HOST: Final[str] = "127.0.0.1"
 
-#: Default sidecar port (BUILD_SPEC §2). The port *may* move if it is occupied;
-#: the host may not.
+#: Default sidecar port (BUILD_SPEC §2). It may move when occupied; the host may not.
 DEFAULT_BIND_PORT: Final[int] = 8787
 
 #: Environment variable the Tauri shell uses to hand the sidecar its data directory.
 DATA_DIR_ENV_VAR: Final[str] = "AGENTBASE_DATA_DIR"
 
-#: Page origins allowed to read responses from the sidecar. The webview does
-#: not share the sidecar's origin, so without these headers the browser
-#: withholds every response. An explicit allowlist, never a wildcard: that
-#: would let any page the user has open read from their agent workspace.
+#: Origins allowed to read sidecar responses. The webview has a different
+#: origin; a wildcard would expose the agent workspace to any open page.
 ALLOWED_ORIGINS: Final[tuple[str, ...]] = (
     "http://tauri.localhost",  # Tauri v2 on Windows
     "https://tauri.localhost",
@@ -81,24 +73,22 @@ class AppPaths:
     data_dir: Path
     db_path: Path
     logs_dir: Path
-    #: One folder per space under here, named by id: the sandbox root for that
-    #: space's runs (:meth:`~agentbase.store.spaces.SpaceStore.folder_for`).
+    #: Per-space folders, named by ID: sandbox roots for that space's runs.
     spaces_dir: Path
-    #: Where the single workspace lived before spaces; :func:`adopt_legacy_workspace` moves it.
+    #: Pre-spaces workspace, moved by :func:`adopt_legacy_workspace`.
     legacy_workspace: Path
 
     def ensure_exists(self) -> None:
-        """Create the directories this application owns. Never called at import time."""
+        """Create application directories; never called at import time."""
         for directory in (self.data_dir, self.logs_dir, self.spaces_dir):
             directory.mkdir(parents=True, exist_ok=True)
 
 
 def adopt_legacy_workspace(paths: AppPaths, default_space_folder: Path) -> bool:
-    """Make the old single workspace the default space's folder, once.
+    """Move the old workspace to the default space once.
 
-    Migration 006's SQL cannot touch the disk, so this runs beside it at
-    startup, only while the old folder exists and the new one does not.
-    Returns whether a move happened.
+    Migration 006 SQL cannot move files, so startup does this only when the
+    old folder exists and the destination does not. Returns whether it moved.
     """
     if not paths.legacy_workspace.is_dir() or default_space_folder.exists():
         return False
@@ -124,10 +114,9 @@ def _data_dir_for_identifier(identifier: str, platform_name: str) -> Path:
 
 
 def default_data_dir(platform_name: str = sys.platform) -> Path:
-    """Return AgentBase's per-user application data directory for the host OS.
+    """Return AgentBase's per-user data directory for the host OS.
 
-    ``platform_name`` is a parameter so mypy does not prune the other
-    platforms' branches as unreachable, and so a test can reach every branch.
+    ``platform_name`` keeps all platform branches reachable to mypy and tests.
     """
     return _data_dir_for_identifier(APP_IDENTIFIER, platform_name)
 
@@ -143,7 +132,7 @@ def _database_paths(data_dir: Path, filename: str) -> tuple[Path, ...]:
 
 
 def _adopt_legacy_database(data_dir: Path) -> bool:
-    """Rename AgentSpace's SQLite database in ``data_dir`` without overwriting data."""
+    """Rename AgentSpace's SQLite database in ``data_dir`` without overwriting."""
     legacy_paths = _database_paths(data_dir, LEGACY_DATABASE_FILENAME)
     destination_paths = _database_paths(data_dir, DATABASE_FILENAME)
     if not legacy_paths[0].is_file() or any(
@@ -158,9 +147,8 @@ def _adopt_legacy_database(data_dir: Path) -> bool:
                 legacy_path.rename(destination_path)
                 moved.append((legacy_path, destination_path))
     except OSError:
-        # Leave both installations usable if moving a WAL companion fails
-        # halfway through. The existence checks prevent a rollback from
-        # overwriting anything created concurrently.
+        # Keep both installations usable if a WAL companion move fails. These
+        # existence checks keep rollback from overwriting concurrent output.
         for legacy_path, destination_path in reversed(moved):
             if destination_path.exists() and not legacy_path.exists():
                 destination_path.rename(legacy_path)
@@ -169,13 +157,12 @@ def _adopt_legacy_database(data_dir: Path) -> bool:
 
 
 def adopt_legacy_app_data(data_dir: Path, legacy_data_dir: Path) -> bool:
-    """Move AgentSpace's data directory to AgentBase's location once.
+    """Move AgentSpace data to AgentBase's location once.
 
-    Tauri creates ``data_dir`` before it starts the sidecar, so an empty
-    destination is treated as uninitialized and is replaced. Any non-empty
-    destination is left untouched rather than merging two installations.
-    The legacy database is renamed after the directory move. Returns whether
-    the directory itself moved.
+    Tauri creates ``data_dir`` before the sidecar starts, so an empty
+    destination is uninitialized and replaced. Never merge a non-empty
+    destination. Rename its legacy database afterward. Returns whether the
+    directory moved.
     """
     if (
         data_dir == legacy_data_dir
@@ -195,7 +182,7 @@ def adopt_legacy_app_data(data_dir: Path, legacy_data_dir: Path) -> bool:
 
 
 def resolve_app_paths(data_dir: Path | None = None) -> AppPaths:
-    """Resolve every path this application uses.
+    """Resolve application paths.
 
     :param data_dir: explicit override, as passed by the Tauri shell. When
         omitted, ``AGENTBASE_DATA_DIR`` is consulted, then the OS default.
@@ -205,22 +192,17 @@ def resolve_app_paths(data_dir: Path | None = None) -> AppPaths:
         data_dir = Path(from_env) if from_env else default_data_dir()
 
     resolved = data_dir.expanduser().resolve()
-    # Only the canonical AgentBase location may absorb the old install. The
-    # environment override is also used by tests, portable/dev runs, and
-    # callers that intentionally choose a separate workspace; moving an OS
-    # profile into one of those paths would be surprising despite being safe.
+    # Only the canonical location may absorb the old install. Overrides also
+    # serve tests, portable/dev runs, and deliberate separate workspaces.
     try:
         at_canonical_location = resolved == default_data_dir().expanduser().resolve()
     except RuntimeError:
-        # No LOCALAPPDATA and no resolvable home directory (`Path.home()`
-        # raises this exact message): the canonical location cannot be
-        # computed, so `resolved` cannot be confirmed to be it. An explicit
-        # override must still work here; only legacy adoption is skipped.
+        # Without LOCALAPPDATA or a resolvable home, cannot confirm the
+        # canonical location. Keep an explicit override working; skip adoption.
         at_canonical_location = False
     if at_canonical_location:
         adopt_legacy_app_data(resolved, _legacy_data_dir().expanduser().resolve())
-        # Also recover a prior directory move that completed before the
-        # database filename changed.
+        # Also recover a directory move completed before the database rename.
         _adopt_legacy_database(resolved)
 
     return AppPaths(
@@ -233,7 +215,7 @@ def resolve_app_paths(data_dir: Path | None = None) -> AppPaths:
 
 
 def assert_loopback_only(host: str) -> None:
-    """Raise unless ``host`` is the hardcoded loopback address. Called at every bind."""
+    """Raise unless ``host`` is the fixed loopback address; call at every bind."""
     if host != BIND_HOST:
         msg = (
             f"refusing to bind {host!r}: this application binds {BIND_HOST!r} only "

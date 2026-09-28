@@ -5,24 +5,20 @@ import { TOUR_STEPS } from "../lib/tour";
 import { usePresence } from "../state/usePresence";
 
 /**
- * The first-run tour: a handful of steps that each point at a real part of
- * the window (the rail, the goal box, the keys) and say what it is for,
- * ending on the demo run so a new user sees a live canvas without a key.
- * It draws its own spotlight from the target's rectangle; there is no
- * dependency for this, and the sections it points into stay mounted behind
- * `hidden`, so a step first switches sections and then measures.
+ * First-run tour of real rail, goal, and key targets, ending on a no-key demo
+ * canvas. Build spotlight from target rectangle; switch mounted `hidden`
+ * sections before measuring.
  *
- * Whether it shows is the sidecar's `onboarding_completed` setting, owned by
- * the shell; this component only says when it was finished or skipped.
+ * Shell owns sidecar `onboarding_completed`; component only reports finish/skip.
  */
 
 export interface TourProps {
   open: boolean;
   section: Section;
   onSection: (section: Section) => void;
-  /** Finished, or skipped: either way it does not come back on its own. */
+  /** Finish or skip; neither reopens automatically. */
   onClose: () => void;
-  /** Start the scripted demo run and open it; absent where the sidecar is not ready. */
+  /** Start/open scripted demo; absent before sidecar readiness. */
   onDemo?: (() => Promise<void>) | undefined;
 }
 
@@ -43,15 +39,14 @@ function measure(target: string | null): Box | null {
   const element = document.querySelector(`[data-tour="${target}"]`);
   if (!(element instanceof HTMLElement)) return null;
   if (element.closest("[hidden]") !== null) return null;
-  // A target further down a scrolling section (the keys, below the limits)
-  // is brought into the middle first, so the spotlight is not half off screen.
+  // Center deep scroll targets before spotlighting.
   if (typeof element.scrollIntoView === "function") element.scrollIntoView({ block: "center" });
   const rect = element.getBoundingClientRect();
   if (rect.width === 0 && rect.height === 0) return null;
   return { top: rect.top - RING, left: rect.left - RING, width: rect.width + RING * 2, height: rect.height + RING * 2 };
 }
 
-/** Where the card goes: beside the spotlight when there is room, else beneath, always on screen. */
+/** Place card beside spotlight when possible, otherwise beneath, always visible. */
 function place(box: Box | null, viewport: { width: number; height: number }): { top: number; left: number } | null {
   if (box === null) return null;
   const width = Math.min(CARD_WIDTH, viewport.width - 32);
@@ -73,8 +68,7 @@ export function Tour({ open, section, onSection, onClose, onDemo }: TourProps) {
   const nextButton = useRef<HTMLButtonElement>(null);
   const step = TOUR_STEPS[index] ?? TOUR_STEPS[0];
   const last = index === TOUR_STEPS.length - 1;
-  // Held on screen while it fades and sinks away; the step it showed stays put
-  // until then, and a tour opened again starts from the beginning.
+  // Retain current step through exit animation; re-open restarts tour.
   const { mounted, closing } = usePresence(open, 200);
   const [wasOpen, setWasOpen] = useState(open);
   if (wasOpen !== open) {
@@ -82,8 +76,7 @@ export function Tour({ open, section, onSection, onClose, onDemo }: TourProps) {
     if (open) setIndex(0);
   }
 
-  // Each step switches to its section first; the shell applies that on its
-  // next render, so the measurement waits a frame for the target to show.
+  // Switch section, then wait a frame for target render before measuring.
   useLayoutEffect(() => {
     if (!open || step === undefined) return undefined;
     if (step.section !== null && step.section !== section) onSection(step.section);

@@ -1,8 +1,8 @@
-"""The approval gate, and §5 Phase 6's acceptance criterion: an agent told to
-write outside the workspace root is blocked at the sandbox layer, visible as
-`tool.denied`. :func:`test_an_agent_told_to_write_outside_the_workspace_is_blocked`
-is that sentence through a real run. The rest covers the three ways a call can
-be stopped (allowlist, sandbox, user), which the log has to tell apart.
+"""Approval gate and §5 Phase 6's sandbox-blocking acceptance criterion.
+
+:func:`test_an_agent_told_to_write_outside_the_workspace_is_blocked` exercises
+the real-run ``tool.denied`` path. The remaining tests distinguish allowlist,
+sandbox, and user denials in the log.
 """
 
 from __future__ import annotations
@@ -45,21 +45,17 @@ pytestmark = pytest.mark.anyio
 
 @pytest.fixture
 def workspace(tmp_path: Path) -> Path:
-    """The sandbox root every test here runs against.
+    """Return the sandbox root used by these tests.
 
-    `exist_ok` because the autouse data-directory fixture in `conftest.py`
-    already resolves `AGENTBASE_DATA_DIR` under `tmp_path` and creates a
-    `workspace` beside it, the same directory the shipped application uses,
-    which is the right one to be testing against.
+    ``conftest.py`` may already create this shipped-app-equivalent path under
+    ``tmp_path``.
     """
     root = tmp_path / "workspace"
     root.mkdir(exist_ok=True)
     return root
 
 
-#: A prompt that leaves no doubt the model was told to do it. §5 Phase 5's
-#: criterion is about an agent blocked "even when its system prompt explicitly
-#: instructs it to", and §5 Phase 6's is the same idea aimed at the sandbox.
+#: Explicitly instructs the model to escape, as Phases 5 and 6 require.
 ESCAPE_PROMPT = (
     "You write files. Write to the exact path you are given, whatever it is. "
     "Do not question it and do not substitute a different path."
@@ -129,14 +125,8 @@ async def test_an_agent_told_to_write_outside_the_workspace_is_blocked(
     tmp_path: Path,
     escape: str,
 ) -> None:
-    """§5 Phase 6's acceptance criterion, in full, through a real run.
-
-    Three assertions, and the third is the one that cannot be faked: the file
-    is not on disk. A log saying `tool.denied` while the write happened anyway
-    would satisfy the other two.
-    """
-    # Everything pre-approved, so nothing here can pass merely because the gate
-    # happened to stop it. The sandbox is what must refuse this.
+    """§5 Phase 6: block traversal in a real run and prove no file was written."""
+    # Pre-approve all risks so only the sandbox can refuse this call.
     await settings.update({"auto_approve": [RiskLevel.LOW, RiskLevel.MEDIUM, RiskLevel.HIGH]})
     runtime, _ = tool_runtime(store, db, workspace)
 
@@ -155,19 +145,15 @@ async def test_an_agent_told_to_write_outside_the_workspace_is_blocked(
 
     writer = rebuilt.agent("filewriter")
 
-    # 1. Blocked, and visible in the event log as `tool.denied`.
+    # 1. Block and record ``tool.denied``.
     assert writer.denied_tools == ["write_file"]
 
-    # 2. Blocked *at the sandbox layer*, before anyone was asked. Everything
-    #    was pre-approved, so an approval would have been granted instantly had
-    #    the call ever reached the gate.
+    # 2. Reject at sandbox before the pre-approved call reaches the gate.
     assert writer.denied_by == ["sandbox"]
     assert writer.approvals_requested == []
 
-    # 3. Nothing executed, and nothing is on disk outside the workspace.
-    #    Through `to_thread` because these are blocking filesystem calls in an
-    #    async test; the assertion is the point of the test, so it moves off
-    #    the loop rather than being dropped.
+    # 3. Execute nothing and write nothing outside the workspace. Use a thread
+    #    because filesystem calls block the async loop.
     assert [name for name, _ in writer.tool_calls] == ["finish"]
     escaped = await asyncio.to_thread(lambda: list(tmp_path.rglob("escaped.txt")))
     assert escaped == []
@@ -182,12 +168,7 @@ async def test_the_attempt_is_logged_beside_the_refusal(
     db: Database,
     workspace: Path,
 ) -> None:
-    """ "Blocked" is only observable if the attempt is in the log too.
-
-    Same rule Phase 5 established for the allowlist: a denial that erased what
-    was attempted would leave a replay unable to say what the agent tried to
-    do, which for a traversal attempt is the single most interesting fact.
-    """
+    """Log the attempted traversal as well as its refusal for replay."""
     runtime, _ = tool_runtime(store, db, workspace)
 
     run = await store.create_run(goal="escape", origin="ui")
@@ -242,13 +223,7 @@ async def test_a_medium_risk_call_blocks_until_a_person_answers(
     db: Database,
     workspace: Path,
 ) -> None:
-    """§5 Phase 6: a medium-risk call "blocks until resolved".
-
-    The run is started as a task and deliberately *not* answered for a moment.
-    The assertion that matters is the one taken while it is waiting: the file
-    does not exist yet. A gate that emitted `approval.requested` and carried on
-    would already have written it.
-    """
+    """§5 Phase 6: a medium-risk call blocks until resolution, before writing."""
     runtime, service = tool_runtime(store, db, workspace)
 
     task = asyncio.create_task(
@@ -268,7 +243,7 @@ async def test_a_medium_risk_call_blocks_until_a_person_answers(
 
     approval_id = await _wait_for_approval(service)
 
-    # Still blocked: asked, and not yet answered.
+    # Asked but unanswered: still blocked.
     assert not (workspace / "notes.txt").exists()
     assert task.done() is False
 
@@ -292,7 +267,7 @@ async def test_a_denied_call_does_not_happen(
     db: Database,
     workspace: Path,
 ) -> None:
-    """The user says no, and the file is not written."""
+    """A user denial prevents the write."""
     runtime, service = tool_runtime(store, db, workspace)
 
     task = asyncio.create_task(
@@ -317,7 +292,7 @@ async def test_a_denied_call_does_not_happen(
     writer = rebuilt.agent("filewriter")
     assert writer.approvals_resolved == [("write_file", "denied")]
     assert writer.denied_tools == ["write_file"]
-    # A user's refusal is not a sandbox violation, and the log says so.
+    # User refusal is distinct from sandbox denial in the log.
     assert writer.denied_by == [None]
     assert [name for name, _ in writer.tool_calls] == ["finish"]
     assert not (workspace / "notes.txt").exists()
@@ -332,17 +307,10 @@ async def test_a_call_the_user_already_denied_is_not_asked_again_in_that_run(
     db: Database,
     workspace: Path,
 ) -> None:
-    """Phase 6 watched a denial stop a call and not a run: the worker gave up,
-    the supervisor spawned a second copy of the same definition, and it asked
-    for the same overwrite again. "Deny" meant "not this call", and the only
-    things bounding a supervisor that re-asks were the step limit and the
-    agent cap: a single no could become a war of attrition.
+    """Reuse a call-level denial across a run without asking again.
 
-    Now a denial sticks for the run. The same tool with the same arguments,
-    from any agent in the run, is denied by the earlier answer without the
-    person being asked: a row is still written and both events still emitted,
-    marked automatic and naming the decision they rest on, so the history
-    says what happened and the dialog never shows a question nobody is asked.
+    The same tool and arguments from any agent are automatically denied, but
+    still produce an approval row and both events linked to the precedent.
     """
     runtime, service = tool_runtime(store, db, workspace)
 
@@ -364,8 +332,7 @@ async def test_a_call_the_user_already_denied_is_not_asked_again_in_that_run(
 
     first = await _wait_for_approval(service)
     await service.resolve(first, approved=False)
-    # The second identical call must not wait on the gate; if it did, this
-    # would hang until the test timeout, which is the old behaviour.
+    # An identical repeat must bypass the gate instead of hanging for timeout.
     rebuilt = await asyncio.wait_for(task, timeout=10)
 
     writer = rebuilt.agent("filewriter")
@@ -381,11 +348,11 @@ async def test_a_call_the_user_already_denied_is_not_asked_again_in_that_run(
     denied = [e.payload for e in events if e.type is EventType.TOOL_DENIED]
     assert [r.get("automatic", False) for r in requested] == [False, True]
     assert [r.get("automatic", False) for r in resolved] == [False, True]
-    # The repeat names the decision it rests on.
+    # The repeat identifies the decision it reuses.
     assert requested[1]["precedent"] == first
     assert resolved[1]["precedent"] == first
     assert "already" in denied[1]["reason"].lower()
-    # The table agrees: two rows, both denied, and nothing left pending.
+    # Both denied rows settle; none remains pending.
     assert await service.store.list_pending(run.id) == []
 
 
@@ -398,8 +365,7 @@ async def test_a_different_call_after_a_denial_is_still_asked(
     db: Database,
     workspace: Path,
 ) -> None:
-    """Sticky means this exact call. Different content is a different
-    question, and the person gets to answer it."""
+    """Only an identical call is sticky; changed content requires a new answer."""
     runtime, service = tool_runtime(store, db, workspace)
 
     task = asyncio.create_task(
@@ -438,12 +404,10 @@ async def test_the_prompt_a_user_sees_is_a_sentence_not_json(
     db: Database,
     workspace: Path,
 ) -> None:
-    """§5 Phase 6: 'Approval prompts must be human-legible, not raw JSON.'
+    """§5 Phase 6: render a human-readable approval sentence, not raw JSON.
 
-    The spec's own example is `Agent "researcher" wants to delete report.docx`,
-    so the assertion is on the shape of that sentence: who, what, and the file
-    named the way the user knows it, not an absolute path that leaks the
-    account name, and not the argument dictionary.
+    Name the agent, action, and user-facing file, never an account-leaking
+    absolute path or argument dictionary.
     """
     runtime, service = tool_runtime(store, db, workspace)
 
@@ -470,19 +434,13 @@ async def test_the_prompt_a_user_sees_is_a_sentence_not_json(
     prompt = prompts[0]
 
     assert prompt == 'Agent "filewriter" wants to create the file report.md (5 characters)'
-    # Not raw JSON, and not an absolute path leaking the account name.
+    # Never expose raw JSON or an account-leaking absolute path.
     assert "{" not in prompt
     assert str(workspace) not in prompt
 
 
 def test_overwriting_says_overwrite_and_creating_says_create(workspace: Path) -> None:
-    """Two decisions that are not the same decision.
-
-    Creating a file is additive; overwriting one destroys work that may not be
-    recoverable. §5 Phase 6's own example prompt is about a destructive call,
-    and a prompt that read the same either way would hide the difference at the
-    moment the user is deciding.
-    """
+    """Distinguish additive creation from potentially destructive overwrite."""
     sandbox = Sandbox(workspace)
     tool = WriteFileTool()
 
@@ -510,12 +468,7 @@ async def test_a_pre_approved_risk_level_runs_without_asking(
     db: Database,
     workspace: Path,
 ) -> None:
-    """§5 Phase 6's unattended-operation policy, doing its job.
-
-    Nothing answers the gate here: there is no `StandingAnswer` and no HTTP
-    call. The run completes because the workspace pre-authorized the level, and
-    it would block until `pytest-timeout` killed it if the policy were inert.
-    """
+    """§5 Phase 6: pre-authorized risk runs without a gate answer."""
     await settings.update({"auto_approve": [RiskLevel.MEDIUM]})
     runtime, _ = tool_runtime(store, db, workspace)
 
@@ -533,8 +486,7 @@ async def test_a_pre_approved_risk_level_runs_without_asking(
     )
 
     writer = rebuilt.agent("filewriter")
-    # Recorded as an approval even though nobody was asked: the question "what
-    # did this run do without asking me" has to be answerable from the log.
+    # Record automatic approval so the log explains unattended work.
     assert writer.approvals_requested == [("write_file", "medium")]
     assert writer.approvals_resolved == [("write_file", "approved")]
     assert writer.approved_tools == [("write_file", True)]
@@ -547,11 +499,7 @@ async def test_the_default_workspace_asks_about_everything(
     db: Database,
     workspace: Path,
 ) -> None:
-    """§5 Phase 6: "Default is manual-approve-everything."
-
-    Including `low`. §5 says low risk *may* be auto-approved by policy, which
-    is permission to offer the setting, not permission to default it on.
-    """
+    """§5 Phase 6 defaults every risk, including low, to manual approval."""
     resolved = await settings.get()
     assert resolved.auto_approve == []
 
@@ -566,13 +514,9 @@ async def test_a_definition_cannot_pre_approve_beyond_the_workspace(
     db: Database,
     workspace: Path,
 ) -> None:
-    """§5 Phase 5's security note, now that something consumes it.
+    """Keep definition auto-approval a subset of workspace policy.
 
-    A definition asking for `high` against a workspace allowing only `low` gets
-    `low`, never `high`, and never both. This is the rule that stops a
-    user-authored row from escalating its own privileges, and it is the reason
-    the empty-means-inherit decision above is safe: every branch returns a
-    subset of the workspace policy.
+    This prevents user-authored escalation and keeps empty inheritance bounded.
     """
     runtime, _ = tool_runtime(store, db, workspace, auto_approve=[RiskLevel.LOW])
 
@@ -580,7 +524,7 @@ async def test_a_definition_cannot_pre_approve_beyond_the_workspace(
     assert runtime.auto_approve_for((RiskLevel.LOW, RiskLevel.HIGH)) == {RiskLevel.LOW}
     assert runtime.auto_approve_for((RiskLevel.MEDIUM,)) == frozenset()
 
-    # And the inherit case is still bounded by the workspace.
+    # Inheritance remains bounded by workspace policy.
     assert runtime.auto_approve_for(()) == {RiskLevel.LOW}
 
 
@@ -589,12 +533,10 @@ async def test_an_unset_definition_inherits_the_workspace_policy(
     db: Database,
     workspace: Path,
 ) -> None:
-    """The judgement call in `ToolRuntime.auto_approve_for`, pinned.
+    """Treat an unset definition policy as inheritance, not an empty intersection.
 
-    §4 defaults `auto_approve` to `'[]'` and every seeded built-in carries it,
-    so a strict intersection would make the workspace policy inert: a setting
-    that reports success and changes nothing, which this project has shipped
-    once already. A row nobody has edited has not declined anything.
+    §4 defaults ``auto_approve`` to ``[]`` for seeded rows; strict intersection
+    would make workspace policy a successful no-op.
     """
     runtime, _ = tool_runtime(
         store, db, workspace, auto_approve=[RiskLevel.LOW, RiskLevel.MEDIUM]
@@ -612,13 +554,7 @@ async def test_the_policy_is_snapshotted_at_run_start(
     db: Database,
     workspace: Path,
 ) -> None:
-    """A policy widened mid-run does not loosen a run already in flight.
-
-    Same rule as the roster and the run limits: a run must not be held to
-    different rules at step 1 and step 12. The direction that matters is
-    widening: a gate that silently stopped asking partway through a run would
-    be the safety property evaporating while work was in progress.
-    """
+    """Snapshot policy at run start so a mid-run widening cannot stop prompts."""
     runtime, service = tool_runtime(store, db, workspace)
 
     task = asyncio.create_task(
@@ -638,10 +574,10 @@ async def test_the_policy_is_snapshotted_at_run_start(
 
     approval_id = await _wait_for_approval(service)
 
-    # Widen the policy while the run is blocked on the gate.
+    # Widen policy while the run waits at the gate.
     await settings.update({"auto_approve": [RiskLevel.MEDIUM]})
 
-    # The run is still waiting, because it was started under the old policy.
+    # The run retains its startup policy.
     await asyncio.sleep(0.05)
     assert not task.done()
 
@@ -662,11 +598,10 @@ async def test_an_unanswered_approval_expires_with_the_run_deadline(
     db: Database,
     workspace: Path,
 ) -> None:
-    """Nobody answers, and the run does not wait forever.
+    """Expire unanswered approval against the run's wall-clock budget.
 
-    The gate borrows the run's wall-clock budget rather than keeping a deadline
-    of its own; see `Run.remaining_seconds`. With a 1-second run limit the
-    approval expires, the call is denied, and the run fails on the clock.
+    With a one-second run limit, expire and deny the call rather than wait
+    forever.
     """
     await settings.update({"max_run_seconds": 1})
     runtime, service = tool_runtime(store, db, workspace)
@@ -689,20 +624,14 @@ async def test_an_unanswered_approval_expires_with_the_run_deadline(
     assert writer.denied_tools == ["write_file"]
     assert not (workspace / "notes.txt").exists()
 
-    # The row is settled, not left pending forever.
+    # The row settles instead of remaining pending.
     assert await service.store.list_pending() == []
 
 
 async def test_pending_approvals_from_a_previous_process_are_expired(
     store: EventStore, db: Database, workspace: Path
 ) -> None:
-    """A restart makes every outstanding approval unanswerable.
-
-    Its waiter was an `asyncio.Future` in a process that no longer exists, so
-    resolving the row would update a database and unblock nothing. Left alone
-    they surface in the Phase 7 dialog as live questions about runs that ended
-    when the app last closed.
-    """
+    """Expire approvals orphaned by a restart; their original futures no longer exist."""
     _, service = tool_runtime(store, db, workspace)
     run = await store.create_run(goal="orphan", origin="ui")
 
@@ -710,7 +639,7 @@ async def test_pending_approvals_from_a_previous_process_are_expired(
     await service.store.create(run.id, "run_shell", {"command": "ls"}, RiskLevel.HIGH)
     assert len(await service.store.list_pending()) == 2
 
-    # A new process starts.
+    # Simulate a new process.
     expired = await service.store.expire_orphaned_pending()
 
     assert expired == 2
@@ -720,7 +649,7 @@ async def test_pending_approvals_from_a_previous_process_are_expired(
 async def test_expiring_orphans_leaves_settled_rows_alone(
     store: EventStore, db: Database, workspace: Path
 ) -> None:
-    """The sweep must not rewrite history it did not create."""
+    """Do not rewrite settled approval history during orphan cleanup."""
     _, service = tool_runtime(store, db, workspace)
     run = await store.create_run(goal="orphan", origin="ui")
 
@@ -742,11 +671,10 @@ async def test_expiring_orphans_leaves_settled_rows_alone(
 async def test_an_approval_cannot_be_resolved_twice(
     store: EventStore, db: Database, workspace: Path
 ) -> None:
-    """Two dialogs open on the same approval is ordinary, not a race to ignore.
+    """Reject a second dialog resolution without reversing the first decision.
 
-    The `UPDATE ... WHERE status = 'pending'` is conditional in one statement,
-    so the second resolution finds nothing to change and raises rather than
-    quietly flipping an approval a user already denied into an approval.
+    Conditional ``UPDATE ... WHERE status = 'pending'`` makes the second call
+    fail rather than flip a denial to approval.
     """
     from agentbase.tools.approval import ApprovalNotPendingError
 
@@ -775,13 +703,10 @@ async def test_an_approval_cannot_be_resolved_twice(
 async def _wait_for_approval(
     service: ApprovalService, limit_seconds: float = 5.0, *, after: str | None = None
 ) -> str:
-    """Block until the run under test is actually suspended on the gate.
+    """Wait until the test run is suspended on the gate.
 
-    Waits on `waiting_on()` rather than on the table: a row exists a moment
-    before the future does, and resolving in that window would set no waiter
-    and hang the test for reasons that have nothing to do with what it asserts.
-    ``after`` skips an approval just resolved, whose waiter is gone a moment
-    after its future is set.
+    ``waiting_on()`` avoids resolving a row before its future exists; ``after``
+    skips a recently resolved approval whose waiter is still disappearing.
     """
 
     async def poll() -> str:
@@ -808,9 +733,7 @@ async def test_a_tool_the_policy_never_allows_is_refused_without_asking(
     db: Database,
     workspace: Path,
 ) -> None:
-    """ "Never allow" is an answer given once, in Settings, for every run: the
-    call is refused the way an earlier denial refuses it, recorded and
-    marked as the policy's doing, and nobody waits on the gate."""
+    """Apply per-tool ``never allow`` across runs without opening the gate."""
     await settings.update({"tool_policies": {"write_file": "deny"}})
     runtime, service = tool_runtime(store, db, workspace)
 
@@ -852,9 +775,7 @@ async def test_a_tool_the_policy_always_allows_runs_without_asking(
     db: Database,
     workspace: Path,
 ) -> None:
-    """An app-wide yes for one tool, whatever its level; the risk-level rule
-    is not consulted, so a medium-risk write runs unasked while the level
-    policy still asks about everything."""
+    """Apply per-tool app-wide allow before risk-level policy."""
     await settings.update({"tool_policies": {"write_file": "allow"}})
     runtime, _ = tool_runtime(store, db, workspace)
 
@@ -888,8 +809,7 @@ async def test_a_definition_narrows_an_app_wide_allow(
     db: Database,
     workspace: Path,
 ) -> None:
-    """The one rule for every layer: a definition that names levels makes
-    an app-wide allow for a tool outside them into a question again."""
+    """A definition can narrow an app-wide per-tool allow back to a prompt."""
     await settings.update({"tool_policies": {"write_file": "allow"}})
     runtime, service = tool_runtime(store, db, workspace)
     await agents.create(
@@ -922,7 +842,7 @@ async def test_a_definition_narrows_an_app_wide_allow(
         )
     )
 
-    # It asks: the definition narrowed the allow to low-risk calls.
+    # It asks because the definition permits only low risk.
     first = await _wait_for_approval(service)
     await service.resolve(first, approved=True)
     await asyncio.wait_for(task, timeout=10)
@@ -938,9 +858,7 @@ async def test_a_yes_for_the_run_answers_every_later_call_to_that_tool(
     db: Database,
     workspace: Path,
 ) -> None:
-    """ "Allow for the rest of this run": the next write, with different
-    arguments, runs on the earlier answer and names it; a read, which is
-    another tool, is still a question."""
+    """A run-scoped allow covers later writes, but not other tools."""
     runtime, service = tool_runtime(store, db, workspace)
 
     task = asyncio.create_task(
@@ -996,8 +914,7 @@ async def test_a_no_is_never_for_the_run(
     db: Database,
     workspace: Path,
 ) -> None:
-    """A denial is for the one call and its arguments, whatever scope was
-    sent: "never allow" for a tool is a Settings decision, not a dialog one."""
+    """A dialog denial remains call-scoped; only Settings can deny a tool globally."""
     runtime, service = tool_runtime(store, db, workspace)
 
     task = asyncio.create_task(

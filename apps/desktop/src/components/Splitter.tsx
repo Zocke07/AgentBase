@@ -1,27 +1,25 @@
 import { useRef, type KeyboardEvent, type PointerEvent } from "react";
 
 /**
- * A drag handle on the edge of a panel. It owns no size of its own: the
- * parent keeps the size (see `useStoredSize`) and applies it, so the handle
- * is the same whether it sits on a column or a row. Double-click, Home or
- * Escape hands the size back to the stylesheet; the arrow keys move it a
- * step at a time.
+ * Panel-edge drag handle with parent-owned `useStoredSize` state, usable for
+ * rows or columns. Double-click, Home, and Escape restore CSS size; arrows
+ * move by step.
  */
 
 export interface SplitterProps {
   /** "x" drags a width, "y" a height. */
   axis: "x" | "y";
-  /** The chosen size in pixels, or null while the stylesheet's default applies. */
+  /** Chosen pixel size, or null for CSS default. */
   value: number | null;
-  /** The size on screen right now, for a drag or a keystroke that starts from the default. */
+  /** Current displayed size for default-originating drag or keyboard input. */
   measure: () => number;
   min: number;
-  /** The most the panel may take, read at the moment it is needed. */
+  /** Dynamic maximum panel size. */
   max: () => number;
   onChange: (value: number | null) => void;
   /** What the handle resizes, for assistive technology. */
   label: string;
-  /** Which side of the panel the handle sits on: the size grows toward it. */
+  /** Handle side; size grows toward it. */
   side: "end" | "start";
 }
 
@@ -30,7 +28,7 @@ const STEP = 24;
 export function Splitter({ axis, value, measure, min, max, onChange, label, side }: SplitterProps) {
   const drag = useRef<{ from: number; size: number } | null>(null);
   const clamp = (size: number) => Math.min(max(), Math.max(min, Math.round(size)));
-  // A handle at the start of a panel grows it by moving the other way.
+  // Start-edge handles grow in reverse direction.
   const sign = side === "end" ? 1 : -1;
   const at = (event: PointerEvent<HTMLDivElement>) => (axis === "x" ? event.clientX : event.clientY);
 
@@ -58,7 +56,7 @@ export function Splitter({ axis, value, measure, min, max, onChange, label, side
       title="Drag to resize. Double-click to reset."
       onPointerDown={(event) => {
         event.preventDefault();
-        // Capture keeps the drag when the pointer outruns the handle; jsdom has no such thing.
+        // Capture retains drag beyond handle; jsdom lacks it.
         if (typeof event.currentTarget.setPointerCapture === "function") {
           event.currentTarget.setPointerCapture(event.pointerId);
         }

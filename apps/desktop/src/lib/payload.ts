@@ -1,8 +1,6 @@
 /**
- * Reading event payloads. They are `dict[str, Any]` on the wire, so every read
- * returns `null` rather than throwing: one malformed event must not lose the
- * run. Shared by the reducer and the log panel so they agree on what a
- * missing field means.
+ * Safely read `dict[str, Any]` event payloads. Return null rather than throw so
+ * malformed events do not lose a run; reducer and log share missing-field rules.
  */
 
 export type Payload = Record<string, unknown>;

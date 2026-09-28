@@ -1,20 +1,19 @@
 /**
- * Grey shapes in place of content that is on its way, so the page keeps its
- * layout while it loads instead of flashing the word "Loading". Announced to
- * screen readers once, as a status, with the words given in `label`.
+ * Preserve layout with gray loading shapes rather than a flashing "Loading".
+ * Announce `label` once as a screen-reader status.
  */
 
 export interface SkeletonProps {
-  /** What is loading, read out to screen readers: "Loading your runs". */
+  /** Screen-reader loading text, such as "Loading your runs". */
   label: string;
-  /** Text-like bars under an optional title bar. */
+  /** Text-like bars beneath optional title. */
   lines?: number;
   title?: boolean;
-  /** Card-shaped blocks instead of lines, for a grid of cards. */
+  /** Card blocks rather than lines for card grids. */
   cards?: number;
 }
 
-/** Bar widths that read as prose rather than a table: long, long, shorter. */
+/** Prose-like bar widths: long, long, shorter. */
 const WIDTHS = ["100%", "92%", "70%", "84%", "60%"];
 
 export function Skeleton({ label, lines = 3, title = false, cards = 0 }: SkeletonProps) {

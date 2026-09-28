@@ -568,7 +568,7 @@ async def test_a_streamed_run_over_cap_is_refused_before_any_api_call_fires(
     """The §5 Phase 3 ordering guarantee, on the path Phase 4 actually uses.
 
     Streaming is the orchestrator's default, so if the cap only bound
-    `complete` it would in practice not bind at all.
+    `complete`, it would in practice not bind at all.
     """
     run_id = await _run_id(store)
     await settings.update({"monthly_cap_micros": 100})  # $0.0001

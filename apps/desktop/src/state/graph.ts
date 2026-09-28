@@ -5,14 +5,10 @@ import { ellipsise } from "../lib/format";
 import type { AgentNode, RunClaim, RunStatus, RunView } from "./reducer";
 
 /**
- * Turning a run into a workflow: pure derivations of the `RunView` alone, so
- * the canvas is a projection of the log like everything else on screen.
+ * Derive a workflow solely from `RunView`, making the canvas a log projection.
  *
- * The picture reads left to right, the way a person tells the story of a run:
- * the goal, the supervisor that planned it, the workers it delegated to, and
- * the outcome. What an agent did with its tools is folded onto its own card
- * as counts, not drawn as a node per call: the log below has the calls, the
- * canvas has the shape.
+ * Render left to right: goal, planning supervisor, delegated workers, outcome.
+ * Tool calls become per-agent counts, not nodes; the log retains call detail.
  */
 
 /** The supervisor's `agent_id`, fixed by the orchestrator so a replay can find it. */
@@ -21,49 +17,47 @@ export const GOAL = "goal";
 export const OUTCOME = "outcome";
 
 /**
- * Node geometry, declared rather than measured: anything that depends on
- * measurement depends on when a node appeared rather than on the log, which
- * is how live and replay once framed the same run at different zooms.
- * `.flow-node` in the stylesheet is sized to match.
+ * Declare, rather than measure, node geometry so live and replay use the same
+ * zoom. `.flow-node` CSS matches these dimensions.
  */
 export const NODE_WIDTH = 224;
 export const NODE_HEIGHT = 136;
 export const END_WIDTH = 204;
 export const END_HEIGHT = 82;
-/** Room for a handoff label at LABEL_CHARS over the last stretch into a card. */
+/** Room for a `LABEL_CHARS` handoff label before a card. */
 const COLUMN_GAP = 140;
-/** The most of a handoff task an edge label shows; the inspector has the rest. */
+/** Maximum handoff task shown on an edge; inspector retains the rest. */
 const LABEL_CHARS = 16;
 const ROW_GAP = 22;
-/** Workers per column; a dozen in one column zoomed the camera out past legibility. */
+/** Workers per column; more would force illegible zoom. */
 export const WORKERS_PER_COLUMN = 4;
 
 /** How one agent used one tool, summed over the run so far. */
 export interface ToolUse {
   readonly tool: string;
-  /** Executions (`tool.called`), whether or not a result is in yet. */
+  /** `tool.called` executions, with or without results. */
   readonly calls: number;
   readonly denied: number;
-  /** Whether the agent is inside a call to this tool at this cursor. */
+  /** Whether the agent is in this tool call at the cursor. */
   readonly running: boolean;
 }
 
 export interface AgentNodeData extends Record<string, unknown> {
   agent: AgentNode;
   selected: boolean;
-  /** A name the run handed off to but never spawned; without a node its edge would vanish. */
+  /** Handoff target never spawned; node preserves its edge. */
   ghost: boolean;
   tools: readonly ToolUse[];
-  /** Handoffs this agent made, so the card can say it delegated. */
+  /** Handoffs this agent made, shown as delegation on its card. */
   delegated: number;
 }
 
 export interface GoalNodeData extends Record<string, unknown> {
   goal: string | null;
   status: RunStatus;
-  /** The channel a chat-originated run came from; null for the window. */
+  /** Origin chat channel; null for window-started runs. */
   channel: string | null;
-  /** Vault excerpts sent along with the goal. */
+  /** Vault excerpts sent with the goal. */
   excerpts: number;
 }
 
@@ -79,9 +73,9 @@ export interface OutcomeNodeData extends Record<string, unknown> {
 export type WorkflowNode = Node<AgentNodeData> | Node<GoalNodeData> | Node<OutcomeNodeData>;
 
 export interface HandoffEdgeData extends Record<string, unknown> {
-  /** Supervisor to worker, drawn through the side ports; otherwise beneath the cards. */
+  /** Supervisor-to-worker edges use side ports; others run beneath cards. */
   forward: boolean;
-  /** The whole task, for the label's tooltip. */
+  /** Full task for the label tooltip. */
   task: string;
   count: number;
 }
@@ -89,11 +83,9 @@ export interface HandoffEdgeData extends Record<string, unknown> {
 export type HandoffEdge = Edge<HandoffEdgeData, "handoff">;
 
 /**
- * Place the goal first, the supervisor after it, the workers stacked in the
- * columns that follow (wrapping past four) and the outcome last. Everything
- * single is centred on the band the workers occupy. A handoff target the run
- * never spawned gets a ghost node after the real workers, so its edge has
- * somewhere to land.
+ * Place goal, supervisor, worker columns (wrapping past four), then outcome.
+ * Center singletons on the worker band; append ghost nodes for unspawned
+ * handoff targets so their edges remain visible.
  */
 export function layout(view: RunView, selected: string | null): WorkflowNode[] {
   const supervisor = view.agents[SUPERVISOR];
@@ -193,7 +185,7 @@ function agentNode(
   };
 }
 
-/** A stand-in node for a name that was handed off to and never existed. */
+/** Stand-in node for a handed-off but unspawned name. */
 function ghostAgent(name: string): AgentNode {
   return {
     name,
@@ -223,7 +215,7 @@ function ghostAgent(name: string): AgentNode {
   };
 }
 
-/** Each tool an agent has executed or been refused, in the order it first came up. */
+/** Tools executed or refused, in first-seen order. */
 export function toolUsesFor(view: RunView, agent: string): ToolUse[] {
   const uses = new Map<string, { calls: number; denied: number }>();
   const touch = (tool: string) => {
@@ -251,11 +243,11 @@ interface HandoffPair {
   readonly from: string;
   readonly to: string;
   readonly count: number;
-  /** The first handoff's task; a later one does not replace it. */
+  /** First handoff task; later tasks do not replace it. */
   readonly task: string;
 }
 
-/** The handoffs grouped by ordered pair, in the order each pair first appeared. */
+/** Handoffs grouped by ordered pair in first-seen order. */
 function handoffPairs(view: RunView): HandoffPair[] {
   const pairs = new Map<string, { from: string; to: string; count: number; task: string }>();
   for (const handoff of view.handoffs) {
@@ -270,13 +262,13 @@ function handoffPairs(view: RunView): HandoffPair[] {
   return [...pairs.values()];
 }
 
-/** One edge per ordered pair, labelled with how many handoffs it carries. */
+/** One count-labeled edge per ordered handoff pair. */
 export function edgesFor(view: RunView): Edge[] {
   return handoffPairs(view).map((edge) => ({
     id: `${edge.from}->${edge.to}`,
     source: edge.from,
     target: edge.to,
-    // A single handoff shows what was asked; several would be a paragraph.
+    // Show a single task; multiple tasks would be a paragraph.
     label:
       edge.count > 1
         ? `${String(edge.count)} handoffs`
@@ -289,9 +281,8 @@ export function edgesFor(view: RunView): Edge[] {
 const TERMINAL: readonly RunStatus[] = ["completed", "failed", "cancelled"];
 
 /**
- * The whole picture's edges: the goal into the supervisor, every handoff, and
- * the supervisor into the outcome. An edge into an agent still working is
- * animated, which is a fact about this cursor and so the same on replay.
+ * Build goal-to-supervisor, handoff, and supervisor-to-outcome edges. Animate
+ * edges into active agents; cursor state keeps replay identical.
  */
 export function workflowEdges(view: RunView): Edge[] {
   const busy = (name: string) => {
@@ -318,10 +309,8 @@ export function workflowEdges(view: RunView): Edge[] {
   }
 
   for (const pair of handoffPairs(view)) {
-    // Work flows rightward through the side ports. A handoff back to the
-    // supervisor, or across to another worker, leaves and arrives by the
-    // bottom ports so it is drawn beneath the cards rather than over the
-    // edge going the other way.
+    // Use side ports for rightward work; return or cross-worker handoffs use
+    // bottom ports to avoid overlaying opposite-direction edges.
     const forward = pair.from === SUPERVISOR;
     const label = pair.count > 1 ? `${String(pair.count)} handoffs` : ellipsise(pair.task, LABEL_CHARS);
     const edge: HandoffEdge = {
@@ -334,8 +323,7 @@ export function workflowEdges(view: RunView): Edge[] {
       className: `flow-edge flow-edge--handoff${forward ? "" : " flow-edge--return"}${view.agents[pair.to] === undefined ? " flow-edge--ghost" : ""}`,
       animated: busy(pair.to),
       markerEnd: arrow,
-      // The whole task rides along for the label's tooltip; the label itself
-      // is what fits between the columns.
+      // Tooltip retains the full task; label fits between columns.
       data: { forward, task: pair.task, count: pair.count },
       ...(label === "" ? {} : { label }),
     };
@@ -361,23 +349,21 @@ export function workflowEdges(view: RunView): Edge[] {
   return edges;
 }
 
-/** A React Flow viewport: pan offset plus zoom. */
+/** React Flow viewport: pan offset and zoom. */
 export interface Viewport {
   x: number;
   y: number;
   zoom: number;
 }
 
-/** Never zoom in past this, however few agents there are. */
+/** Maximum zoom, regardless of agent count. */
 const MAX_ZOOM = 1.4;
-/** Fraction of the pane left as breathing room around the content. */
+/** Pane fraction reserved around content. */
 const PADDING = 0.06;
 
 /**
- * The camera, computed from the nodes rather than fitted to them. React Flow's
- * `fitView` frames what it has measured, so its result depends on when it ran
- * and live and replay disagreed. Same nodes and same pane give the same
- * viewport here; the user can still pan and zoom afterwards.
+ * Compute viewport from nodes, not React Flow `fitView` measurements, so equal
+ * nodes and pane yield equal live/replay frames. Users may still pan and zoom.
  */
 export function viewportFor(
   nodes: readonly WorkflowNode[],

@@ -6,7 +6,7 @@ import type {
   ToolResponse,
   UpdateAgentRequest,
 } from "@agentbase/schemas";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import * as api from "../lib/api";
 import { useRoster } from "../state/roster";
@@ -18,19 +18,19 @@ import { AgentList } from "./AgentList";
 
 
 /**
- * The agents section: the roster, and the editor beside it. An `ApiError`
- * from a save is re-thrown to `AgentEditor`, which puts it on the offending input.
+ * Roster and adjacent editor. Re-throw save `ApiError` to `AgentEditor` for
+ * named-input rendering.
  */
 
 const NO_TOOLS: ToolResponse[] = [];
 const NO_CATALOGUE: ProviderCatalogueResponse = { providers: [], models: {}, catalog: {} };
 
 export interface AgentsViewProps {
-  /** The provider a run in this space uses, so the editor knows what "inherit" means. */
+  /** Space run provider, resolving editor `inherit`. */
   workspaceProvider: string | null;
-  /** The space whose roster this is; a new definition joins it. Null before the list loads. */
+  /** Roster space; new definitions join it. Null before load. */
   spaceId?: string | null;
-  /** Every space, for moving or copying a definition to another. */
+  /** All spaces for moving/copying definitions. */
   spaces?: readonly SpaceResponse[];
 }
 
@@ -39,42 +39,35 @@ export function AgentsView({ workspaceProvider, spaceId = null, spaces = [] }: A
   const [editing, setEditing] = useState<"none" | "new" | "existing">("none");
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  // The editor says when its form differs from what it opened with; a click
-  // that would throw that away is held until the user says which they meant.
+  // Hold destructive navigation until unsaved editor changes are resolved.
   const [dirty, setDirty] = useState(false);
   const [held, setHeld] = useState<(() => void) | null>(null);
 
-  /** Run `action` now, or hold it behind the unsaved-changes question. */
+  /** Run `action` now or after unsaved-changes confirmation. */
   const guarded = (action: () => void) => {
     if (dirty && editing !== "none") setHeld(() => action);
     else action();
   };
 
-  const loadTools = useCallback(() => api.listTools(), []);
-  const loadCatalogue = useCallback(() => api.listProviders(), []);
-
-  // The roster is shared with the Home screen, which has its own toggle for
-  // each agent; one store, so a change on either side shows on both.
+  // Share Home roster store so toggles synchronize.
   const agents = useRoster((state) => state.agents);
   const rosterLoading = useRoster((state) => state.loading);
   const rosterError = useRoster((state) => state.error);
   const reloadRoster = useRoster((state) => state.load);
   const ensureRoster = useRoster((state) => state.ensure);
-  const tools = useFetched(loadTools, NO_TOOLS);
-  const catalogue = useFetched(loadCatalogue, NO_CATALOGUE);
+  const tools = useFetched(api.listTools, NO_TOOLS);
+  const catalogue = useFetched(api.listProviders, NO_CATALOGUE);
 
   useEffect(() => {
     ensureRoster();
   }, [ensureRoster]);
 
   const selected = agents.find((agent) => agent.id === selectedId) ?? null;
-  // Every fetch this tab depends on reports here. A failed `/tools` used to
-  // render an editor with no checkboxes and no explanation, and a save from
-  // that state would have sent an empty allowlist.
+  // Report every dependency fetch; failed `/tools` must not allow unexplained
+  // empty-allowlist saves.
   const error = actionError ?? rosterError ?? tools.error ?? catalogue.error;
 
-  // No try/catch in either: the editor renders the failure inline against the
-  // field the server named. See the module note.
+  // Let editor render server errors on named fields.
   const create = async (body: CreateAgentRequest) => {
     const created = await api.createAgent(spaceId === null ? body : { ...body, space_id: spaceId });
     setSelectedId(created.id);
@@ -82,9 +75,8 @@ export function AgentsView({ workspaceProvider, spaceId = null, spaces = [] }: A
     setEditing("none");
   };
 
-  // Moving a definition changes which roster it is on; copying makes a new
-  // row on another roster. Either way this space's roster is re-read, and a
-  // moved definition is no longer here to edit.
+  // Move changes roster; copy creates a row. Reload this roster and clear moved
+  // definition editing.
   const [transferError, setTransferError] = useState<string | null>(null);
   const transfer = async (agent: AgentDef, toSpaceId: string, copy: boolean) => {
     setTransferError(null);
@@ -136,8 +128,7 @@ export function AgentsView({ workspaceProvider, spaceId = null, spaces = [] }: A
       }
       void reloadRoster();
     } catch (failure) {
-      // A built-in refuses deletion with a 409 and a message saying so. Showing
-      // it is the point: §5 Phase 5 guards the delete path deliberately.
+      // Display deliberate §5 Phase 5 built-in deletion 409 refusal.
       setActionError(failure instanceof Error ? failure.message : String(failure));
     } finally {
       setBusyId(null);
@@ -251,8 +242,7 @@ export function AgentsView({ workspaceProvider, spaceId = null, spaces = [] }: A
             </div>
           )}
           <AgentEditor
-            // Remount on a different definition so the form state starts from
-            // the row being edited rather than the one before it.
+            // Remount for each definition to reset form from its row.
             key={editing === "new" ? "new" : (selected?.id ?? "new")}
             agent={editing === "existing" ? selected : null}
             tools={tools.data}

@@ -1,7 +1,6 @@
 /**
- * Opening a space's folder in the file manager. The webview never opens paths
- * itself: it asks the shell's `reveal_folder`, which refuses any path outside
- * the data directory. Outside Tauri the button is not offered.
+ * Open space folders through shell `reveal_folder`, which rejects paths outside
+ * data storage. Do not offer the button outside Tauri.
  */
 
 import { insideTauri } from "./tauri";
@@ -15,8 +14,8 @@ export async function revealFolder(path: string): Promise<void> {
 }
 
 /**
- * Whether the shell found Obsidian where its installer puts it. The vault
- * button is offered only then: without Obsidian the link has no handler.
+ * Report whether Obsidian is in a standard install location; otherwise the
+ * vault URI lacks a handler and the button stays hidden.
  */
 export async function obsidianAvailable(): Promise<boolean> {
   if (!insideTauri()) return false;

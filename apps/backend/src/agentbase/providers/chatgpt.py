@@ -1,8 +1,7 @@
 """OpenAI model access through a user's ChatGPT subscription.
 
-Codex App Server owns OAuth and model transport. It does not own the agent
-loop: one call in produces one normalized model decision out, and AgentBase
-continues to execute tools, apply approvals, record events and enforce limits.
+Codex App Server handles OAuth and transport; AgentBase retains tool execution,
+approvals, events, and limits.
 """
 
 from __future__ import annotations
@@ -182,9 +181,8 @@ _OUTPUT_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
 }
 
-# Defense in depth. The dedicated, empty CODEX_HOME also contains no MCP
-# servers, skills, hooks or repository instructions, and every turn is
-# read-only with approvals denied.
+# Defense in depth: empty ``CODEX_HOME``, no extensions, and read-only turns
+# with approvals denied.
 _CODEX_OVERRIDES = (
     'cli_auth_credentials_store="keyring"',
     'forced_login_method="chatgpt"',
@@ -200,11 +198,9 @@ _CODEX_OVERRIDES = (
 
 
 class CodexAppServerRuntime:
-    """One pinned Codex App Server process for OAuth and model requests.
+    """Pinned Codex App Server runtime for OAuth and model requests.
 
-    The App Server executable is not part of the sidecar. `installer` fetches
-    it once into the data directory, and the client is built the first time
-    the executable is both wanted and present.
+    Build a client only after the installer has provided its executable.
     """
 
     def __init__(
@@ -226,20 +222,18 @@ class CodexAppServerRuntime:
         self._lock = asyncio.Lock()
 
     def _ensure_directories(self) -> None:
-        # CODEX_HOME must exist before App Server starts. Both paths are owned
-        # by AgentBase and contain runtime metadata, never plaintext tokens:
-        # keyring is forced above, so lack of an OS credential store is an error.
+        # App Server requires ``CODEX_HOME``. AgentBase owns both paths; keyring
+        # storage prevents plaintext token files.
         self._cwd.mkdir(parents=True, exist_ok=True)
 
     def _client(self) -> AsyncCodex | None:
-        """The App Server client, or None while the runtime is not installed."""
+        """Return the App Server client, or ``None`` before installation."""
         if self._codex is not None:
             return self._codex
         executable = self._installer.installed_codex()
         if executable is None:
             return None
-        # `codex_bin` disables the SDK's own PATH additions, so the bundled
-        # helpers (ripgrep) are put on PATH here instead.
+        # ``codex_bin`` disables SDK PATH setup; add bundled helpers here.
         path_dirs = [str(item) for item in self._installer.path_dirs()]
         env = {"CODEX_HOME": str(self._home)}
         if path_dirs:
@@ -313,13 +307,13 @@ class CodexAppServerRuntime:
         return ChatGPTAuthStatus(state="disconnected", runtime=runtime)
 
     async def install_runtime(self) -> ChatGPTAuthStatus:
-        """Start fetching the runtime if it is absent; answer with the current state."""
+        """Start missing-runtime installation and return its current status."""
         if self._client() is None:
             try:
                 self._installer.start()
             except CodexRuntimeError as exc:
                 raise ProviderUnavailableError(str(exc)) from exc
-            # Let the task reach its first await so a failure to even begin shows up.
+            # Surface failures that occur before installation first yields.
             await asyncio.sleep(0)
         return await self.status()
 
@@ -372,7 +366,7 @@ class CodexAppServerRuntime:
         await self.cancel_login()
         codex = self._client()
         if codex is None:
-            # Nothing could have signed in without the runtime.
+            # Sign-in cannot exist without an installed runtime.
             return
         self._ensure_directories()
         await codex.logout()
@@ -468,11 +462,10 @@ class CodexAppServerRuntime:
         system: str | None,
         max_tokens: int,
     ) -> AsyncIterator[ChatGPTModelDelta | ChatGPTModelResponse]:
-        """Stream only the `text` field, then emit the normalized decision.
+        """Stream visible ``text`` only, then emit the normalized decision.
 
-        App Server streams the output-schema document as JSON. The incremental
-        decoder exposes only a valid prefix of its top-level `text` string, so
-        JSON syntax and tool arguments never leak into `llm.token` events.
+        The incremental decoder hides JSON syntax and tool arguments from token
+        events.
         """
         auth = await self.status()
         if auth.state != "connected":
@@ -501,8 +494,7 @@ class CodexAppServerRuntime:
             )
             turn_id = turn.id
             async for event in turn.stream():
-                # The SDK exposes one wide notification union, while `method`
-                # is its runtime discriminator but not a typed discriminant.
+                # ``method`` discriminates the SDK's broad notification union.
                 payload: Any = event.payload
                 if event.method == "item/agentMessage/delta":
                     item_id = str(payload.item_id)
@@ -636,7 +628,7 @@ class ChatGPTSubscriptionProvider:
 def _decision_prompt(
     messages: list[Message], tools: list[ToolSpec] | None, *, max_tokens: int
 ) -> str:
-    """Encode the neutral provider request without granting its content authority."""
+    """Encode provider request data without granting it instruction authority."""
     history = [
         {
             "role": str(message.role),
@@ -675,7 +667,7 @@ def _decision_prompt(
 def _parse_decision(
     encoded: str, *, model: str, turn_id: str, usage: TokenUsage
 ) -> ChatGPTModelResponse:
-    """Turn output-schema JSON into the same tool-call shape as API access."""
+    """Convert output-schema JSON into the API provider's tool-call shape."""
     try:
         payload: Any = json.loads(encoded)
     except json.JSONDecodeError as exc:
@@ -736,10 +728,9 @@ def _usage(raw: Any) -> TokenUsage:
 
 
 def _visible_structured_text(encoded: str) -> str | None:
-    """Decode the currently complete prefix of a top-level first `text` field.
+    """Decode the complete visible prefix of the top-level first ``text`` field.
 
-    The schema places `text` first. If App Server ever emits another key first,
-    streaming safely waits for the final parsed response instead of guessing.
+    If another key appears first, wait for the final response rather than guess.
     """
     index = 0
     while index < len(encoded) and encoded[index].isspace():

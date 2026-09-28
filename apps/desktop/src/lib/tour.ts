@@ -1,17 +1,16 @@
 import type { Section } from "./sections";
 
 /**
- * The first-run tour's script, apart from the component that draws it so
- * the words can be read and tested as data. Each step names the element it
- * points at by its `data-tour` value and the section that element lives in.
+ * First-run tour data, separate from rendering for readable, testable copy.
+ * Each step names its `data-tour` target and containing section.
  */
 
 export interface TourStep {
   title: string;
   body: string;
-  /** The `data-tour` value of the element to spotlight; none centres the card. */
+  /** `data-tour` target; omit to center the card. */
   target: string | null;
-  /** The section the target lives in, switched to before measuring. */
+  /** Target section, selected before measuring. */
   section: Section | null;
 }
 

@@ -1,9 +1,8 @@
-"""The orchestration loop, hand-written (§1 constraint 1).
+"""Hand-written orchestration loop (§1 constraint 1).
 
-:func:`execute_run` resolves the run's limits, roster and providers, drives
-the supervisor, and guarantees a terminal event whatever happens: a run that
-stops without one is unreadable from the log, and a stream waiting on it
-never ends.
+:func:`execute_run` resolves limits, roster, and providers; drives the
+supervisor; and always writes a terminal event. Without one, log replay is
+unreadable and waiting streams never end.
 """
 
 from __future__ import annotations
@@ -84,21 +83,19 @@ async def execute_run(
     on_registered: Callable[[Run], None] | None = None,
     max_run_seconds: int | None = None,
 ) -> None:
-    """Drive one run from `run.started` to a terminal event.
+    """Drive a run from ``run.started`` to a terminal event.
 
-    :param agents: the definitions, read once into a frozen registry.
-    :param provider: overrides the configured provider for every agent (tests
-        pass a scripted one); still wrapped in the budget guard.
-    :param runtime: the tools, sandbox and gate. ``None`` means no catalogue
-        tool can be called, which is what orchestration tests want.
-    :param clock: monotonic time source, injected so the wall-clock limit is testable.
-    :param live: where the :class:`Run` is registered for its duration, so a
-        cancel can reach it.
-    :param space: the space the run happens in; its rules are laid over the
-        app-wide settings before anything reads them. ``None`` runs under the
-        app-wide rules with the default space's roster.
-    :param max_run_seconds: a time limit for this run alone, a schedule's,
-        laid over the space's; the other limits and the policy are untouched.
+    :param agents: definitions read once into a frozen registry.
+    :param provider: override for every agent (tests use scripted providers),
+        still protected by the budget guard.
+    :param runtime: tools, sandbox, and gate. ``None`` disables catalogue
+        tools for orchestration tests.
+    :param clock: injectable monotonic source for wall-limit tests.
+    :param live: mapping that registers the live run for cancellation.
+    :param space: run space; apply its rules before reads. ``None`` uses
+        app-wide rules and the default roster.
+    :param max_run_seconds: schedule-specific limit over the space limit;
+        other limits and policy remain unchanged.
     """
     workspace = await settings.get()
     if space is not None:
@@ -169,7 +166,7 @@ async def _execute(
     knowledge_context: str,
     excluded_citations: frozenset[str],
 ) -> None:
-    """`execute_run` proper, once the run is registered as live."""
+    """Execute a run after registering it as live."""
     run_id = run.id
     goal = run.goal
     limits = run.limits
@@ -192,8 +189,8 @@ async def _execute(
     try:
         guarded = providers.default()
     except (UnknownProviderError, ProviderError) as exc:
-        # A configuration problem, reported as a readable run failure. A
-        # definition's own provider failing is the supervisor's to handle.
+        # Report default-provider configuration failure; supervisor handles a
+        # definition's own provider failure.
         await run.fail(str(exc))
         return
 
@@ -232,7 +229,7 @@ async def _execute(
     except RunCostExceededError as exc:
         await run.fail(exc.reason)
     except BudgetExceededError as exc:
-        # The ledger already appended `budget.exceeded`; this is the terminal event.
+        # Ledger already emitted ``budget.exceeded``; now write terminal event.
         await run.fail(exc.reason)
     except ProviderError as exc:
         await run.fail(str(exc))
@@ -246,10 +243,9 @@ async def _execute(
 def _with_workspace_policy(
     runtime: ToolRuntime | None, workspace: WorkspaceSettings
 ) -> ToolRuntime | None:
-    """Snapshot the workspace approval policy onto the run's tool runtime.
+    """Snapshot workspace approval policy onto run tool runtime.
 
-    Like the limits and the roster: a policy widened mid-run would loosen the
-    gate while work is in flight.
+    Like limits and roster, prevent mid-run widening from loosening the gate.
     """
     if runtime is None:
         return None
@@ -263,11 +259,11 @@ def _with_workspace_policy(
 async def _finish(
     run: Run, outcome: StepOutcome, knowledge: KnowledgeStore | None = None
 ) -> None:
-    """Write the run's terminal event from how the supervisor actually stopped.
+    """Write terminal event based on supervisor outcome.
 
-    A supervisor out of steps *completes* as an agent (§4 has no
-    `agent.failed`) but did not answer the goal, so the run fails. A worker
-    out of steps is different: the supervisor can finish around it.
+    A step-limited supervisor *completes* as an agent (§4 has no
+    ``agent.failed``) but fails the run without the goal answer. A worker limit
+    differs: supervisor may finish around it.
     """
     if outcome.reason == "finished":
         memory_path = None
@@ -287,7 +283,7 @@ async def _finish(
         return
 
     if outcome.reason == "stuck":
-        # Its result already says what it kept doing; more steps would not help.
+        # Result already names its loop; more steps would not help.
         await run.fail(
             f"{outcome.result} Anything its workers produced is in this run's event log."
         )

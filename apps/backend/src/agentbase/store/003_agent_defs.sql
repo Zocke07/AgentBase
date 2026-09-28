@@ -1,47 +1,34 @@
 -- Migration 003 - agent definitions (BUILD_SPEC §4, §5 Phase 5).
 --
--- `agent_defs` is §4 verbatim. This is the migration that turns agents from
--- hardcoded Python classes into editable data: from here on `registry.py`
--- constructs workers from these rows rather than importing a class per role.
+-- `agent_defs` is §4 verbatim. `registry.py` now builds editable workers from
+-- rows instead of importing one class per role.
 --
--- **The built-ins are seeded here rather than on first launch in code.**
--- §5 Phase 5 asks for 3-4 definitions seeded "on first launch" so a fresh
--- install is usable immediately, and the obvious implementation is a startup
--- check - "are there any built-in rows? if not, insert them". That check is
--- wrong the first time a user edits a built-in and then upgrades: any
--- re-seeding logic has to distinguish "never seeded" from "seeded and since
--- edited", and getting it wrong silently reverts the user's edit. A migration
--- runs exactly once by construction, so the question never arises.
+-- Seed built-ins in this one-time migration, not at startup: re-seeding cannot
+-- safely distinguish a missing row from a user-edited one.
 --
--- The ids are fixed uuid4 literals rather than generated per install. §4 says
--- uuid4 and these are; pinning them means "the built-in researcher" is the
--- same identity on every machine, so an exported run or a bug report can name
--- one unambiguously.
+-- Fixed UUID4 literals give each built-in the same identity on every machine,
+-- so exports and bug reports identify it unambiguously.
 --
--- Every seeded definition has an empty `allowed_tools`. That is not a
--- placeholder: §5 Phase 5 says "an empty array means the agent can reason and
--- hand off but touches nothing", which is exactly the truth in this phase -
--- no tool is implemented until Phase 6's approval gate exists, so an agent
--- seeded with `write_file` would spend a step discovering it cannot use it.
--- Phase 6 widens these rows when there is something for them to point at.
+-- Seed empty `allowed_tools`: Phase 5 permits reasoning and handoffs only until
+-- Phase 6 implements and grants tools.
 
 CREATE TABLE agent_defs (
   id            TEXT PRIMARY KEY,        -- uuid4
-  name          TEXT NOT NULL UNIQUE,    -- display name, referenced in handoffs
+  name          TEXT NOT NULL UNIQUE,    -- display name used in handoffs
   role          TEXT NOT NULL,           -- one-line description shown in the UI
   system_prompt TEXT NOT NULL,
-  provider      TEXT,                    -- NULL = inherit workspace default
-  model         TEXT,                    -- NULL = inherit workspace default
+  provider      TEXT,                    -- NULL inherits workspace default
+  model         TEXT,                    -- NULL inherits workspace default
   allowed_tools TEXT NOT NULL,           -- JSON array of tool names
   max_steps     INTEGER NOT NULL DEFAULT 20,
-  auto_approve  TEXT NOT NULL DEFAULT '[]',  -- JSON array of risk levels, see §5 Phase 6
-  is_builtin    INTEGER NOT NULL DEFAULT 0,  -- seeded defaults, editable but not deletable
+  auto_approve  TEXT NOT NULL DEFAULT '[]',  -- JSON risk-level array; §5 Phase 6
+  is_builtin    INTEGER NOT NULL DEFAULT 0,  -- editable seeded default; not deletable
   enabled       INTEGER NOT NULL DEFAULT 1,
   created_at    TEXT NOT NULL,
   updated_at    TEXT NOT NULL
 );
 
--- The roster is read by name on every spawn, and listed by the Phase 7 editor.
+-- Spawning resolves names; the Phase 7 editor lists this roster.
 CREATE INDEX idx_agent_defs_enabled ON agent_defs(enabled);
 
 INSERT INTO agent_defs

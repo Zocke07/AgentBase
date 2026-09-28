@@ -9,10 +9,8 @@ import { usePresence } from "../state/usePresence";
 import { Skeleton } from "./Skeleton";
 
 /**
- * Month-to-date spend against the cap. The one panel that is not a projection
- * of a run's log: the cap spans every run, so it comes from `GET /budget` and
- * sits outside the identity comparison. The display strings come from the
- * backend, so the rounding rule lives in one place.
+ * Month-to-date cap usage from `GET /budget`, not a single run-log projection;
+ * exclude from identity comparison. Backend supplies display strings and rounding.
  *
  * The chip opens a breakdown: this space's share, runs and their average, the
  * models and spaces the money went to, and the per-run limit, read from
@@ -85,7 +83,7 @@ export function BudgetMeter({ budget, spaceName, runLimitMicros, onOpenUsage, on
           then();
         };
 
-  // Rounded for the glance; the ledger's exact figures are in the tooltip.
+  // Glance rounding; tooltip retains ledger precision.
   return (
     <div className="budget-anchor" ref={anchor}>
       <div

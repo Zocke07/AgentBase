@@ -8,7 +8,7 @@ import type {
   ToolResponse,
   UpdateSpaceRequest,
 } from "@agentbase/schemas";
-import { useCallback, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
@@ -21,20 +21,18 @@ import { ModelOptions } from "./ModelOptions";
 import { Schedules } from "./Schedules";
 
 /**
- * One space's settings: name, description, the folder (shown and opened,
- * never changed), the rules with Inherit as the first choice of each, and a
- * danger zone. Save is a PATCH of what changed, with a rule set back to
- * Inherit sent as `null`. The approval policy can only narrow the app-wide
- * one, and the page says so beside any tick the app-wide policy lacks.
+ * One space's name, description, read-only folder, inherited rules, and danger
+ * zone. PATCH changes; send `null` to restore inheritance. Approval policy can
+ * only narrow app-wide policy, which the page explains beside unavailable ticks.
  */
 
 export interface SpaceSettingsViewProps {
   space: SpaceResponse;
-  /** The app-wide settings, so "Inherit" can say what it inherits. */
+  /** App-wide settings for inherited-value labels. */
   settings: SettingsResponse | null;
-  /** The space changed, or was archived or deleted; the shell re-reads the list. */
+  /** Space changed, archived, or deleted; shell reloads list. */
   onChanged: (space: SpaceResponse | null) => void;
-  /** Open the run a schedule last started. */
+  /** Open a schedule's latest run. */
   onOpenRun?: ((runId: string) => void) | undefined;
 }
 
@@ -43,14 +41,14 @@ interface Form {
   description: string;
   provider: string;
   model: string;
-  /** Null: inherit. A list: this space's own policy. */
+  /** Null inherits; list is this space policy. */
   auto_approve: RiskLevel[] | null;
-  /** Null: inherit every per-tool answer. A map: this space's stricter answers. */
+  /** Null inherits all tool answers; map holds stricter space answers. */
   tool_policies: Record<string, ToolPolicy> | null;
   max_steps_per_agent: string;
   max_agents_per_run: string;
   max_run_seconds: string;
-  /** Dollars per run, as typed; blank inherits, "0" lifts the ceiling here. */
+  /** Per-run typed dollars; blank inherits and `0` lifts ceiling. */
   run_cap: string;
 }
 
@@ -74,9 +72,8 @@ const POLICY_WORD: Record<ToolPolicy, string> = {
 };
 
 /**
- * The answers a space may give for one tool: the app-wide one, and every
- * stricter one. A space narrows, never widens, so an app-wide refusal leaves
- * only "inherit".
+ * App-wide and stricter per-tool answers. Spaces only narrow; app-wide refusal
+ * permits only `inherit`.
  */
 function stricterChoices(appWide: ToolPolicy): ToolPolicy[] {
   if (appWide === "allow") return ["ask", "deny"];
@@ -84,7 +81,7 @@ function stricterChoices(appWide: ToolPolicy): ToolPolicy[] {
   return [];
 }
 
-/** A limit as typed: blank for inherit, whether the row said null or nothing. */
+/** Typed limit; blank inherits whether row held null or nothing. */
 function limitText(value: number | null | undefined): string {
   return value === null || value === undefined ? "" : String(value);
 }
@@ -108,14 +105,14 @@ function fromSpace(space: SpaceResponse, appProvider: string): Form {
   };
 }
 
-/** Dollars typed by a person to whole micros; null when it is not a number. */
+/** Convert typed dollars to whole micros, or null if invalid. */
 function dollarsToMicros(dollars: string): number | null {
   const parsed = Number(dollars.trim());
   if (!Number.isFinite(parsed) || parsed < 0) return null;
   return Math.round(parsed * MICROS_PER_DOLLAR);
 }
 
-/** The request for what differs between `opened` and `form`. Blank is inherit. */
+/** PATCH request from `opened` to `form`; blank inherits. */
 function diff(opened: Form, form: Form): UpdateSpaceRequest {
   const patch: UpdateSpaceRequest = {};
   if (form.name !== opened.name) patch.name = form.name.trim();
@@ -138,21 +135,17 @@ function diff(opened: Form, form: Form): UpdateSpaceRequest {
 }
 
 export function SpaceSettingsView({ space, settings, onChanged, onOpenRun }: SpaceSettingsViewProps) {
-  const loadCatalogue = useCallback(() => api.listProviders(), []);
-  const loadTools = useCallback(() => api.listTools(), []);
-  const catalogue = useFetched(loadCatalogue, EMPTY_CATALOGUE);
-  const tools = useFetched(loadTools, NO_TOOLS);
-  // Held above the form: a save reloads the space list, the row's
-  // `updated_at` changes, and the form remounts from it, which would lose a
-  // "saved" note kept inside it before it was read, or what became of the
-  // agents a provider switch moved.
+  const catalogue = useFetched(api.listProviders, EMPTY_CATALOGUE);
+  const tools = useFetched(api.listTools, NO_TOOLS);
+  // Keep above remounting form so list reload `updated_at` changes do not hide
+  // its saved notice, or what became of the agents a provider switch moved.
   const [saved, setSaved] = useState<string | null>(null);
 
   return (
     <div className="settings">
       <div className="settings__form">
         <SpaceForm
-          // Start the form from the row being edited, and again when it changes underneath.
+          // Reset form from current edited row.
           key={`${space.id}:${space.updated_at}`}
           space={space}
           settings={settings}
@@ -208,7 +201,6 @@ function SpaceForm({
   const patch = diff(opened, form);
   const dirty = Object.keys(patch).length > 0;
   const inherited = settings?.settings;
-  // The model belongs to the provider the space runs on, which is its own.
   const providerEntry = catalogue.providers.find((entry) => entry.name === form.provider);
   const knownModels = catalogue.models[form.provider] ?? [];
   const freeText = providerEntry?.free_text_model ?? false;
@@ -618,7 +610,7 @@ function SpaceForm({
                             const { [tool.name]: _dropped, ...rest } = form.tool_policies ?? {};
                             const chosen = changed.target.value;
                             const next = chosen === "" ? rest : { ...rest, [tool.name]: chosen as ToolPolicy };
-                            // Nothing of its own left: back to inheriting outright.
+                            // No local overrides remain; restore full inheritance.
                             set("tool_policies", Object.keys(next).length === 0 ? null : next);
                           }}
                         >
@@ -661,7 +653,7 @@ function SpaceForm({
   );
 }
 
-/** Archive or delete, kept apart from the form so a click here never submits it. */
+/** Archive/delete outside form so clicks never submit it. */
 function DangerZone({
   space,
   onChanged,

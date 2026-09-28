@@ -1,12 +1,9 @@
 -- Migration 009 - scheduled runs (BUILD_SPEC §5 Phase 13).
 --
--- A schedule belongs to one space and starts runs in it while the app is
--- open. `next_run_at` is the one moving part: the scheduler reads the rows
--- that are due, launches each once, and moves it to the following occurrence.
--- Times are stored in UTC. The cadence is in the machine's local time, so
--- the next occurrence is always recomputed from the cadence and the clock
--- rather than added to the previous time, and a clock change or a DST switch
--- cannot accumulate drift.
+-- Each schedule launches runs in its space while the app is open. The scheduler
+-- launches due rows once, then advances `next_run_at`. Store times in UTC, but
+-- recompute local-time cadence from the clock to prevent DST or clock-change
+-- drift.
 
 CREATE TABLE schedules (
   id            TEXT PRIMARY KEY,
@@ -19,7 +16,7 @@ CREATE TABLE schedules (
   next_run_at   TEXT,                                 -- UTC; NULL while disabled
   last_run_at   TEXT,
   last_run_id   TEXT REFERENCES runs(id) ON DELETE SET NULL,
-  last_outcome  TEXT,                                 -- what the scheduler last did, in words
+  last_outcome  TEXT,                                 -- scheduler's last action
   created_at    TEXT NOT NULL,
   updated_at    TEXT NOT NULL
 );

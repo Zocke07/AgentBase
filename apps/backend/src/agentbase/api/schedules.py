@@ -1,8 +1,7 @@
-"""Schedule endpoints: CRUD over `schedules`, a run-now, and a cadence preview.
+"""Schedule CRUD, run-now, and cadence-preview endpoints.
 
-The rules live in :mod:`agentbase.store.schedules`; this maps each refusal
-to a status code and a `{message, field}` body, and nudges the scheduler
-after every write so a new time is honoured without waiting for its poll.
+:mod:`agentbase.store.schedules` owns the rules; this maps refusals to
+``{message, field}`` responses and wakes the scheduler after every write.
 """
 
 from __future__ import annotations
@@ -36,7 +35,7 @@ __all__ = ["router"]
 
 router = APIRouter()
 
-#: How many coming times a preview lists: enough to show a weekly pattern.
+#: Preview occurrence count: enough to show a weekly pattern.
 PREVIEW_COUNT = 3
 
 
@@ -47,12 +46,12 @@ class CreateScheduleRequest(BaseModel):
     cadence: Cadence
     missed: MissedPolicy = "run_on_launch"
     enabled: bool = True
-    #: A time limit for this schedule's runs; ``None`` inherits the space's.
+    #: Run time limit; ``None`` inherits the space limit.
     max_run_seconds: int | None = Field(default=None, ge=1)
 
 
 class UpdateScheduleRequest(BaseModel):
-    """A partial update; fields left out are untouched."""
+    """Partial update; omitted fields remain unchanged."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -65,7 +64,7 @@ class UpdateScheduleRequest(BaseModel):
 
 
 class ScheduleResponse(Schedule):
-    """A schedule, plus its cadence in words so every screen says the same thing."""
+    """Schedule plus a shared human-readable cadence."""
 
     summary: str
 
@@ -75,10 +74,10 @@ class PreviewRequest(BaseModel):
 
 
 class SchedulePreview(BaseModel):
-    """What a cadence means, before it is saved."""
+    """Cadence preview before saving."""
 
     summary: str
-    #: The next few times it names, in UTC; the UI shows them in local time.
+    #: Upcoming UTC times; the UI converts them to local time.
     next: list[datetime]
 
 
@@ -109,7 +108,7 @@ def _respond(schedule: Schedule) -> ScheduleResponse:
 async def list_schedules(
     request: Request, space_id: str | None = None
 ) -> list[ScheduleResponse]:
-    """Every schedule, or one space's."""
+    """List every schedule or one space's schedules."""
     return [_respond(schedule) for schedule in await _schedules(request).list_all(space_id)]
 
 
@@ -160,7 +159,7 @@ async def delete_schedule(request: Request, schedule_id: str) -> Response:
 
 @router.post("/schedules/{schedule_id}/run", status_code=201)
 async def run_schedule_now(request: Request, schedule_id: str) -> Run:
-    """Start this schedule's run right now, leaving its next time as it was."""
+    """Start this schedule now without changing its next time."""
     store = _schedules(request)
     try:
         schedule = await store.require(schedule_id)
@@ -185,7 +184,7 @@ async def run_schedule_now(request: Request, schedule_id: str) -> Run:
 
 @router.post("/schedules/preview")
 async def preview_schedule(request: Request, body: PreviewRequest) -> SchedulePreview:
-    """The cadence in words and its next few times, for the editor before a save."""
+    """Preview a cadence's wording and upcoming times before saving."""
     store = _schedules(request)
     upcoming: list[datetime] = []
     after = store.now()

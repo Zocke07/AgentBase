@@ -15,7 +15,7 @@
     "noEmit": true,
     "skipLibCheck": true,
 
-    /* Strictness: the frontend half of `just check`. */
+    /* Frontend strictness for `just check`. */
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
@@ -26,8 +26,8 @@
     "exactOptionalPropertyTypes": true,
     "useUnknownInCatchVariables": true,
 
-    /* BUILD_SPEC §5 Phase 0: Windows and macOS filesystems are
-       case-insensitive, Linux CI is not. Catch the mismatch locally. */
+    /* BUILD_SPEC §5 Phase 0: catch Windows/macOS path-case mismatches before
+       Linux CI. */
     "forceConsistentCasingInFileNames": true
   },
   "include": ["src", "vite.config.ts", "vitest.config.ts"]

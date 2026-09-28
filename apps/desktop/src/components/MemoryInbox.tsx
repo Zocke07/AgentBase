@@ -4,10 +4,9 @@ import { Markdown } from "./Markdown";
 import { MemoryStatusBar } from "./MetricBar";
 
 /**
- * The memory inbox: a run's outcome or an agent's proposal starts as
- * `proposed`, and is retrieved only once a person approves or pins it. The
- * inbox also archives, merges (originals archived and backed up) and forgets
- * memories, and shows where each came from.
+ * Memory inbox: run outcomes and agent proposals begin `proposed` and enter
+ * retrieval only after approval or pinning. Supports archive, backed-up merge,
+ * forgetting, and origin display.
  */
 
 export interface MemoryInboxProps {

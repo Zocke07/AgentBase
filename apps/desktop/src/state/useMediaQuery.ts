@@ -1,9 +1,8 @@
 import { useCallback, useSyncExternalStore } from "react";
 
 /**
- * Whether a CSS media query matches, kept current as the window changes.
- * Where `matchMedia` does not exist (the test environment) the answer is
- * false, so the wide layout is the one under test by default.
+ * Track a CSS media query as the window changes. Without `matchMedia` (tests),
+ * return false to test the wide layout by default.
  */
 export function useMediaQuery(query: string): boolean {
   const subscribe = useCallback(

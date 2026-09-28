@@ -1,11 +1,8 @@
-"""Tests for the orchestration loop.
+"""Orchestration-loop tests.
 
-§5 Phase 4's second clause, "the full event log alone is sufficient to
-reconstruct exactly what happened", is the one that is easy to fake, so every
-assertion goes through `reconstruct` in `tests/support.py`, which reads only
-event rows, and `test_dropping_*` proves each assertion depends on the events
-it claims to. Workers are rows of `agent_defs` selected by name; the scripts
-spawn the seeded `researcher` and `writer`.
+§5 Phase 4 requires the event log alone to reconstruct a run. Assertions use
+``reconstruct`` from ``tests/support.py``, and ``test_dropping_*`` proves each
+claim depends on its named events. Scripts select seeded ``agent_defs`` workers.
 """
 
 from __future__ import annotations
@@ -36,19 +33,16 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.anyio
 
-#: The roles migration 003 seeds. Asserted rather than inlined so that a change
-#: to a built-in's wording fails here loudly instead of silently weakening the
-#: claim that a worker's role comes from its definition.
+#: Migration 003 roles. Keep these named so wording changes cannot weaken
+#: proof that workers use their stored definitions.
 RESEARCHER_ROLE = "Gathers facts and figures, and reports them without embellishment"
 WRITER_ROLE = "Turns findings into clear prose for the reader"
 
 
 # --- driving a run -----------------------------------------------------------
 #
-# The `store`, `settings`, `agents`, `ledger` and `secrets` fixtures live in
-# `conftest.py`: Phase 5 added two more modules that drive runs, and three
-# copies of the same fixture is three places to forget when a store grows a
-# dependency.
+# Run-driving fixtures live in ``conftest.py`` to avoid divergent copies as
+# dependencies grow.
 
 
 async def drive(
@@ -127,8 +121,7 @@ async def test_a_two_worker_run_completes_end_to_end(
     assert set(rebuilt.agents) == {"supervisor", "researcher", "writer"}
     assert rebuilt.outcome == "Q3 revenue rose 12% QoQ. Churn held at 2.1%."
 
-    # And the run row agrees with what the log says. If these ever disagree,
-    # the log is not a faithful projection and everything else here is theatre.
+    # The durable row and reconstructed log must agree.
     row = await store.get_run(run_id)
     assert row is not None
     assert row.status == rebuilt.status
@@ -144,8 +137,7 @@ async def test_each_worker_ran_and_reported(
     _, rebuilt = await drive(store, settings, agents, ledger, secrets, TWO_WORKER_SCRIPT)
 
     researcher = rebuilt.agent("researcher")
-    # The role came from the `agent_defs` row, not from anything the model
-    # said: §5 Phase 5's whole point.
+    # Roles come from ``agent_defs``, not model output (§5 Phase 5).
     assert researcher.role == RESEARCHER_ROLE
     assert researcher.definition_name == "researcher"
     assert researcher.finished_reason == "finished"
@@ -197,10 +189,7 @@ async def test_the_cost_of_each_model_call_is_in_the_log(
     secrets: SecretStore,
     db: Database,
 ) -> None:
-    """What a run cost was in the `spend` table and nowhere a person could see
-    it: `llm.response` carried tokens and not money. The budget wrapper knows
-    the figure the moment it records it, so the event carries it too, and the
-    log's total is the ledger's total for the run."""
+    """Log each model-call cost so reconstructed and ledger run totals agree."""
     run_id, rebuilt = await drive(store, settings, agents, ledger, secrets, TWO_WORKER_SCRIPT)
 
     costs = [
@@ -241,11 +230,7 @@ async def test_the_models_reasoning_reaches_the_log_beside_its_answer(
     ledger: BudgetLedger,
     secrets: SecretStore,
 ) -> None:
-    """A model that reasons at length and answers with nothing used to leave
-    a log that said it produced nothing: Phase 5 watched `qwen3:4b` do it
-    five times running. `llm.response` carries `thinking` now: `None` when
-    the provider exposed no reasoning, the text when it did, so a replay can
-    tell "said nothing" from "thought, then said nothing"."""
+    """Log provider reasoning separately so replay distinguishes silence from thought."""
     script = [
         says("", thinking="The goal is done already; I should finish."),
         says("Done.", call("finish", summary="nothing to do")),
@@ -282,10 +267,8 @@ async def test_the_run_starts_with_its_limits_recorded(
 
 # --- the acceptance criterion, second clause ---------------------------------
 #
-# Each of these drops one kind of event from the log and re-runs the same
-# reconstruction. If the assertion above still passed, it was never reading
-# that event, and the "sufficient to reconstruct" claim was resting on
-# something other than the log.
+# Drop one event kind and reconstruct again. A passing claim must depend on the
+# event it names, not hidden state.
 
 
 async def test_dropping_agent_spawned_loses_who_the_agents_were(
@@ -358,8 +341,7 @@ async def test_dropping_the_terminal_event_leaves_the_run_unfinished(
     ledger: BudgetLedger,
     secrets: SecretStore,
 ) -> None:
-    """The one that matters most: without it a replay cannot say the run ended,
-    and the SSE stream has nothing to close on."""
+    """Without a terminal event, replay stays running and SSE has nothing to close."""
     run_id, _ = await drive(store, settings, agents, ledger, secrets, TWO_WORKER_SCRIPT)
     events = await store.read(run_id)
 
@@ -370,12 +352,7 @@ async def test_dropping_the_terminal_event_leaves_the_run_unfinished(
 
 
 async def test_the_mailbox_reads_the_log_not_a_variable(store: EventStore) -> None:
-    """The supervisor learns a worker's result by reading SQLite.
-
-    Asserted directly against `Mailbox`, because the property is what makes the
-    log load-bearing rather than decorative: an `agent.message` that was never
-    appended is a result that does not exist.
-    """
+    """Make the supervisor read worker results from SQLite, never transient state."""
     run_row = await store.create_run(goal="mailbox")
     run = Run(store=store, id=run_row.id, goal="mailbox", limits=RunLimits())
     mailbox = Mailbox(run)
@@ -397,8 +374,7 @@ async def test_an_agent_that_never_finishes_stops_at_the_step_limit(
     ledger: BudgetLedger,
     secrets: SecretStore,
 ) -> None:
-    """§4 has no `agent.failed`, so the step limit completes the *agent* with a
-    reason rather than failing it."""
+    """§4 has no ``agent.failed``; step limit completes the agent with a reason."""
     await settings.update({"max_steps_per_agent": 3})
     script = [says("Thinking about it.") for _ in range(3)]
 
@@ -416,14 +392,9 @@ async def test_a_supervisor_that_runs_out_of_steps_fails_the_run(
     ledger: BudgetLedger,
     secrets: SecretStore,
 ) -> None:
-    """The agent completing is not the run succeeding.
+    """Fail the run when its supervisor hits a step limit without ``finish``.
 
-    Found by running a local model, which hit the agent cap twice and then ran
-    out of steps. The run was reported `completed` with the summary
-    "supervisor stopped after 4 steps with no result": a terminal event that
-    says the run worked when it did not, which is exactly the drift between the
-    log and reality that §2 exists to prevent. A supervisor that never called
-    `finish` did not answer the goal, whatever its workers managed.
+    Agent completion alone does not answer the goal or justify ``completed``.
     """
     await settings.update({"max_steps_per_agent": 3})
     script = [says("Thinking about it.") for _ in range(3)]
@@ -443,12 +414,7 @@ async def test_a_worker_hitting_the_step_limit_does_not_fail_the_run(
     ledger: BudgetLedger,
     secrets: SecretStore,
 ) -> None:
-    """The distinction the previous test turns on.
-
-    A worker running out of steps is a subtask that went badly; the supervisor
-    still sees its partial result and can finish. Only the supervisor giving up
-    means the run gave up.
-    """
+    """A worker step limit can leave the supervisor enough to complete the run."""
     await settings.update({"max_steps_per_agent": 3})
     script = [
         says("Delegating.", call("spawn_agent", "c1", agent="researcher", task="t")),
@@ -472,11 +438,11 @@ async def test_a_cut_off_answer_is_not_run_as_a_broken_call(
     ledger: BudgetLedger,
     secrets: SecretStore,
 ) -> None:
-    """A model that hit the output limit mid call sent half a call. Seen on
-    2026-09-19: the arguments parsed to nothing, the tool said "needs a
-    'path'", and the model retried the same oversized write at 68k tokens of
-    context, eight times. Now the call is not run, the log says why, and the
-    model is told to write less at a time."""
+    """Do not execute a tool call truncated by the output limit.
+
+    Log why and tell the model to write less; partial arguments once caused
+    repeated oversized retries.
+    """
     script = [
         says("Delegating.", call("spawn_agent", "c1", agent="researcher", task="t")),
         says("Writing everything.", call("write_file", "w1"), stop_reason="max_tokens"),
@@ -502,10 +468,7 @@ async def test_an_agent_that_fails_the_same_way_three_times_is_stopped(
     ledger: BudgetLedger,
     secrets: SecretStore,
 ) -> None:
-    """The same failure again is a model that has stopped learning from the
-    reply; each retry costs a full context window. Three in a row ends the
-    agent with a reason the supervisor can act on, well short of the step
-    limit, and a different failure in between starts the count over."""
+    """Stop an agent after three consecutive identical failures; reset on a different one."""
     await settings.update({"max_steps_per_agent": 12})
     script = [
         says("Delegating.", call("spawn_agent", "c1", agent="researcher", task="t")),
@@ -522,10 +485,7 @@ async def test_an_agent_that_fails_the_same_way_three_times_is_stopped(
 
     researcher = rebuilt.agent("researcher")
     assert researcher.finished_reason == "stuck"
-    # The researcher may not write, so each write is a refusal, the same one
-    # every time. Four were refused, but the read between the first and the
-    # second started the count over; the third consecutive refusal stopped
-    # the agent, so the fifth write never happened.
+    # A read resets the refusal streak; the third later refusal stops the agent.
     assert researcher.denied_tools == ["write_file"] * 4
     assert len(researcher.tool_errors) == 1
     assert rebuilt.status == "completed"
@@ -539,8 +499,7 @@ async def test_an_agent_that_repeats_the_identical_call_is_stopped(
     ledger: BudgetLedger,
     secrets: SecretStore,
 ) -> None:
-    """A call that succeeds and is made again with the same arguments is a
-    loop as surely as one that fails: the third identical one stops the agent."""
+    """Stop an agent after its third identical call, even when prior calls succeed."""
     await settings.update({"max_steps_per_agent": 12})
     script = [
         says("Delegating.", call("spawn_agent", "c1", agent="researcher", task="t")),
@@ -555,7 +514,7 @@ async def test_an_agent_that_repeats_the_identical_call_is_stopped(
     _, rebuilt = await drive(store, settings, agents, ledger, secrets, script)
 
     assert rebuilt.agent("supervisor").finished_reason == "stuck"
-    # The supervisor giving up is the run giving up, as with its step limit.
+    # Supervisor exhaustion fails the run, as with its step limit.
     assert rebuilt.status == "failed"
     assert "the same call with the same arguments" in (rebuilt.outcome or "")
 
@@ -567,13 +526,11 @@ async def test_a_run_that_spends_its_cost_limit_fails(
     ledger: BudgetLedger,
     secrets: SecretStore,
 ) -> None:
-    """The per-run ceiling, checked from the ledger before each model call
-    like the deadline: a run that has spent it stops where it stands, and the
-    reason names the figures. The monthly cap is untouched by this."""
+    """Enforce the per-run ledger ceiling before each model call; leave monthly cap intact."""
     await settings.update({"max_run_cost_micros": 4_000_000})
     script = [
         says("Delegating.", call("spawn_agent", "c1", agent="researcher", task="t")),
-        # A million input tokens of claude-opus-5: $5.00, past the $4.00 ceiling.
+        # One million claude-opus-5 input tokens cost $5.00, past the $4.00 cap.
         says(
             "Reading everything.", call("read_file", "w1", path="a.md"), input_tokens=1_000_000
         ),
@@ -614,12 +571,7 @@ async def test_a_run_that_outlives_its_deadline_fails(
     ledger: BudgetLedger,
     secrets: SecretStore,
 ) -> None:
-    """The wall-clock limit, driven by an injected clock rather than by waiting.
-
-    The clock reads 0 when the run starts and 999 at the supervisor's first
-    deadline check, so the run is already over its 30s limit before a single
-    model call goes out.
-    """
+    """Drive wall-clock limit with an injected clock before any model call."""
     await settings.update({"max_run_seconds": 30})
 
     _, rebuilt = await drive(
@@ -629,7 +581,7 @@ async def test_a_run_that_outlives_its_deadline_fails(
     assert rebuilt.status == "failed"
     assert rebuilt.outcome is not None
     assert "time limit of 30s" in rebuilt.outcome
-    # Stopped before doing any work: no worker, and no model call billed.
+    # Stop before workers or billable calls.
     assert set(rebuilt.agents) == {"supervisor"}
     assert rebuilt.input_tokens == 0
 
@@ -690,8 +642,7 @@ async def test_a_run_over_the_cap_fails_with_the_reason_in_the_log(
     ledger: BudgetLedger,
     secrets: SecretStore,
 ) -> None:
-    """Phase 3 could only assert this at the wrapper. Now it is observable as a
-    run outcome, which is how a user actually meets it."""
+    """Expose monthly-cap refusal as a user-facing run outcome."""
     await settings.update({"monthly_cap_micros": 1})
 
     _, rebuilt = await drive(store, settings, agents, ledger, secrets, TWO_WORKER_SCRIPT)
@@ -700,7 +651,7 @@ async def test_a_run_over_the_cap_fails_with_the_reason_in_the_log(
     assert rebuilt.outcome is not None
     assert "monthly budget" in rebuilt.outcome
     assert "budget.exceeded" in rebuilt.budget_events
-    # Nothing ran: the refusal happened before the first model call.
+    # Refuse before the first model call.
     assert rebuilt.input_tokens == 0
 
 
@@ -711,12 +662,10 @@ async def test_an_unknown_tool_name_is_reported_not_fatal(
     ledger: BudgetLedger,
     secrets: SecretStore,
 ) -> None:
-    """A model naming a tool that does not exist gets told what it may use.
+    """Report an unknown tool name without failing the run.
 
-    The name here has to be one the tool catalogue does not know. `read_file`
-    used to serve (it was unknown to Phase 4), but Phase 5 registers it, so it
-    is now a real tool the supervisor is *denied* rather than a name that means
-    nothing. The next test covers that case; this one keeps covering this one.
+    Use a name absent from the catalogue; registered-but-disallowed tools are a
+    different case.
     """
     script = [
         says("Trying.", call("consult_the_oracle", "c1", question="what is Q3?")),
@@ -737,12 +686,7 @@ async def test_the_supervisor_cannot_reach_the_tool_catalogue(
     ledger: BudgetLedger,
     secrets: SecretStore,
 ) -> None:
-    """The supervisor has no `allowed_tools`, and that is a boundary.
-
-    It is the one agent present in every run and the one a user cannot edit, so
-    it is also the one that must never be able to touch anything. It delegates;
-    the agents it delegates to are the ones whose permissions a user controls.
-    """
+    """Keep the non-user-editable supervisor tool-free; it delegates to permitted workers."""
     script = [
         says("I will just do it myself.", call("write_file", "c1", path="out.md", content="x")),
         says("Fine.", call("finish", "c2", result="delegated after all")),
@@ -783,11 +727,9 @@ async def test_a_worker_handoff_tells_the_supervisor_how_to_continue_it(
     ledger: BudgetLedger,
     secrets: SecretStore,
 ) -> None:
-    """A worker cannot spawn (that would let any agent widen the run from
-    inside its own turn), so a handoff goes back to the supervisor as text.
-    Phase 4 through Phase 6 recorded that nothing asserted the supervisor
-    then did anything sensible with it. What it is handed now is explicit:
-    who asked for whom, and that `spawn_agent` with that name continues it.
+    """Route worker handoffs through the supervisor, which alone may spawn.
+
+    Its transcript names requester, target, and the ``spawn_agent`` continuation.
     """
     script = [
         says("Delegating.", call("spawn_agent", "c1", agent="researcher", task="find it")),
@@ -804,8 +746,7 @@ async def test_a_worker_handoff_tells_the_supervisor_how_to_continue_it(
     assert ("supervisor", "writer", "write it up") in rebuilt.handoffs
     assert rebuilt.agent("writer").finished_reason == "finished"
 
-    # The supervisor's spawn result says what the worker asked for, and the
-    # transcript it was handed next names the call that continues it.
+    # Spawn result and next transcript preserve the handoff continuation.
     events = await store.read(run_id)
     spawn_results = [
         e.payload
@@ -832,10 +773,7 @@ async def test_a_handoff_to_an_agent_not_on_the_roster_says_so(
     ledger: BudgetLedger,
     secrets: SecretStore,
 ) -> None:
-    """Phase 6 watched a denied worker hand off to a nonexistent
-    `another_agent` and the supervisor do nothing with it. The supervisor
-    is told the name is not on the roster and what is, so its next call can
-    be a sensible one rather than a spawn that fails."""
+    """Tell the supervisor when a handoff target is absent and list available agents."""
     script = [
         says("Delegating.", call("spawn_agent", "c1", agent="researcher", task="find it")),
         says("Someone else.", call("handoff", "c2", to="another_agent", task="do it")),
@@ -875,14 +813,13 @@ async def test_a_worker_is_not_offered_spawn_agent(
     ledger: BudgetLedger,
     secrets: SecretStore,
 ) -> None:
-    """A worker that could spawn could widen the run's shape from inside its
-    own turn, and the agent cap would stop describing what a run can do."""
+    """Workers cannot spawn because that would widen the run beyond its declared cap."""
     provider = ScriptedProvider(TWO_WORKER_SCRIPT)
     run = await store.create_run(goal="g")
 
     await execute_run(store, settings, agents, ledger, secrets, run.id, "g", provider=provider)
 
-    # Call 0 is the supervisor, call 1 the first worker.
+    # Call 0 is supervisor; call 1 is first worker.
     assert "spawn_agent" in provider.offered_tools[0]
     assert "spawn_agent" not in provider.offered_tools[1]
     assert "finish" in provider.offered_tools[1]
@@ -890,29 +827,17 @@ async def test_a_worker_is_not_offered_spawn_agent(
 
 # --- backpressure ------------------------------------------------------------
 #
-# CLAUDE.md recorded this as unverified after Phase 2: "no HTTP client has ever
-# overflowed a 512-event queue, because nothing yet emits events fast enough.
-# Revisit when Phase 4 streams `llm.token` at model speed; that is the first
-# thing that plausibly outruns a subscriber."
-#
-# This is that revisit. A subscriber queue holds 512 events; one streamed model
-# response here produces well over that, and the consumer deliberately stops
-# reading while they are produced. The bus drops the buffer of a subscriber it
-# cannot keep up with, which is safe *only* because the durable row makes the
-# buffered copy worthless and the stream re-reads the range from SQLite. If that
-# resync were wrong, this is the test that shows it, as a gap or a duplicate in
-# what the client receives.
+# This revisits Phase 2's untested queue-overflow concern. A 512-event
+# subscriber buffer overflows while this consumer pauses. Safety relies on
+# re-reading durable SQLite rows after a dropped buffer; this test exposes a
+# resync gap or duplicate.
 
 
 FLOOD_WORDS = 900
 
 
 def flood_script() -> list[Completion]:
-    """One long streamed answer, then a `finish`.
-
-    Long enough that the `llm.token` events alone exceed the queue by a wide
-    margin, so the overflow is not a near-miss that passes by luck.
-    """
+    """Generate enough ``llm.token`` events to overflow the queue decisively."""
     return [
         says(" ".join(f"word{i}" for i in range(FLOOD_WORDS))),
         says("Done.", call("finish", "c1", result="flood complete")),
@@ -927,29 +852,20 @@ async def test_a_token_flood_reaches_a_slow_subscriber_without_gaps(
     ledger: BudgetLedger,
     secrets: SecretStore,
 ) -> None:
-    """A subscriber that stops reading must still receive every event, once.
+    """A stalled subscriber must receive each event exactly once after overflow.
 
-    The stream is consumed directly rather than over HTTP because httpx's ASGI
-    transport buffers a response body to completion before handing it back -
-    so an in-process HTTP client cannot read a stream while the run producing
-    it is still going. That is a limitation of the test transport, not of the
-    server; the HTTP framing above this generator is covered by the Phase 2
-    tests. What was never covered, and is covered here, is the resync path
-    running because a queue actually overflowed.
+    Consume the generator directly: httpx's ASGI transport buffers responses,
+    while Phase 2 covers HTTP framing. This exercises actual queue-overflow
+    resync.
     """
     run = await store.create_run(goal="flood", origin="ui")
 
     stream = run_stream(store, bus, run.id, 0)
 
-    # The first item is the retry hint, and pulling it is what subscribes this
-    # client to the bus. Subscribing has to happen before the flood, or the
-    # test measures a backlog replay instead of an overflow.
+    # Pulling retry subscribes before flood; otherwise this only tests backlog replay.
     assert (await anext(stream)).startswith("retry:")
 
-    # A second subscriber that never reads, held only to prove the queue really
-    # did overflow. Without it this test could pass having measured nothing:
-    # "more than 512 events arrived" is not the same claim as "a subscriber was
-    # dropped and the stream recovered by re-reading SQLite".
+    # An idle subscriber proves a buffer dropped; event count alone cannot.
     with bus.subscribe(run.id) as idle:
         await execute_run(
             store,

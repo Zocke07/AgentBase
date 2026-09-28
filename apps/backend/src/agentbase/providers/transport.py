@@ -1,9 +1,8 @@
-"""Shared HTTP plumbing for the provider implementations.
+"""Shared HTTP plumbing for provider implementations.
 
-Raw HTTP rather than the vendor SDKs: normalizing usage and tool calls is
-required either way, and two SDK dependency trees in a `--onefile` binary buy
-hidden-import problems at freeze time. Nothing here logs a body or a header:
-bodies carry prompts and headers carry the key.
+Use raw HTTP: normalization is required either way, while vendor SDK trees in
+a ``--onefile`` binary create hidden-import freeze issues. Never log bodies
+(prompts) or headers (keys).
 """
 
 from __future__ import annotations
@@ -30,15 +29,12 @@ __all__ = [
     "stream_sse",
 ]
 
-#: Generous, since a large completion takes minutes; bounded, since a hung
-#: request with no ceiling wedges the run with nothing to see.
+#: Allow large completions minutes, but bound hung requests that wedge runs.
 DEFAULT_TIMEOUT_SECONDS: Final[float] = 120.0
 
 
 def _raise_for_status(response: httpx2.Response, provider: str) -> None:
-    """Map an HTTP status onto the provider error taxonomy: retryable or not, nothing vendor-
-    specific.
-    """
+    """Map HTTP status to retryable/nonretryable provider errors without vendor types."""
     status = response.status_code
     if status < 400:
         return
@@ -69,10 +65,7 @@ def _raise_for_status(response: httpx2.Response, provider: str) -> None:
 
 
 def _error_detail(response: httpx2.Response) -> str:
-    """Best-effort human-readable reason from an error body.
-
-    Every provider nests it somewhere different.
-    """
+    """Extract best-effort human-readable error reason; providers nest it differently."""
     try:
         body: Any = response.json()
     except ValueError:
@@ -100,9 +93,9 @@ async def post_json(
     headers: Mapping[str, str],
     provider: str,
 ) -> dict[str, Any]:
-    """POST ``payload`` and return the decoded JSON object.
+    """POST ``payload`` and return decoded JSON.
 
-    Transport failures become :class:`ProviderUnavailableError`.
+    :class:`ProviderUnavailableError` wraps transport failures.
     """
     try:
         response = await client.post(url, json=dict(payload), headers=dict(headers))
@@ -135,10 +128,9 @@ async def _stream_lines(
     headers: Mapping[str, str],
     provider: str,
 ) -> AsyncIterator[str]:
-    """POST and yield response lines as they arrive.
+    """POST and yield response lines.
 
-    On a streamed error the body is unread when the status arrives, so it is
-    ``aread()`` first or the 401 reports an empty reason.
+    Read streamed error bodies before status handling so 401s retain reasons.
     """
     try:
         async with client.stream(
@@ -165,11 +157,10 @@ async def stream_sse(
     headers: Mapping[str, str],
     provider: str,
 ) -> AsyncIterator[dict[str, Any]]:
-    """Yield the decoded ``data:`` objects of a Server-Sent Events response.
+    """Yield decoded ``data:`` objects from Server-Sent Events.
 
-    The ``event:`` line is ignored and the discriminator read from the body,
-    so a chunk type this adapter was not written for is not silently dropped.
-    Non-JSON lines (comments, separators, ``[DONE]``) are framing and skipped.
+    Ignore ``event:`` and read body discriminator so unknown chunk types are
+    not silently dropped. Skip non-JSON framing (comments, separators, ``[DONE]``).
     """
     async for line in _stream_lines(client, url, payload, headers, provider):
         if not line.startswith("data:"):
@@ -195,10 +186,9 @@ async def stream_ndjson(
     headers: Mapping[str, str],
     provider: str,
 ) -> AsyncIterator[dict[str, Any]]:
-    """Yield the decoded objects of a newline-delimited JSON response.
+    """Yield decoded newline-delimited JSON objects.
 
-    A malformed line is an error here: NDJSON has no framing to skip, so
-    dropping one would lose content rather than a keep-alive.
+    Malformed lines are errors: unlike framing, dropping one loses content.
     """
     async for line in _stream_lines(client, url, payload, headers, provider):
         stripped = line.strip()

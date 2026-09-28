@@ -1,13 +1,12 @@
-"""The control vocabulary an agent uses to end its turn or delegate.
+"""Agent control vocabulary for ending turns and delegation.
 
-Not tools, and not in `tools/`: these calls touch nothing (they end a turn,
-hand work over, or ask for a worker to exist), so they pass no gate, and
-"is this gated?" is answered by which module a call lives in. Anything that
-reads a file or opens a socket goes in `tools/`, where the gate is unavoidable.
+These calls are not ``tools/`` tools: they end turns, hand off work, or spawn
+workers without touching resources, so they bypass the gate. File/socket calls
+belong in ``tools/``, where gating is unavoidable.
 
-The control vocabulary is not subject to `allowed_tools`: an empty allowlist
-still reasons and hands off. Which control calls an agent has is decided by
-what it is (a worker lacks `spawn_agent`), and enforced in `Agent._permit`.
+Control vocabulary ignores ``allowed_tools`` so empty allowlists still reason
+and hand off. Agent kind decides held calls (workers lack ``spawn_agent``),
+enforced by :meth:`Agent._permit`.
 """
 
 from __future__ import annotations
@@ -76,9 +75,8 @@ HANDOFF: Final[ToolSpec] = ToolSpec(
     },
 )
 
-#: `agent` names a row in `agent_defs`; the role, prompt, model and allowlist
-#: come from that row, never from the model. The roster is in the supervisor's
-#: system prompt because it differs per run.
+#: ``agent`` names an ``agent_defs`` row; role, prompt, model, and allowlist
+#: come from it, never model input. Roster lives in per-run supervisor prompt.
 SPAWN_AGENT: Final[ToolSpec] = ToolSpec(
     name="spawn_agent",
     description=(
@@ -107,20 +105,20 @@ SPAWN_AGENT: Final[ToolSpec] = ToolSpec(
     },
 )
 
-#: What a worker may call, before its definition's `allowed_tools` are added.
+#: Worker controls before definition ``allowed_tools`` are added.
 WORKER_TOOLS: Final[list[ToolSpec]] = [FINISH, HANDOFF]
 
-#: What the supervisor may call. It has no `allowed_tools` and never reaches the catalogue.
+#: Supervisor controls; it has no ``allowed_tools`` or catalogue access.
 SUPERVISOR_TOOLS: Final[list[ToolSpec]] = [SPAWN_AGENT, FINISH]
 
-#: The control calls each kind of agent has. Names, separate from the
-#: `ToolSpec` lists: those decide what a model is shown, these what it may do.
+#: Control names held by each agent kind. Unlike ``ToolSpec`` lists that show
+#: models options, these enforce what may run.
 WORKER_CONTROL_NAMES: Final[frozenset[str]] = frozenset({FINISH.name, HANDOFF.name})
 SUPERVISOR_CONTROL_NAMES: Final[frozenset[str]] = WORKER_CONTROL_NAMES | {SPAWN_AGENT.name}
 
 
 def catalogue_specs(tools: Iterable[Tool]) -> list[ToolSpec]:
-    """Offer catalogue tools to a model as `ToolSpec`s, from each tool's own `input_schema`."""
+    """Expose catalogue tools as ``ToolSpec`` values using their input schemas."""
     return [
         ToolSpec(
             name=tool.name,

@@ -1,35 +1,24 @@
 -- Migration 010 - the default space ships the investment research roster.
 --
--- The maintainer's decision of 2026-09-19: a fresh install's default space
--- holds the ten definitions of the investment pipeline (four collectors, a
--- portfolio accountant, a bull and a bear analyst, a risk manager, a daily
--- decision agent and a performance reviewer) rather than the three generic
--- roles migration 003 seeded. Those three remain, in Python, as the starter
--- roles a new space is seeded from; see `store/builtins.py`.
+-- Per the 2026-09-19 decision, a fresh default space gets ten investment
+-- pipeline definitions (four collectors, portfolio accountant, bull and bear
+-- analysts, risk manager, daily decision agent, and performance reviewer)
+-- instead of 003's generic roles. Those remain Python starter roles for new
+-- spaces; see `store/builtins.py`.
 --
--- The rows are seeded here for the reason 003 gives: a migration runs exactly
--- once, so "seeded and since edited" never has to be told apart from "never
--- seeded". Each has a fixed id so the shipped news-scanner is the same
--- identity on every machine. Each is `is_builtin = 1`: editable, disableable,
--- not deletable, like the roles it replaces.
+-- Seed here once, as 003 does, to avoid confusing edited rows with missing
+-- ones. Fixed IDs identify shipped agents across machines. `is_builtin = 1`
+-- keeps them editable and disableable, but not deletable.
 --
--- Two guards. A name already on the default roster wins: the user's row is
--- left alone and the shipped one is skipped, so nobody's own `decision`
--- agent is disturbed. The three generic roles leave the default space only
--- while they still hold exactly their shipped values (role, prompt, the
--- allowlist as 008 left it, no overrides, enabled); an edited one stays and
--- becomes deletable, wherever it was moved to, because it is the user's
--- definition now. A user who wants the generic roles back adds them with the
--- space's seed action.
+-- Two guards preserve user data. A default-roster name skips its shipped row.
+-- Generic roles leave only with their exact shipped role, prompt, 008 allowlist,
+-- no overrides, and enabled state. Edited roles remain, become deletable, and
+-- can be restored with the space seed action.
 --
--- Provider and model are explicit rather than inherited: the pipeline's cost
--- shape is Haiku for what runs often, Sonnet for reasoning and Opus once a
--- day, and that only holds if the row says so. `auto_approve` only ever
--- narrows the app-wide policy (`ToolRuntime.auto_approve_for`), so a seeded
--- list grants nothing; the reasoning agents are narrowed to low-risk calls.
--- Nothing seeded can call `run_shell`: three collectors read untrusted pages
--- with `http_get`, and a shell beside that text is the boundary the prompts
--- are written to keep closed.
+-- Explicit providers and models preserve the intended cost mix: frequent work
+-- uses Haiku, reasoning uses Sonnet, and daily work uses Opus. `auto_approve`
+-- only narrows `ToolRuntime.auto_approve_for`; reasoning agents allow low-risk
+-- calls. No seeded agent gets `run_shell`, isolating untrusted `http_get` text.
 
 -- --- the ten definitions ------------------------------------------------------
 

@@ -1,13 +1,7 @@
-"""`run_shell`: the highest-risk tool, and the one with the most honest limits.
+"""``run_shell``: high-risk command execution with bounded output and timeout.
 
-The hard timeout is real, and it kills the process *tree* (`taskkill /T` on
-Windows, a process-group signal on POSIX); killing only the direct child
-leaves the real command running. "No network" is not enforced and cannot be
-in-process cross-platform: a command that calls `curl` reaches the internet.
-§5 Phase 6's addendum puts real isolation in a container outside the shipped
-build; here the mitigation is that `run_shell` is `high` risk and always
-asks. The child gets a constructed environment from an allowlist, never a
-copy of the sidecar's, which holds API keys.
+Timeout kills the process tree. The child receives an allowlisted environment,
+not the sidecar's credential-bearing environment.
 """
 
 from __future__ import annotations
@@ -32,8 +26,7 @@ __all__ = ["MAX_OUTPUT_CHARS", "RunShellTool"]
 #: How much combined output reaches the model and the log.
 MAX_OUTPUT_CHARS: Final[int] = 20_000
 
-#: Environment variables the child may inherit: what `cmd.exe` and a shell
-#: need to start, and nothing else.
+#: Environment variables required to start a shell or ``cmd.exe``.
 _INHERITED_ENV: Final[tuple[str, ...]] = (
     "PATH",
     "SYSTEMROOT",
@@ -48,9 +41,9 @@ _INHERITED_ENV: Final[tuple[str, ...]] = (
 
 
 def _child_environment(workspace: str) -> dict[str, str]:
-    """Build the child's environment from the allowlist rather than filtering ours."""
+    """Build child environment from an allowlist rather than filtering ours."""
     environment = {name: os.environ[name] for name in _INHERITED_ENV if name in os.environ}
-    # Convenience, and a hint about where the command is running.
+    # Expose the workspace for command convenience.
     environment["AGENTBASE_WORKSPACE"] = workspace
     return environment
 
@@ -105,7 +98,7 @@ class RunShellTool:
             msg = f"{self.name} was given an empty command."
             raise ToolArgumentError(msg)
 
-        # The whole command, verbatim: it is the thing the user is asked to judge.
+        # Prompt shows the complete command verbatim.
         return Prepared(
             tool_name=self.name,
             summary=f"run the shell command: {command.strip()}",
@@ -124,7 +117,7 @@ class RunShellTool:
                 stdin=subprocess.DEVNULL,
                 cwd=sandbox.root,
                 env=_child_environment(str(sandbox.root)),
-                # POSIX: its own process group, so the whole tree can be signalled.
+                # POSIX process group lets timeout signal the whole tree.
                 start_new_session=sys.platform != "win32",
             )
         except OSError as exc:
@@ -148,10 +141,7 @@ class RunShellTool:
 
     @staticmethod
     async def _kill_tree(process: asyncio.subprocess.Process) -> None:
-        """Kill the command and everything it started.
-
-        `process.kill()` alone leaves the children running.
-        """
+        """Kill a command and its child processes."""
         if process.returncode is not None:
             return
 
@@ -171,23 +161,20 @@ class RunShellTool:
         else:
             import signal
 
-            # Already gone, or a group we may not signal; `process.kill()` below remains.
+            # Fall back to ``process.kill`` if the group cannot be signalled.
             with contextlib.suppress(ProcessLookupError, PermissionError):
                 os.killpg(os.getpgid(process.pid), signal.SIGKILL)
 
         with contextlib.suppress(ProcessLookupError):
             process.kill()
 
-        # Reap it, so the event loop does not warn about an abandoned transport.
+        # Reap the process to avoid an abandoned transport warning.
         with contextlib.suppress(TimeoutError):
             await asyncio.wait_for(process.wait(), timeout=5.0)
 
     @staticmethod
     def _format(returncode: int | None, output: str) -> str:
-        """Report the exit code alongside the output.
-
-        A non-zero exit is a result, not a `tool.error`.
-        """
+        """Return exit code and output; nonzero exit is not ``tool.error``."""
         body = output if output else "(no output)"
         if len(body) > MAX_OUTPUT_CHARS:
             body = (

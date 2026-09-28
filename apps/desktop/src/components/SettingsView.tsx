@@ -13,7 +13,7 @@ import type {
   VerifyResponse,
   WorkspaceSettings,
 } from "@agentbase/schemas";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
@@ -28,23 +28,20 @@ import { useFetched } from "../state/useFetched";
 import { Skeleton } from "./Skeleton";
 
 /**
- * The settings screen: every workspace setting, plus keys.
+ * Workspace settings and keys.
  *
- * Keys go to the OS keychain, not to the sidecar (§1 constraint 4): the
- * webview writes an entry the shell reads at the next spawn, so every key row
- * says "restart to apply" and the section offers the restart itself once a
- * key has changed, and which keys are set comes from `configured_secrets` by
- * name only. Save is a PATCH of what changed, diffed
- * against what the screen loaded, and a refusal lands on the field the
- * server named. Money is dollars here and integer micros on the wire.
+ * Webview writes OS-keychain entries (§1 constraint 4); shell reads them next
+ * spawn, so key changes require restart. `configured_secrets` exposes names
+ * only. PATCH changed fields, place refusals on their named inputs, and convert
+ * display dollars to integer wire micros.
  */
 
 export interface SettingsViewProps {
-  /** Called with the sidecar's reply after a save, so the shell can refresh. */
+  /** Receive save reply so shell can refresh. */
   onSaved: (settings: SettingsResponse) => void;
-  /** Every space, for choosing where a chat command's runs happen. */
+  /** Spaces for selecting chat-command run target. */
   spaces?: readonly SpaceResponse[];
-  /** Show the first-run tour again; absent where the shell has none. */
+  /** Replay first-run tour; absent without shell support. */
   onReplayTour?: (() => void) | undefined;
 }
 
@@ -57,15 +54,15 @@ interface Form {
   max_steps_per_agent: string;
   max_agents_per_run: string;
   max_run_seconds: string;
-  /** Dollars per run, as typed; "0" lifts the ceiling. */
+  /** Per-run dollars as typed; `0` lifts ceiling. */
   run_cap: string;
   auto_approve: RiskLevel[];
-  /** Per-tool answers; a tool absent here is "ask", decided by the risk levels. */
+  /** Per-tool answers; absent tools ask according to risk levels. */
   tool_policies: Record<string, ToolPolicy>;
   discord_enabled: boolean;
   channel_identities: ChannelIdentity[];
   channel_approvals: "dashboard_only" | "originator";
-  /** The space a chat command's runs happen in; "" is the default space. */
+  /** Chat-command run space; empty string selects default. */
   channel_space_id: string;
 }
 
@@ -105,21 +102,21 @@ function fromSettings(settings: WorkspaceSettings): Form {
 }
 
 /**
- * A field the generated type promises and an older sidecar does not send.
- * Typed as it may arrive, so the fallback beside it is a real branch.
+ * Generated field missing from older sidecars; type it as optional to retain
+ * the fallback branch.
  */
 function maybeAbsent<T>(value: T): T | undefined {
   return value;
 }
 
-/** Dollars typed by a person → whole micros. Never a float on the wire. */
+/** Convert typed dollars to whole micros; never send a float. */
 function dollarsToMicros(dollars: string): number | null {
   const parsed = Number(dollars.trim());
   if (!Number.isFinite(parsed) || parsed < 0) return null;
   return Math.round(parsed * MICROS_PER_DOLLAR);
 }
 
-/** The request for what differs between `opened` and `form`. */
+/** PATCH request for fields differing from `opened`. */
 function diff(opened: Form, form: Form): UpdateSettingsRequest {
   const patch: UpdateSettingsRequest = {};
   if (form.provider !== opened.provider) patch.provider = form.provider;
@@ -141,19 +138,19 @@ function diff(opened: Form, form: Form): UpdateSettingsRequest {
     patch.channel_identities = form.channel_identities;
   }
   if (form.channel_approvals !== opened.channel_approvals) patch.channel_approvals = form.channel_approvals;
-  // An empty string means the default space; null cannot travel in this PATCH.
+  // Empty selects default; PATCH cannot send null.
   if (form.channel_space_id !== opened.channel_space_id) patch.channel_space_id = form.channel_space_id;
   return patch;
 }
 
-/** What each stored secret is, in words; the stored name is shown beneath. */
+/** User-facing secret descriptions; retain stored name beneath. */
 const KEY_LABELS: Readonly<Record<string, string>> = {
   anthropic_api_key: "Anthropic API key",
   openai_api_key: "OpenAI API key",
   discord_bot_token: "Discord bot token",
 };
 
-/** The page's sections, in order, for the "On this page" bar. */
+/** Ordered page sections for "On this page" navigation. */
 const SETTINGS_SECTIONS: readonly { id: string; label: string }[] = [
   { id: "settings-provider", label: "Provider" },
   { id: "settings-keys", label: "Keys" },
@@ -165,15 +162,11 @@ const SETTINGS_SECTIONS: readonly { id: string; label: string }[] = [
 ];
 
 export function SettingsView({ onSaved, spaces = [], onReplayTour }: SettingsViewProps) {
-  const loadSettings = useCallback(() => api.getSettings(), []);
-  const loadCatalogue = useCallback(() => api.listProviders(), []);
-  const loadChannels = useCallback(() => api.getChannels(), []);
-  const loadTools = useCallback(() => api.listTools(), []);
-  const current = useFetched<SettingsResponse | null>(loadSettings, null);
-  const catalogue = useFetched(loadCatalogue, EMPTY_CATALOGUE);
-  const channels = useFetched(loadChannels, NO_CHANNELS);
-  const tools = useFetched(loadTools, NO_TOOLS);
-  // The reply to a save is the whole settings document; the form starts from it next.
+  const current = useFetched<SettingsResponse | null>(api.getSettings, null);
+  const catalogue = useFetched(api.listProviders, EMPTY_CATALOGUE);
+  const channels = useFetched(api.getChannels, NO_CHANNELS);
+  const tools = useFetched(api.listTools, NO_TOOLS);
+  // Reset form from full settings save reply.
   const [replied, setReplied] = useState<SettingsResponse | null>(null);
   const [saved, setSaved] = useState(false);
   const loaded = replied ?? current.data;
@@ -195,7 +188,7 @@ export function SettingsView({ onSaved, spaces = [], onReplayTour }: SettingsVie
         )
       ) : (
         <SettingsForm
-          // Start the form from whatever copy is newest.
+          // Start from newest settings copy.
           key={JSON.stringify(loaded.settings)}
           loaded={loaded}
           spaces={spaces}
@@ -226,9 +219,9 @@ interface SettingsFormProps {
   catalogue: ProviderCatalogueResponse;
   catalogueError: string | null;
   channels: readonly ChannelStatusResponse[];
-  /** The tool catalogue, for the per-tool answers. */
+  /** Tool catalog for per-tool answers. */
   tools: readonly ToolResponse[];
-  /** Whether the last save has not been edited since; shown beside the button. */
+  /** Whether form remains unchanged since last save. */
   saved: boolean;
   onReplayTour?: (() => void) | undefined;
   onEdited: () => void;
@@ -731,7 +724,7 @@ function SettingsForm({
   );
 }
 
-/** The version that answered, where its data lives, and the tour again. */
+/** Responding version, data location, and tour replay. */
 function AboutSection({
   version,
   dataDir,
@@ -790,7 +783,7 @@ function AboutSection({
   );
 }
 
-/** Light or dark: a fact about this window, kept in this browser, applied at once. */
+/** Per-window browser-persisted light/dark theme, applied immediately. */
 function AppearanceSection() {
   const theme = useThemeStore((state) => state.theme);
   const setTheme = useThemeStore((state) => state.setTheme);
@@ -833,10 +826,9 @@ function megabytes(bytes: number): string {
   return `${String(Math.round(bytes / 1_000_000))} MB`;
 }
 
-/** ChatGPT OAuth stays independent of saving the access-mode preference. */
+/** Keep ChatGPT OAuth independent of access-mode saving. */
 function ChatGPTAccount() {
-  const load = useCallback(() => api.getChatGPTAuth(), []);
-  const auth = useFetched(load, DISCONNECTED_CHATGPT);
+  const auth = useFetched(api.getChatGPTAuth, DISCONNECTED_CHATGPT);
   const [working, setWorking] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [download, setDownload] = useState<ChatGPTRuntimeResponse | null>(null);
@@ -863,8 +855,7 @@ function ChatGPTAccount() {
     }
   };
 
-  // The App Server runtime is not shipped in the app: the first sign-in
-  // fetches the pinned build, then the browser sign-in proceeds by itself.
+  // First sign-in fetches unbundled pinned App Server runtime, then opens browser flow.
   const connect = () =>
     act(async () => {
       let status = auth.data;
@@ -1003,10 +994,10 @@ function NumberField({
   );
 }
 
-/** One row per secret the sidecar accepts. "Set" means it arrived at the last start. */
+/** One row per accepted secret; "Set" means present at last start. */
 function KeyRows({ loaded }: { loaded: SettingsResponse }) {
   const available = keychainAvailable();
-  // An older sidecar answers without `known_secrets`; fall back to what is set.
+  // Older sidecars omit `known_secrets`; fall back to configured names.
   const names: readonly string[] = maybeAbsent(loaded.known_secrets) ?? loaded.configured_secrets;
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -1172,7 +1163,7 @@ function KeyRows({ loaded }: { loaded: SettingsResponse }) {
   );
 }
 
-/** The chat allowlist. An empty list admits nobody. */
+/** Chat allowlist; empty admits nobody. */
 function IdentityList({
   identities,
   error,
@@ -1182,7 +1173,7 @@ function IdentityList({
   error: string | null;
   onChange: (identities: ChannelIdentity[]) => void;
 }) {
-  // The one channel this build speaks. A second one would make this a select.
+  // This build supports one channel; another would require a selector.
   const channel: ChannelIdentity["channel"] = "discord";
   const [externalId, setExternalId] = useState("");
   const [identity, setIdentity] = useState("");

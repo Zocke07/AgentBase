@@ -15,16 +15,13 @@ import { RunSummary, type RunSummaryProps } from "./RunSummary";
 import { Splitter } from "./Splitter";
 
 /**
- * Everything the dashboard shows about a run, in two halves. The projection
- * (`run-projection`) is a pure function of `view` and `events.slice(0,
- * cursor)`: given the same log and cursor it renders byte-identical DOM, which
- * `replayIdentity.test.tsx` checks at every position. The transport (the
- * scrubber) sits outside it, because at event 12 of a finished run you are
- * standing somewhere and live you were at the end. The approval panel's
- * question is projection; its action row is transport.
+ * Run dashboard splits pure `run-projection` from scrubber transport. Given the
+ * same `view` and cursor prefix, it produces byte-identical DOM (tested by
+ * `replayIdentity.test.tsx`). Approval question projects history; actions are
+ * transport.
  */
 
-/** Bounds for the viewer's panel sizes, in pixels; the stylesheet's defaults apply until set. */
+/** Viewer panel-size bounds; CSS defaults apply until set. */
 const SUMMARY_HEIGHT_MIN = 96;
 const SUMMARY_HEIGHT_MAX = 1200;
 const CANVAS_HEIGHT_MIN = 160;
@@ -43,12 +40,12 @@ export interface RunPanelProps {
   /** See {@link ApprovalPanelProps.readOnly}. */
   approvalReadOnly: ApprovalPanelProps["readOnly"];
   onResolveApproval: ApprovalPanelProps["onResolve"];
-  /** The previous run stays on screen, dimmed, while the next one's history is fetched. */
+  /** Previous run stays dimmed while next history loads. */
   loading?: boolean;
   onCapture?: ((event: Event) => void) | undefined;
   /** See {@link RunSummaryProps.onOpenNote}. */
   onOpenNote?: RunSummaryProps["onOpenNote"];
-  /** See {@link RunSummaryProps.spaceId}, {@link RunSummaryProps.onOpenMemory} and {@link RunSummaryProps.onMemoryChanged}. */
+  /** See linked `RunSummaryProps` memory fields. */
   spaceId?: RunSummaryProps["spaceId"];
   onOpenMemory?: RunSummaryProps["onOpenMemory"];
   onMemoryChanged?: RunSummaryProps["onMemoryChanged"];
@@ -71,18 +68,16 @@ export function RunPanel({
   onMemoryChanged,
 }: RunPanelProps) {
   const scrubbed = cursor < events.length;
-  // Room for the widest reading the counter will show ("28 / 28") so the
-  // track beside it does not move as the number changes under the thumb.
+  // Reserve counter width so scrubber track does not shift.
   const counterWidth = `${String(String(events.length).length * 2 + 3)}ch`;
 
-  // The selection is the caller's and survives a scrub; the agent it names may
-  // not exist yet at this cursor. One decision here, handed to the graph, the
-  // aside and the log alike, so they cannot disagree about who is selected.
+  // Caller selection survives scrubbing even before its agent exists; share it
+  // across graph, inspector, and log.
   const selected = selectedAgent === null ? null : (view.agents[selectedAgent] ?? null);
   const selectedName = selected === null ? null : selectedAgent;
 
-  // The summary's and the canvas's heights and the inspector's width are the
-  // viewer's to set. A summary given a height scrolls within it, unfolded.
+  // Viewer controls summary/canvas heights and inspector width; sized summaries
+  // scroll without folding.
   const [summaryHeight, setSummaryHeight] = useStoredSize("runs.summary");
   const [canvasHeight, setCanvasHeight] = useStoredSize("runs.canvas");
   const [detailWidth, setDetailWidth] = useStoredSize("runs.detail");
@@ -92,7 +87,7 @@ export function RunPanel({
   const summary = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLDivElement>(null);
   const detail = useRef<HTMLElement>(null);
-  // The canvas can fill the window; Esc brings it back.
+  // Canvas can fill window; Escape restores it.
   const [expanded, setExpanded] = useState(false);
   useEffect(() => {
     if (!expanded) return undefined;
@@ -105,7 +100,7 @@ export function RunPanel({
     };
   }, [expanded]);
   const canvasMax = () => {
-    // Leave the log its minimum, or the divider could push it out of reach.
+    // Preserve log minimum height so divider cannot hide it.
     const box = projection.current;
     const pane = canvas.current;
     if (box === null || pane === null) return CANVAS_HEIGHT_MAX;
@@ -269,9 +264,8 @@ export function RunPanel({
 }
 
 /**
- * The inspector for one agent: what it is, what it said, what it did with
- * its tools and whom it handed work to. Everything here is read off `view`
- * for the same cursor as the canvas, so it is the same live and on replay.
+ * Agent inspector: identity, speech, tools, and handoffs from the same cursor
+ * `view` as canvas, keeping live/replay identical.
  */
 function AgentDetail({
   agent,

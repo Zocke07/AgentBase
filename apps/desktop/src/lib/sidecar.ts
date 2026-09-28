@@ -1,7 +1,6 @@
 /**
- * Finding and connecting to the sidecar. The base URL and the launch tag come
- * from the Rust shell; a plain browser tab gets the default origin and no tag.
- * The retry loop lives here so it is testable on its own.
+ * Resolve and connect to the sidecar. Rust supplies origin and launch tag; a
+ * browser tab uses the default origin without a tag. Keep retry logic testable.
  */
 
 import type { HealthResponse } from "@agentbase/schemas";
@@ -10,22 +9,21 @@ import type { HealthResponse } from "@agentbase/schemas";
 const DEFAULT_BASE_URL = "http://127.0.0.1:8787";
 
 /**
- * How long to keep retrying before calling it a failure. A quarantined app
- * launched from Downloads can run under macOS App Translocation, where the
- * frozen sidecar's first extraction has taken close to two minutes.
+ * Retry deadline. macOS App Translocation can make first sidecar extraction
+ * from Downloads take nearly two minutes.
  */
 const STARTUP_ATTEMPTS = 480;
 const RETRY_DELAY_MS = 250;
 /** How long one `/health` request may take before the attempt counts as failed. */
 const HEALTH_TIMEOUT_MS = 2_000;
 
-/** What `/health` says. `instance` is the launch tag, or null for a sidecar run by hand. */
+/** `/health` response; `instance` is null for a manually started sidecar. */
 export type Health = HealthResponse;
 
 /** Where the sidecar should be, and which launch it should say it is. */
 export interface SidecarIdentity {
   baseUrl: string;
-  /** Null in a plain browser tab: no shell launched anything to compare with. */
+  /** Null in a browser tab, where no shell launch can be verified. */
   instance: string | null;
 }
 
@@ -43,7 +41,7 @@ function insideTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
-/** Ask the shell where the sidecar is, falling back to the default. Dynamic import: no Tauri in a plain tab. */
+/** Resolve sidecar origin from the shell or default; dynamically import Tauri for tabs. */
 export async function resolveSidecarBaseUrl(): Promise<string> {
   if (!insideTauri()) {
     return DEFAULT_BASE_URL;
@@ -79,9 +77,8 @@ export async function resolveSidecarIdentity(): Promise<SidecarIdentity> {
 export class PortTakenError extends Error {}
 
 /**
- * Fetch `/health`, rejecting on anything but a well-formed 200, or, when
- * `expected` is given, on a healthy answer from the wrong process: the port is
- * fixed, so a stranger holding it answers too, and the tag is what tells them apart.
+ * Fetch `/health`; require valid 200 JSON and, when supplied, the expected
+ * launch tag to reject another process on the fixed port.
  */
 export async function fetchHealth(
   baseUrl: string,
@@ -116,9 +113,8 @@ export async function fetchHealth(
 }
 
 /**
- * Poll `/health` until it answers as the sidecar the shell launched. The
- * webview is ready before the frozen sidecar has unpacked and bound its port,
- * so the first attempts fail on almost every cold start.
+ * Poll `/health` for the shell-launched sidecar. Cold-start webviews usually
+ * load before the frozen sidecar unpacks and binds its port.
  */
 export async function connectWithRetry(
   onStatus: (status: SidecarStatus) => void,
@@ -126,11 +122,10 @@ export async function connectWithRetry(
 ): Promise<void> {
   const { baseUrl, instance } = await resolveSidecarIdentity();
 
-  // A function, so TypeScript does not narrow `signal.aborted` to a constant.
+  // Function prevents TypeScript narrowing `signal.aborted` to a constant.
   const aborted = () => signal?.aborted ?? false;
 
-  // A wrong instance is retried, not failed at once: a copy of this app closed
-  // a second ago answers for a moment more. A stranger that stays is reported.
+  // Retry a briefly lingering prior instance; report a persistent stranger.
   let blocked = false;
   for (let attempt = 1; attempt <= STARTUP_ATTEMPTS; attempt += 1) {
     if (aborted()) {

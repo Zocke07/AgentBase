@@ -3,25 +3,21 @@ import { useEffect, useRef, useState } from "react";
 import { awaitingPerson, type ApprovalRecord } from "../state/reducer";
 
 /**
- * The approval gate's other half, as a docked panel rather than the modal
- * §5 Phase 7 names (a recorded deviation): a person needs the log and the
- * graph behind the question to answer it, and a modal trapped the scrubber.
+ * Docked approval panel (recorded §5 Phase 7 modal deviation): retain log,
+ * graph, and scrubber context while answering.
  *
- * The sentence is the backend's (`approval.requested.prompt`, from the
- * resolved call); only the buttons are ours. The run's decision history is
- * shown too, because a supervisor will ask the same question twice. The
- * question and history are a projection of the log; whether it can be
- * answered depends on where the viewer stands, so the action row is
- * transport and sits outside the identity comparison.
+ * Backend supplies resolved-call `approval.requested.prompt`; UI supplies
+ * buttons and decision history. Question/history project the log, but actions
+ * depend on viewer position and remain outside identity comparison.
  */
 
 export interface ApprovalPanelProps {
   /** Every approval this run has raised, oldest first. */
   approvals: readonly ApprovalRecord[];
-  /** Resolve one. Rejects if somebody else already answered it (a 409). A yes
+  /** Resolve one. Reject if somebody else answered it (409). A yes
       with scope "run" also answers every later call to the tool in this run. */
   onResolve: (id: string, approved: boolean, scope?: "call" | "run") => Promise<void>;
-  /** Why an answer cannot be given here (`"finished"`, `"replay"`), or null when it can. */
+  /** Reason answering is unavailable (`"finished"`/`"replay"`), or null. */
   readOnly: "finished" | "replay" | "loading" | null;
 }
 
@@ -34,8 +30,7 @@ export function ApprovalPanel({ approvals, onResolve, readOnly }: ApprovalPanelP
   const settled = approvals.filter((approval) => approval.status !== "pending");
   const current = pending[0];
 
-  // Focus the safer answer when a question appears, so a keyboard user is not
-  // left somewhere behind it. Keyed on the id so a second question refocuses.
+  // Focus safer answer for keyboard users; key by ID to refocus next question.
   useEffect(() => {
     if (current !== undefined && readOnly === null) denyButton.current?.focus();
   }, [current?.id, readOnly]); // eslint-disable-line react-hooks/exhaustive-deps

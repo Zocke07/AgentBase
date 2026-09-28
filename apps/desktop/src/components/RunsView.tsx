@@ -18,26 +18,25 @@ import { Skeleton } from "./Skeleton";
 import { Splitter } from "./Splitter";
 
 /**
- * The Runs section: pick a run, watch or replay it. Everything about the run
- * is `RunPanel`'s; this is the chrome around it (picker, connection indicator,
- * cancel and delete) plus the one two-way piece: answering an approval.
+ * Runs picker, live/replay shell, connection status, cancel/delete actions, and
+ * approval answers. `RunPanel` owns run rendering.
  */
 
 export interface RunsViewProps {
-  /** Bumped by the shell whenever spend may have changed, to refresh the meter. */
+  /** Shell bump after possible spend changes, refreshing the meter. */
   onRunChanged: () => void;
-  /** Every approval waiting anywhere, so a card can say its run is stuck on one. */
+  /** All pending approvals, so cards identify blocked runs. */
   pendingApprovals: readonly ApprovalResponse[];
-  /** Which run is open. Owned by the shell so it survives a section switch. */
+  /** Shell-owned open run, retained across section switches. */
   runId: string | null;
   onSelectRun: (runId: string | null) => void;
-  /** Take the user to the Home screen, where a run is started. */
+  /** Navigate Home to start a run. */
   onNewRun: () => void;
-  /** Open a cited note in the Knowledge section. */
+  /** Open cited Knowledge note. */
   onOpenNote?: ((path: string, heading: string | null) => void) | undefined;
-  /** Open a run's memory beside the Knowledge inbox. */
+  /** Open a run memory beside Knowledge inbox. */
   onOpenMemory?: ((path: string) => void) | undefined;
-  /** A memory's status was changed from a run; the inbox should reload. */
+  /** Run memory status changed; reload inbox. */
   onMemoryChanged?: (() => void) | undefined;
 }
 
@@ -45,9 +44,7 @@ function connectionLabel(
   connection: ReturnType<typeof useRunStore.getState>["connection"],
   gaps: number,
 ): string {
-  // A gap is the server's "no gaps, no repeats" contract failing on the client
-  // side. It should never show; if it does, it is the most important thing on
-  // this line.
+  // Surface any violation of server no-gap/no-repeat event delivery.
   const suffix = gaps === 0 ? "" : ` · ${String(gaps)} step${gaps === 1 ? "" : "s"} missing from the record`;
   switch (connection.kind) {
     case "idle":
@@ -63,8 +60,8 @@ function connectionLabel(
   }
 }
 
-/** A piece of state that belongs to one run: read as empty for any other. */
-/** The run list's width: the stylesheet's 19rem, and how far it may go. */
+/** State tagged to one run and empty for all others. */
+/** Run-list width, starting from CSS 19rem, and bounds. */
 const LIST_WIDTH_FALLBACK = 304;
 const LIST_WIDTH_MIN = 200;
 
@@ -84,11 +81,9 @@ export function RunsView({
   onMemoryChanged,
 }: RunsViewProps) {
   const [cancelling, setCancelling] = useState(false);
-  /** The run the sidecar accepted a cancel for; it stops at its next check. */
+  /** Run with accepted cancellation; it stops at its next check. */
   const [stopping, setStopping] = useState<string | null>(null);
-  // State that is about one run (the selected agent, a failed cancel's
-  // message) is tagged with the run it belongs to and reads as empty for any
-  // other, so switching runs needs no reset and no effect.
+  // Run-tagged selection and cancellation errors clear naturally on switching.
   const [selection, setSelection] = useState<PerRun<string | null>>({ runId: null, value: null });
   const [cancelFailure, setCancelFailure] = useState<PerRun<string | null>>({ runId: null, value: null });
   const [deleteAsked, setDeleteAsked] = useState<PerRun<boolean>>({ runId: null, value: false });
@@ -118,9 +113,7 @@ export function RunsView({
 
   useRunStream(runId);
 
-  // The store holds the previous run until the next one's history arrives.
-  // While the two disagree, everything about the run is withheld and the
-  // projection stays, dimmed, as the loading state.
+  // Retain prior projection, dimmed, until next run history arrives.
   const loading = runId !== null && loadedRunId !== runId;
 
   const runs = useRunList((state) => state.runs);
@@ -141,24 +134,21 @@ export function RunsView({
   const finished =
     view.status === "completed" || view.status === "failed" || view.status === "cancelled";
 
-  // Whether an approval can be answered depends on where the viewer stands,
-  // not on the fold: scrubbed back, "pending" is true of that moment only.
+  // Approval actions depend on viewer position; scrubbed pending is historical.
   const approvalReadOnly = loading ? "loading" : finished ? "finished" : following ? null : "replay";
 
-  // When the log's status disagrees with the picker's row, the row is stale
-  // and so may be the month's spend. Keyed on the head's status, not the
-  // scrubbed view's, so scrubbing across the terminal event refetches nothing.
+  // Refetch stale rows from head status, not scrubbed history, avoiding replay
+  // refetches across terminal events.
   const waitingRuns = new Set(pendingApprovals.map((approval) => approval.run_id));
 
   const selectedRow = runs.find((run) => run.id === runId);
-  // Keyed on the run it was written for, so switching runs drops it.
+  // Tag result to its run so switch clears it.
   const [captureNotice, setCaptureNotice] = useState<{ runId: string; text: string } | null>(null);
-  // The list's width is the viewer's to set; the stylesheet's applies until they do.
+  // Viewer-set width; CSS applies until then.
   const [listWidth, setListWidth] = useStoredSize("runs.list");
   const side = useRef<HTMLElement>(null);
 
-  // A person's own note from an agent's words: written where automatic run
-  // memories never go, so nothing app-owned overwrites it.
+  // User note stays outside automatic run memories to avoid app overwrites.
   const capture = async (event: Event) => {
     const prose = captureText(event);
     if (prose === null || selectedRow === undefined) return;
@@ -186,14 +176,11 @@ export function RunsView({
       onRunChanged();
       void reloadRuns();
     }
-    // Deliberately keyed on the head status alone: a row still stale after the
-    // reload (the table lags the log by a write) must not loop until it agrees.
+      // Head status avoids looping while table writes lag the log.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [headStatus, onRunChanged]);
 
-  // Whether the selected run is one that can still be stopped: the log says
-  // it has not ended. Not the connection: a run whose stream is between
-  // reconnects is still a run.
+  // Stop eligibility follows nonterminal log status, not stream connection.
   const cancellable = runId !== null && headStatus !== null && unfinished({ status: headStatus });
 
   const cancel = async () => {
@@ -202,9 +189,8 @@ export function RunsView({
     setCancelError(null);
     try {
       await api.cancelRun(runId);
-      // No change to the run's state: `run.cancelled` arrives over the stream.
-      // The button says the cancel was accepted, since a cooperative stop can
-      // take as long as the model call in flight.
+      // Streamed `run.cancelled` changes state; accepted cancellation may wait
+      // for an in-flight model call.
       setStopping(runId);
     } catch (failure) {
       setCancelError(failure instanceof Error ? failure.message : String(failure));
@@ -213,7 +199,7 @@ export function RunsView({
     }
   };
 
-  // Deletable means ended: the log's word when it has one, else the row's.
+  // Delete only ended runs; prefer log status then table row.
   const settledStatus = headStatus ?? (loading ? null : (selectedRow?.status ?? null));
   const deletable = runId !== null && settledStatus !== null && !unfinished({ status: settledStatus });
 
@@ -223,8 +209,7 @@ export function RunsView({
     setCancelError(null);
     try {
       await api.deleteRun(runId);
-      // The run is gone: close it, and tell the picker and the meter. The
-      // store keeps its fold until the next run opens; the placeholder hides it.
+      // Close deleted run and refresh picker/meter; placeholder hides retained fold.
       onSelectRun(null);
       onRunChanged();
       void reloadRuns();
@@ -238,7 +223,7 @@ export function RunsView({
 
   const resolveApproval = useCallback(async (id: string, approved: boolean, scope: "call" | "run" = "call") => {
     await api.resolveApproval(id, approved, scope);
-    // No local state change: the answer arrives over the stream as events (§2).
+    // Stream events, not local state, apply the answer (§2).
   }, []);
 
   return (

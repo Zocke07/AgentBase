@@ -7,27 +7,25 @@ import { captureText, sentenceFor } from "../state/describe";
 import { Markdown } from "./Markdown";
 
 /**
- * The event log panel: the raw log, which is what you check the reduced view
- * against. Filters, opened rows and scroll position are component state
- * (facts about the person, not the run). Tokens are hidden by default; every
- * row is a sentence with the raw type as a chip beside it; a row opens to its
- * whole payload. Only the rows in view are in the DOM: rows are a fixed
- * height, and an opened payload is measured once it renders.
+ * Raw event-log panel for checking reduced views. Filters, opened rows, and
+ * scroll position are user state. Hide tokens by default; rows show sentence,
+ * raw-type chip, and expandable payload. Virtualize fixed-height rows and
+ * measure opened payloads once.
  */
 
-/** A collapsed row's height, in CSS pixels. Matches `.log__row` in the stylesheet. */
+/** Collapsed row height in CSS pixels; matches `.log__row`. */
 const ROW_PX = 30;
-/** Rows rendered beyond the viewport on each side, so a scroll never shows a gap. */
+/** Overscan rows per viewport edge, preventing scroll gaps. */
 const OVERSCAN = 12;
 
 export interface EventLogProps {
   events: readonly Event[];
-  /** How many events are applied. Rows beyond this are the un-scrubbed future. */
+  /** Applied events; later rows are unscrubbed future. */
   cursor: number;
   agents: readonly string[];
   selectedAgent: string | null;
   onSelectAgent: (agent: string | null) => void;
-  /** Save an event's prose as a vault note; absent where no vault is reachable. */
+  /** Save event prose as vault note; absent without vault. */
   onCapture?: ((event: Event) => void) | undefined;
   /**
    * Folded to one line naming the latest step. The rows stay mounted behind
@@ -56,13 +54,11 @@ export function EventLog({
   const [showTokens, setShowTokens] = useState(false);
   const [search, setSearch] = useState("");
   const [opened, setOpened] = useState<ReadonlySet<number>>(() => new Set());
-  // The height an opened row's payload turned out to have, by `seq`. Zero
-  // until it has rendered once; the row below it moves down when it has.
+  // Opened payload heights by `seq`; zero until first render.
   const [payloadHeights, setPayloadHeights] = useState<ReadonlyMap<number, number>>(() => new Map());
   const scroller = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ scrollTop: 0, height: 0 });
-  // Whether the list is scrolled to its end. New rows keep it there; a person
-  // who scrolled up to read is left where they are, with a way back down.
+  // Tail-follow only when already at end; preserve reading position otherwise.
   const [atEnd, setAtEnd] = useState(true);
 
   const applied = useMemo(() => events.slice(0, cursor), [events, cursor]);
@@ -82,7 +78,7 @@ export function EventLog({
   // The folded log's one line: the newest step, never a streamed token.
   const latest = useMemo(() => applied.findLast((event) => event.type !== "llm.token") ?? null, [applied]);
 
-  // A filter value the current rows do not contain is "all", not a filter that hides everything.
+  // Missing filter values become `all`, not an empty list.
   const type =
     chosenType === "all" || types.includes(chosenType) || families.includes(chosenType)
       ? chosenType
@@ -108,8 +104,7 @@ export function EventLog({
     [applied, showTokens, selectedAgent, type, families, needle],
   );
 
-  // Where each row starts. A prefix sum, because an opened payload above a
-  // row pushes it down by however tall the payload turned out to be.
+  // Prefix starts account for variable opened-payload heights.
   const { offsets, total } = useMemo(() => {
     const starts = new Array<number>(rows.length + 1);
     let y = 0;
@@ -121,8 +116,7 @@ export function EventLog({
     return { offsets: starts, total: y };
   }, [rows, opened, payloadHeights]);
 
-  // The viewport's size, from the element itself. Zero until measured, which
-  // renders the first few rows and nothing more; the observer fires at once.
+  // Element-derived viewport; initial zero renders few rows until observer fires.
   useEffect(() => {
     const element = scroller.current;
     if (element === null) return undefined;
@@ -136,7 +130,7 @@ export function EventLog({
     };
   }, []);
 
-  // Follow the tail while the reader is at it. A hidden element loses its
+  // Follow tail while reader remains there. A hidden element loses its
   // scroll offset, so unfolding puts the reader back where they were.
   useEffect(() => {
     const element = scroller.current;
@@ -150,16 +144,14 @@ export function EventLog({
   const onScroll = () => {
     const element = scroller.current;
     if (element === null) return;
-    // Against the spacer's height and the element's live height, so "at the
-    // end" agrees with the row arithmetic and does not lag by a render.
+  // Use spacer and live element heights to avoid a render-lagged tail state.
     const height = element.clientHeight || viewport.height;
     const remaining = total - element.scrollTop - height;
     setAtEnd(remaining < 4);
     setViewport({ scrollTop: element.scrollTop, height });
   };
 
-  // The rows overlapping the viewport, plus overscan. Following the tail, the
-  // position is the end; otherwise it is clamped, since a filter can shorten the list.
+  // Compute visible plus overscan rows; clamp after filters shorten the list.
   const scrollTop = atEnd
     ? Math.max(0, total - viewport.height)
     : Math.max(0, Math.min(viewport.scrollTop, total - viewport.height));
@@ -364,9 +356,8 @@ export function EventLog({
 }
 
 /**
- * The index of the row that contains vertical position `y`, by binary search
- * over the row starts. `offsets` has one more entry than there are rows (the
- * total), so a `y` past the end lands on the last row.
+ * Binary-search row containing `y`. `offsets` includes total height, so values
+ * past end resolve to final row.
  */
 function rowAt(offsets: readonly number[], y: number): number {
   let low = 0;

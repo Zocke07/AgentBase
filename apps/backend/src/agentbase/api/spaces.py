@@ -1,7 +1,7 @@
-"""Space endpoints: CRUD over `spaces`, plus what a new space starts with.
+"""Space CRUD endpoints and new-space seeding.
 
-The rules live in :mod:`agentbase.store.spaces`; this maps each refusal to a
-status code and a `{message, field}` body.
+:mod:`agentbase.store.spaces` owns the rules; this maps refusals to status
+codes and ``{message, field}`` bodies.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ router = APIRouter()
 
 
 class CopyFrom(BaseModel):
-    """Seed a new space with copies of another space's roster."""
+    """Seed a new space with another space's roster copies."""
 
     copy_from: str
 
@@ -48,13 +48,12 @@ class CreateSpaceRequest(BaseModel):
     #: app-wide one for new spaces, an omitted model that provider's default.
     provider: str | None = None
     model: str | None = None
-    #: How the roster starts: empty, fresh copies of the three starter roles,
-    #: or copies of another space's definitions.
+    #: Initial roster: empty, copies of starter roles, or another roster.
     seed: Literal["empty", "builtins"] | CopyFrom = "builtins"
 
 
 class UpdateSpaceRequest(BaseModel):
-    """A partial update. ``None`` means "inherit", so `model_fields_set` tells it from "not sent".
+    """Partial update; ``None`` inherits, so ``model_fields_set`` detects sent null.
 
     The provider cannot be cleared: a space names its own.
     """
@@ -75,11 +74,11 @@ class UpdateSpaceRequest(BaseModel):
 
 
 class SpaceResponse(Space):
-    """A space, plus where its runs read and write."""
+    """Space and its run read/write location."""
 
-    #: The sandbox root for this space's runs; shown and opened, never written, by its page.
+    #: Sandbox root for this space's runs; its page shows/opens but never writes it.
     folder: str
-    #: The space that cannot be archived or deleted.
+    #: Whether this space cannot be archived or deleted.
     is_default: bool
 
 
@@ -149,7 +148,7 @@ def _respond(store: SpaceStore, space: Space) -> SpaceResponse:
 
 @router.get("/spaces")
 async def list_spaces(request: Request) -> list[SpaceResponse]:
-    """Every space, archived ones included: their runs are still viewable."""
+    """List all spaces, including archived ones whose runs remain viewable."""
     store = _spaces(request)
     return [_respond(store, space) for space in await store.list_all()]
 
@@ -167,8 +166,7 @@ async def get_space(request: Request, space_id: str) -> SpaceResponse:
 async def create_space(request: Request, body: CreateSpaceRequest) -> SpaceResponse:
     """Create a space and seed its roster.
 
-    The seed is its own write after the row exists, so a partial copy leaves
-    a space the user can see and fix.
+    Seed after creating the row so a partial copy leaves a visible, repairable space.
     """
     store = _spaces(request)
     fields: dict[str, Any] = {"name": body.name, "description": body.description}
@@ -282,7 +280,7 @@ async def plan_provider_switch(
 
 @router.delete("/spaces/{space_id}", status_code=204)
 async def delete_space(request: Request, space_id: str) -> Response:
-    """Delete an empty space and its agents. 409 for the default, or one with runs."""
+    """Delete an empty space and agents; return 409 for default or run-containing spaces."""
     try:
         await _spaces(request).delete(space_id)
     except SpaceNotFoundError as exc:
@@ -294,7 +292,7 @@ async def delete_space(request: Request, space_id: str) -> Response:
 
 @router.post("/spaces/{space_id}/seed", status_code=201)
 async def seed_space(request: Request, space_id: str) -> list[AgentDef]:
-    """Add the starter roles an existing roster lacks. Safe to press twice."""
+    """Add missing starter roles to a roster; safe to call twice."""
     try:
         return await _agents(request).seed_builtins(space_id)
     except SpaceNotFoundError as exc:

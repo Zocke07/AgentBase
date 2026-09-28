@@ -8,18 +8,16 @@ import { useFetched } from "../state/useFetched";
 import { Skeleton } from "./Skeleton";
 
 /**
- * The usage section: a month of model calls from the ledger, sliced by day,
- * model, space and run, with each run's peak context beside its cost. Every
- * figure is a ledger row the monthly cap is enforced on; nothing here is
- * estimated, and the meter in the header and this page cannot disagree.
+ * Ledger-backed monthly model usage by day, model, space, and run, including
+ * peak context. Every figure is cap-enforced ledger data, matching header meter.
  */
 
 export interface UsageViewProps {
-  /** The space on screen; the page can narrow to it or show every space. */
+  /** Selected space; may narrow view or show all. */
   space: SpaceResponse | null;
-  /** Whether the section is showing, so the report is re-read when it is opened. */
+  /** Section visibility, triggering report reload on open. */
   active: boolean;
-  /** Open a run, switching space if it lives elsewhere. */
+  /** Open run, switching space if needed. */
   onOpenRun: (runId: string) => void;
   /** Where the cap is changed. */
   onOpenSettings: () => void;
@@ -37,8 +35,7 @@ export function UsageView({ space, active, onOpenRun, onOpenSettings }: UsageVie
   const report = fetched.data;
   const { error, loading, reload } = fetched;
 
-  // Re-read each time the section is opened: runs that happened since the
-  // last look are in the ledger by now. The first read is the hook's own.
+  // Reload on opening to include ledger entries since previous view.
   const wasActive = useRef(active);
   useEffect(() => {
     if (active && !wasActive.current) reload();
@@ -189,7 +186,7 @@ function Card({ label, value, note, testId }: { label: string; value: string; no
   );
 }
 
-/** Bars by cost, one per day the ledger has rows for; a day with no rows is a gap, not a zero. */
+/** Cost bars for ledger days only; no-row days are gaps, not zeros. */
 function DayChart({ days }: { days: readonly UsageBucket[] }) {
   const most = Math.max(1, ...days.map((day) => day.cost_micros));
   return (

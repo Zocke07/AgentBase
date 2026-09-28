@@ -1,14 +1,7 @@
-"""OpenAI Chat Completions, normalized to the provider protocol.
+"""OpenAI Chat Completions adapter.
 
-The differences from Anthropic that this adapter absorbs, so nothing above it
-has to know:
-
-* The system prompt is an ordinary message with `role: "system"`, not a
-  top-level field.
-* Tool calls arrive as `tool_calls` on the message, and their `arguments` are a
-  **JSON-encoded string**, not an object. Parsing that string here is what
-  keeps :class:`~agentbase.providers.base.ToolCall` uniform.
-* Usage is `prompt_tokens` / `completion_tokens`.
+It normalizes system messages, JSON-string tool arguments, and OpenAI usage
+fields for the provider protocol.
 """
 
 from __future__ import annotations
@@ -127,11 +120,7 @@ class OpenAIProvider:
         system: str | None = None,
         max_tokens: int = 4096,
     ) -> AsyncIterator[StreamEvent]:
-        """Stream `POST /v1/chat/completions` with `stream: true`.
-
-        `stream_options.include_usage` is required: without it no chunk
-        carries token counts and every streamed call would record as free.
-        """
+        """Stream ``POST /v1/chat/completions`` with usage included."""
         payload = self._payload(messages, tools, system, max_tokens)
         payload["stream"] = True
         payload["stream_options"] = {"include_usage": True}
@@ -200,9 +189,7 @@ def _to_openai_messages(
 
 
 def _decode_arguments(encoded: str) -> dict[str, Any]:
-    """Decode a tool call's JSON-encoded `arguments` string; invalid JSON degrades to empty
-    arguments.
-    """
+    """Decode JSON-string tool arguments; invalid input becomes an empty mapping."""
     if not encoded.strip():
         return {}
 
@@ -215,7 +202,7 @@ def _decode_arguments(encoded: str) -> dict[str, Any]:
 
 
 def _tool_calls(raw: Any) -> list[ToolCall]:
-    """Parse `tool_calls`, whose `arguments` is a JSON *string*."""
+    """Parse ``tool_calls`` with JSON-string arguments."""
     if not isinstance(raw, list):
         return []
 
@@ -251,17 +238,10 @@ def _optional_str(value: Any) -> str | None:
 
 
 class _StreamState:
-    """Reassembles OpenAI's streamed chunks into one :class:`Completion`.
+    """Fold OpenAI chunks into a :class:`Completion`.
 
-    Two shapes make this more than string concatenation:
-
-    * **Tool calls arrive keyed by `index`, not by id.** Only the first chunk
-      for a call carries `id` and `function.name`; every later chunk has just
-      the `index` and another slice of the argument string. Keying on anything
-      else loses the name or merges two parallel calls into one.
-    * **The usage chunk has an empty `choices` list.** Code that reads
-      `choices[0]` on every frame raises on the one frame that carries the
-      token counts.
+    Merge tool calls by chunk index because only first chunks carry IDs and
+    names; usage chunks may contain no choices.
     """
 
     def __init__(self, model: str) -> None:

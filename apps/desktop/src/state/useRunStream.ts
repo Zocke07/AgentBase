@@ -7,11 +7,9 @@ import { isTerminal, streamRun } from "../lib/events";
 import { useRunStore } from "./runStore";
 
 /**
- * Attach the run store to one run's SSE stream: a pipe from the stream into
- * `appendEvents` and nowhere else. History is fetched first and the stream
- * asked only for what came after it; the store is not touched until the
- * history is in, so the previous run stays on screen; and frames are handed
- * over once per animation frame, so a burst of tokens is one render.
+ * Pipe one SSE stream into `appendEvents`. Fetch history first, then request
+ * later events; leave the prior run visible until history arrives. Batch frames
+ * per animation frame so token bursts render once.
  */
 export function useRunStream(runId: string | null): void {
   const open = useRunStore((state) => state.open);
@@ -23,7 +21,7 @@ export function useRunStream(runId: string | null): void {
 
     let cancelled = false;
 
-    // The frame buffer. `scheduled` is the pending animation frame, if any.
+    // Frame buffer and pending animation frame.
     let buffered: Parameters<typeof appendEvents>[0] = [];
     let scheduled: number | null = null;
 
@@ -42,18 +40,16 @@ export function useRunStream(runId: string | null): void {
       try {
         history = await getRunHistory(runId);
       } catch {
-        // A history fetch that fails is not fatal: the stream carries the same
-        // events, from the beginning. Reporting it would put an error on screen
-        // for a run that is about to render correctly anyway.
+        // Stream fallback supplies history from the start; do not surface an
+        // error for a run that will render correctly.
       }
 
       if (cancelled) return null;
       open(runId, history);
 
       const afterSeq = history.reduce((head, event) => Math.max(head, event.seq), 0);
-      // The history ends the run: there is nothing to stream, and asking
-      // would get an empty response that `EventSource` treats as a drop
-      // and retries once a second for as long as the run stays open.
+      // Terminal history needs no stream; an empty response makes EventSource
+      // retry forever.
       const last = history.find((event) => event.seq === afterSeq);
       if (last !== undefined && isTerminal(last.type)) {
         setConnection({ kind: "closed", reason: "run-finished" });
@@ -78,7 +74,7 @@ export function useRunStream(runId: string | null): void {
           if (!cancelled) setConnection({ kind: "error", message });
         },
         onBadFrame: (raw) => {
-          // Loud, but not on the connection indicator: the stream is fine.
+          // Report loudly without marking a healthy stream disconnected.
           console.warn("agentbase: dropped a frame that was not an event", raw);
         },
       }, { afterSeq });

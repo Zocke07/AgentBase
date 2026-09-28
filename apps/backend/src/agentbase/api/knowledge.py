@@ -1,4 +1,4 @@
-"""Native knowledge-vault CRUD, graph and local retrieval endpoints."""
+"""Native knowledge-vault CRUD, graph, and local-retrieval endpoints."""
 
 from __future__ import annotations
 
@@ -178,7 +178,7 @@ async def delete_note(request: Request, space_id: str, path: str = Query(...)) -
 async def delete_folder(
     request: Request, space_id: str, path: str = Query(...)
 ) -> KnowledgeFolderDeleteResult:
-    """Delete a folder and its notes, after a copy under `.agentbase/backups/`."""
+    """Back up then delete a folder and its notes under `.agentbase/backups/`."""
     try:
         return await _store(request).delete_folder(space_id, path)
     except SpaceNotFoundError as exc:
@@ -196,7 +196,7 @@ class WriteFileRequest(BaseModel):
 
 @router.get("/files")
 async def list_files(request: Request, space_id: str) -> TextFileIndex:
-    """The plain-text files beside the notes: configuration and data the agents use."""
+    """List note-adjacent plain-text configuration and agent-data files."""
     try:
         return await _store(request).list_files(space_id)
     except SpaceNotFoundError as exc:
@@ -217,7 +217,7 @@ async def get_file(request: Request, space_id: str, path: str = Query(...)) -> T
 
 @router.put("/file")
 async def write_file(request: Request, space_id: str, body: WriteFileRequest) -> TextFile:
-    """Create or overwrite a plain-text file; JSON that does not parse is refused."""
+    """Create or overwrite a text file; reject malformed JSON."""
     try:
         return await _store(request).write_file(space_id, body.path, body.content)
     except SpaceNotFoundError as exc:

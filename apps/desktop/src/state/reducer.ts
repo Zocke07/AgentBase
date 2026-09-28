@@ -3,19 +3,16 @@ import type { Event, EventType } from "@agentbase/schemas";
 import { flag, int, record, records, strings, text, type Payload } from "../lib/payload";
 
 /**
- * The run reducer: the UI's half of BUILD_SPEC §2. Everything the dashboard
- * renders about a run comes from this fold and nowhere else.
+ * Run reducer: the UI half of BUILD_SPEC §2 and sole source of run rendering.
  *
- * It is pure (one function, one input, so live and replay are the same
- * rendering path), it has no clock (a relative timestamp would make the same
- * log render differently on every fold), and it keeps what an agent claimed
- * (`claim`) apart from what it did (`toolCalls`), because live runs have
- * completed claiming work the log shows never happened.
+ * It is pure, clock-free, and shared by live/replay. Keep claimed work (`claim`)
+ * separate from actual calls (`toolCalls`): completed agents have claimed work
+ * absent from the log.
  */
 
 /**
- * What an agent is doing right now, as far as the log says. Every event an
- * agent emits leaves it in exactly one of these; a test walks a whole tool call.
+ * Current agent activity according to the log. Each emitted event leaves an
+ * agent in exactly one state.
  */
 export type Activity = "spawned" | "thinking" | "calling" | "waiting" | "executing" | "completed";
 
@@ -31,25 +28,24 @@ export interface AgentNode {
   readonly autoApprove: readonly string[];
   readonly maxSteps: number | null;
   readonly activity: Activity;
-  /** The tool being executed while `activity` is `"executing"`; null otherwise. */
+  /** Tool executing under `"executing"`; null otherwise. */
   readonly currentTool: string | null;
-  /** The message of an `llm.error`/`tool.error` this agent has not yet acted past. */
+  /** Unmoved-past `llm.error` or `tool.error` message. */
   readonly lastError: string | null;
   readonly steps: number;
   readonly finishedReason: string | null;
-  /** Streamed output of the *current* model call, reset on each `llm.request`. */
+  /** Current model-call streamed output; reset by `llm.request`. */
   readonly streamedText: string;
   readonly lastMessage: string | null;
-  /** Where this agent first appears, the graph orders nodes by it. */
+  /** First appearance; graph node sort order. */
   readonly seq: number;
-  /** This agent's own model calls, summed from its `llm.response` events. */
+  /** Agent model calls, summed from `llm.response`. */
   readonly calls: number;
   readonly inputTokens: number;
   readonly outputTokens: number;
   readonly costMicros: number;
   /**
-   * The input tokens of the latest call and the largest so far: the size of
-   * the context this agent is carrying, and the most it has carried.
+   * Latest and maximum input tokens: current and peak carried context.
    */
   readonly lastContext: number | null;
   readonly peakContext: number;
@@ -69,15 +65,15 @@ export interface ApprovalRecord {
   readonly agent: string;
   readonly tool: string;
   readonly risk: string;
-  /** The sentence the backend rendered. Never composed here; see §2. */
+  /** Backend-rendered sentence; never compose it here (§2). */
   readonly prompt: string;
   readonly status: ApprovalStatus;
   readonly automatic: boolean;
-  /** An automatic answer that rests on the person's own earlier one in this run. */
+  /** Automatic answer based on this person's earlier in-run answer. */
   readonly precedent: boolean;
-  /** An automatic answer the app-wide or space policy gave for this tool by name. */
+  /** Automatic answer from app-wide or space policy for this named tool. */
   readonly policy: boolean;
-  /** How far the person's yes reached: this call, or the tool for the rest of the run. */
+  /** Person's yes scope: this call or remaining run tool calls. */
   readonly scope: "call" | "run";
   readonly seq: number;
 }
@@ -96,8 +92,8 @@ export interface Denial {
   readonly tool: string;
   readonly reason: string;
   /**
-   * Which boundary refused: `"sandbox"` when the call was out of bounds and
-   * nobody was asked, `null` when the allowlist refused it or a person did.
+   * Refusal boundary: `"sandbox"` for out-of-bounds calls without a prompt;
+   * `null` for allowlist or person refusals.
    */
   readonly blockedBy: string | null;
   readonly seq: number;
@@ -127,16 +123,15 @@ export interface Budget {
   readonly percent: number;
 }
 
-/** A terminal event's own account of the run. An assertion, not a fact. */
+/** Terminal event's asserted run account, not a fact. */
 export interface RunClaim {
   readonly kind: "summary" | "reason";
   readonly text: string;
 }
 
 /**
- * Where a run came from, when it did not come from this window. `identity`
- * is the internal name the sender resolved to; `displayName` is theirs and is
- * shown beside it, never instead of it, since a chat user controls their own.
+ * Non-window run origin. `identity` is the resolved internal name; show the
+ * sender-controlled `displayName` beside, never instead of, it.
  */
 export interface RunOrigin {
   readonly channel: string;
@@ -151,13 +146,13 @@ export type RunStatus = "pending" | "running" | "paused" | "completed" | "failed
 export interface RunView {
   readonly runId: string | null;
   readonly goal: string | null;
-  /** Set only for a run that arrived from a chat channel. */
+  /** Present only for chat-channel runs. */
   readonly origin: RunOrigin | null;
   readonly limits: Payload | null;
-  /** The cited excerpts retrieved for the goal, and the citations the user removed. */
+  /** Goal excerpts and user-removed citations. */
   readonly knowledge: readonly RetrievedExcerpt[];
   readonly knowledgeExclusions: readonly string[];
-  /** Where the run's outcome was written as a proposed memory note, if it was. */
+  /** Proposed-memory note containing the outcome, if written. */
   readonly memoryPath: string | null;
   readonly status: RunStatus;
   readonly claim: RunClaim | null;
@@ -171,16 +166,16 @@ export interface RunView {
   readonly errors: readonly RunError[];
   readonly inputTokens: number;
   readonly outputTokens: number;
-  /** The ledger's figure for every model call so far, summed from `llm.response`. */
+  /** Ledger total for model calls, summed from `llm.response`. */
   readonly costMicros: number;
   readonly budget: Budget | null;
   readonly budgetExceeded: boolean;
   readonly lastSeq: number;
   readonly eventCount: number;
-  /** `run.started`'s own timestamp, and the latest event's. Never a clock. */
+  /** `run.started` timestamp and latest event timestamp; never a clock. */
   readonly startedTs: string | null;
   readonly latestTs: string | null;
-  /** Event types this build does not know about. Rendered, never swallowed. */
+  /** Unknown build event types, rendered rather than swallowed. */
   readonly unrecognised: readonly string[];
 }
 
@@ -244,9 +239,8 @@ const newAgent = (name: string, seq: number): AgentNode => ({
 });
 
 /**
- * Create a node for `name` if the run has not seen it before. Applied to every
- * event carrying an `agent_id`, so a stream resumed after the spawn still
- * shows the agent.
+ * Create unseen `name` nodes for each `agent_id` event so resumed streams retain
+ * agents spawned before resumption.
  */
 function ensureAgent(state: RunView, name: string, seq: number): RunView {
   if (state.agents[name] !== undefined) return state;
@@ -258,7 +252,7 @@ function ensureAgent(state: RunView, name: string, seq: number): RunView {
   };
 }
 
-/** Apply `change` to one agent's node, leaving the rest of the state alone. */
+/** Apply `change` to one agent node without altering other state. */
 function withAgent(
   state: RunView,
   name: string,
@@ -275,7 +269,7 @@ function withAgent(
 
 // --- the fold ---------------------------------------------------------------
 
-/** Apply one event. Returns a new state; never mutates the one passed in. */
+/** Apply one event immutably. */
 export function reduce(state: RunView, event: Event): RunView {
   const payload = event.payload ?? {};
   const agent = event.agent_id ?? null;
@@ -286,12 +280,12 @@ export function reduce(state: RunView, event: Event): RunView {
     runId: state.runId ?? event.run_id,
     lastSeq: Math.max(state.lastSeq, seq),
     eventCount: state.eventCount + 1,
-    // The first event seen stands in for `run.started` on a resumed stream.
+    // First resumed event substitutes for unseen `run.started`.
     startedTs: state.startedTs ?? event.ts,
     latestTs: event.ts,
   };
 
-  // One place where an agent becomes known to the run.
+  // Single agent-registration point.
   const next = agent === null ? counted : ensureAgent(counted, agent, seq);
 
   switch (event.type) {
@@ -380,7 +374,7 @@ export function reduce(state: RunView, event: Event): RunView {
 
     case "llm.request":
       if (agent === null) return next;
-      // A new call starts a new stream; the previous call's text does not carry over.
+      // New call resets prior streamed text.
       return withAgent(next, agent, seq, (node) => ({
         ...node,
         activity: "calling",
@@ -389,7 +383,7 @@ export function reduce(state: RunView, event: Event): RunView {
       }));
 
     case "llm.token":
-      // Deliberately does not change `activity`: an agent that streams nothing is not idle.
+      // Streaming no text does not make the agent idle.
       if (agent === null) return next;
       return withAgent(next, agent, seq, (node) => ({
         ...node,
@@ -451,7 +445,7 @@ export function reduce(state: RunView, event: Event): RunView {
     }
 
     case "tool.called": {
-      // `tool.requested` is what an agent tried; this is what executed.
+      // `tool.requested` is attempted work; this is executed work.
       const call = toolCallOf(agent, payload, seq);
       const executing: RunView = { ...next, toolCalls: [...next.toolCalls, call] };
       return agent === null
@@ -496,8 +490,7 @@ export function reduce(state: RunView, event: Event): RunView {
         scope: "call",
         seq,
       };
-      // A policy's yes is not a question: nobody waits on an automatic one,
-      // but the record stays so "what ran without asking me" is answerable.
+      // Policy approval needs no waiting, but remains recorded for auditability.
       const waiting =
         agent === null || requestedApproval.automatic
           ? next
@@ -523,7 +516,7 @@ export function reduce(state: RunView, event: Event): RunView {
     // --- channels ------------------------------------------------------------
 
     case "channel.inbound":
-      // The first event of a channel-originated run, by construction.
+      // First channel-originated run event by construction.
       return {
         ...next,
         origin: {
@@ -536,23 +529,23 @@ export function reduce(state: RunView, event: Event): RunView {
       };
 
     case "channel.outbound":
-      // A fact about delivery, not about what the agents did; the log panel renders it.
+      // Delivery fact, not agent action; log panel renders it.
       return next;
 
     default:
-      // Not a `never` check: the server can emit a type this build has never heard of.
+      // Server may emit event types unknown to this build.
       return { ...next, unrecognised: [...next.unrecognised, event.type] };
   }
 }
 
-/** Fold a batch of events, optionally continuing from an existing state. */
+/** Fold events, optionally continuing existing state. */
 export function reduceAll(events: readonly Event[], from: RunView = EMPTY_RUN): RunView {
   return events.reduce(reduce, from);
 }
 
 // --- small helpers ----------------------------------------------------------
 
-/** Back to deciding what to do next. A completed agent stays completed. */
+/** Return to deciding activity; completed agents remain completed. */
 function thinkingAgain(node: AgentNode): AgentNode {
   if (node.activity === "completed") return node;
   return { ...node, activity: "thinking", currentTool: null };
@@ -586,15 +579,15 @@ function toolCallOf(agent: string | null, payload: Payload, seq: number): ToolCa
   };
 }
 
-/** Attach a `tool.result` to the call it belongs to. */
+/** Attach `tool.result` to its call. */
 function attachResult(calls: readonly ToolCall[], payload: Payload): ToolCall[] {
   const callId = text(payload, "call_id");
   const tool = text(payload, "tool");
   const result = text(payload, "result") ?? "";
   const updated = [...calls];
 
-  // Newest unanswered call first, matched on `call_id` when there is one: a
-  // step can carry several calls to the same tool.
+  // Match newest unanswered call, using `call_id` when present; one step may
+  // call the same tool repeatedly.
   for (let index = updated.length - 1; index >= 0; index -= 1) {
     const call = updated[index];
     if (call?.result !== null) continue;
@@ -648,9 +641,8 @@ function isApprovalStatus(value: string | null): value is ApprovalStatus {
 // --- derived views the components need --------------------------------------
 
 /**
- * Whether an approval is a question a person still has to answer. An automatic
- * one never is, even before its `approval.resolved` arrives. The one rule for
- * "pending", shared by the fold and the panel.
+ * Return whether an approval still needs a person. Automatic approvals never
+ * do, even before `approval.resolved`; fold and panel share this pending rule.
  */
 export function awaitingPerson(approval: ApprovalRecord): boolean {
   return approval.status === "pending" && !approval.automatic;

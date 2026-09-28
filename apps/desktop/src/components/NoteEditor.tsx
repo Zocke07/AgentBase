@@ -5,16 +5,14 @@ import { fuzzyFilter } from "../lib/fuzzy";
 import { openWikilinkAt } from "../lib/markdown";
 
 /**
- * The Markdown source, with the two things Obsidian's editor does that a bare
- * textarea does not: typing `[[` offers note names to complete the link, and
- * a small bar wraps the selection in the dialect's marks. The text itself is
- * the caller's; this only proposes edits to it.
+ * Markdown source editor with Obsidian `[[` completion and selection-markup
+ * toolbar. Caller owns text; editor proposes changes only.
  */
 
 export interface NoteEditorProps {
   value: string;
   onChange: (value: string) => void;
-  /** Every note in the vault, for link completion. */
+  /** Vault notes for link completion. */
   notes: readonly NoteSummary[];
 }
 
@@ -30,7 +28,7 @@ export function NoteEditor({ value, onChange, notes }: NoteEditorProps) {
   const pending = useRef<Selection | null>(null);
   const [completion, setCompletion] = useState<{ start: number; query: string; cursor: number } | null>(null);
 
-  // A programmatic edit sets the caret once the new value has rendered.
+  // Apply programmatic edit caret after new value renders.
   useLayoutEffect(() => {
     const wanted = pending.current;
     const element = area.current;
@@ -63,8 +61,7 @@ export function NoteEditor({ value, onChange, notes }: NoteEditorProps) {
     const before = value.slice(0, completion.start);
     const after = value.slice(completion.start + 2 + completion.query.length);
     const link = `[[${target}]]`;
-    // Obsidian closes the link for you; if the closing brackets were already
-    // typed, do not double them.
+    // Avoid duplicating already typed Obsidian closing brackets.
     const rest = after.startsWith("]]") ? after.slice(2) : after;
     const caret = before.length + link.length;
     setCompletion(null);
@@ -86,7 +83,7 @@ export function NoteEditor({ value, onChange, notes }: NoteEditorProps) {
     if (element === null) return;
     const { selectionStart: start, selectionEnd: end } = element;
     const lineStart = value.lastIndexOf("\n", start - 1) + 1;
-    // A selection ending just after a newline stops at that newline.
+    // Stop selection just after newline at that newline.
     const anchor = end > start && value[end - 1] === "\n" ? end - 1 : end;
     const nextBreak = value.indexOf("\n", anchor);
     const lineEnd = nextBreak === -1 ? value.length : nextBreak;
@@ -149,7 +146,7 @@ export function NoteEditor({ value, onChange, notes }: NoteEditorProps) {
           value={value}
           onChange={(event) => {
             onChange(event.target.value);
-            // The caret has moved with the keystroke by the time change fires.
+            // Keystroke moves caret before change fires.
             const open = openWikilinkAt(event.target.value, event.target.selectionStart);
             setCompletion(open === null ? null : { start: open.start, query: open.query, cursor: 0 });
           }}
@@ -160,7 +157,7 @@ export function NoteEditor({ value, onChange, notes }: NoteEditorProps) {
             }
           }}
           onBlur={() => {
-            // Let a click on a completion land before the list goes away.
+            // Allow completion click before list closes.
             window.setTimeout(() => {
               setCompletion(null);
             }, 150);

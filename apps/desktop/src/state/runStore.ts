@@ -5,45 +5,42 @@ import { EMPTY_RUN, reduce, reduceAll, type RunView } from "./reducer";
 
 
 /**
- * The run store: an event array, a cursor into it, and the fold of the prefix.
+ * Run store: event array, cursor, and folded prefix.
  *
- * `view` is always `reduceAll(events.slice(0, cursor))`. Live is that with
- * the cursor at the end; replay is the same fold with a smaller cursor, so
- * there is one rendering path, not two that agree until one gains a feature.
- * The fold advances incrementally as events arrive. `headView` is the fold at
- * the head, kept while scrubbed back, for the questions that are about the
- * run rather than about where the viewer stands.
+ * `view` always folds `events.slice(0, cursor)`: live ends at the head and
+ * replay uses an earlier cursor, sharing one rendering path. Fold arrivals
+ * incrementally; retain `headView` while scrubbed back for run-level questions.
  */
 
 export type ConnectionStatus =
   | { kind: "idle" }
   | { kind: "connecting" }
   | { kind: "live" }
-  /** The stream ended because the run did. Not an error, and not retried. */
+  /** Stream ended with the run; not an error and never retried. */
   | { kind: "closed"; reason: "run-finished" }
   | { kind: "error"; message: string };
 
 export interface RunStoreState {
   readonly runId: string | null;
-  /** Every event received for this run, ordered by `seq`, no gaps, no repeats. */
+  /** Received events, ordered by `seq` without gaps or repeats. */
   readonly events: readonly Event[];
-  /** How many events are applied to `view`. Equals `events.length` when live. */
+  /** Events applied to `view`; equals `events.length` when live. */
   readonly cursor: number;
-  /** Whether the cursor tracks the head. False once the user scrubs back. */
+  /** Whether the cursor tracks the head; false after scrubbing back. */
   readonly following: boolean;
-  /** The fold up to `cursor`: what is on screen. */
+  /** Fold through `cursor`, shown on screen. */
   readonly view: RunView;
-  /** The fold up to the head: what the run is, wherever the viewer stands. */
+  /** Fold through the head, regardless of viewer position. */
   readonly headView: RunView;
   readonly connection: ConnectionStatus;
-  /** Events that arrived more than one `seq` past the head. Should stay zero; shown if not. */
+  /** Events arriving more than one `seq` beyond head; should remain zero. */
   readonly gaps: number;
 
-  /** Switch to a run with its history, in one update, so switching never shows an empty run. */
+  /** Switch with history atomically, never showing an empty run. */
   open: (runId: string, history?: readonly Event[]) => void;
   /** One event. The same as `appendEvents([event])`. */
   appendEvent: (event: Event) => void;
-  /** A batch, folded in one update, so a burst of `llm.token`s is one render. */
+  /** Batch-fold events in one update so token bursts render once. */
   appendEvents: (batch: readonly Event[]) => void;
   setCursor: (cursor: number) => void;
   follow: () => void;
@@ -90,7 +87,7 @@ export const useRunStore = create<RunStoreState>()((set, get) => ({
     const accepted: Event[] = [];
 
     for (const event of batch) {
-      // A resume or a fresh EventSource can redeliver; anything at or below the head is dropped.
+      // Resumed or fresh EventSource streams can redeliver head-or-earlier events.
       if (event.seq <= head) continue;
 
       if (event.seq > head + 1) gaps += 1;
@@ -103,7 +100,7 @@ export const useRunStore = create<RunStoreState>()((set, get) => ({
 
     const nextEvents = [...events, ...accepted];
 
-    // Scrubbed back: keep collecting, leave the view where the user put it.
+    // Continue collecting while preserving the scrubbed view.
     if (!following) {
       set({ events: nextEvents, headView, gaps });
       return;
@@ -122,9 +119,8 @@ export const useRunStore = create<RunStoreState>()((set, get) => ({
     const state = get();
     const target = Math.max(0, Math.min(cursor, state.events.length));
 
-    // Forward folds continue from here; backward folds start over, because the
-    // reducer has no inverse and an undo path would be a second definition of
-    // each event. The head is already folded.
+    // Fold forward incrementally; refold backward because reducer events lack
+    // inverses. The head is already folded.
     const view =
       target === state.events.length
         ? state.headView

@@ -1,23 +1,18 @@
 import { useEffect, useState } from "react";
 
 /**
- * Keeps something on screen for as long as its exit animation takes.
+ * Retain elements through their exit animation.
  *
- * React removes an element the moment its condition turns false, so an
- * animation on the way out never gets to play. This holds the element for
- * `exitMs` after `open` goes false and says it is `closing`, which the
- * component turns into a `--closing` class that the stylesheet animates.
+ * React removes false-condition elements immediately. Retain them for `exitMs`
+ * after `open` becomes false and mark them `closing` for CSS `--closing`.
  *
- * Where motion is reduced, or the environment cannot say (tests have no
- * `matchMedia`), there is no exit phase at all: the element goes at once,
- * exactly as it did before this hook existed.
+ * With reduced motion, or without `matchMedia` in tests, remove immediately.
  */
 export function usePresence(open: boolean, exitMs = 160): { mounted: boolean; closing: boolean } {
   const [lingering, setLingering] = useState(false);
   const [seen, setSeen] = useState(open);
 
-  // Adjusting state during render when the prop changes, rather than in an
-  // effect, so the closing frame is the very next paint.
+  // Update during render so the closing frame reaches the next paint.
   if (seen !== open) {
     setSeen(open);
     setLingering(!open && !prefersReducedMotion());

@@ -1,9 +1,9 @@
-"""The one place that knows how to start a run.
+"""Single entry point for starting runs.
 
-`POST /runs` and the chat channels call the same object, so a dependency
-added to `execute_run` is added here once. The prologue exists for one
-reason: `channel.inbound` has to be the first event of a run, and appending
-it after :meth:`RunLauncher.launch` returns would race the orchestrator task.
+`POST /runs` and chat channels share this object, so ``execute_run``
+dependencies appear once. ``prologue`` ensures ``channel.inbound`` is the
+first event; appending after :meth:`RunLauncher.launch` returns races the
+orchestrator task.
 """
 
 from __future__ import annotations
@@ -38,9 +38,9 @@ __all__ = ["RunLauncher"]
 
 @dataclass(slots=True)
 class RunLauncher:
-    """Creates a run row and hands it to the orchestrator in the background.
+    """Create a run row and start its orchestrator in the background.
 
-    Returns as soon as the row exists; every caller watches the run over the log.
+    Return once the row exists; callers follow the log.
     """
 
     store: EventStore
@@ -49,24 +49,23 @@ class RunLauncher:
     ledger: BudgetLedger
     secrets: SecretStore
     runtime: ToolRuntime | None = None
-    #: Where a run's space (rules, roster, folder) comes from. ``None`` runs
-    #: everything under the app-wide rules with whatever sandbox `runtime` carries.
+    #: Run space source (rules, roster, folder). ``None`` uses app-wide rules
+    #: and the sandbox carried by ``runtime``.
     spaces: SpaceStore | None = None
-    #: Overrides the configured provider for every agent; tests pass a scripted
-    #: one, and `execute_run` still wraps it in the budget guard.
+    #: Overrides every configured provider; tests use scripted instances still
+    #: wrapped by ``execute_run``'s budget guard.
     provider: Provider | None = None
-    #: Process-wide ChatGPT OAuth/model transport. It remains below the same
-    #: Provider contract as API-key access.
+    #: Process-wide ChatGPT OAuth/model transport under the API-key Provider contract.
     chatgpt_runtime: ChatGPTInferenceRuntime | None = None
-    #: Strong references to in-flight tasks, since `asyncio` holds only weak ones.
+    #: Strong in-flight task references; ``asyncio`` holds only weak ones.
     tasks: set[asyncio.Task[Any]] = field(default_factory=set)
-    #: The runs in flight in this process, by id, so a cancel can reach them.
+    #: In-process runs by ID, so cancellation can reach them.
     live: dict[str, Run] = field(default_factory=dict)
-    #: Local Markdown retrieval and durable run memories. Optional for narrow tests.
+    #: Local Markdown retrieval and durable run memories; optional for narrow tests.
     knowledge: KnowledgeStore | None = None
-    #: Rows launched here whose orchestrator task has not returned yet.
+    #: Rows launched here whose orchestrator task remains active.
     driving: set[str] = field(default_factory=set)
-    #: A cancel can arrive before `execute_run` has constructed its live Run.
+    #: Cancellations that arrive before ``execute_run`` constructs live ``Run``.
     pending_cancellations: dict[str, str] = field(default_factory=dict)
 
     async def launch(
@@ -80,14 +79,14 @@ class RunLauncher:
         prologue: Callable[[RunRow], Awaitable[None]] | None = None,
         max_run_seconds: int | None = None,
     ) -> RunRow:
-        """Create the run, run ``prologue`` against it, then start it.
+        """Create a run, append ``prologue``, then start it.
 
-        :param space_id: where the run happens. ``None`` is the default space.
-        :param prologue: appended to the log before the orchestrator emits anything.
-        :param max_run_seconds: a time limit for this run alone (a schedule's),
-            laid over the space's; ``None`` keeps the space's.
-        :raises SpaceNotFoundError: for an id that is not a space.
-        :raises SpaceArchivedError: an archived space starts no runs.
+        :param space_id: run location; ``None`` selects default space.
+        :param prologue: append before any orchestrator event.
+        :param max_run_seconds: schedule-specific limit over the space limit;
+            ``None`` retains the space limit.
+        :raises SpaceNotFoundError: if ID is not a space.
+        :raises SpaceArchivedError: archived spaces cannot start runs.
         """
         space = await self._resolve_space(space_id)
         run = await self.store.create_run(
@@ -112,7 +111,7 @@ class RunLauncher:
         return run
 
     async def space_exists(self, space_id: str) -> bool | None:
-        """Whether ``space_id`` can start a run; ``None`` with no space store to ask."""
+        """Return whether ``space_id`` can run; ``None`` if no space store exists."""
         if self.spaces is None:
             return None
         space = await self.spaces.get(space_id)
@@ -129,10 +128,9 @@ class RunLauncher:
         return space
 
     def _runtime_for(self, space: Space | None) -> ToolRuntime | None:
-        """The process-wide tools and gate, rooted at this space's folder.
+        """Return process-wide tools/gate rooted at this space folder.
 
-        The sandbox is per run, so a write from space A into space B's folder
-        is refused. The folder is created on first use.
+        Per-run sandboxes refuse writes from space A into B. Create folder on first use.
         """
         if self.runtime is None or space is None or self.spaces is None:
             return self.runtime
@@ -141,17 +139,17 @@ class RunLauncher:
         return replace(self.runtime, sandbox=Sandbox(folder))
 
     def spawn(self, coroutine: Coroutine[Any, Any, None]) -> asyncio.Task[None]:
-        """Run a coroutine in the background, keeping a strong reference."""
+        """Run a coroutine in the background and keep a strong reference."""
         task = asyncio.create_task(coroutine)
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
         return task
 
     async def cancel(self, run_id: str, reason: str) -> bool:
-        """Ask a live run to stop. False if no such run is live here.
+        """Request a live run stop; return false if it is not live here.
 
-        Cooperative: the run notices at its next deadline check and writes
-        `run.cancelled` itself. An agent blocked on the gate is released.
+        Cooperative cancellation occurs at next deadline check and writes
+        ``run.cancelled``; release agents blocked at the gate.
         """
         run = self.live.get(run_id)
         if run is None:
@@ -172,7 +170,7 @@ class RunLauncher:
         excluded_citations: tuple[str, ...],
         max_run_seconds: int | None,
     ) -> None:
-        """Hand one run to the orchestrator, which writes every terminal event itself."""
+        """Hand a run to its orchestrator, which writes every terminal event."""
         await execute_run(
             self.store,
             self.settings,

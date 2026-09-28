@@ -1,11 +1,9 @@
 -- Migration 013 - the news-scanner can read its configuration.
 --
--- Its prompt begins "INPUT: config/watchlist.json for tickers,
--- config/sources.json for feed URLs", and 010 shipped it with `http_get`
--- and `write_file` only, so the first real run tried to fetch its own
--- configuration over HTTP and stopped. `read_file` is low risk and the
--- other collectors already have it. Guarded on the allowlist still being
--- what 010 wrote, in either JSON spacing, so an edited row is left alone.
+-- Migration 010 gave the scanner `http_get` and `write_file`, but its prompt
+-- requires local configuration. Add low-risk `read_file`, matching other
+-- collectors, only when the 010 allowlist remains unchanged (in either JSON
+-- spacing).
 
 UPDATE agent_defs
    SET allowed_tools = '["http_get","read_file","write_file"]',

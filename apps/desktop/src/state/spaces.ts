@@ -5,21 +5,20 @@ import * as api from "../lib/api";
 import { readRenamedStorage } from "../lib/storage";
 
 /**
- * The spaces, and which one the window is looking at: a fact about this
- * window, remembered in this browser, never a workspace setting. The
- * remembered id is checked against the list on every load and falls back to
- * the default space.
+ * Spaces and this window's selected space, stored in the browser rather than
+ * workspace settings. Validate the remembered ID on each load; fall back to
+ * default.
  */
 export interface SpacesState {
   readonly spaces: readonly SpaceResponse[];
-  /** The space the window is looking at. Null until the list has loaded. */
+  /** Window-selected space; null until the list loads. */
   readonly currentId: string | null;
   readonly error: string | null;
   readonly loading: boolean;
   readonly loaded: boolean;
   load: () => Promise<void>;
   ensure: () => void;
-  /** Look at another space. An id not in the list is ignored. */
+  /** Select another space; ignore IDs absent from the list. */
   select: (id: string) => void;
   reset: () => void;
 }
@@ -35,13 +34,12 @@ function store(id: string): void {
   try {
     localStorage.setItem(KEY, id);
   } catch {
-    // Not remembered; still selected for this window.
+    // Select for this window without persisting.
   }
 }
 
-/** The remembered space if it still exists (archived ones included, since
- * an archived space's runs are still viewable and its settings page is where
- * it is unarchived), else the default. */
+/** Return an existing remembered space (including archived) or the default;
+ * archived spaces retain viewable runs and their unarchive settings. */
 function resolve(spaces: readonly SpaceResponse[], wanted: string | null): string | null {
   const found = spaces.find((space) => space.id === wanted);
   if (found !== undefined) return found.id;

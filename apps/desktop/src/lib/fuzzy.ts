@@ -1,9 +1,7 @@
 /**
- * Subsequence matching for the quick switcher and link completion: every
- * character of the query must appear in order, and a match scores higher the
- * earlier it starts, the more it sits at word starts, and the shorter the
- * text it is found in. Good enough for a few thousand note titles; not a
- * search engine, which the vault already has.
+ * Subsequence matching for quick switching and link completion. Queries must
+ * remain ordered; early, word-start, and shorter matches score higher. Handles
+ * thousands of titles; vault search serves full-text needs.
  */
 
 export interface FuzzyMatch<T> {
@@ -11,7 +9,7 @@ export interface FuzzyMatch<T> {
   readonly score: number;
 }
 
-/** Each whitespace-separated word of the query must match on its own; the score is their sum. */
+/** Match each whitespace-separated query word; sum scores. */
 export function fuzzyScore(query: string, text: string): number | null {
   const words = query.trim().split(/\s+/).filter((word) => word !== "");
   if (words.length === 0) return 0;

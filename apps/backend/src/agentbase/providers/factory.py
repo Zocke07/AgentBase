@@ -1,4 +1,4 @@
-"""Construct a provider from settings: the one place that decides which class to instantiate."""
+"""Construct providers from settings in one implementation-selection point."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ __all__ = [
     "qualified_model",
 ]
 
-#: Provider name to the secret it needs, or ``None`` for one that needs none.
+#: Provider-to-required-secret map; ``None`` needs no secret.
 SUPPORTED_PROVIDERS: Final[dict[str, str | None]] = {
     "anthropic": "anthropic_api_key",
     "openai": "openai_api_key",
@@ -36,7 +36,7 @@ SUPPORTED_PROVIDERS: Final[dict[str, str | None]] = {
 
 
 class UnknownProviderError(LookupError):
-    """Raised for a provider name that has no implementation."""
+    """Provider name has no implementation."""
 
     def __init__(self, provider: str) -> None:
         supported = ", ".join(sorted(SUPPORTED_PROVIDERS))
@@ -47,18 +47,17 @@ class UnknownProviderError(LookupError):
 
 
 def qualified_model(provider: str, model: str) -> str:
-    """The model id as the ledger will see it, not as the user typed it.
+    """Return ledger model ID, not raw user input.
 
-    Ollama prefixes `ollama/`, and every question about a model's price has
-    to be asked about this string. Asking about the raw value once told every
-    Ollama user their runs would be refused.
+    Prefix Ollama with ``ollama/``; price checks must use this identifier.
+    Raw names previously made every Ollama run look unpriced.
     """
     if provider == "ollama" and not model.startswith(OLLAMA_MODEL_PREFIX):
         return OLLAMA_MODEL_PREFIX + model
     return model
 
 
-#: How each provider is named to a person, in messages they read.
+#: User-facing provider names.
 _PROVIDER_NAMES: Final[dict[str, str]] = {
     "anthropic": "Anthropic",
     "openai": "OpenAI",
@@ -72,11 +71,11 @@ def build_provider(
     client: httpx2.AsyncClient | None = None,
     chatgpt_runtime: ChatGPTInferenceRuntime | None = None,
 ) -> Provider:
-    """Build the provider named in ``settings``.
+    """Build provider named in ``settings``.
 
-    :raises UnknownProviderError: for an unrecognised provider name.
-    :raises ProviderAuthError: when the provider needs a key and none arrived,
-        raised here so the message names the credential rather than a 401 later.
+    :raises UnknownProviderError: for unrecognized provider name.
+    :raises ProviderAuthError: when required key did not arrive; raise early to
+        name credential rather than return a later 401.
     """
     name = settings.provider
 
@@ -95,8 +94,7 @@ def build_provider(
     if required_secret is not None:
         stored = secrets.get(required_secret)
         if not stored:
-            # Read by people who have never heard of a keychain or a sidecar:
-            # say what to do, where, and the one surprise (the restart).
+            # Explain action, location, and required restart without keychain jargon.
             shown = _PROVIDER_NAMES.get(name, name)
             msg = (
                 f"No API key for {shown} yet. Add one in Settings under Keys, then "

@@ -1,5 +1,4 @@
-// Hide the console window on Windows release builds. In debug it is kept, so
-// the sidecar's stdout/stderr are visible while developing.
+// Hide the Windows release console; retain it in debug for sidecar stdout/stderr.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {

@@ -34,7 +34,7 @@ export interface AgentMove {
   to_model: string | null;
 }
 
-/** One approval, as the dialog renders it. */
+/** Approval data rendered by the dialog. */
 export interface ApprovalResponse {
   id: string;
   run_id: string;
@@ -58,14 +58,14 @@ export interface BudgetResponse {
   space_spent_display?: string | null;
 }
 
-/** One allowlist entry: this person, on this channel, is that identity. */
+/** Allowlist entry mapping one channel user to one identity. */
 export interface ChannelIdentity {
   channel: "discord";
   external_user_id: string;
   identity: string;
 }
 
-/** One adapter, as the settings screen renders it. */
+/** Adapter status rendered by the settings screen. */
 export interface ChannelStatusResponse {
   channel: string;
   enabled: boolean;
@@ -89,7 +89,7 @@ export interface ChatGPTLoginResponse {
   auth_url: string;
 }
 
-/** The fetched App Server runtime: absent, downloading with progress, ready or failed. */
+/** App Server runtime state: missing, downloading, ready, or failed. */
 export interface ChatGPTRuntimeResponse {
   state: "ready" | "missing" | "downloading" | "error";
   version: string;
@@ -98,21 +98,17 @@ export interface ChatGPTRuntimeResponse {
   error?: string | null;
 }
 
-/** Where the copy goes. A copy is a new row with a new id, never a built-in. */
+/** Copy destination. Copies get a new ID and are never built-ins. */
 export interface CopyAgentRequest {
   space_id: string;
 }
 
-/** Seed a new space with copies of another space's roster. */
+/** Seed a new space with another space's roster copies. */
 export interface CopyFrom {
   copy_from: string;
 }
 
-/**
- * A new definition.
- *
- * Not :class:`~agentbase.store.agents.AgentDef`: a caller must not mint a built-in.
- */
+/** New definition; callers cannot mint a built-in :class:`AgentDef`. */
 export interface CreateAgentRequest {
   space_id?: string | null;
   name: string;
@@ -164,10 +160,10 @@ export interface EvaluateKnowledgeRequest {
 }
 
 /**
- * One append-only row of the log.
+ * Append-only log row.
  *
- * ``seq`` is per-run and 1-based: the SSE id and the ``Last-Event-ID``
- * cursor. ``id`` is the global rowid and is never a resume cursor.
+ * ``seq`` is a 1-based per-run SSE/``Last-Event-ID`` cursor; global rowid
+ * ``id`` is never a resume cursor.
  */
 export interface Event {
   id: number;
@@ -179,7 +175,7 @@ export interface Event {
   ts: string;
 }
 
-/** Every event this application can emit. The list is from §4, verbatim. */
+/** Every event this application emits; list matches §4 verbatim. */
 export type EventType =
   | "run.started"
   | "run.completed"
@@ -212,7 +208,7 @@ export interface HTTPValidationError {
   detail?: ValidationError[];
 }
 
-/** What `/health` says. The shell polls it to decide the sidecar is up. */
+/** `/health` response; the shell polls it for sidecar readiness. */
 export interface HealthResponse {
   ok: boolean;
   instance: string | null;
@@ -416,14 +412,14 @@ export interface PreviewRequest {
   cadence: DailyCadence | WeeklyCadence | IntervalCadence;
 }
 
-/** What can be selected, and which models are priced, per provider. */
+/** Selectable and priced models by provider. */
 export interface ProviderCatalogueResponse {
   providers: ProviderEntry[];
   models: Record<string, string[]>;
   catalog: Record<string, ModelEntry[]>;
 }
 
-/** One selectable provider. */
+/** Selectable provider. */
 export interface ProviderEntry {
   name: string;
   requires_key: boolean;
@@ -438,16 +434,16 @@ export interface ProviderSwitchPlan {
   agents: AgentMove[];
 }
 
-/** A decision on one approval. A misspelled field must not be read as a denial. */
+/** Decision on one approval; reject misspelled fields rather than deny. */
 export interface ResolveApprovalRequest {
   approved: boolean;
   scope?: "call" | "run";
 }
 
-/** How much damage a tool call can do. Policy is a *set* of levels, never a threshold. */
+/** Potential damage from a tool call; policy uses a set, not a threshold. */
 export type RiskLevel = "low" | "medium" | "high";
 
-/** A row of the `runs` table (§4). */
+/** ``runs`` table row (§4). */
 export interface Run {
   id: string;
   space_id: string;
@@ -459,13 +455,13 @@ export interface Run {
   finished_at?: string | null;
 }
 
-/** What a cadence means, before it is saved. */
+/** Cadence preview before saving. */
 export interface SchedulePreview {
   summary: string;
   next: string[];
 }
 
-/** A schedule, plus its cadence in words so every screen says the same thing. */
+/** Schedule plus a shared human-readable cadence. */
 export interface ScheduleResponse {
   id: string;
   space_id: string;
@@ -514,7 +510,7 @@ export interface SearchKnowledgeRequest {
   filters?: SearchFilters;
 }
 
-/** Workspace settings plus the read-only facts the UI needs beside them. */
+/** Workspace settings plus UI read-only facts. */
 export interface SettingsResponse {
   settings: WorkspaceSettings;
   configured_secrets: string[];
@@ -525,7 +521,7 @@ export interface SettingsResponse {
   data_dir: string;
 }
 
-/** A space, plus where its runs read and write. */
+/** Space and its run read/write location. */
 export interface SpaceResponse {
   id: string;
   name: string;
@@ -564,15 +560,14 @@ export interface TextFileSummary {
 }
 
 /**
- * What the gate does with a call to one tool, by name, before its risk level is read.
+ * Per-tool gate decision before risk-level policy.
  *
- * ``ASK`` is the default and means the risk-level rule decides; ``ALLOW``
- * runs the call without asking; ``DENY`` refuses it without asking. A tool
- * absent from a policy is ``ASK``.
+ * Absent tools default to ``ASK``; ``ALLOW`` bypasses the prompt and ``DENY``
+ * refuses the call.
  */
 export type ToolPolicy = "ask" | "allow" | "deny";
 
-/** One catalogue entry, as the agent editor renders it. */
+/** Catalogue entry rendered by the agent editor. */
 export interface ToolResponse {
   name: string;
   description: string;
@@ -581,10 +576,10 @@ export interface ToolResponse {
 }
 
 /**
- * A partial update. Every field optional; omitted fields are untouched.
+ * Partial update; omitted fields stay unchanged.
  *
- * ``None`` is meaningful for `provider` and `model` (back to inheriting), so
- * `model_fields_set` separates "sent as null" from "not sent".
+ * ``None`` restores provider/model inheritance, so ``model_fields_set``
+ * distinguishes it from an omitted field.
  */
 export interface UpdateAgentRequest {
   space_id?: string | null;
@@ -605,7 +600,7 @@ export interface UpdateMemoryRequest {
   pinned?: boolean | null;
 }
 
-/** A partial update; fields left out are untouched. */
+/** Partial update; omitted fields remain unchanged. */
 export interface UpdateScheduleRequest {
   name?: string | null;
   goal?: string | null;
@@ -616,13 +611,11 @@ export interface UpdateScheduleRequest {
 }
 
 /**
- * A partial update. Every field optional; omitted fields are untouched.
+ * Partial update; omitted fields stay unchanged.
  *
- * Unknown fields are rejected, not dropped: Pydantic's default turns a
- * misspelled setting into a `200 OK` that changed nothing. This model must
- * list every field of :class:`~agentbase.store.settings.WorkspaceSettings`
- * (they differ in bounds and optionality, so it cannot be the same class),
- * and `test_every_workspace_setting_can_be_patched` keeps the two in step.
+ * Reject unknown fields: Pydantic would otherwise return ``200 OK`` for a
+ * misspelling. Mirror every :class:`~agentbase.store.settings.WorkspaceSettings`
+ * field here; bounds and optionality differ, and the paired test detects drift.
  */
 export interface UpdateSettingsRequest {
   provider?: string | null;
@@ -644,7 +637,7 @@ export interface UpdateSettingsRequest {
 }
 
 /**
- * A partial update. ``None`` means "inherit", so `model_fields_set` tells it from "not sent".
+ * Partial update; ``None`` inherits, so ``model_fields_set`` detects sent null.
  *
  * The provider cannot be cleared: a space names its own.
  */
@@ -662,7 +655,7 @@ export interface UpdateSpaceRequest {
   archived?: boolean | null;
 }
 
-/** One slice of the period: a model, a space or a day. */
+/** Period slice by model, space, or day. */
 export interface UsageBucket {
   key: string;
   label: string;
@@ -718,7 +711,7 @@ export interface ValidationError {
   ctx?: Record<string, unknown>;
 }
 
-/** Whether the current settings can build a provider, and why not if not. */
+/** Whether current settings can build a provider, with a failure reason. */
 export interface VerifyResponse {
   ok: boolean;
   reason?: string | null;

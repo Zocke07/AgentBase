@@ -1,8 +1,7 @@
-"""Agent definition endpoints, and the tool catalogue the editor needs.
+"""Agent-definition endpoints and the editor's tool catalogue.
 
-The rules live in :mod:`agentbase.store.agents`; this maps their errors to
-4xx responses carrying `{message, field}` so the editor can put the message
-on the offending input. Unknown fields are rejected rather than dropped.
+:mod:`agentbase.store.agents` owns the rules; this maps its errors to 4xx
+``{message, field}`` responses. Reject unknown fields rather than dropping them.
 """
 
 from __future__ import annotations
@@ -31,14 +30,11 @@ router = APIRouter()
 
 
 class CreateAgentRequest(BaseModel):
-    """A new definition.
-
-    Not :class:`~agentbase.store.agents.AgentDef`: a caller must not mint a built-in.
-    """
+    """New definition; callers cannot mint a built-in :class:`AgentDef`."""
 
     model_config = ConfigDict(extra="forbid")
 
-    #: The roster this definition joins. ``None`` is the default space.
+    #: Roster to join; ``None`` selects the default space.
     space_id: str | None = None
     name: str
     role: str
@@ -46,23 +42,22 @@ class CreateAgentRequest(BaseModel):
     provider: str | None = None
     model: str | None = None
     allowed_tools: list[str] = Field(default_factory=list)
-    #: ``None`` means "whatever this workspace allows"; a literal default here
-    #: would be rejected whenever the workspace cap is below it.
+    #: ``None`` inherits the workspace limit; a literal default might exceed it.
     max_steps: int | None = None
     auto_approve: list[str] = Field(default_factory=list)
     enabled: bool = True
 
 
 class UpdateAgentRequest(BaseModel):
-    """A partial update. Every field optional; omitted fields are untouched.
+    """Partial update; omitted fields stay unchanged.
 
-    ``None`` is meaningful for `provider` and `model` (back to inheriting), so
-    `model_fields_set` separates "sent as null" from "not sent".
+    ``None`` restores provider/model inheritance, so ``model_fields_set``
+    distinguishes it from an omitted field.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    #: A move to another space's roster; in-flight runs hold a snapshot.
+    #: Move to another roster; in-flight runs retain their snapshot.
     space_id: str | None = None
     name: str | None = None
     role: str | None = None
@@ -76,19 +71,18 @@ class UpdateAgentRequest(BaseModel):
 
 
 class CopyAgentRequest(BaseModel):
-    """Where the copy goes. A copy is a new row with a new id, never a built-in."""
+    """Copy destination. Copies get a new ID and are never built-ins."""
 
     space_id: str
 
 
 class ToolResponse(BaseModel):
-    """One catalogue entry, as the agent editor renders it."""
+    """Catalogue entry rendered by the agent editor."""
 
     name: str
     description: str
     risk: str
-    #: Whether an implementation is registered behind the name; read from the
-    #: registry so a catalogue entry with none reports the truth.
+    #: Whether the registry has an implementation for this catalogue name.
     available: bool
 
 
@@ -98,9 +92,7 @@ def _store(request: Request) -> AgentDefStore:
 
 
 def _reject(exc: AgentValidationError) -> HTTPException:
-    """Map a validation failure onto a status code and a field-aware body: 409 for a duplicate
-    name, else 400.
-    """
+    """Map validation failure to a field-aware 409 for duplicate names, else 400."""
     return HTTPException(
         status_code=409 if isinstance(exc, DuplicateAgentNameError) else 400,
         detail={"message": str(exc), "field": exc.field},
@@ -109,7 +101,7 @@ def _reject(exc: AgentValidationError) -> HTTPException:
 
 @router.get("/agents")
 async def list_agents(request: Request, space_id: str | None = None) -> list[AgentDef]:
-    """Every definition, enabled or not: this backs the roster editor."""
+    """List all definitions, including disabled ones, for the roster editor."""
     return await _store(request).list_all(space_id)
 
 
@@ -135,7 +127,7 @@ async def create_agent(request: Request, body: CreateAgentRequest) -> AgentDef:
 
 @router.post("/agents/{definition_id}/copy", status_code=201)
 async def copy_agent(request: Request, definition_id: str, body: CopyAgentRequest) -> AgentDef:
-    """A copy of one definition on another space's roster."""
+    """Copy a definition to another space's roster."""
     try:
         return await _store(request).copy(definition_id, body.space_id)
     except AgentNotFoundError as exc:
@@ -152,7 +144,7 @@ async def copy_agent(request: Request, definition_id: str, body: CopyAgentReques
 async def update_agent(
     request: Request, definition_id: str, body: UpdateAgentRequest
 ) -> AgentDef:
-    """Apply a partial update. A built-in is editable; only the delete path is guarded."""
+    """Apply a partial update; built-ins are editable but not deletable."""
     changes: dict[str, Any] = {field: getattr(body, field) for field in body.model_fields_set}
     if not changes:
         raise HTTPException(status_code=400, detail="no fields were supplied")
@@ -176,7 +168,7 @@ async def delete_agent(request: Request, definition_id: str) -> Response:
     except AgentNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except BuiltinNotDeletableError as exc:
-        # 409, not 403: the caller's authority is fine; the row is not deletable.
+        # 409, not 403: authority is valid; this row cannot be deleted.
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     return Response(status_code=204)
@@ -184,7 +176,7 @@ async def delete_agent(request: Request, definition_id: str) -> Response:
 
 @router.get("/tools")
 async def list_tools(request: Request) -> list[ToolResponse]:
-    """The tool catalogue with each tool's risk level, for the editor's checkboxes."""
+    """List tools and risk levels for editor checkboxes."""
     available = request.app.state.tool_runtime.tools
     return [
         ToolResponse(

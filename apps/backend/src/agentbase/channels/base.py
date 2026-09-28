@@ -1,11 +1,9 @@
-"""The `ChannelAdapter` protocol and the one normalized message shape.
+"""`ChannelAdapter` protocol and normalized message shape.
 
-:class:`InboundMessage` is the only shape the rest of the application sees; a
-`discord.Interaction` stops here. :class:`ChannelAdapter` is the long-lived
-connection and :class:`ChannelReply` a single conversation's reply handle,
-which is the one thing platforms implement differently. `display_name` is
-for reading, never for deciding: a user controls their own, and the allowlist
-looks only at `external_user_id`.
+The application sees only :class:`InboundMessage`, never a
+``discord.Interaction``. :class:`ChannelAdapter` owns a long-lived connection;
+:class:`ChannelReply` is the platform-specific reply handle. Use
+``external_user_id`` for allowlists, never user-controlled ``display_name``.
 """
 
 from __future__ import annotations
@@ -25,22 +23,21 @@ __all__ = [
     "TriggerKind",
 ]
 
-#: The channels this application speaks: the same strings as `runs.origin`, minus `ui`.
+#: Supported channels: ``runs.origin`` values excluding ``ui``.
 ChannelName = Literal["discord"]
 
 CHANNEL_NAMES: Final[tuple[ChannelName, ...]] = ("discord",)
 
-#: What caused this message to reach us: the two triggers §1 constraint 6
-#: permits, recorded so the constraint is auditable from the log.
+#: §1 constraint 6's permitted triggers, recorded for log auditability.
 TriggerKind = Literal["command", "mention"]
 
 
 @dataclass(frozen=True, slots=True)
 class InboundMessage:
-    """One normalized message from a chat channel.
+    """Normalized chat message.
 
-    :param thread_ref: where a reply belongs (a Discord channel id); stored as
-        `runs.origin_ref`.
+    :param thread_ref: reply location (a Discord channel ID), stored as
+        ``runs.origin_ref``.
     """
 
     channel: ChannelName
@@ -52,10 +49,7 @@ class InboundMessage:
     display_name: str | None = None
 
     def as_payload(self, identity: str | None) -> dict[str, Any]:
-        """The `channel.inbound` payload.
-
-        ``identity`` is the resolved internal name, or ``None`` if refused.
-        """
+        """Build the ``channel.inbound`` payload; identity is resolved or ``None``."""
         return {
             "channel": self.channel,
             "external_user_id": self.external_user_id,
@@ -70,15 +64,14 @@ class InboundMessage:
 
 @runtime_checkable
 class ChannelReply(Protocol):
-    """One conversation's reply handle: the platform-specific half.
+    """Platform-specific reply handle for one conversation.
 
-    :meth:`update` edits the one message a run owns (one edited message is
-    what keeps a run inside the rate limits); :meth:`ask` offers an approval
-    affordance and may do nothing; :meth:`close` releases the platform's resources.
+    :meth:`update` edits the run's one rate-limited message; :meth:`ask` may
+    offer approval controls; :meth:`close` releases platform resources.
     """
 
     async def update(self, text: str) -> None:
-        """Replace the run's message with ``text``."""
+        """Replace the run message with ``text``."""
         ...
 
     async def ask(self, approval_id: str, prompt: str, risk: str) -> None:
@@ -86,24 +79,23 @@ class ChannelReply(Protocol):
         ...
 
     async def close(self) -> None:
-        """Finish this conversation. Called exactly once."""
+        """Finish this conversation; called exactly once."""
         ...
 
 
 @runtime_checkable
 class ChannelAdapter(Protocol):
-    """A long-lived connection to one chat platform, supervised by `ChannelService`.
+    """Long-lived chat-platform connection supervised by ``ChannelService``.
 
-    An adapter raises on a fatal error rather than looping; the supervisor
-    decides whether to retry.
+    Raise fatal errors; the supervisor decides retries.
     """
 
     name: ChannelName
 
     async def run(self) -> None:
-        """Connect and serve until cancelled. Returns only on a clean stop."""
+        """Connect and serve until cancellation; return only after a clean stop."""
         ...
 
     async def close(self) -> None:
-        """Tear the connection down. Safe to call when never started."""
+        """Tear down the connection; safe before start."""
         ...

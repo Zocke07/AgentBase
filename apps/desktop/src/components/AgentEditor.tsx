@@ -14,30 +14,27 @@ import { providerLabel } from "../lib/format";
 import { ModelOptions } from "./ModelOptions";
 
 /**
- * Create or edit one agent definition.
+ * Create or edit an agent definition.
  *
- * A refusal is rendered against the input the server named (`{message,
- * field}`), never guessed from the message. Tool checkboxes show each tool's
- * risk from `GET /tools`, the same catalogue the gate enforces; ticking one
- * is permission from the definition, never from the user. The model field
- * follows the provider, and a provider with no fixed list gets a text box.
- * An edit sends what the user changed, diffed against the snapshot the form
- * opened with, so a toggle made elsewhere meanwhile is not undone.
+ * Render refusals on server-named `{message, field}` inputs. Tool risks come
+ * from gate-enforced `GET /tools`; selection grants definition permission, not
+ * user permission. Models follow provider (free-text without a fixed list).
+ * PATCH only form changes to preserve concurrent external toggles.
  */
 
 export interface AgentEditorProps {
-  /** The definition being edited, or null to create a new one. */
+  /** Edited definition, or null to create. */
   agent: AgentDef | null;
   tools: readonly ToolResponse[];
   catalogue: ProviderCatalogueResponse;
-  /** What "inherit" resolves to right now; null if settings could not be read. */
+  /** Current `inherit` resolution; null if settings unavailable. */
   workspaceProvider: string | null;
-  /** Create from the whole form. Used when `agent` is null. */
+  /** Create from full form when `agent` is null. */
   onCreate: (body: CreateAgentRequest) => Promise<void>;
-  /** Patch `agent` with only the fields the user changed. */
+  /** PATCH only user-changed agent fields. */
   onPatch: (patch: UpdateAgentRequest) => Promise<void>;
   onCancel: () => void;
-  /** Told whenever the form starts or stops differing from what it opened with. */
+  /** Notify when form diverges from its opening state. */
   onDirtyChange?: (dirty: boolean) => void;
 }
 
@@ -78,7 +75,7 @@ function toRequest(form: FormState): CreateAgentRequest {
   };
 }
 
-/** The fields of `after` that differ from `before`: a PATCH body. */
+/** Fields changed from `before` to `after`, as PATCH body. */
 function changedFields(before: CreateAgentRequest, after: CreateAgentRequest): UpdateAgentRequest {
   const patch: UpdateAgentRequest = {};
   for (const key of Object.keys(after) as (keyof CreateAgentRequest)[]) {
@@ -101,9 +98,8 @@ function initial(agent: AgentDef | null): FormState {
     model: agent?.model ?? INHERIT,
     allowed_tools: [...(agent?.allowed_tools ?? [])],
     auto_approve: (agent?.auto_approve ?? []).filter(isRiskLevel),
-    // Empty means "whatever this workspace allows". Defaulting to a literal
-    // here is the Phase 5 bug: a definition rejected for a field the caller
-    // never supplied, whenever the workspace cap sits below that literal.
+    // Empty inherits workspace cap; literal defaults can cause unsupplied-field
+    // rejection when the workspace cap is lower.
     max_steps: agent?.max_steps === undefined ? "" : String(agent.max_steps),
     enabled: agent?.enabled ?? true,
   };
@@ -119,11 +115,11 @@ export function AgentEditor({
   onCancel,
   onDirtyChange,
 }: AgentEditorProps) {
-  // `opened` is what the form started from; the diff on save is against it.
+  // Diff saves against opening snapshot.
   const [opened] = useState<FormState>(() => initial(agent));
   const [form, setForm] = useState<FormState>(opened);
-  // Messages by field; `FORM` for one the server did not attribute. A map
-  // rather than one slot because the pre-flight below can name two at once.
+  // Map field messages; `FORM` handles unattributed errors and preflight can
+  // name multiple fields.
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
   const [saving, setSaving] = useState(false);
 
@@ -134,22 +130,19 @@ export function AgentEditor({
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
-    // Clear the error on the field being corrected, so the message goes away
-    // when the user acts on it rather than only on the next submit.
+    // Clear corrected-field errors immediately.
     setErrors(({ [key]: _cleared, ...rest }) => rest);
   };
 
-  /** The inline message for one input, or null. */
+  /** Inline input message or null. */
   const errorFor = (field: string): string | null => errors[field] ?? null;
 
-  // Which provider the model field is for: the pinned one, else the
-  // workspace's. Everything about the model field follows from this.
+  // Model behavior follows pinned provider or workspace provider.
   const effectiveProvider = form.provider === INHERIT ? workspaceProvider : form.provider;
   const providerEntry = catalogue.providers.find((entry) => entry.name === effectiveProvider);
   const freeText = providerEntry?.free_text_model ?? false;
   const knownModels = effectiveProvider === null ? [] : (catalogue.models[effectiveProvider] ?? []);
-  // A saved model outside the current provider's list stays visible, labelled,
-  // rather than silently reading as "inherit" while the form still holds it.
+  // Keep out-of-list saved model visible instead of mislabeling it `inherit`.
   const strayModel =
     form.model !== INHERIT && !freeText && !knownModels.includes(form.model) ? form.model : null;
 
@@ -175,9 +168,8 @@ export function AgentEditor({
     submitted.preventDefault();
     setErrors({});
 
-    // The server would refuse these too; a round trip for a form that is
-    // visibly incomplete is a round trip for nothing. It stays the authority
-    // on everything else: uniqueness, the step cap, the tool catalogue.
+    // Block visibly incomplete forms locally; server remains authority for
+    // uniqueness, caps, and tool catalog.
     const incomplete: Record<string, string> = {};
     if (form.name.trim() === "") incomplete.name = "Give the agent a name.";
     if (form.system_prompt.trim() === "") incomplete.system_prompt = "Give the agent a system prompt.";
@@ -189,9 +181,7 @@ export function AgentEditor({
     setSaving(true);
     const body = toRequest(form);
 
-    // Editing: only what changed. Nothing changed is nothing to send: the
-    // server would answer 400 "no fields were supplied", which is true and
-    // not what a person who clicked Save with an untouched form wants to read.
+    // Send edits only when changed; avoid expected 400 for empty PATCH.
     if (agent !== null) {
       const patch = changedFields(toRequest(opened), body);
       if (Object.keys(patch).length === 0) {

@@ -1,10 +1,8 @@
-"""The usage report: what a month of model calls cost and carried, sliced.
+"""Monthly model-usage reporting.
 
-Everything here is read from the `spend` ledger, which holds one row per
-model call with its tokens and its integer-micro cost, joined to `runs` for
-the space and the goal. Nothing is estimated: a figure that is not in the
-ledger is not on the report. A call's input tokens are the context it sent,
-so the largest of them in a run is the most context that run carried.
+Read every value from the ``spend`` ledger, joined to ``runs`` for space and
+goal; never estimate. Input tokens are sent context, so a run's maximum is
+its largest carried context.
 """
 
 from __future__ import annotations
@@ -30,7 +28,7 @@ __all__ = [
     "UsageTotals",
 ]
 
-#: The most runs one report lists, costliest first; the rest are in the totals.
+#: Maximum listed runs, costliest first; totals include the rest.
 MAX_RUN_ROWS: Final[int] = 40
 
 
@@ -44,7 +42,7 @@ class UsageTotals(BaseModel):
 
 
 class UsageBucket(BaseModel):
-    """One slice of the period: a model, a space or a day."""
+    """Period slice by model, space, or day."""
 
     key: str
     label: str
@@ -65,9 +63,9 @@ class UsageRun(BaseModel):
     calls: int
     input_tokens: int
     output_tokens: int
-    #: The most tokens one call in this run sent: the largest context it carried.
+    #: Maximum input tokens for one call: largest context carried.
     peak_context: int
-    #: The mean input tokens per call: how much context a typical call carried.
+    #: Mean input tokens per call: typical context carried.
     mean_context: int
     cost_micros: int
     cost_display: str
@@ -75,7 +73,7 @@ class UsageRun(BaseModel):
 
 class UsageReport(BaseModel):
     period: str
-    #: Every period the ledger has rows for, newest first, so the UI can offer them.
+    #: Ledger periods with rows, newest first, for the UI selector.
     periods: list[str]
     space_id: str | None
     cap_micros: int
@@ -83,7 +81,7 @@ class UsageReport(BaseModel):
     by_model: list[UsageBucket]
     by_space: list[UsageBucket]
     by_day: list[UsageBucket]
-    #: The costliest runs of the period, up to MAX_RUN_ROWS.
+    #: Costliest period runs, up to ``MAX_RUN_ROWS``.
     runs: list[UsageRun]
 
 
@@ -101,7 +99,7 @@ def _bucket(key: str, label: str, row: sqlite3.Row) -> UsageBucket:
 
 
 class UsageStore:
-    """Reads the ledger for the report. Read-only: the ledger writes."""
+    """Read ledger data for reports; only the ledger writes."""
 
     def __init__(self, db: Database) -> None:
         self._db = db
@@ -110,9 +108,9 @@ class UsageStore:
         return await asyncio.to_thread(self._report_sync, period, space_id, cap_micros)
 
     def _report_sync(self, period: str, space_id: str | None, cap_micros: int) -> UsageReport:
-        # The space filter joins through runs; a deleted run has no space any
-        # more (its spend row keeps a NULL run_id, by design), so a per-space
-        # report cannot count it and the all-spaces report lists it as such.
+        # Per-space filtering joins runs. Deleting a run clears its spend
+        # ``run_id``, so per-space reports exclude it and all-space reports
+        # label it deleted.
         where = "WHERE spend.period = ?"
         params: list[object] = [period]
         if space_id is not None:

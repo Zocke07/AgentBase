@@ -1,14 +1,12 @@
 import type { Event, EventType } from "@agentbase/schemas";
 
 /**
- * The SSE client: one run's event stream, resumable.
+ * Resumable SSE client for one run's event stream.
  *
- * Frames carry no `event:` name (a named event never fires `onmessage`); the
- * type is in the JSON body. `Last-Event-ID` is the browser's job on a
- * reconnect, and `after_seq` in the URL covers the initial connection, which
- * cannot carry the header. The server closes the stream when the run ends
- * and `EventSource` treats that as a disconnect, so this client closes itself
- * on a terminal event rather than reconnecting to a finished run forever.
+ * Frames leave `event:` unnamed so `onmessage` fires; their type is JSON. The
+ * browser sends `Last-Event-ID` on reconnect and initial `after_seq` resumes
+ * history. Close on terminal events because `EventSource` otherwise reconnects
+ * after the server ends a finished run.
  */
 
 /** `EventSource.CLOSED`, as a number so the module works without the global. */
@@ -28,12 +26,12 @@ export function isTerminal(type: EventType): boolean {
 
 export interface RunStreamHandlers {
   onEvent: (event: Event) => void;
-  /** Called when the stream attaches, drops, or ends because the run ended. */
+  /** Called when the stream attaches, drops, or terminates with the run. */
   onOpen?: () => void;
   onClosed?: (reason: "run-finished" | "cancelled") => void;
-  /** The *connection* is in trouble: reconnecting, or gone for good. */
+  /** Connection trouble: retrying or permanently closed. */
   onError?: (message: string) => void;
-  /** One frame could not be read. Not `onError`: a bad frame is not a broken connection. */
+  /** One unreadable frame; unlike `onError`, it does not break the connection. */
   onBadFrame?: (raw: string) => void;
 }
 
@@ -41,14 +39,14 @@ export interface RunStreamHandle {
   close: () => void;
 }
 
-/** Injectable so tests can drive this without a browser; production gets the real one. */
+/** Injectable EventSource constructor for browser-free tests. */
 export type EventSourceFactory = (url: string) => EventSource;
 
 const defaultFactory: EventSourceFactory = (url) => new EventSource(url);
 
 export interface RunStreamOptions {
   factory?: EventSourceFactory;
-  /** Ask for events after this `seq` only: the head of an already-loaded history. */
+  /** Request only events after this history-head `seq`. */
   afterSeq?: number;
 }
 
@@ -103,7 +101,7 @@ export function streamRun(
     handlers.onEvent(event);
 
     if (TERMINAL.has(event.type)) {
-      // The server has ended the response; without this `EventSource` would reconnect forever.
+      // Prevent `EventSource` reconnecting forever after server completion.
       shutdown("run-finished");
     }
   };
@@ -111,8 +109,7 @@ export function streamRun(
   source.onerror = () => {
     if (closed) return;
 
-    // A dropped connection and a permanent failure share this handler;
-    // `readyState` separates them. CONNECTING means it is already retrying.
+    // `readyState` separates retrying disconnections from permanent failures.
     if (source.readyState === READY_STATE_CLOSED) {
       closed = true;
       handlers.onError?.("the event stream closed and will not reconnect");

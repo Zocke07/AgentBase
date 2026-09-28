@@ -1,9 +1,6 @@
 /**
- * Relaunching the app. Keys are read from the keychain once, at spawn, so a
- * key written from the settings screen reaches the sidecar only after a
- * restart. The shell owns process lifetime: it stops the sidecar, then execs
- * a fresh copy of itself. Outside Tauri there is nothing to relaunch, so the
- * button is not offered.
+ * Relaunch after settings write: the sidecar reads keychain keys only at spawn.
+ * The shell stops it, then execs a new copy. Do not offer this outside Tauri.
  */
 
 export { insideTauri as restartAvailable } from "./tauri";

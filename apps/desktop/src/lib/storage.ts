@@ -1,8 +1,6 @@
 /**
- * Read a browser preference after the product rename. A current AgentBase
- * value always wins; an AgentSpace value is only a fallback for a browser
- * that has not stored the new name yet. Copying the fallback forward lets all
- * later reads and writes use the current key without dropping a preference.
+ * Migrate renamed browser preferences. Current AgentBase values win; otherwise
+ * copy an AgentSpace fallback so later reads and writes use the current key.
  */
 export function readRenamedStorage(key: string, legacyKey: string): string | null {
   try {
@@ -15,7 +13,7 @@ export function readRenamedStorage(key: string, legacyKey: string): string | nul
     try {
       localStorage.setItem(key, legacy);
     } catch {
-      // The legacy choice can still be used for this view.
+      // Use the legacy choice for this view.
     }
     return legacy;
   } catch {
@@ -28,11 +26,11 @@ export function removeRenamedStorage(key: string, legacyKey: string): void {
   try {
     localStorage.removeItem(key);
   } catch {
-    // Storage is optional for browser preferences.
+    // Browser preference storage is optional.
   }
   try {
     localStorage.removeItem(legacyKey);
   } catch {
-    // A failed cleanup must not stop the visible setting from updating.
+    // Failed cleanup must not block the visible update.
   }
 }

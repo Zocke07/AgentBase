@@ -1,13 +1,11 @@
-"""The OpenAPI schema, and the TypeScript types generated from it (§5 Phase 7).
+"""OpenAPI schema and generated TypeScript types (§5 Phase 7).
 
-Both outputs are committed so the frontend typechecks without a Python
-environment and drift shows in a diff; `test_openapi_snapshot.py` keeps them
-current. The emitter lives here because `openapi-typescript` caps its
-TypeScript peer below this tree's version and the input is a small closed set
-of keywords. It raises on a keyword it does not understand rather than
-emitting `unknown`, which would typecheck and protect nothing.
-
-Side-effect free: `just schemas` and the drift test call the same functions.
+Commit both outputs so the frontend typechecks without Python and drift appears
+in a diff; `test_openapi_snapshot.py` keeps them current. This emitter handles
+a small closed keyword set because `openapi-typescript` caps TypeScript below
+this tree's version. It rejects unknown keywords instead of emitting unsafe
+``unknown``. `just schemas` and the drift test call the same side-effect-free
+functions.
 """
 
 from __future__ import annotations
@@ -32,7 +30,7 @@ __all__ = [
 #: Schema keywords the emitter reads. Anything else raises.
 _KNOWN_KEYWORDS: Final[frozenset[str]] = frozenset(
     {
-        # Structural: these decide the emitted type.
+        # Structural keywords determine the emitted type.
         "$ref",
         "anyOf",
         "additionalProperties",
@@ -42,8 +40,8 @@ _KNOWN_KEYWORDS: Final[frozenset[str]] = frozenset(
         "properties",
         "required",
         "type",
-        # Documentation and validation: read for comments, or ignored on
-        # purpose (`minimum` has no TypeScript equivalent worth a branded type).
+        # Documentation/validation keywords: emit comments or intentionally
+        # ignore (`minimum` has no worthwhile TypeScript branded equivalent).
         "default",
         "description",
         "examples",
@@ -79,10 +77,7 @@ _HEADER: Final[str] = """\
 
 
 class UnsupportedSchemaError(Exception):
-    """A schema construct the emitter does not handle.
-
-    Names the path so the model is obvious.
-    """
+    """A schema construct the emitter cannot handle; includes its path."""
 
     def __init__(self, path: str, detail: str) -> None:
         super().__init__(
@@ -95,10 +90,10 @@ class UnsupportedSchemaError(Exception):
 
 
 def schema() -> dict[str, Any]:
-    """The live OpenAPI document for the sidecar.
+    """Return the sidecar's live OpenAPI document.
 
-    Built with throwaway paths: `create_app()` opens no database but does
-    resolve the data directory, and a generator must not depend on the machine.
+    Use throwaway paths: `create_app()` resolves its data directory but opens
+    no database, and generation must not depend on the host.
     """
     placeholder = Path("/nonexistent")
     app = create_app(
@@ -115,7 +110,7 @@ def schema() -> dict[str, Any]:
 
 
 def serialise(document: dict[str, Any]) -> str:
-    """Render the schema as the committed file holds it: sorted keys, trailing newline."""
+    """Render the committed schema format: sorted keys and a trailing newline."""
     return json.dumps(document, indent=2, sort_keys=True) + "\n"
 
 
@@ -157,13 +152,13 @@ def _type_of(node: dict[str, Any], path: str, indent: str = "") -> str:
             _type_of(member, f"{path}.anyOf[{index}]", indent)
             for index, member in enumerate(node["anyOf"])
         ]
-        # Deduplicated: `str | None` can otherwise render as `string | null | null`.
+        # Deduplicate: `str | None` can render as `string | null | null`.
         return _union(list(dict.fromkeys(members)), indent)
 
     if "enum" in node:
         return _union([_literal(value, path) for value in node["enum"]], indent)
 
-    # A one-member `Literal`: Pydantic writes it as `const`, not `enum`.
+    # Pydantic writes a one-member `Literal` as `const`, not `enum`.
     if "const" in node:
         return _literal(node["const"], path)
 
@@ -174,7 +169,7 @@ def _type_of(node: dict[str, Any], path: str, indent: str = "") -> str:
         if not isinstance(items, dict):
             raise UnsupportedSchemaError(path, "an array without an `items` schema")
         inner = _type_of(items, f"{path}[]", indent)
-        # Parenthesised so `(A | B)[]` does not become `A | B[]`.
+        # Parenthesize so `(A | B)[]` cannot become `A | B[]`.
         return f"({inner})[]" if "|" in inner else f"{inner}[]"
 
     if declared == "object":
@@ -203,7 +198,7 @@ def _type_of(node: dict[str, Any], path: str, indent: str = "") -> str:
     )
 
 
-#: Beyond this, a union is rendered one member per line (`EventType` has 26).
+#: Longer unions render one member per line (`EventType` has 26).
 _UNION_WRAP_AT: Final[int] = 88
 
 
@@ -259,7 +254,7 @@ def _property_key(name: str) -> str:
 
 
 def _doc_comment(node: dict[str, Any], indent: str) -> list[str]:
-    """Render a schema `description` as a JSDoc comment, so contracts show on hover."""
+    """Render a schema ``description`` as hoverable JSDoc."""
     description = node.get("description")
     if not description:
         return []
@@ -286,10 +281,10 @@ def _declaration(name: str, node: dict[str, Any]) -> str:
 
 
 def emit_typescript(document: dict[str, Any] | None = None) -> str:
-    """Render every component schema as a TypeScript declaration.
+    """Render component schemas as TypeScript declarations.
 
-    Only `components.schemas`: the model types are what the dashboard needs,
-    and the routes are asserted to exist by a test instead.
+    Emit only `components.schemas`: the dashboard needs model types, while a
+    test asserts routes.
     """
     doc = document if document is not None else schema()
     schemas: dict[str, Any] = doc["components"]["schemas"]
@@ -298,8 +293,7 @@ def emit_typescript(document: dict[str, Any] | None = None) -> str:
     parts.extend(_declaration(name, node) for name, node in sorted(schemas.items()))
     body = "\n".join(parts)
 
-    # A wrapped union leaves a trailing space after `=`; one rule here, not
-    # one at every construction site.
+    # A wrapped union leaves a space after `=`; trim it once here.
     return "\n".join(line.rstrip() for line in body.splitlines()) + "\n"
 
 
@@ -307,7 +301,7 @@ def emit_typescript(document: dict[str, Any] | None = None) -> str:
 
 
 def _write_text(destination: Path, text: str) -> None:
-    """Write ``text`` with LF endings: `Path.write_text` on Windows would write CRLF."""
+    """Write ``text`` with LF endings; ``Path.write_text`` uses CRLF on Windows."""
     destination.parent.mkdir(parents=True, exist_ok=True)
     with destination.open("w", encoding="utf-8", newline="\n") as handle:
         handle.write(text)

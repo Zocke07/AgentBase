@@ -4,77 +4,71 @@
 
 ### The API is self-describing
 
-With any sidecar running, `http://127.0.0.1:8787/docs` is Swagger UI over the
-live OpenAPI document. Every route is callable from there. Useful ones:
+With a running sidecar, `http://127.0.0.1:8787/docs` serves Swagger UI for the
+live OpenAPI document. Call every route there. Useful routes:
 
 | Route | What it tells you |
 |---|---|
-| `GET /settings` | effective settings, **which** secrets arrived, whether the model is priced |
-| `POST /settings/verify?space_id=<id>` | can the space's effective settings and startup secrets build a priced provider; makes no remote API call |
-| `GET /auth/chatgpt` | ChatGPT connection state and safe account metadata, never tokens |
-| `GET /channels` | is Discord connected, `last_error`, who was refused |
-| `GET /spaces/{id}` | the space's stored rule overrides, folder and default-space flag |
+| `GET /settings` | Effective settings, received secret names, and whether the model is priced. |
+| `POST /settings/verify?space_id=<id>` | Whether the space's effective settings and startup secrets build a priced provider; no remote call. |
+| `GET /auth/chatgpt` | ChatGPT state and safe account metadata; never tokens. |
+| `GET /channels` | Discord connection, `last_error`, and refused users. |
+| `GET /spaces/{id}` | Stored rule overrides, folder, and default-space flag. |
 | `GET /runs?space_id=<id>` | runs belonging to that space |
-| `GET /budget?space_id=<id>` | app-wide spend/cap and that space's share |
-| `GET /runs/{id}/events/history` | the whole event log of a run as a JSON array |
-| `GET /approvals` | what is pending right now |
-| `POST /debug/fake_run?step_ms=500` | a scripted 20-event run, no model needed |
+| `GET /budget?space_id=<id>` | App-wide spend/cap and the space's share. |
+| `GET /runs/{id}/events/history` | Full run event log as JSON. |
+| `GET /approvals` | Pending approvals. |
+| `POST /debug/fake_run?step_ms=500` | Scripted 20-event run; no model. |
 
 ### Reading the event stream
 
-The stream is plain SSE with **unnamed** frames: the event type is inside the
-JSON body, deliberately (a named frame never fires `EventSource.onmessage`;
-Phase 2 lost 20 of 20 events to that). So `curl` shows exactly what the browser
-gets:
+The stream uses **unnamed** SSE frames; event type is deliberately in the JSON
+body. Named frames never fire `EventSource.onmessage` (Phase 2 lost all 20
+events), so `curl` shows what the browser receives:
 
 ```bash
 curl -N 'http://127.0.0.1:8787/runs/<run-id>/events'
 curl -N -H 'Last-Event-ID: 12' 'http://127.0.0.1:8787/runs/<run-id>/events'
 ```
 
-Use `curl.exe` in Windows PowerShell 5.1, where `curl` may be an alias for
-`Invoke-WebRequest`. Substitute a real run id. A browser's first connection can
+In Windows PowerShell 5.1, use `curl.exe` because `curl` can alias
+`Invoke-WebRequest`. Substitute a real run ID. First browser connections may
 resume with `?after_seq=12`; reconnects also accept `Last-Event-ID`.
 
-The stream closes itself on a terminal event (`run.completed`, `run.failed`,
-`run.cancelled`). Anything appended *after* a terminal event is invisible to a
-live watcher and visible to a replay, which was a real Phase 8 bug, and it is
-the first thing to suspect when live and replay disagree by one event.
+The stream closes on `run.completed`, `run.failed`, or `run.cancelled`. A later
+event appears in replay but not live; check this first when they differ by one
+event (a Phase 8 bug).
 
 ### A run with no model
 
-`POST /debug/fake_run` plays a fixed script of 20 events over 10 seconds
-(`step_ms=0` for tests). It exercises the store, the bus, SSE, the reducer and
-the graph without a provider or a key. It is what the Phase 7 pixel comparison
-used, because it is reproducible. The endpoint always creates its run in Main;
-it does not take a `space_id` parameter.
+`POST /debug/fake_run` emits a fixed 20-event, 10-second script (`step_ms=0`
+for tests). It exercises store, bus, SSE, reducer, and graph without a provider
+or key; Phase 7's pixel comparison used it for reproducibility. It always uses
+Main and accepts no `space_id`.
 
 ### A run with a free model
 
-Install Ollama, `ollama pull qwen3:4b`, and `PATCH /settings` with
-`{"provider": "ollama", "model": "qwen3:4b"}`. Runs cost $0, need no key, and
-`qwen3:4b` reached `run.completed` in previous live checks. Those runs were slow
-and their plans were weak; the [project history](../history/README.md) preserves
-the measurements and the failed `gemma4:e4b` attempts. These are observations
-from particular runs, not a guarantee for a new task. If the chosen space
-overrides provider/model, update that space too or set it to inherit.
+Install Ollama, run `ollama pull qwen3:4b`, then `PATCH /settings` with
+`{"provider": "ollama", "model": "qwen3:4b"}`. It costs $0, needs no key, and
+previous live checks reached `run.completed`. They were slow with weak plans;
+[project history](../history/README.md) records measurements and failed
+`gemma4:e4b` attempts. That is observed behavior, not a guarantee. Update a
+space-level provider/model override or restore inheritance.
 
 ### Logging
 
-`logging.basicConfig(level=INFO)` to stderr; nothing writes to `logs/`. Under
-`dev-app` the shell relays it as `[sidecar] ...`. Loggers are per package
-(`agentbase.store`, `agentbase.secrets`, `agentbase.channels.discord`, …).
-`ruff`'s `T20` rule bans `print` in `src/`: the event log is the output
-channel, and stderr is for operational messages only.
+`logging.basicConfig(level=INFO)` writes to stderr, not `logs/`; `dev-app`
+relays it as `[sidecar] ...`. Loggers are per package (`agentbase.store`,
+`agentbase.secrets`, `agentbase.channels.discord`, …). Ruff `T20` bans
+`print` in `src/`: use the event log for output and stderr for operations.
 
-**Nothing may log a secret.** `SecretStore.__repr__` is value-free on purpose;
-`parse_secrets_line` reports counts, not content. If you add a log line near a
-credential, log its *name*.
+**Never log a secret.** `SecretStore.__repr__` omits values and
+`parse_secrets_line` reports counts. Near credentials, log only their *names*.
 
 ### When a run fails
 
-Every failure path ends in a `run.failed` event whose `reason` is written for a
-user. Read it from the history endpoint or the UI before reading code:
+Every failure emits user-facing `run.failed.reason`. Read it in history or the
+UI before reading code:
 
 - *"No API key for anthropic…"*: the handshake did not carry it. Check
   `configured_secrets` in `GET /settings`.
@@ -94,58 +88,49 @@ user. Read it from the history endpoint or the UI before reading code:
 
 ### Limits and approvals while debugging
 
-`auto_approve: ["low", "medium", "high"]` makes every gate answer itself, so a
-scripted or local-model run proceeds with nobody clicking. Auto-approved calls
-still write their `approvals` row and both events, marked `automatic`. Set it
-back afterwards. `max_run_seconds` can be raised for slow local runs. Both
-settings are available in **Settings > Limits and approvals** and can be
-overridden in **Space settings**. A space or agent policy may narrow the
-app-wide approval set, so changing the app default alone need not auto-approve
-a particular run.
+`auto_approve: ["low", "medium", "high"]` answers every gate so scripted or
+local runs need no click. Calls still write the `approvals` row and both events
+as `automatic`; reset it afterward. Raise `max_run_seconds` for slow local
+runs. Both settings are under **Settings > Limits and approvals** and can be
+overridden in **Space settings**. Space or agent policy can narrow the app-wide
+set, so an app-default change may not auto-approve a run.
 
 ---
 
 ## Debugging the frontend
 
-`just dev-desktop`, open `http://127.0.0.1:5173` in a browser, and keep the console
-open. Phase 7's missing-handoff-edges bug was visible **only** as a React Flow
-warning in the console while every test passed.
+Run `just dev-desktop`, open `http://127.0.0.1:5173`, and keep the console
+open. Phase 7's missing-handoff-edge bug appeared only as a React Flow warning
+while every test passed.
 
 ### Where state lives
 
-- **`state/reducer.ts`** is the single fold. `RunView` is derived from events
-  and nothing else. An event type it does not recognise lands in
-  `view.unrecognised` rather than being dropped, so a server newer than the
-  build shows up as a list of names, not as silence.
-- **`state/runStore.ts`** (Zustand) holds `events`, `cursor` and `connection`.
-  `view === reduceAll(events.slice(0, cursor))`, always. Scrubbing backwards
-  refolds from zero because the reducer has no inverse: that is by design and
-  a test fails if you "optimise" it.
-- **`state/graph.ts`** turns a `RunView` into the workflow's nodes (goal,
-  supervisor, workers, outcome, with each agent's per-tool counts), its edges
-  (return handoffs use the bottom ports) and a camera, arithmetically. The
-  camera is *not* `fitView`: fitting depends on when nodes were measured,
-  which made live and replay differ by 10% of the pixels.
+- **`state/reducer.ts`** is the sole fold: `RunView` derives only from events.
+  Unknown types enter `view.unrecognised`, so a newer server shows names rather
+  than silently dropping events.
+- **`state/runStore.ts`** (Zustand) holds `events`, `cursor`, and `connection`:
+  `view === reduceAll(events.slice(0, cursor))`. Backward scrubbing refolds
+  from zero because the reducer has no inverse; tests protect this design.
+- **`state/graph.ts`** arithmetically derives workflow nodes (goal, supervisor,
+  workers, outcome, and per-tool counts), edges (return handoffs use bottom
+  ports), and camera. It never uses `fitView`, whose measurement timing caused
+  10% live/replay pixel drift.
 - **`lib/markdown.ts`** parses the Obsidian dialect into a tree and
-  **`components/Markdown.tsx`** renders it; nothing turns a string into HTML.
-  Every block carries its source line, which is how a task ticked in the
-  vault preview finds the line to rewrite.
-- **`lib/events.ts`** is the `EventSource` client. It closes itself on a
-  terminal event; without that the browser re-requests a finished run every
-  second forever.
+  **`components/Markdown.tsx`** renders it; strings never become HTML. Blocks
+  retain source lines so ticking a vault-preview task rewrites the right line.
+- **`lib/events.ts`** is the `EventSource` client. It closes on terminal events
+  so the browser does not re-request a finished run every second.
 
-The run projection's local state is for facts about the viewer, such as log
-filters and the selected agent. App navigation, space selection, editable
-settings and fetched rosters have their own stores and API state; they are
-outside the event-only run projection.
+Run-projection state holds viewer facts such as log filters and selected agent.
+Navigation, space selection, editable settings, and fetched rosters use other
+stores/API state.
 
 ### Rules the UI follows that look like bugs
 
 - `llm.token` events never change an agent's activity. Only `agent.thinking`
   and `llm.request` do, because a model can stream nothing at all.
-- The terminal summary labels the supervisor's account and reports actual
-  tool calls separately. They can disagree; the UI
-  must not pretend otherwise.
+- The terminal summary reports the supervisor's account and actual tool calls
+  separately. They can disagree; do not mask it.
 - No relative timestamps anywhere. "3 seconds ago" would make the same event
   render differently on every fold.
 - Replay and live must render identically **except** the scrubber. `RunPanel`
@@ -153,52 +138,47 @@ outside the event-only run projection.
 
 ### Tests
 
-`just test-desktop` runs vitest once; `npm run test:watch` in `apps/desktop`
-watches. `src/test/setup.ts` stubs `ResizeObserver` and gives React Flow nodes a
-fixed non-zero size: jsdom has no layout, and with zero-sized nodes React Flow
-silently draws no edges, which is precisely the bug the test needs to be able
-to see.
+`just test-desktop` runs Vitest once; `npm run test:watch` in `apps/desktop`
+watches. `src/test/setup.ts` stubs `ResizeObserver` and gives React Flow nodes
+a fixed non-zero size: jsdom has no layout, and zero-sized nodes silently lose
+edges; the test must catch that condition.
 
 ---
 
 ## Debugging the Tauri shell
 
-`apps/desktop/src-tauri/src/lib.rs` resolves the
-data directory and spawn the frozen sidecar with it in the environment; read
-the `SECRET_NAMES` from the OS keychain and write them as one JSON line to
-the sidecar's stdin; and on exit write `shutdown`, wait up to five seconds for
-port 8787 to close, then kills as a last resort. It also creates a per-launch
-instance tag echoed by `/health`, so the webview can reject another process on
-8787, and exposes a folder opener restricted to this app's data directory.
+`apps/desktop/src-tauri/src/lib.rs` resolves the data directory; starts the
+frozen sidecar with it in the environment; reads `SECRET_NAMES` from the OS
+keychain and sends one JSON line to stdin; then sends `shutdown` on exit,
+waits up to five seconds for port 8787, and kills only as a last resort. It
+also creates a per-launch `/health` instance tag so the webview rejects another
+process on 8787, and restricts its folder opener to the app data directory.
 
 - Run it with `just dev-app`. The debug build keeps the console; output is
   `eprintln!`, no `RUST_LOG`.
-- Lint it with `just check-tauri`: **after** `just build-sidecar`.
-  `tauri-build` validates `externalBin` on every cargo invocation, clippy
-  included, so with an empty `binaries/` it fails on a missing resource before
-  linting a line. This order looks wrong and is pinned by a test.
+- Lint with `just check-tauri` **after** `just build-sidecar`. `tauri-build`
+  validates `externalBin` on every Cargo invocation, including Clippy; empty
+  `binaries/` fails before linting. A test pins this order.
 - Set a key in the desktop app's **Settings > Keys**, then quit and reopen.
   This section is unavailable in a browser. The keychain service is
   `dev.agentbase.desktop`; Windows Credential Manager uses an address like
   `<name>.dev.agentbase.desktop`, and macOS uses the service plus the key
   name as account. Do not place key values in command arguments.
-- On macOS a rebuilt ad-hoc-signed app can prompt for keychain access again.
-  **Always Allow** trusts the current binary. **Deny** omits that key from
-  the handshake and logs `[keychain] could not read <name>: ...`; a missing
-  entry is the only read error silently treated as unset.
-- To check the handshake, look for `[keychain] sending 1 key(s)` followed by
-  the sidecar's `received 1 secret(s)`. These logs contain names and counts,
-  not values. A keychain denial is observable in the Rust stderr log even
-  though the settings screen sees only that the key did not arrive.
-- Orphan check after any shutdown change: close the window, then confirm no
-  `agentbase-sidecar` process survives and 8787 is released.
+- On macOS, rebuilt ad-hoc-signed apps can prompt again. **Always Allow**
+  trusts the current binary. **Deny** omits the key and logs
+  `[keychain] could not read <name>: ...`; only a missing entry is silently
+  treated as unset.
+- Verify the handshake with `[keychain] sending 1 key(s)`, then
+  `received 1 secret(s)`. Logs contain names/counts, not values. Rust stderr
+  reveals keychain denial; Settings sees only a missing key.
+- After shutdown changes, close the window and confirm no `agentbase-sidecar`
+  survives and 8787 is free.
   - **Windows:** `Get-Process agentbase-sidecar` and
     `netstat -ano | findstr :8787`.
   - **macOS:** `pgrep -f agentbase-sidecar` and `lsof -ti tcp:8787`.
-  - With `--onefile` there are *two* sidecar processes while running
-    (bootloader + interpreter) and the PID the shell holds is the
-    bootloader's.
-- `SECRET_NAMES` in `lib.rs` and `SECRET_KEYS` in `secrets.py` are one list in
-  two languages; `test_secrets.py` reads the Rust source and compares.
+  - `--onefile` runs two sidecar processes (bootloader + interpreter); the
+    shell holds the bootloader PID.
+- `SECRET_NAMES` in `lib.rs` and `SECRET_KEYS` in `secrets.py` must match;
+  `test_secrets.py` compares them.
 
 ---

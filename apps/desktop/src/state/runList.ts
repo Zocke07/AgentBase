@@ -5,17 +5,17 @@ import * as api from "../lib/api";
 import type { RunOrigin } from "../lib/api";
 
 /**
- * The run list: the `runs` table, newest first, shared by the Home screen and
- * the Runs picker and re-read by whoever learns it is stale. The rows are a
- * snapshot; the open run's status comes from the store's fold. Keyed on a space.
+ * Newest-first `runs` table shared by Home and Runs picker; reload when stale.
+ * Rows are snapshots; an open run's status comes from the store fold. Key by
+ * space.
  */
 export interface RunListState {
   readonly runs: readonly Run[];
-  /** The space whose runs these are. `undefined` is every run. */
+  /** Runs' space; `undefined` selects all. */
   readonly spaceId: string | undefined;
-  /** Only runs started this way; `undefined` is every run, whoever started it. */
+  /** Starting origin filter; `undefined` selects all. */
   readonly origin: RunOrigin | undefined;
-  /** How many rows the sidecar was last asked for; grows with `loadMore`. */
+  /** Last requested row count; `loadMore` increases it. */
   readonly limit: number;
   readonly error: string | null;
   readonly loading: boolean;
@@ -25,7 +25,7 @@ export interface RunListState {
   /** Ask for another page and re-read. */
   loadMore: () => void;
   setSpace: (spaceId: string) => void;
-  /** Narrow to one origin, or widen to all; re-reads from the first page. */
+  /** Filter by origin or all; reload from first page. */
   setOrigin: (origin: RunOrigin | undefined) => void;
   reset: () => void;
 }
@@ -65,9 +65,7 @@ export const useRunList = create<RunListState>()((set, get) => ({
   },
 
   ensure: () => {
-    // A list that does not yet know its space has nothing to load: the
-    // shell keys it once the space list has answered, and that is the one
-    // request. Loading here as well was a second, un-keyed fetch on mount.
+    // Wait for a space key; loading earlier duplicates the shell-keyed request.
     const { loaded, loading, spaceId } = get();
     if (spaceId !== undefined && !loaded && !loading) void get().load();
   },

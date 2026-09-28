@@ -1,38 +1,29 @@
 -- Migration 006 - spaces (BUILD_SPEC §5 Phase 11).
 --
--- A space owns a roster, a folder and a set of rules; runs belong to the
--- space they were started in. `spaces` is the table §5 Phase 11 specifies,
--- verbatim. The folder is *not* a column: it is `<data dir>/spaces/<id>/`,
--- derived, so a row cannot name a path outside the place the application
--- owns.
+-- A space owns a roster, folder, and rules; its runs belong to it. `spaces` is
+-- the §5 Phase 11 table. Derive its folder as `<data dir>/spaces/<id>/` rather
+-- than store a path that could escape application-owned storage.
 --
--- **The default space has a fixed id**, like the seeded built-ins in 003, so
--- "the default space" is one identity on every machine - and so this file and
--- `store/spaces.py` can agree on it by literal rather than by lookup. Every
--- rule on it is NULL, which means "inherit the app-wide default": a database
--- upgraded by this migration behaves exactly as the single workspace did.
+-- The fixed default-space ID, like the 003 built-in IDs, is stable across
+-- machines and matches `store/spaces.py`. Its NULL rules inherit app-wide
+-- defaults, preserving single-workspace behavior after upgrade.
 --
--- **Both `space_id` columns arrive by table rebuild**, not `ALTER TABLE ADD
--- COLUMN`. SQLite will not add a `REFERENCES` column with a non-NULL default
--- while foreign keys are on, and cannot add `NOT NULL` without one - so each
--- table is created again with the column, copied, dropped and renamed. That
--- needs foreign keys *off* for the duration (`DROP TABLE runs` would otherwise
--- refuse, because `events` still points at it), which is why `db.py` runs
--- this migration with the check deferred and verifies the result with
--- `PRAGMA foreign_key_check` before committing.
+-- Rebuild, rather than `ALTER TABLE ADD COLUMN`, to add non-NULL referenced
+-- `space_id` columns: SQLite cannot add one with foreign keys enabled. Disable
+-- checks while copying, dropping, and renaming (`events` references `runs`);
+-- `db.py` defers checks and runs `PRAGMA foreign_key_check` before commit.
 --
--- `agent_defs.UNIQUE(name)` becomes `UNIQUE(space_id, name)`: a name is
--- unique in its roster, which is the only place the supervisor ever resolves
--- one. Two spaces may each have a `writer`.
+-- Replace `agent_defs.UNIQUE(name)` with `UNIQUE(space_id, name)`: supervisors
+-- resolve names within a roster, so multiple spaces may have a `writer`.
 
 CREATE TABLE spaces (
-  id                  TEXT PRIMARY KEY,        -- uuid4; the default space's is fixed
+  id                  TEXT PRIMARY KEY,        -- UUID4; default-space ID is fixed
   name                TEXT NOT NULL UNIQUE,
   description         TEXT NOT NULL DEFAULT '',
-  provider            TEXT,                    -- NULL = inherit the app-wide default
-  model               TEXT,                    -- NULL = inherit
-  auto_approve        TEXT,                    -- NULL = inherit; else JSON array, narrows only
-  max_steps_per_agent INTEGER,                 -- NULL = inherit; a space may set these either way
+  provider            TEXT,                    -- NULL inherits app-wide default
+  model               TEXT,                    -- NULL inherits
+  auto_approve        TEXT,                    -- NULL inherits; JSON array only narrows
+  max_steps_per_agent INTEGER,                 -- NULL inherits
   max_agents_per_run  INTEGER,
   max_run_seconds     INTEGER,
   archived            INTEGER NOT NULL DEFAULT 0,
@@ -49,7 +40,7 @@ VALUES (
   strftime('%Y-%m-%dT%H:%M:%S+00:00','now')
 );
 
--- --- agent_defs: gains space_id, and its name is unique per space -----------
+-- --- agent_defs: add space_id; make names unique per space ------------------
 
 CREATE TABLE agent_defs_v6 (
   id            TEXT PRIMARY KEY,
@@ -83,7 +74,7 @@ ALTER TABLE agent_defs_v6 RENAME TO agent_defs;
 CREATE INDEX idx_agent_defs_enabled ON agent_defs(enabled);
 CREATE INDEX idx_agent_defs_space ON agent_defs(space_id);
 
--- --- runs: gains space_id ----------------------------------------------------
+-- --- runs: add space_id ------------------------------------------------------
 
 CREATE TABLE runs_v6 (
   id           TEXT PRIMARY KEY,

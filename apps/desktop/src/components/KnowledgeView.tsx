@@ -37,10 +37,8 @@ import { NoteTree } from "./NoteTree";
 import { QuickSwitcher } from "./QuickSwitcher";
 
 /**
- * A space's local Markdown vault, laid out the way Obsidian lays out one: a
- * file explorer on the left, the note in the middle in source, preview or
- * both, and the note's links and backlinks beneath it. Notes are ordinary
- * files; nothing here is stored anywhere but the folder.
+ * Space-local Markdown vault: file explorer, source/preview editor, and
+ * links/backlinks. Notes remain ordinary folder files.
  */
 
 export interface KnowledgeViewProps {
@@ -48,13 +46,13 @@ export interface KnowledgeViewProps {
   /** Opens the run a memory came from; absent where no run view is reachable. */
   onOpenRun?: (runId: string) => void;
   /**
-   * A note another section asked to open; a new `nonce` is a new request.
-   * `inbox` opens it beside the memory inbox rather than the file tree.
+   * Cross-section note request; nonce distinguishes repeats. `inbox` opens it
+   * beside memory inbox rather than file tree.
    */
   openRequest?: { path: string; heading: string | null; nonce: number; inbox?: boolean } | undefined;
-  /** Bumped when another section changed a memory, so the inbox is re-read. */
+  /** Cross-section memory change; reload inbox. */
   reloadNonce?: number;
-  /** How many memories wait for a decision, for a badge outside this view. */
+  /** Memories awaiting decisions for external badge. */
   onInboxCount?: ((proposed: number) => void) | undefined;
 }
 
@@ -83,7 +81,7 @@ export function KnowledgeView({
   const [note, setNote] = useState<KnowledgeNote | null>(null);
   const [path, setPath] = useState("");
   const [content, setContent] = useState("");
-  // What the editor last agreed with the disk about; the difference is "unsaved".
+  // Last disk-agreed editor source; difference means unsaved.
   const [baseline, setBaseline] = useState("");
   const [creating, setCreating] = useState(false);
   const [mode, setMode] = useState<ViewMode>("split");
@@ -106,14 +104,12 @@ export function KnowledgeView({
   const [error, setError] = useState<string | null>(null);
   const [switcher, setSwitcher] = useState(false);
   const [linksOpen, setLinksOpen] = useState(true);
-  // Asked once: the shell looks for Obsidian on disk, and outside it the
-  // answer is no without a round trip.
+  // Check once: shell probes Obsidian; outside shell returns no locally.
   const obsidian = useFetched(obsidianAvailable, false).data;
-  // The data file open in the Files view, shared by its list and its editor;
-  // the nonce tells the list a save or delete happened in the editor.
+  // Files view shared open data file; nonce signals editor save/delete.
   const [openFile, setOpenFile] = useState<OpenFile | null>(null);
   const [filesNonce, setFilesNonce] = useState(0);
-  // A note asked for while another has unsaved changes waits for a decision.
+  // Delay cross-note navigation until unsaved-change decision.
   const [pendingOpen, setPendingOpen] = useState<{ path: string; heading: string | null } | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -190,7 +186,7 @@ export function KnowledgeView({
     [space.id],
   );
 
-  // Once the preview has the note, scroll to the heading a link named.
+  // Scroll preview to linked heading after note loads.
   useEffect(() => {
     const heading = wantedHeading.current;
     if (heading === null || note === null) return;
@@ -206,7 +202,7 @@ export function KnowledgeView({
     };
   }, [note]);
 
-  /** Open a note unless unsaved work would be lost, in which case ask first. */
+  /** Open note unless unsaved work needs confirmation. */
   const requestOpen = useCallback(
     (wanted: string, heading: string | null = null) => {
       if (dirty && wanted !== note?.path) {
@@ -218,7 +214,7 @@ export function KnowledgeView({
     [dirty, note?.path, openNote],
   );
 
-  // Another section asked for a note (a citation, a memory path).
+  // Cross-section citation or memory note request.
   const lastRequest = useRef<number | null>(null);
   useEffect(() => {
     if (openRequest === undefined || openRequest.nonce === lastRequest.current) return;
@@ -291,7 +287,7 @@ export function KnowledgeView({
     }
   };
 
-  // A folder asked to be deleted waits for a second click, like a note.
+  // Folder deletion requires second click, like note deletion.
   const [folderAsked, setFolderAsked] = useState<{ path: string; notes: number } | null>(null);
   const removeFolder = async () => {
     if (folderAsked === null) return;
@@ -532,7 +528,7 @@ export function KnowledgeView({
     }
   };
 
-  // The dialect's shortcuts, only while this section is the one on screen.
+  // Markdown shortcuts only while this section is visible.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
@@ -567,7 +563,7 @@ export function KnowledgeView({
         (noteFilter === "unresolved" && (item.unresolved_links ?? []).length > 0)) &&
       (tagChip === null || (item.tags ?? []).includes(tagChip)),
   );
-  // Typing narrows the tree at once; Enter asks retrieval for ranked excerpts.
+  // Type filters tree; Enter retrieves ranked excerpts.
   const visibleNotes =
     query.trim() === "" ? filtered : fuzzyFilter(query.trim(), filtered, (item) => `${item.title} ${item.path}`).map((match) => match.item);
   const topTags = tagCounts(allNotes).slice(0, 12);
@@ -1292,7 +1288,7 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-/** Obsidian's core template variables: `{{date}}` and `{{title}}`. Nothing else is interpreted. */
+/** Obsidian template variables `{{date}}` and `{{title}}` only. */
 function fillTemplate(source: string, title: string): string {
   return source.replaceAll("{{date}}", today()).replaceAll("{{title}}", title);
 }
@@ -1303,7 +1299,7 @@ function importedPath(path: string): string {
   return parts.length > 1 ? parts.slice(1).join("/") : clean;
 }
 
-/** The note's tags and properties as a strip under the path, as Obsidian shows them above the body. */
+/** Note tags/properties strip under path, matching Obsidian body metadata. */
 function NoteMetadata({ note, onTag }: { note: KnowledgeNote; onTag: (tag: string) => void }) {
   const properties = Object.entries(note.properties ?? {}).filter(([name]) => name !== "tags" && name !== "tag");
   if ((note.tags ?? []).length === 0 && properties.length === 0) return null;
@@ -1331,7 +1327,7 @@ function NoteMetadata({ note, onTag }: { note: KnowledgeNote; onTag: (tag: strin
   );
 }
 
-/** Outgoing links, linked mentions and unresolved names, beneath the note as Obsidian's backlinks pane. */
+/** Outgoing links, mentions, and unresolved names in backlinks pane. */
 function NoteLinks({
   note,
   open,

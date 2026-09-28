@@ -32,19 +32,17 @@ import type { Activity, RunView } from "../state/reducer";
 import "@xyflow/react/dist/style.css";
 
 /**
- * The workflow canvas: goal, supervisor, workers and outcome as cards, joined
- * by the handoffs. Nodes, edges and camera derive from `view` and nothing
- * else, so live and replay render the same DOM. Layout is computed, not
- * solved: an iterative auto-layout would move nodes between two renders of
- * the same run. A card says what its agent is doing and what it has done
- * with its tools; clicking one opens the detail beside the canvas.
+ * Workflow canvas of goal, supervisor, workers, outcome, and handoffs. Nodes,
+ * edges, and camera derive only from `view`, ensuring live/replay DOM parity.
+ * Computed layout avoids iterative drift; cards show activity/tool counts and
+ * open adjacent detail on click.
  */
 
 export interface RunGraphProps {
   view: RunView;
   selectedAgent: string | null;
   onSelectAgent: (name: string | null) => void;
-  /** Whether the canvas fills the window; undefined where nothing can expand it. */
+  /** Whether canvas fills window; undefined when expansion is unavailable. */
   expanded?: boolean | undefined;
   onToggleExpand?: (() => void) | undefined;
 }
@@ -61,13 +59,12 @@ const STATE_WORD: Record<Activity, string> = {
 /** How many tool chips a card shows before folding the rest into "+n". */
 const CHIP_LIMIT = 3;
 
-/** The most of a summary a card's tooltip carries; the panel above has all of it. */
+/** Maximum card tooltip summary; panel retains full text. */
 const TOOLTIP_CHARS = 600;
 
 /**
- * A chip is a glance, not a name: the built-in tools shorten to the verb
- * that distinguishes them, and the full name stays in the chip's tooltip
- * and in the inspector. An unknown tool keeps its name.
+ * Shorten built-in tool chips to distinguishing verbs; tooltips and inspector
+ * retain full names. Keep unknown names unchanged.
  */
 const CHIP_LABEL: Readonly<Record<string, string>> = {
   read_file: "read",
@@ -303,14 +300,9 @@ const LABEL_INSET = 10;
 const LABEL_LIFT = 11;
 
 /**
- * A handoff edge with its label drawn in the HTML layer above every path.
- * The forward handoffs out of the supervisor all turn on one vertical run
- * between the columns, so a label put at a path's centre was crossed by its
- * siblings' lines; a forward label sits over the last stretch into its own
- * card instead, above the line. The return handoffs all meet beneath the
- * supervisor, where their centres coincide, so a return label sits just
- * under the card it leaves, beside its port. The whole task is the label's
- * tooltip.
+ * Draw handoff labels in HTML above paths. Forward labels sit over each edge's
+ * final segment to avoid sibling crossings; return labels sit by their bottom
+ * departure port. Tooltips retain full tasks.
  */
 function HandoffEdge({
   id,
@@ -364,9 +356,8 @@ function HandoffEdge({
 const edgeTypes = { handoff: HandoffEdge };
 
 /**
- * Put the camera where {@link viewportFor} says, recomputed on pane resize as
- * well as on the node set: the summary above the canvas grows when the run
- * ends, and without the resize half live and replay framed the graph differently.
+ * Apply {@link viewportFor} on node-set and pane-size changes; terminal summary
+ * growth otherwise makes live/replay framing diverge.
  */
 function Camera({ nodes, userMoved }: { nodes: WorkflowNode[]; userMoved: boolean }) {
   const flow = useReactFlow();
@@ -390,11 +381,10 @@ function Camera({ nodes, userMoved }: { nodes: WorkflowNode[]; userMoved: boolea
 
   useEffect(() => {
     if (pane === null) return;
-    // Once the user has panned or zoomed, the camera is theirs: a new agent
-    // spawning or the pane resizing must not yank it back to the fit.
+    // Preserve user camera across node and pane changes.
     if (userMoved) return;
     void flow.setViewport(viewportFor(nodes, pane.width, pane.height));
-    // `nodes` changes identity every render; the ids are what decide the camera.
+    // Node IDs, not array identity, determine camera changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flow, signature, pane, userMoved]);
 
@@ -404,11 +394,8 @@ function Camera({ nodes, userMoved }: { nodes: WorkflowNode[]; userMoved: boolea
 export function RunGraph({ view, selectedAgent, onSelectAgent, expanded, onToggleExpand }: RunGraphProps) {
   const nodes = useMemo(() => layout(view, selectedAgent), [view, selectedAgent]);
   const graphEdges = useMemo(() => workflowEdges(view), [view]);
-  // Set the first time the *user* moves the camera. React Flow reports a
-  // programmatic `setViewport` with a null event, so the fit itself does not
-  // count. State rather than a ref so `Camera` re-renders when it flips.
-  // Filling the window or leaving it is a new pane, so the run is framed in
-  // it again whatever the camera was before.
+  // Mark user-originated camera changes (programmatic events are null). State
+  // rerenders `Camera`; full-window changes reframe the new pane.
   const [userMoved, setUserMoved] = useState(false);
   const [seenExpanded, setSeenExpanded] = useState(expanded);
   if (seenExpanded !== expanded) {
@@ -443,8 +430,7 @@ export function RunGraph({ view, selectedAgent, onSelectAgent, expanded, onToggl
         edges={graphEdges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        // The canvas is a view of the log, not a diagram the user edits: dragging
-        // a node would imply the layout means something the events do not say.
+        // Log projection, not editable diagram; dragging implies unsupported meaning.
         nodesDraggable={false}
         nodesConnectable={false}
         edgesFocusable={false}

@@ -1,12 +1,8 @@
-"""Spaces: the container a run happens in (§5 Phase 11).
+"""Run spaces: roster, folder, and inherited rules (§5 Phase 11).
 
-A space owns a roster, a folder and rules; keys, the monthly cap and the
-Discord connection stay app-wide. The folder is derived from the id, never
-stored, so no row can name a path outside what the application owns. Rules
-resolve in layers through :meth:`Space.apply_to`: model and limits override,
-``auto_approve`` only narrows, and NULL means inherit. The default space
-cannot be archived or deleted (a run whose space was not named lands there),
-and a space with runs can be archived but not deleted.
+Folders derive from IDs, preventing stored paths outside application storage.
+Space rules override models and limits but only narrow approval. The default
+space cannot be archived or deleted; spaces with runs may only be archived.
 """
 
 from __future__ import annotations
@@ -49,11 +45,11 @@ __all__ = [
     "SpaceValidationError",
 ]
 
-#: The space migration 006 creates and backfills into; a literal the migration shares.
+#: Stable default-space ID shared with migration 006.
 DEFAULT_SPACE_ID: Final[str] = "5c1e5a2e-0d4b-4c93-9a7f-3b2e8d1c6f00"
 DEFAULT_SPACE_NAME: Final[str] = "Main"
 
-#: What a space may be called: anything non-empty that fits in a switcher.
+#: Maximum space name length for the switcher.
 MAX_NAME_LENGTH: Final[int] = 60
 
 
@@ -211,11 +207,7 @@ def _row_to_space(row: sqlite3.Row) -> Space:
 
 
 class SpaceStore:
-    """Reads and writes `spaces`, refusing to write an invalid row.
-
-    Holds `AppPaths.spaces_dir` so it can say where a space's folder is; the
-    folder is created on first use, not on insert.
-    """
+    """Read and write valid ``spaces`` rows and derive their folders."""
 
     def __init__(self, db: Database, spaces_dir: Path) -> None:
         self._db = db
@@ -224,7 +216,7 @@ class SpaceStore:
     # --- folders -----------------------------------------------------------
 
     def folder_for(self, space_id: str) -> Path:
-        """Where a space's runs read and write. Derived from the id, never stored."""
+        """Return a space's derived run folder."""
         return self.spaces_dir / space_id
 
     # --- reads -------------------------------------------------------------
@@ -236,7 +228,7 @@ class SpaceStore:
         clause = "" if include_archived else " WHERE archived = 0"
         with self._db.read() as connection:
             rows = connection.execute(
-                # The default space first, then by name.
+                # Sort default space first, then names.
                 f"{_SELECT}{clause} ORDER BY (id = ?) DESC, name COLLATE NOCASE",
                 (DEFAULT_SPACE_ID,),
             ).fetchall()

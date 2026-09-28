@@ -1,8 +1,7 @@
-"""Approval endpoints: the other half of the gate.
+"""Approval endpoints: the gate's HTTP half.
 
-`POST /approvals/{id}` sets the future an agent is suspended on.
-`GET /approvals` lists what is outstanding, including questions raised
-before the window connected.
+`POST /approvals/{id}` resolves the future suspending an agent; `GET` lists
+outstanding questions, including ones raised before the window connected.
 """
 
 from __future__ import annotations
@@ -23,18 +22,18 @@ router = APIRouter()
 
 
 class ResolveApprovalRequest(BaseModel):
-    """A decision on one approval. A misspelled field must not be read as a denial."""
+    """Decision on one approval; reject misspelled fields rather than deny."""
 
     model_config = ConfigDict(extra="forbid")
 
     approved: bool
-    #: How far a yes reaches: this call, or every call to the tool for the
-    #: rest of the run. Ignored for a no, which is always for the one call.
+    #: A yes applies to this call or the run's later calls to this tool. A no
+    #: always applies only to this call.
     scope: Literal["call", "run"] = "call"
 
 
 class ApprovalResponse(BaseModel):
-    """One approval, as the dialog renders it."""
+    """Approval data rendered by the dialog."""
 
     id: str
     run_id: str
@@ -68,7 +67,7 @@ def _response(record: ApprovalRecord) -> ApprovalResponse:
 
 @router.get("/approvals")
 async def list_approvals(request: Request, run_id: str | None = None) -> list[ApprovalResponse]:
-    """Every approval still waiting for an answer, oldest first."""
+    """List unanswered approvals, oldest first."""
     records = await _service(request).store.list_pending(run_id)
     return [_response(record) for record in records]
 
@@ -85,10 +84,10 @@ async def get_approval(request: Request, approval_id: str) -> ApprovalResponse:
 async def resolve_approval(
     request: Request, approval_id: str, body: ResolveApprovalRequest
 ) -> ApprovalResponse:
-    """Allow or deny a pending call, and release the agent waiting on it.
+    """Resolve a pending call and release its agent.
 
-    404 for an unknown id; 409 for one already settled, so a second window's
-    click reads as "already answered" rather than "gone".
+    Unknown IDs return 404; settled ones return 409 so another window sees
+    "already answered," not "gone."
     """
     service = _service(request)
 

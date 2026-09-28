@@ -1,17 +1,13 @@
 -- Migration 012 - every space names its model; a schedule may bound its run.
 --
--- The app-wide model is no longer chosen in Settings (the maintainer's
--- decision of 2026-09-19): Settings picks the provider, and each space
--- picks the model its runs use, with an agent still free to pick its own.
--- So a space that inherited the model gets the one it was inheriting, and a
--- space on its own provider gets that provider's default, so no run changes
--- model on the day of the upgrade. The table of defaults matches
--- `DEFAULT_MODELS` in `store/settings.py`; Ollama's model is typed by the
--- user and stays NULL until it is.
+-- Since the 2026-09-19 decision, Settings selects a provider and spaces select
+-- run models; agents may still override. Upgrade inherited spaces to their
+-- previous model and provider-specific spaces to that provider's default, so
+-- no run changes model. Defaults match `DEFAULT_MODELS` in `store/settings.py`;
+-- user-supplied Ollama models remain NULL until set.
 --
--- `schedules.max_run_seconds` lets an unattended run outlast the space's
--- limit (an overnight pipeline) without loosening it for attended runs;
--- NULL inherits.
+-- `schedules.max_run_seconds` can extend unattended runs beyond the space
+-- limit without loosening attended runs; NULL inherits.
 
 UPDATE spaces
    SET model = COALESCE(

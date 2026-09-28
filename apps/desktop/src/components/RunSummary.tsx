@@ -10,26 +10,25 @@ import { Markdown } from "./Markdown";
 import { MetricBar } from "./MetricBar";
 
 /**
- * The run's header and outcome. A terminal `summary` is a model's claim, not a
- * record of what happened, so it is labelled as the supervisor's account and
- * rendered beside a count of what the log actually contains.
+ * Run header and outcome. Label terminal `summary` as supervisor claim, not
+ * fact, and show it beside log-derived counts.
  */
 
 export interface RunSummaryProps {
   view: RunView;
-  /** Open a cited note in the Knowledge section; absent where none is reachable. */
+  /** Open cited Knowledge note; absent without navigation. */
   onOpenNote?: ((path: string, heading: string | null) => void) | undefined;
-  /** The space this run belongs to, so its memory's status can be looked up. */
+  /** Run space, used to look up memory status. */
   spaceId?: string | null | undefined;
-  /** Open the run's memory beside the inbox, where it is approved or forgotten. */
+  /** Open run memory beside inbox for approval or dismissal. */
   onOpenMemory?: ((path: string) => void) | undefined;
-  /** The memory's status changed here; the Knowledge section should reload its inbox. */
+  /** Memory status changed; reload Knowledge inbox. */
   onMemoryChanged?: (() => void) | undefined;
-  /** Never fold the summary: the panel around it has been given its own height and scrolls. */
+  /** Do not fold; parent has fixed height and scrolls. */
   unfolded?: boolean | undefined;
 }
 
-/** A summary taller than this starts folded; the whole canvas was scrolling off to make room for it. */
+/** Fold summaries above this height to preserve canvas visibility. */
 const CLAIM_FOLD_PX = 220;
 
 export function RunSummary({
@@ -42,8 +41,7 @@ export function RunSummary({
 }: RunSummaryProps) {
   const denied = view.denials.length;
   const sandboxed = view.denials.filter((denial) => denial.blockedBy === "sandbox").length;
-  // From the log's own stamps, so a replay shows the duration the live view
-  // did. A live run's figure grows as events arrive, which is the same rule.
+  // Use log timestamps so replay matches live; live duration grows with events.
   const duration =
     view.startedTs !== null && view.latestTs !== null
       ? formatDuration(Date.parse(view.latestTs) - Date.parse(view.startedTs))
@@ -57,7 +55,7 @@ export function RunSummary({
         </span>
         <h2 className="run-summary__goal">{view.goal ?? "No goal recorded yet"}</h2>
         {view.origin !== null && (
-          // A run started from Discord is the same fold; the viewer needs to know who started it.
+          // Same fold for Discord runs; show origin identity.
           <p className="run-summary__origin" data-testid="run-origin">
             Started from {view.origin.channel} by {view.origin.identity ?? "an unknown identity"}
             {view.origin.displayName !== null && ` (${view.origin.displayName})`}
@@ -223,9 +221,7 @@ export function RunSummary({
 
 
 /**
- * The supervisor's summary, folded past a height when it is long: it is a
- * claim, and the canvas and log beneath it are the evidence, which a long
- * summary used to push off the screen.
+ * Fold long supervisor claims so their supporting canvas and log remain visible.
  */
 function FoldedClaim({ text, unfolded }: { text: string; unfolded: boolean }) {
   const body = useRef<HTMLDivElement>(null);
@@ -233,8 +229,7 @@ function FoldedClaim({ text, unfolded }: { text: string; unfolded: boolean }) {
   const [open, setOpen] = useState(false);
   const folded = overflows && !open && !unfolded;
 
-  // Measured rather than counted: Markdown height depends on headings, lists
-  // and wrapping, not on characters, and it changes when the panel is resized.
+  // Measure Markdown because layout and resize, not character count, set height.
   useEffect(() => {
     const element = body.current;
     if (element === null) return undefined;
@@ -275,9 +270,8 @@ const MEMORY_WORD: Record<MemoryItem["status"], string> = {
 };
 
 /**
- * The memory the run wrote, with its trust status looked up live and the one
- * decision most people want to make here (approve) without leaving the run.
- * Everything else about a memory happens in the Knowledge inbox.
+ * Run-written memory with live trust status and inline approval; other memory
+ * actions remain in Knowledge inbox.
  */
 function RunMemory({
   path,
@@ -294,7 +288,7 @@ function RunMemory({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Keyed on the path by the caller, so a different memory is a fresh row.
+  // Caller keys by path, so different memory gets fresh row.
   useEffect(() => {
     if (spaceId === null) return undefined;
     let live = true;
@@ -304,7 +298,7 @@ function RunMemory({
         if (live) setItem(index.items.find((entry) => entry.path === path) ?? null);
       })
       .catch(() => {
-        // Without a status the row still names the file; nothing to alarm about.
+        // Missing status still names file; not an alarm.
       });
     return () => {
       live = false;

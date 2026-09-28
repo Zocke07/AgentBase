@@ -8,12 +8,8 @@ import tseslint from "typescript-eslint";
 /**
  * BUILD_SPEC §5 Phase 0.
  *
- * The rule that matters here is `import-x/no-unresolved` with
- * `caseSensitiveStrict`. Windows and macOS have case-insensitive filesystems,
- * so `import Foo from "./foo"` resolves happily on a dev machine and fails only
- * on Linux CI - long after the commit that broke it. The strict variant walks
- * every path segment against the real directory entries, so the mismatch is a
- * lint error at the moment it is written.
+ * `import-x/no-unresolved` with `caseSensitiveStrict` catches locally the path
+ * case mismatches that resolve on Windows/macOS but fail on Linux CI.
  */
 export default tseslint.config(
   {
@@ -53,7 +49,7 @@ export default tseslint.config(
         { allowConstantExport: true },
       ],
 
-      // The Phase 0 requirement: case-sensitive import paths.
+      // Phase 0 requires case-sensitive import paths.
       "import-x/no-unresolved": [
         "error",
         { caseSensitive: true, caseSensitiveStrict: true },
@@ -87,13 +83,13 @@ export default tseslint.config(
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
 
-      // The event log is the output channel, not the browser console.
+      // Use the event log, not the browser console, as the output channel.
       "no-console": ["warn", { allow: ["warn", "error"] }],
       eqeqeq: ["error", "always"],
     },
   },
 
-  // Config files run in Node, not the browser.
+  // Config files run in Node.
   {
     files: ["vite.config.ts", "eslint.config.js"],
     languageOptions: { globals: globals.node },

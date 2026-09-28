@@ -1,9 +1,9 @@
-"""Agent definitions as data: the registry, its validation, and its API.
+"""Agent definitions: registry, validation, and API.
 
-§5 Phase 5's first clause, "an agent created entirely through the API can be
-spawned into a run", is :func:`test_an_agent_created_over_http_can_be_spawned_into_a_run`:
-the definition is created with `client.post` and only the event log is
-asserted against. The allowlist clause lives in `test_agent_allowlist.py`.
+§5 Phase 5's API-to-run criterion is covered by
+:func:`test_an_agent_created_over_http_can_be_spawned_into_a_run`: create the
+definition with ``client.post`` and assert only against its event log. The
+allowlist criterion is in ``test_agent_allowlist.py``.
 """
 
 from __future__ import annotations
@@ -45,9 +45,8 @@ if TYPE_CHECKING:
 
 anyio_tests = pytest.mark.anyio
 
-#: The default roster as migration 010 leaves it: the investment pipeline,
-#: sorted as `GET /agents` lists it. The `agents` fixture adds the three
-#: starter roles beside these for the scripted runs; the client does not.
+#: Migration 010's investment pipeline, ordered as ``GET /agents`` returns it.
+#: The ``agents`` fixture adds three starter roles for scripted runs; the API does not.
 BUILTINS = (
     "bear-architect",
     "bull-architect",
@@ -94,18 +93,11 @@ def test_a_fresh_install_has_a_usable_roster(client: TestClient) -> None:
 def test_seeded_agents_never_run_a_shell_and_only_collectors_fetch(
     client: TestClient,
 ) -> None:
-    """What the built-ins ship able to touch.
+    """Verify safe seeded access: no shell, only collectors fetch, and no high-risk auto-approval.
 
-    Phase 5's version of this test asserted every built-in had an *empty*
-    allowlist, which was the honest value while nothing was implemented;
-    migration 004 widened them, and migration 010 replaced them with the
-    investment roster, whose collectors fetch public pages and whose
-    analysts write files. The property that should stay true regardless: a
-    fresh install ships nothing that can run a shell command, the network is
-    reachable only from the three collectors (the agents that read untrusted
-    text get nothing more), and no seeded row skips the dialog for a
-    high-risk call. A definition's `auto_approve` can only narrow the
-    app-wide policy, so a seeded list is not a grant.
+    Migrations 004 and 010 evolved empty allowlists into investment roles.
+    Collectors read untrusted public text; analysts write files. A definition's
+    ``auto_approve`` only narrows workspace policy and never grants access.
     """
     agents = client.get("/agents").json()
     builtins = [agent for agent in agents if agent["is_builtin"]]
@@ -124,26 +116,22 @@ def test_seeded_agents_never_run_a_shell_and_only_collectors_fetch(
 
 
 def test_a_builtin_edited_before_the_upgrade_keeps_its_allowlist(db: Database) -> None:
-    """Migration 004 widens only rows still holding their seeded value.
+    """Ensure migration 004 widens only untouched seeded allowlists.
 
-    A migration runs once, and it runs on databases where the user has already
-    edited these rows. Overwriting an edit is the failure mode migration 003's
-    own comment warns about, so the widening `UPDATE`s are conditional on
-    `allowed_tools = '[]'`. This asserts the guard rather than trusting it:
-    a row edited to something else survives the upgrade untouched.
+    Upgrades encounter user-edited rows, so widening requires
+    ``allowed_tools = '[]'``. A custom row must survive unchanged.
     """
     import json
     import sqlite3
 
-    # Simulate a database whose news-scanner was edited before upgrading.
+    # Simulate a news-scanner edited before upgrade.
     with db.write() as connection:
         connection.execute(
             "UPDATE agent_defs SET allowed_tools = ? WHERE name = 'news-scanner'",
             (json.dumps(["read_file"]),),
         )
 
-    # Re-running the migration must not touch it. `user_version` already sits
-    # past 004, so this asserts the guard's SQL directly.
+    # ``user_version`` is past 004, so assert the migration guard directly.
     with db.write() as connection:
         try:
             connection.execute(
@@ -175,14 +163,14 @@ def test_a_builtin_is_editable(client: TestClient) -> None:
 
 
 def test_a_builtin_is_not_deletable(client: TestClient) -> None:
-    """`is_builtin = 1` guards the delete path *only*."""
+    """``is_builtin = 1`` blocks deletion, not editing."""
     scanner = _by_name(client, "news-scanner")
 
     response = client.delete(f"/agents/{scanner['id']}")
 
     assert response.status_code == 409
     assert "cannot be deleted" in response.json()["detail"]
-    # And it is still there.
+    # The row remains.
     assert client.get(f"/agents/{scanner['id']}").status_code == 200
 
 
@@ -194,11 +182,7 @@ def test_a_user_defined_agent_is_deletable(client: TestClient) -> None:
 
 
 def test_a_caller_cannot_mint_a_builtin(client: TestClient) -> None:
-    """`is_builtin` is not an input.
-
-    If it were, a caller could create a definition that the delete path then
-    refuses to remove: an undeletable row a user never asked to be permanent.
-    """
+    """Reject ``is_builtin`` input so callers cannot create undeletable rows."""
     response = client.post("/agents", json=a_definition(is_builtin=True))
 
     assert response.status_code == 422
@@ -225,11 +209,10 @@ def test_a_caller_cannot_mint_a_builtin(client: TestClient) -> None:
 def test_an_invalid_definition_is_rejected_with_a_readable_message(
     client: TestClient, overrides: dict[str, Any], field: str, fragment: str
 ) -> None:
-    """§5 Phase 5: "Reject at the API layer with a readable message, not a 500."
+    """§5 Phase 5: reject invalid definitions with readable, field-aware errors.
 
-    The `field` in each body is what lets §5 Phase 7's editor put the message
-    inline on the input that caused it rather than in a toast that loses which
-    one was wrong.
+    The editor uses ``field`` to show the error inline rather than in a generic
+    toast.
     """
     response = client.post("/agents", json=a_definition(**overrides))
 
@@ -242,17 +225,11 @@ def test_an_invalid_definition_is_rejected_with_a_readable_message(
 def test_an_agent_can_be_created_when_the_cap_is_below_the_default(
     client: TestClient,
 ) -> None:
-    """Omitting `max_steps` must never be rejected *for* `max_steps`.
+    """Omitted ``max_steps`` must use the current cap, not §4's default of 20.
 
-    §4 gives the column a default of 20. Asserting that literal in the request
-    model made it impossible to create any agent at all once
-    `max_steps_per_agent` was lowered below 20: the request was refused with a
-    message naming a field the caller had not supplied, and the only way out
-    was to guess that a hidden default had collided with the cap.
-
-    Found by lowering the cap on a running sidecar and creating an ordinary
-    agent: the whole suite was green, because every test until now either sent
-    an explicit `max_steps` or left the cap at its default.
+    A lowered cap once rejected an ordinary request for a field it omitted.
+    The hidden-default collision escaped tests that supplied ``max_steps`` or
+    kept the default cap.
     """
     assert client.patch("/settings", json={"max_steps_per_agent": 4}).status_code == 200
 
@@ -275,12 +252,10 @@ def test_an_explicit_max_steps_above_a_lowered_cap_is_still_refused(
 
 
 def test_a_duplicate_name_is_a_conflict_not_a_bad_request(client: TestClient) -> None:
-    """409 rather than 400: the input is well-formed, it collides with state
-    the caller can see and resolve by choosing another name.
+    """Return 409, not 400, for valid input that conflicts with visible state.
 
-    Asserted on its own because the parametrized case above accepts either
-    code, which is what let a duplicate quietly return 400 when an unrelated
-    default tripped an earlier rule first.
+    A separate assertion prevents unrelated validation from masking this as a
+    400.
     """
     response = client.post("/agents", json=a_definition(name="news-scanner"))
 
@@ -296,8 +271,7 @@ def test_a_rejected_definition_is_not_written(client: TestClient) -> None:
 
 
 def test_an_unknown_field_is_rejected_rather_than_ignored(client: TestClient) -> None:
-    """Pydantic's default is to drop it, which turns a misspelled field into a
-    success that changed nothing. That exact bug shipped once already."""
+    """Reject unknown fields; Pydantic would otherwise accept a misspelling without change."""
     response = client.post("/agents", json=a_definition(max_stepss=4))
 
     assert response.status_code == 422
@@ -313,8 +287,7 @@ def test_renaming_onto_an_existing_name_is_refused(client: TestClient) -> None:
 
 
 def test_renaming_an_agent_to_its_own_name_is_allowed(client: TestClient) -> None:
-    """The uniqueness check has to exclude the row being updated, or saving an
-    unchanged form is an error."""
+    """Exclude the updated row from uniqueness checks so unchanged forms save."""
     created = client.post("/agents", json=a_definition()).json()
 
     response = client.patch(
@@ -332,8 +305,7 @@ def test_an_empty_patch_is_refused(client: TestClient) -> None:
 
 
 def test_clearing_a_pinned_model_restores_the_workspace_default(client: TestClient) -> None:
-    """`null` is meaningful here, so the update cannot drop null fields the way
-    `PATCH /settings` does."""
+    """``null`` restores inheritance here, unlike ``PATCH /settings``."""
     created = client.post("/agents", json=a_definition(model="claude-opus-5")).json()
     assert created["model"] == "claude-opus-5"
 
@@ -352,8 +324,7 @@ def test_a_missing_agent_is_a_404_everywhere(client: TestClient) -> None:
 
 
 def test_the_catalogue_lists_every_tool_with_its_risk(client: TestClient) -> None:
-    """§5 Phase 7's editor shows risk beside each checkbox, and reads it here
-    rather than hardcoding a list that would drift from the validator."""
+    """The §5 Phase 7 editor gets risk from this endpoint, not a drifting local list."""
     body = client.get("/tools").json()
 
     assert [tool["name"] for tool in body] == list(tool_names())
@@ -362,12 +333,10 @@ def test_the_catalogue_lists_every_tool_with_its_risk(client: TestClient) -> Non
 
 
 def test_every_catalogue_tool_is_now_available(client: TestClient) -> None:
-    """Phase 6 flipped what Phase 5 asserted was false.
+    """Ensure every catalogue entry is implemented, not merely displayed.
 
-    `available` is computed from the registry rather than hardcoded, so this
-    also catches a catalogue entry that never got an implementation: a tool
-    the editor would offer, a definition could allow, and a run would then
-    refuse.
+    ``available`` comes from the registry, so an editor cannot offer a tool a
+    run will refuse.
     """
     body = client.get("/tools").json()
 
@@ -376,12 +345,10 @@ def test_every_catalogue_tool_is_now_available(client: TestClient) -> None:
 
 
 def test_every_catalogue_tool_has_an_implementation() -> None:
-    """The catalogue and the registry must name exactly the same tools.
+    """Keep catalogue and registry tool names identical.
 
-    Each half is internally consistent, so drift between them is invisible
-    without this: an entry with no implementation is a tool a user can tick and
-    an agent cannot call, and an implementation with no entry is a tool no
-    allowlist can ever name: unreachable code that looks like a feature.
+    Otherwise users can select an unimplemented tool, or implementations become
+    unreachable because no allowlist can name them.
     """
     registry = build_registry()
 
@@ -389,14 +356,12 @@ def test_every_catalogue_tool_has_an_implementation() -> None:
 
     for declaration in CATALOGUE:
         implementation = registry[declaration.name]
-        # Risk is read from the catalogue, never restated, so the level the
-        # editor shows next to a checkbox is the level the gate enforces.
+        # The editor and gate read the same catalogue risk level.
         assert implementation.risk is declaration.risk
 
 
 def test_run_shell_is_the_only_high_risk_tool() -> None:
-    """A risk level that is wrong is worse than no risk level: it is what the
-    user reads when deciding whether to tick the box."""
+    """An incorrect displayed risk misleads approval decisions."""
     high = {tool.name for tool in CATALOGUE if tool.risk is RiskLevel.HIGH}
 
     assert high == {"run_shell"}
@@ -410,11 +375,10 @@ def test_run_shell_is_the_only_high_risk_tool() -> None:
 @pytest.mark.parametrize(
     ("requested", "policy", "expected"),
     [
-        # The case §5 Phase 5 names: a definition cannot grant itself a level
-        # the workspace has not enabled.
+        # A definition cannot add a risk level excluded by the workspace.
         ((RiskLevel.HIGH,), (), frozenset()),
         ((RiskLevel.LOW, RiskLevel.HIGH), (RiskLevel.LOW,), {RiskLevel.LOW}),
-        # Nor does asking for nothing widen anything.
+        # Asking for nothing cannot widen policy.
         ((), (RiskLevel.LOW, RiskLevel.HIGH), frozenset()),
         ((RiskLevel.LOW,), (RiskLevel.LOW,), {RiskLevel.LOW}),
     ],
@@ -424,11 +388,9 @@ def test_auto_approve_never_exceeds_the_workspace_policy(
     policy: tuple[RiskLevel, ...],
     expected: frozenset[RiskLevel],
 ) -> None:
-    """§5 Phase 5's security note, as arithmetic.
+    """§5 Phase 5's security rule as set intersection.
 
-    Nothing consumes this in Phase 5: there is no gate and no tool to put
-    behind one. It is settled here so Phase 6 wires a workspace policy into a
-    rule that already exists rather than inventing one while building the gate.
+    It predates the gate so Phase 6 wires policy into an established rule.
     """
     assert effective_auto_approve(requested, policy) == expected
 
@@ -439,7 +401,7 @@ def test_a_definition_can_store_auto_approve_without_it_taking_effect(
     created = client.post("/agents", json=a_definition(auto_approve=["low", "high"])).json()
 
     assert created["auto_approve"] == ["low", "high"]
-    # ...and with no workspace policy, it grants exactly nothing.
+    # Without workspace policy, it grants nothing.
     assert (
         effective_auto_approve([RiskLevel(x) for x in created["auto_approve"]], ())
         == frozenset()
@@ -450,12 +412,10 @@ def test_a_definition_can_store_auto_approve_without_it_taking_effect(
 
 
 class HookedProvider(ScriptedProvider):
-    """A scripted provider that runs a callback before a given model call.
+    """Scripted provider that runs a callback before a chosen model call.
 
-    Needed for one test only: proving that editing a definition *while a run is
-    in flight* leaves that run alone. Without a hook the edit can only land
-    before the run starts or after it ends, neither of which is the case §5
-    Phase 5 actually describes.
+    It enables a mid-run definition edit after roster load but before worker
+    spawn, as §5 Phase 5 requires.
     """
 
     def __init__(
@@ -512,11 +472,9 @@ async def test_an_agent_created_over_http_can_be_spawned_into_a_run(
     agents: AgentDefStore,
     ledger: BudgetLedger,
 ) -> None:
-    """§5 Phase 5, acceptance criterion, first clause.
+    """§5 Phase 5: create via HTTP, then prove the run read that database row.
 
-    The definition is created with an HTTP request against the same database
-    the run then reads. Every assertion is made against the event log, so
-    nothing here can pass by the test having built the agent itself.
+    Assert only against the event log so no local test construction can pass it.
     """
     with TestClient(create_app(app_paths, secrets=SecretStore())) as client:
         created = client.post(
@@ -554,13 +512,10 @@ async def test_a_definition_edited_mid_run_does_not_affect_the_in_flight_run(
     agents: AgentDefStore,
     ledger: BudgetLedger,
 ) -> None:
-    """§5 Phase 5: "A definition edited mid-run does not affect the in-flight
-    run. Runs snapshot the definitions they started with."
+    """§5 Phase 5: runs snapshot definitions at start, despite mid-run edits.
 
-    The edit lands during the supervisor's first model call: after the roster
-    was loaded, before the worker is spawned. If the registry read the database
-    at spawn time instead of at run start, the worker below would carry the new
-    role and this test would fail.
+    Edit during the first supervisor call, after roster load and before worker
+    spawn. A spawn-time database read would give the worker the new role.
     """
     created = await agents.create(a_definition(role="The original role"))
 
@@ -576,7 +531,7 @@ async def test_a_definition_edited_mid_run_does_not_affect_the_in_flight_run(
     )
 
     assert rebuilt.agent("summariser").role == "The original role"
-    # The edit did happen: this is not passing because the write silently failed.
+    # Confirm the edit happened rather than silently failing.
     assert (await agents.require(created.id)).role == "The edited role"
 
 
@@ -609,13 +564,7 @@ async def test_the_run_limit_clamps_a_definition_written_when_the_cap_was_higher
     agents: AgentDefStore,
     ledger: BudgetLedger,
 ) -> None:
-    """Validation on write is not the enforcement.
-
-    `max_steps` is checked against the workspace cap when a definition is
-    saved, but the cap is a setting and can be lowered afterwards. A rule
-    enforced only at write time stops holding the moment the thing it depends
-    on changes.
-    """
+    """Enforce a lowered workspace cap at run time, not only definition write time."""
     await agents.create(a_definition(max_steps=20))
     await settings.update({"max_steps_per_agent": 3})
 
@@ -633,9 +582,7 @@ async def test_spawning_one_definition_twice_produces_two_agents(
     agents: AgentDefStore,
     ledger: BudgetLedger,
 ) -> None:
-    """Two agents sharing an `agent_id` would merge into one node on replay, so
-    the second spawn of a definition is deduplicated, but both still point at
-    the same row."""
+    """Give repeat spawns unique agent IDs so replay does not merge their nodes."""
     await agents.create(a_definition())
 
     rebuilt = await run_with(
@@ -668,10 +615,7 @@ async def test_the_supervisor_is_told_which_agents_it_has(
     agents: AgentDefStore,
     ledger: BudgetLedger,
 ) -> None:
-    """The roster reaches the model through the system prompt, and it has to
-    carry each agent's tools: a supervisor handing a file-writing subtask to
-    an agent with an empty allowlist has picked wrong, and can only know that
-    if it was told."""
+    """Include each agent's tools in the supervisor prompt for sound delegation."""
     await agents.create(a_definition(allowed_tools=["read_file"]))
 
     provider = ScriptedProvider(ONE_WORKER_SCRIPT)
@@ -688,7 +632,7 @@ async def test_the_supervisor_is_told_which_agents_it_has(
 
 @anyio_tests
 async def test_the_registry_reads_the_roster_once(agents: AgentDefStore) -> None:
-    """The snapshot is the whole mechanism behind the mid-run-edit guarantee."""
+    """A loaded registry is the snapshot behind the mid-run-edit guarantee."""
     before = tuple(sorted(d.name for d in await agents.list_enabled()))
     registry = await AgentRegistry.load(agents, RunLimits())
     assert registry.names == before
@@ -703,8 +647,7 @@ async def test_the_registry_reads_the_roster_once(agents: AgentDefStore) -> None
 async def test_the_registry_tolerates_a_name_a_model_capitalised(
     agents: AgentDefStore,
 ) -> None:
-    """Names are stored lowercase, so a title-cased one is a typo rather than a
-    request for a different agent."""
+    """Normalize agent names; title case is a typo, not another agent."""
     registry = await AgentRegistry.load(agents, RunLimits())
 
     assert registry.get("Researcher") is not None
@@ -716,8 +659,7 @@ async def test_the_registry_tolerates_a_name_a_model_capitalised(
 async def test_an_empty_roster_is_described_rather_than_left_blank(
     agents: AgentDefStore,
 ) -> None:
-    """A supervisor told nothing would spawn into the void every step until it
-    ran out."""
+    """Describe an empty roster so the supervisor does not repeatedly spawn into nothing."""
     for definition in await agents.list_all():
         await agents.update(definition.id, {"enabled": False})
 
@@ -729,10 +671,8 @@ async def test_an_empty_roster_is_described_rather_than_left_blank(
 
 # --- per-agent providers -----------------------------------------------------
 #
-# §4 lets a definition pin `provider` and `model`, with NULL meaning "inherit
-# the workspace default". Honouring that is what stops those columns being
-# decoration: this project has already shipped one setting that returned
-# 200 OK and changed nothing.
+# §4 permits pinned ``provider`` and ``model``; NULL inherits the workspace
+# default. Honour them so a successful setting is not a no-op.
 
 
 @anyio_tests
@@ -746,8 +686,7 @@ async def test_a_definition_inherits_the_workspace_provider_by_default(
 
     provider = pool.for_definition(definition)
     assert provider.name == "ollama"
-    # Namespaced by the provider so `pricing` recognises it as free without
-    # enumerating every model a user might have pulled.
+    # Namespace by provider so pricing recognizes free user-installed models.
     assert provider.model == "ollama/qwen3:4b"
 
 
@@ -763,7 +702,7 @@ async def test_a_definition_can_pin_its_own_model(
     provider = pool.for_definition(definition)
     assert provider.name == "ollama"
     assert provider.model == "ollama/gemma4:e4b"
-    # ...while the workspace default is untouched by that pin.
+    # The pin leaves the workspace default untouched.
     assert pool.default().model == "ollama/qwen3:4b"
 
 
@@ -771,8 +710,7 @@ async def test_a_definition_can_pin_its_own_model(
 async def test_two_agents_on_the_same_model_share_one_provider(
     agents: AgentDefStore, ledger: BudgetLedger
 ) -> None:
-    """Each provider holds an HTTP client; a run spawning one definition five
-    times should open one."""
+    """Reuse one HTTP-client provider for repeated spawns on the same model."""
     workspace = WorkspaceSettings(provider="ollama", model="qwen3:4b")
     pool = ProviderPool(workspace, SecretStore(), ledger, "run-1")
 
@@ -789,8 +727,7 @@ async def test_two_agents_on_the_same_model_share_one_provider(
 async def test_a_definition_pinning_an_unconfigured_provider_raises(
     agents: AgentDefStore, ledger: BudgetLedger
 ) -> None:
-    """Reported to the supervisor as a failed spawn rather than failing the run:
-    one bad row should not discard what the other agents produced."""
+    """Report an unconfigured pinned provider as a failed spawn, not a failed run."""
     workspace = WorkspaceSettings(provider="ollama", model="qwen3:4b")
     pool = ProviderPool(workspace, SecretStore(), ledger, "run-1")
 
@@ -804,8 +741,7 @@ async def test_a_definition_pinning_an_unconfigured_provider_raises(
 async def test_the_pool_rejects_a_provider_name_that_reached_the_database(
     agents: AgentDefStore, ledger: BudgetLedger
 ) -> None:
-    """The API refuses an unknown provider on write; this is what holds if a row
-    is edited some other way, or if a provider is later removed."""
+    """Reject unknown providers that reach storage outside the API or after removal."""
     workspace = WorkspaceSettings(provider="ollama", model="qwen3:4b")
     pool = ProviderPool(workspace, SecretStore(), ledger, "run-1")
 

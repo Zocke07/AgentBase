@@ -4,9 +4,8 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 /**
- * BUILD_SPEC §1 constraint 3: everything binds 127.0.0.1. That includes the dev
- * server: `host` is pinned here rather than left to Vite's default so that
- * `--host` on the command line cannot widen it by accident.
+ * BUILD_SPEC §1 constraint 3: pin the dev server to 127.0.0.1 so `--host`
+ * cannot widen it accidentally.
  */
 export default defineConfig({
   plugins: [react()],
@@ -17,12 +16,9 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     watch: {
-      // Never watch the Rust tree. `tauri dev` runs cargo and Vite against the
-      // same directory, and Vite's watcher opens `target/` files while cargo is
-      // still writing them, on Windows that is an EBUSY the watcher raises as
-      // a fatal error, killing the dev server and taking `tauri dev` with it.
-      // Nothing under here is a frontend source file, so there is nothing to
-      // lose by ignoring it.
+      // Ignore Rust output: while `tauri dev` runs both tools, Vite can open a
+      // `target/` file Cargo is writing and fail with Windows EBUSY. It contains
+      // no frontend source.
       ignored: ["**/src-tauri/**"],
     },
   },

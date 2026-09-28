@@ -1,9 +1,8 @@
 # Verification and remaining work
 
-Updated 2026-09-28. This is the current record; the
-[historical session notes](history/README.md) retain earlier evidence and
-superseded gaps. Earlier evidence retains its original product and artifact
-identifiers. A test result below is scoped to what was actually executed.
+Updated 2026-09-28. This is the current record; [history](history/README.md)
+holds earlier evidence and superseded gaps under original identifiers. Results
+cover only work actually executed.
 
 ## 0.4.8: steady canvas, folding log, start-up stages, spend breakdown, space providers
 
@@ -44,34 +43,29 @@ the installers.
 
 ## 0.4.7 local release gate, 2026-09-26
 
-The AgentBase 0.4.7 candidate combines the bounded RSS and Atom reader, the
-safe built-in `news-scanner` migration, clearer missing-key guidance, and the
-responsive and accessible desktop work below on top of the published 0.4.6
-rename. `just check` passed: backend Ruff lint and format, mypy strict on the
-native and Windows targets, desktop lint and TypeScript typecheck. The backend
-suite excluding build-artifact checks and repository hygiene passed with
-**849 passed, 4 skipped**; repository hygiene passed **15 tests**, with only
-the tree-wide em-dash check deselected because it sees the maintainer's
-untracked working document. The desktop suite passed **47 files, 456 tests**.
+The 0.4.7 candidate adds bounded RSS/Atom, safe `news-scanner` migration,
+clearer missing-key guidance, and responsive/accessibility work over 0.4.6.
+`just check` passed backend Ruff/format, native/Windows strict mypy, desktop
+lint, and TypeScript. Backend (excluding artifact/hygiene checks): **849
+passed, 4 skipped**. Hygiene: **15 tests**, with only tree-wide em dash
+deselected for the maintainer's untracked document. Desktop: **47 files, 456
+tests**.
 
-The Apple Silicon sidecar freeze, production frontend build, Rust application
-build and ad-hoc signing completed. `cargo clippy --all-targets -- -D warnings`
-passed and `cargo test` passed **7 tests**. The required artifact verifier
-launched the frozen sidecar and inspected the bundled application and mounted
-disk image: **18 passed, 4 Windows-only checks skipped**. The resulting
-`AgentBase_0.4.7_aarch64.dmg` is 27,924,355 bytes with SHA-256
+Apple Silicon sidecar freeze, production frontend/Rust builds, and ad-hoc
+signing completed. `cargo clippy --all-targets -- -D warnings` passed; `cargo
+test`: **7 tests**. Required artifact verification launched the frozen sidecar
+and inspected the bundled app/mounted disk image: **18 passed, 4 Windows-only
+skipped**. `AgentBase_0.4.7_aarch64.dmg` is 27,924,355 bytes, SHA-256
 `88ab2ec44414d609974c4279c8f2d8aed08844e1687b525c40e63589dfc88efc`.
-Publication and the Windows installer remain gated on the tag workflow.
+Tag workflow still gates publication and Windows installer.
 
 ## AgentBase product rename, 2026-09-24, released as 0.4.6
 
-The shipped product, backend package, TypeScript packages, Rust crate, Tauri
-bundle, sidecar, environment variables, generated schemas, CI artifacts and
-current documentation now use AgentBase names. The first canonical launch can
-adopt an empty new app-data directory from the preceding profile and rename its
-SQLite database plus WAL and SHM companions without overwriting an existing new
-profile. Legacy keychain entries, browser preferences and visualization schemas
-remain readable for the transition; writes use AgentBase names.
+Product, backend/TypeScript/Rust packages, Tauri bundle/sidecar, environment,
+schemas, CI artifacts, and current docs use AgentBase. First canonical launch
+can adopt an empty new app-data directory, renaming SQLite plus WAL/SHM without
+overwriting an existing profile. Legacy keychain/browser/schema values remain
+readable; writes use AgentBase.
 
 Executed: the full backend suite (**868 passed, 12 skipped**), backend Ruff
 lint and format checks, mypy strict on both the native and cross platform,

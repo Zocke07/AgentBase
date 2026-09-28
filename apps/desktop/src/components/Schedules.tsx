@@ -14,18 +14,16 @@ import { whenLabel } from "../lib/format";
 import { useFetched } from "../state/useFetched";
 
 /**
- * A space's schedules: goals it runs on its own at set times, while the app
- * is open. The list says when each will next run and what happened last
- * time; the editor is a picker (daily, weekly, every N hours) with the
- * sidecar's own preview of what that means, so the words and the times a
- * user sees before saving are the ones the scheduler will use.
+ * Space schedules run goals while the app is open. List next/last executions;
+ * editor previews daily, weekly, or N-hour cadence through sidecar scheduler
+ * logic, matching saved behavior.
  */
 
 export interface SchedulesProps {
   space: SpaceResponse;
-  /** The app-wide settings, to say what the space's approval policy means for an unattended run. */
+  /** App-wide settings to explain unattended space approval policy. */
   settings: SettingsResponse | null;
-  /** Open the run a schedule last started; absent where no run view is reachable. */
+  /** Open schedule's latest run; absent without run navigation. */
   onOpenRun?: ((runId: string) => void) | undefined;
 }
 
@@ -41,7 +39,7 @@ interface Draft {
   everyHours: string;
   missed: Missed;
   enabled: boolean;
-  /** A time limit for this schedule's runs, as typed; blank inherits the space's. */
+  /** Typed schedule time limit; blank inherits space limit. */
   seconds: string;
 }
 
@@ -76,7 +74,7 @@ function fromSchedule(schedule: ScheduleResponse): Draft {
   };
 }
 
-/** The cadence the draft describes, or the reason it does not describe one yet. */
+/** Draft cadence or reason it is not yet valid. */
 function cadenceOf(draft: Draft): { cadence: Cadence } | { error: string; field: string } {
   if (draft.kind === "interval") {
     const hours = Number(draft.everyHours);
@@ -94,8 +92,8 @@ function cadenceOf(draft: Draft): { cadence: Cadence } | { error: string; field:
 }
 
 /**
- * The risk levels a run in this space may call without asking: the space's
- * own policy narrowed by the app-wide one, the way the sidecar resolves it.
+ * Risk levels that run without prompting, resolved as space policy narrowed by
+ * app-wide policy.
  */
 function effectiveAutoApprove(space: SpaceResponse, settings: SettingsResponse | null): RiskLevel[] {
   const appWide = settings?.settings.auto_approve ?? [];
@@ -103,13 +101,12 @@ function effectiveAutoApprove(space: SpaceResponse, settings: SettingsResponse |
   return own === null ? [...appWide] : own.filter((level) => appWide.includes(level));
 }
 
-/** Strictness, for narrowing: a space may move a tool along this order, never back. */
+/** Strictness order; spaces may only move tools forward. */
 const STRICTNESS: Record<ToolPolicy, number> = { allow: 0, ask: 1, deny: 2 };
 
 /**
- * The per-tool answers a run in this space gets: the app-wide ones with the
- * space's laid over them, each tool keeping the stricter answer, the way the
- * sidecar merges them.
+ * Per-tool answers resolved by overlaying space answers and retaining stricter
+ * app-wide policy.
  */
 function effectiveToolPolicies(space: SpaceResponse, settings: SettingsResponse | null): Record<string, ToolPolicy> {
   const merged: Record<string, ToolPolicy> = { ...(settings?.settings.tool_policies ?? {}) };
@@ -128,7 +125,7 @@ function names(tools: string[]): string {
 export function Schedules({ space, settings, onOpenRun }: SchedulesProps) {
   const load = useCallback(() => api.listSchedules(space.id), [space.id]);
   const schedules = useFetched(load, NO_SCHEDULES);
-  // What the editor is open on: nothing, a new schedule, or one row's id.
+  // Editor target: none, new schedule, or row ID.
   const [editing, setEditing] = useState<{ kind: "none" } | { kind: "new" } | { kind: "row"; id: string }>({ kind: "none" });
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
@@ -421,8 +418,7 @@ function ScheduleEditor({
   };
   const errorFor = (field: string): string | null => errors[field] ?? null;
 
-  // The preview is the sidecar's own reading of the cadence, in the machine's
-  // zone; asked for on every change so the words update as the picker does.
+  // Request sidecar local-zone cadence preview after each change.
   const shaped = cadenceOf(draft);
   const previewKey = "cadence" in shaped ? JSON.stringify(shaped.cadence) : null;
   useEffect(() => {
@@ -435,7 +431,7 @@ function ScheduleEditor({
         if (live) setPreview({ summary: reply.summary, next: reply.next });
       })
       .catch(() => {
-        // The preview is a courtesy; a save still validates.
+        // Preview is advisory; save still validates.
       });
     return () => {
       live = false;

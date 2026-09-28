@@ -521,8 +521,8 @@ async def test_every_provider_satisfies_the_protocol() -> None:
 async def test_http_status_maps_to_the_shared_error_taxonomy(
     status: int, expected: type[Exception]
 ) -> None:
-    """Callers above this layer branch on these, never on a vendor code, that
-    would be a code change when switching provider."""
+    """Callers above this layer branch on these, never on a vendor code. Relying
+    on a vendor code would require a code change when switching providers."""
     provider = AnthropicProvider(
         "k",
         "claude-opus-5",

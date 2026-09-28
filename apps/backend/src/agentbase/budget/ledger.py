@@ -1,10 +1,9 @@
-"""The monthly spending cap: check before each call, record after (§5 Phase 3).
+"""Monthly spending cap: check before calls, record afterward (§5 Phase 3).
 
-The guard is a wrapper, not a convention: :class:`BudgetedProvider` implements
-the same protocol as the provider it wraps, so the only way to reach a model
-is through the check, and a second call site cannot forget it. The pre-flight
-estimate assumes the model returns `max_tokens`, so it refuses early rather
-than late; what is recorded afterwards is the provider's reported usage.
+:class:`BudgetedProvider` enforces the check structurally by matching its
+wrapped provider protocol, so a call site cannot bypass it. The pre-flight
+estimate assumes ``max_tokens`` to refuse early; recorded spend uses provider-
+reported usage.
 """
 
 from __future__ import annotations
@@ -44,16 +43,13 @@ __all__ = [
 #: Percent of the cap at which `budget.warning` fires.
 WARNING_THRESHOLD_PERCENT: Final[int] = 80
 
-#: Rough characters per token for the pre-flight estimate only. Low on
-#: purpose (English is nearer 4) so the estimate errs towards refusing.
+#: Pre-flight characters-per-token estimate. Intentionally below English's
+#: roughly four characters, so estimates err toward refusal.
 _CHARS_PER_TOKEN: Final[int] = 3
 
 
 class BudgetExceededError(RuntimeError):
-    """Raised instead of making a call that would breach the cap.
-
-    ``reason`` is shown to the user.
-    """
+    """Raised before a cap-breaching call; ``reason`` is user-facing."""
 
     def __init__(self, reason: str) -> None:
         super().__init__(reason)
@@ -61,7 +57,7 @@ class BudgetExceededError(RuntimeError):
 
 
 def current_period(now: datetime | None = None) -> str:
-    """The `YYYY-MM` bucket spend is stored under. UTC, so the boundary does not travel."""
+    """Return the UTC ``YYYY-MM`` spend bucket, whose boundary cannot travel."""
     moment = now or datetime.now(UTC)
     return f"{moment.year:04d}-{moment.month:02d}"
 
@@ -71,10 +67,10 @@ def estimate_usage(
     max_tokens: int,
     system: str | None = None,
 ) -> TokenUsage:
-    """A pessimistic upper bound on what a request will cost.
+    """Estimate a pessimistic request-cost upper bound.
 
-    A character heuristic, not a tokenizer: counting properly would need the
-    network call the guard exists to avoid.
+    Use characters, not a tokenizer that would require the network call this
+    guard avoids.
     """
     characters = sum(len(message.content) for message in messages)
     if system:
@@ -87,7 +83,7 @@ def estimate_usage(
 
 
 class BudgetLedger:
-    """Records spend and enforces the monthly cap."""
+    """Record spend and enforce the monthly cap."""
 
     def __init__(
         self,
@@ -104,9 +100,7 @@ class BudgetLedger:
     async def spent_micros(
         self, period: str | None = None, *, space_id: str | None = None
     ) -> int:
-        """Total recorded spend for a period, in micros; ``space_id`` narrows it by joining to
-        `runs`.
-        """
+        """Return period spend in micros; ``space_id`` filters through ``runs``."""
         return await asyncio.to_thread(
             self._spent_micros_sync, period or current_period(), space_id
         )
@@ -128,7 +122,7 @@ class BudgetLedger:
         return int(row["total"])
 
     async def run_spent_micros(self, run_id: str) -> int:
-        """Everything one run has spent so far, in micros, whatever the period."""
+        """Return a run's total spend in micros across all periods."""
         return await asyncio.to_thread(self._run_spent_micros_sync, run_id)
 
     def _run_spent_micros_sync(self, run_id: str) -> int:
@@ -146,16 +140,16 @@ class BudgetLedger:
     # --- the gate ----------------------------------------------------------
 
     async def check(self, run_id: str, model: str, projected: TokenUsage) -> None:
-        """Refuse if ``projected`` on ``model`` would breach this month's cap.
+        """Refuse a projected call that breaches this month's cap.
 
-        Emits `budget.exceeded` on refusal, so the UI learns why from the log.
+        Emit ``budget.exceeded`` on refusal.
 
-        :raises BudgetExceededError: with a reason fit to show a user.
+        :raises BudgetExceededError: with a user-facing reason.
         """
         cap = await self.cap_micros()
 
         if not is_priced(model):
-            # An unpriced model cannot be checked against a cap.
+            # An unpriced model cannot be checked against the cap.
             reason = (
                 f"Refusing to call {model!r}: it has no registered price, so its cost "
                 f"cannot be counted against the monthly budget. Add it to pricing.py."
@@ -185,9 +179,9 @@ class BudgetLedger:
         model: str,
         usage: TokenUsage,
     ) -> int:
-        """Record actual spend and return what it cost, in micros.
+        """Record actual spend and return its micros cost.
 
-        :raises UnknownModelError: if the model has no price. Nothing is written.
+        :raises UnknownModelError: if the model has no price; write nothing.
         """
         cost = cost_micros(model, usage)  # raises before any row is written
         period = current_period()
@@ -208,10 +202,10 @@ class BudgetLedger:
         usage: TokenUsage,
         cost: int,
     ) -> tuple[int, int]:
-        """Insert the row and report the period's total before and after it.
+        """Insert a row and return period totals before and after it.
 
-        Both totals are read inside the write transaction, so of two runs
-        recording at once exactly one sees the total cross the threshold.
+        Read both inside one write transaction, so concurrent runs yield one
+        threshold crossing.
         """
         with self._db.write() as connection:
             before = self._period_total(connection, period)
@@ -243,7 +237,7 @@ class BudgetLedger:
     # --- events ------------------------------------------------------------
 
     async def _maybe_warn(self, run_id: str | None, before: int, after: int) -> None:
-        """Emit `budget.warning` on the call that crosses the threshold, and only then."""
+        """Emit ``budget.warning`` only for the call crossing the threshold."""
         if run_id is None or self._events is None:
             return
 
@@ -281,7 +275,7 @@ class BudgetLedger:
 
 
 class BudgetedProvider:
-    """A :class:`~agentbase.providers.base.Provider` that cannot outspend the cap."""
+    """A :class:`~agentbase.providers.base.Provider` constrained by the cap."""
 
     def __init__(self, inner: Provider, ledger: BudgetLedger, run_id: str | None) -> None:
         self._inner = inner
@@ -304,13 +298,13 @@ class BudgetedProvider:
         system: str | None = None,
         max_tokens: int = 4096,
     ) -> Completion:
-        """Check, call, record: in that order, always."""
+        """Always check, call, then record."""
         projected = estimate_usage(messages, max_tokens=max_tokens, system=system)
 
         if self._run_id is not None:
             await self._ledger.check(self._run_id, self._inner.model, projected)
         else:
-            # No run to attribute the refusal to, but the cap still binds.
+            # No run receives the refusal, but the cap still applies.
             await self._ledger.check("", self._inner.model, projected)
 
         completion = await self._inner.complete(
@@ -333,11 +327,10 @@ class BudgetedProvider:
         system: str | None = None,
         max_tokens: int = 4096,
     ) -> AsyncIterator[StreamEvent]:
-        """Check, stream, record: in that order, always.
+        """Always check, stream, then record.
 
-        Spend is recorded *before* the terminal completion is yielded: a
-        consumer that stops iterating once it has the completion would
-        otherwise close the generator unbilled.
+        Record before yielding completion: a consumer may stop then and close
+        an otherwise unbilled generator.
         """
         projected = estimate_usage(messages, max_tokens=max_tokens, system=system)
 

@@ -1,14 +1,13 @@
-"""API keys in memory, delivered over stdin at spawn (§1 constraint 4).
+"""In-memory API keys delivered over stdin at spawn (§1 constraint 4).
 
-Never `argv`: a command line is readable by every process on the machine.
-The shell writes one JSON line right after spawn::
+Never use `argv`: every local process can read it. The shell writes one JSON
+line after spawn::
 
     {"anthropic_api_key": "<from keychain>", "openai_api_key": "<from keychain>"}
 
-and stdin then reverts to the shutdown watchdog. The line is consumed on the
-watchdog thread, not at startup, so a launch that sends none still binds its
-port, and a missing key surfaces as a :class:`ProviderAuthError` on first
-use. Nothing here has a repr that could put a key in a traceback.
+stdin then becomes the shutdown watchdog. The watchdog thread consumes the
+line, so a launch without one still binds; a missing key raises
+:class:`ProviderAuthError` on first use. No repr exposes a key in a traceback.
 """
 
 from __future__ import annotations
@@ -25,23 +24,22 @@ __all__ = ["SECRET_KEYS", "SecretStore", "parse_secrets_line"]
 
 logger = logging.getLogger("agentbase.secrets")
 
-#: The names the shell may send; an unknown key is ignored rather than stored.
+#: Names the shell may send; ignore unknown keys.
 SECRET_KEYS: Final[frozenset[str]] = frozenset(
     {
         "anthropic_api_key",
         "openai_api_key",
-        # A bot token is a credential in the same sense an API key is, so it
-        # takes the same route and never touches the `settings` table.
+        # A bot token is also a credential: use this route, never `settings`.
         "discord_bot_token",
     }
 )
 
 
 def parse_secrets_line(line: str) -> dict[str, str]:
-    """Parse one handshake line into a mapping of known secrets.
+    """Parse a handshake line into known secrets.
 
-    Anything that is not a JSON object of strings (the ``shutdown`` sentinel
-    included) yields an empty mapping. Never raises, never logs the line.
+    Non-object JSON, non-strings, and ``shutdown`` yield an empty mapping.
+    Never raise or log the line.
     """
     try:
         parsed = json.loads(line)
@@ -60,7 +58,7 @@ def parse_secrets_line(line: str) -> dict[str, str]:
 
 
 class SecretStore:
-    """Process-lifetime storage for API keys: memory only, locked for two threads."""
+    """Process-lifetime, memory-only API-key storage, locked across two threads."""
 
     __slots__ = ("_lock", "_secrets")
 
@@ -69,7 +67,7 @@ class SecretStore:
         self._secrets: dict[str, str] = dict(secrets or {})
 
     def load(self, secrets: Mapping[str, str]) -> None:
-        """Merge in secrets from a handshake line, logging the names and never the values."""
+        """Merge handshake secrets; log names, never values."""
         with self._lock:
             self._secrets.update(secrets)
 
@@ -85,12 +83,12 @@ class SecretStore:
 
     @property
     def names(self) -> tuple[str, ...]:
-        """Which secrets are present. Safe to log and to expose over HTTP."""
+        """Return present secret names; safe to log or expose over HTTP."""
         with self._lock:
             return tuple(sorted(self._secrets))
 
     def __repr__(self) -> str:
-        """Deliberately value-free: a default repr is how a secret ends up in a traceback."""
+        """Stay value-free: default reprs can expose secrets in tracebacks."""
         return f"SecretStore(names={self.names!r})"
 
     __str__ = __repr__

@@ -4,18 +4,17 @@ import { clockDate, formatDuration } from "../lib/format";
 import { STATUS_LABEL } from "../state/describe";
 
 /**
- * One run, as something to pick: a snapshot of the `runs` table. For the open
- * run the caller may hand in the status the fold knows, which wins over the
- * lagging row. Duration comes from the row's timestamps, never from a clock.
+ * Selectable `runs`-table snapshot. For open runs, fold status overrides lagging
+ * rows; duration uses row timestamps, never a clock.
  */
 export interface RunCardProps {
   run: Run;
-  /** The status the open run's log reports, when it knows more than the row. */
+  /** Open-run log status when newer than row. */
   liveStatus?: Run["status"] | null;
   selected?: boolean;
-  /** An approval is waiting on this run, wherever the viewer is looking. */
+  /** Approval waiting on this run, regardless of current view. */
   needsApproval?: boolean;
-  /** The picker's narrow variant: one line of goal, the facts on one row. */
+  /** Narrow picker: single-line goal and facts row. */
   compact?: boolean;
   onOpen: (runId: string) => void;
 }
@@ -29,8 +28,7 @@ export function RunCard({
   onOpen,
 }: RunCardProps) {
   const status = liveStatus ?? run.status;
-  // Two variants can show the same run at once (the Home screen's card and
-  // the picker's row), so the test ids say which.
+  // Home card and picker row can coexist; differentiate test IDs.
   const kind = compact ? "run-row" : "run-card";
   const finishedAt = run.finished_at ?? null;
   const duration =

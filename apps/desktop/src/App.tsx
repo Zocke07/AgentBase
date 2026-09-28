@@ -32,17 +32,14 @@ import { useMediaQuery } from "./state/useMediaQuery";
 import { useStoredFlag } from "./state/useStoredFlag";
 
 /**
- * The shell: a rail of sections on the left, the section on the right, and a
- * header for what is true of the whole workspace (the month's spend, the
- * provider and model in use, any approval waiting anywhere).
+ * Application shell: left rail, current section, and workspace-wide header for
+ * monthly spend, selected provider/model, and pending approvals.
  *
- * It establishes that the sidecar is reachable, then hands over. It owns
- * which space the window is looking at, the lists that follow from it, and
- * when they are re-read: a light poll while any listed run is unfinished, the
- * window becoming visible again, and a run starting or finishing.
+ * Verify sidecar reachability, own window-selected space and related lists, and
+ * refresh on unfinished runs, visibility return, or run start/finish.
  */
 
-/** How often to re-read the run list and the meter while some run is unfinished. */
+/** Refresh interval while listed runs remain unfinished. */
 const BACKGROUND_REFRESH_MS = 5_000;
 
 /** How long the start screen waits on the first settings and spaces reads
@@ -58,35 +55,29 @@ export function App() {
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [verified, setVerified] = useState<VerifyResponse | null>(null);
   const [pendingApprovals, setPendingApprovals] = useState<ApprovalResponse[]>([]);
-  // Which run is open: held here so it survives a section switch and can be
-  // opened from the header badge or the Home cards.
+  // Retain open run across section changes and external open requests.
   const [runId, setRunId] = useState<string | null>(null);
-  // A note another section asked the vault to open; the nonce makes a repeat
-  // of the same path a new request.
+  // Vault-open request; nonce distinguishes repeated paths.
   const [noteRequest, setNoteRequest] = useState<{
     path: string;
     heading: string | null;
     nonce: number;
     inbox?: boolean;
   } | null>(null);
-  // Bumped when a run changes a memory's status, so the vault reloads its inbox.
+  // Bump after a run changes memory status to reload vault inbox.
   const [memoryNonce, setMemoryNonce] = useState(0);
-  // The first-run tour. Null defers to the sidecar's flag, so it opens once
-  // on the sidecar's word and only a settings document that carries the flag
-  // (not an older sidecar, not a bare test fixture) can open it.
+  // First-run tour follows the sidecar flag only when settings provides it.
   const [tourOpen, setTourOpen] = useState<boolean | null>(null);
-  // Memories waiting in the inbox, reported by the vault for the rail's badge.
+  // Vault-reported inbox count for the rail badge.
   const [inboxCount, setInboxCount] = useState(0);
-  // Set when a request failed to reach the sidecar after startup; the window
-  // stays where it was underneath.
+  // Post-startup transport failure leaves current window content underneath.
   const [lost, setLost] = useState<Exclude<SidecarStatus, { kind: "ready" }> | null>(null);
   const inFlight = useRef<AbortController | null>(null);
 
-  // The theme is a fact about this window, applied to the document root and
-  // remembered in this browser; the settings page offers the choice.
+  // Per-window, browser-persisted theme applied to the document root.
   useTheme();
 
-  // Which space the window is looking at, also a fact about this window.
+  // Window-selected space.
   const spaces = useSpaces((state) => state.spaces);
   const spacesLoaded = useSpaces((state) => state.loaded);
   const spaceId = useSpaces((state) => state.currentId);
@@ -110,8 +101,7 @@ export function App() {
     };
   }, [connect]);
 
-  // A failed connection after startup re-enters the reconnect loop, reported
-  // in a banner; when `/health` answers again everything is re-read.
+  // Reconnect after post-startup failure; refresh all when `/health` recovers.
   const reconnecting = useRef(false);
   useEffect(
     () =>
@@ -135,7 +125,7 @@ export function App() {
   );
 
   const refreshWorkspace = useCallback(() => {
-    // The meter and the pre-flight are about the space on screen.
+    // Meter and preflight follow the selected space.
     void api.getBudget(spaceId ?? undefined).then(setBudget).catch(() => undefined);
     void api
       .getSettings()
@@ -145,7 +135,7 @@ export function App() {
         setSettingsLoaded(true);
       });
     void api.verifySettings(spaceId ?? undefined).then(setVerified).catch(() => undefined);
-    // Every question waiting anywhere, including on runs not being looked at.
+    // Include questions for runs outside the current view.
     void api
       .listApprovals()
       .then((all) => {
@@ -158,8 +148,7 @@ export function App() {
     if (status.kind === "ready") refreshWorkspace();
   }, [status.kind, refreshWorkspace]);
 
-  // The spaces list, once the sidecar answers; then the two per-space lists
-  // follow the chosen space, and follow it again on every switch.
+  // Load spaces, then selected-space lists on every switch.
   useEffect(() => {
     if (status.kind === "ready") void loadSpaces();
   }, [status.kind, loadSpaces]);
@@ -169,9 +158,7 @@ export function App() {
     setRosterSpace(spaceId);
   }, [spaceId, setRunListSpace, setRosterSpace]);
 
-  // A run started from Discord or left going in the background only reaches
-  // the list if something re-reads the table: a light poll while any listed
-  // run is unfinished, and nothing once they all are.
+  // Poll while listed runs are unfinished so background or Discord runs appear.
   const runs = useRunList((state) => state.runs);
   const reloadRuns = useRunList((state) => state.load);
   const anyUnfinished = runs.some(unfinished);
@@ -186,7 +173,7 @@ export function App() {
     };
   }, [status.kind, anyUnfinished, reloadRuns, refreshWorkspace]);
 
-  // And when the window comes back into view.
+  // Refresh when the window regains visibility.
   useEffect(() => {
     if (status.kind !== "ready") return;
     const onVisible = () => {
@@ -201,7 +188,7 @@ export function App() {
     };
   }, [status.kind, reloadRuns, refreshWorkspace]);
 
-  // The open run's status as its log reports it; the table's row lags.
+  // Prefer open-run log status over lagging table row.
   const loadedRunId = useRunStore((state) => state.runId);
   const headView = useRunStore((state) => state.headView);
   const liveStatus =
@@ -214,8 +201,7 @@ export function App() {
     setSection("runs");
   }, []);
 
-  // A run named from outside the space on screen is opened in its own space,
-  // since the picker lists one space's runs.
+  // Switch to a run's space before opening it because pickers are space-scoped.
   const openRunWherever = useCallback(
     (id: string) => {
       const listed = useRunList.getState().runs.find((run) => run.id === id);
@@ -240,7 +226,7 @@ export function App() {
     (id: string) => {
       if (id === spaceId) return;
       selectSpace(id);
-      // The open run belongs to the space it was started in.
+      // Open run belongs to its start space.
       setRunId(null);
       setInboxCount(0);
     },
@@ -277,9 +263,7 @@ export function App() {
     openRun(run.id);
   }, [openRun]);
 
-  // The sidebar folds to icons on request, remembered in this browser. In a
-  // narrow window it is folded regardless, and opens as a drawer over the
-  // page rather than squeezing the section beside it.
+  // Persist icon-only rail; narrow windows force a drawer over content.
   const [railFolded, setRailFolded] = useStoredFlag("rail.collapsed");
   const narrow = useMediaQuery("(max-width: 1100px)");
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -294,8 +278,7 @@ export function App() {
     setDrawerOpen(false);
   }, []);
 
-  // Ctrl/Cmd and a digit jumps to a section, in rail order; Ctrl/Cmd+B folds
-  // the sidebar; Escape closes the drawer.
+  // Ctrl/Cmd+digit selects rail section; Ctrl/Cmd+B folds; Escape closes drawer.
   useEffect(() => {
     if (status.kind !== "ready") return undefined;
     const onKey = (event: KeyboardEvent) => {
@@ -322,11 +305,11 @@ export function App() {
     };
   }, [status.kind, drawer, toggleRail]);
 
-  // The provider and model a run in this space would use.
+  // Selected space's effective provider and model.
   const effectiveProvider = space?.provider ?? settings?.settings.provider ?? null;
   const effectiveModel = space?.model ?? settings?.settings.model ?? null;
 
-  // Why a run started now would be refused, or null. Shown on Home and disables Start.
+  // Current start refusal or null; Home displays it and disables Start.
   const blocker =
     verified !== null && !verified.ok
       ? (verified.reason ?? "The current settings cannot build a provider.")
@@ -441,7 +424,7 @@ export function App() {
               </button>
             )}
             {verified !== null && !verified.ok && (
-              // Not red text that says what is wrong, but the way to fix it.
+              // Show remediation, not just failure.
               <button
                 type="button"
                 className="app__setup"
@@ -596,7 +579,7 @@ export function App() {
               <SettingsView
                 spaces={spaces}
                 onSaved={(reply) => {
-                  // The reply is the whole settings document.
+                  // Save replies with the full settings document.
                   setSettings(reply);
                   refreshWorkspace();
                 }}

@@ -1,13 +1,12 @@
 # Build history
 
 The [session record through 2026-09-12](session_record_2026-09-12.md) preserves
-the former `CLAUDE.md`, including experiments, failures, measured results and
-decisions. It is historical evidence, not a current task list: some old
-"not verified" statements were closed by later sections without being edited
-in every place they appeared.
+the former `CLAUDE.md`: experiments, failures, measurements, and decisions.
+It is evidence, not a task list; later sections may close older "not verified"
+items without changing each earlier occurrence.
 
-Historical material retains the product names, identifiers, artifact names and
-hashes it recorded. It is not current configuration.
+Historical material retains recorded names, identifiers, artifacts, and hashes;
+it is not current configuration.
 
 Use [CLAUDE.md](../../CLAUDE.md) for current working instructions,
 [BUILD_SPEC.md](../../BUILD_SPEC.md) for the design and agreed deviations, and
@@ -25,6 +24,5 @@ Useful entry points into the record:
 - [Machine availability and Windows smoke-test reasoning](session_record_2026-09-12.md#the-machine-reality)
 - [Decisions and their reasoning](session_record_2026-09-12.md#decisions-made-mid-build)
 
-New work should update the current documents. Add a separate dated report
-here only when an experiment needs more detail than the current verification
-record can usefully carry.
+Update current documents for new work. Add a dated report here only when an
+experiment needs more detail than verification can carry.

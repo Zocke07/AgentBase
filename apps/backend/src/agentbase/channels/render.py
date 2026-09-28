@@ -1,14 +1,9 @@
-"""The chat reply, as a pure fold of the event log: events in, a string out.
+"""Pure event-log fold for chat replies: events in, text out.
 
-No I/O, no platform, no clock. The adapter re-renders from scratch on every
-edit rather than appending, so a reconnect or a restart shows what the log
-says rather than what this process happened to witness.
-
-Plain text, no markdown: agent output is arbitrary text, and a stray `*` or
-backtick would become formatting. The terminal summary is rendered as a
-claim beside a count of what executed, because a chat reader sees nothing but
-this message and live runs have ended `completed` describing work the log
-shows never happened.
+No I/O, platform, or clock. Rerender from the full log so reconnects and
+restarts show durable state, not process history. Use plain text: arbitrary
+agent output could otherwise format. Show terminal summaries as claims beside
+executed-call counts; a model may report work the log does not show.
 """
 
 from __future__ import annotations
@@ -33,10 +28,10 @@ __all__ = [
     "render",
 ]
 
-#: Discord rejects a message body over this outright, rather than truncating.
+#: Discord rejects, rather than truncates, longer message bodies.
 DISCORD_MESSAGE_LIMIT: Final[int] = 2000
 
-#: How many activity lines to keep: a status board, not a log dump.
+#: Activity-line limit: status board, not log dump.
 MAX_ACTIVITY_LINES: Final[int] = 12
 
 ChatStatus = Literal["pending", "running", "completed", "failed", "cancelled"]
@@ -55,7 +50,7 @@ def _ellipsise(value: str, limit: int) -> str:
 
 @dataclass(frozen=True, slots=True)
 class AgentLine:
-    """One agent, as a chat reader needs it: who, what for, and how it is doing."""
+    """Agent data needed by chat: identity, role, and state."""
 
     name: str
     role: str = ""
@@ -66,7 +61,7 @@ class AgentLine:
 
 @dataclass(frozen=True, slots=True)
 class PendingApproval:
-    """A question the run is currently suspended on."""
+    """Question currently suspending a run."""
 
     approval_id: str
     agent: str
@@ -76,8 +71,7 @@ class PendingApproval:
 
 @dataclass(frozen=True, slots=True)
 class RunClaim:
-    """A terminal event's own account of itself. A `run.failed` reason is
-    written by this application; a `run.completed` summary by a model."""
+    """Terminal event account: app-written failure reason or model-written summary."""
 
     kind: Literal["summary", "failure"]
     text: str
@@ -85,7 +79,7 @@ class RunClaim:
 
 @dataclass(frozen=True, slots=True)
 class ChatView:
-    """Everything the chat reply shows, derived from events and nothing else."""
+    """All chat-reply data, derived only from events."""
 
     run_id: str | None = None
     goal: str | None = None
@@ -104,7 +98,7 @@ class ChatView:
 
 @dataclass
 class _Accumulator:
-    """Mutable working state. :func:`fold` freezes it into a `ChatView`."""
+    """Mutable state that :func:`fold` freezes into ``ChatView``."""
 
     run_id: str | None = None
     goal: str | None = None
@@ -140,10 +134,7 @@ class _Accumulator:
 
 
 def fold(events: Iterable[Event]) -> ChatView:
-    """Reduce an event log into everything the chat reply needs.
-
-    One `match`, like the TypeScript reducer's one `switch`.
-    """
+    """Reduce an event log into chat-reply data using one ``match`` like the TypeScript reducer."""
     state = _Accumulator()
     for event in events:
         _apply(state, event)
@@ -206,8 +197,8 @@ def _apply(state: _Accumulator, event: Event) -> None:
                 steps=steps if isinstance(steps, int) else state.agent(agent).steps,
             )
 
-        # `llm.token` changes no state: deltas arrive unpredictably and a pure
-        # tool-call response emits none, so tokens are not a liveness signal.
+        # ``llm.token`` is not a liveness signal: deltas are irregular and
+        # tool-call-only responses emit none.
         case EventType.LLM_TOKEN | EventType.LLM_REQUEST | EventType.LLM_RESPONSE:
             pass
 
@@ -253,11 +244,9 @@ def _apply(state: _Accumulator, event: Event) -> None:
             state.errors.append(_text(payload, "reason", "Monthly budget exceeded."))
 
         case _:
-            # `assert_never` makes `mypy --strict` prove this match covers every
-            # `EventType`, so a new type is a build failure here. Stronger than
-            # the TypeScript reducer's `default` on purpose: the browser can lag
-            # the server and must cope at runtime; this fold is compiled from
-            # the enum it folds.
+            # ``assert_never`` makes strict mypy require every ``EventType``.
+            # This is deliberately stronger than the TypeScript reducer's
+            # runtime default: its browser may lag the server; this fold does not.
             assert_never(event.type)
 
 
@@ -291,7 +280,7 @@ _STATUS_MARK: Final[dict[str, str]] = {
 
 
 def _sections(view: ChatView) -> list[list[str]]:
-    """The message as blocks, most valuable first for the clamp to work with."""
+    """Build message blocks in value order for truncation."""
     head = [f"{_STATUS_MARK.get(view.status, '·')} {view.goal or 'Run'}"]
     where = view.origin or "chat"
     who = f" · {view.identity}" if view.identity else ""
@@ -350,11 +339,10 @@ def _claim_block(view: ChatView) -> list[str]:
 
 
 def render(view: ChatView, *, limit: int) -> str:
-    """Render ``view`` as plain text that fits inside ``limit`` characters.
+    """Render ``view`` as plain text within ``limit`` characters.
 
-    The activity tail is dropped first (the dashboard has the whole log); the
-    goal and the terminal claim exist nowhere else and go last. The final
-    truncation only stops Discord rejecting the body with a 400.
+    Drop activity first because the dashboard has the full log; retain goal
+    and terminal claim until last. Final truncation prevents Discord's 400.
     """
     blocks = _sections(view)
     activity_index = _index_of_activity(blocks)
@@ -365,7 +353,7 @@ def render(view: ChatView, *, limit: int) -> str:
             blocks.pop(activity_index)
             activity_index = None
         else:
-            # Oldest line first: what an agent is doing now is worth more.
+            # Drop oldest activity first; current work matters more.
             del activity[1]
 
     text = _join(blocks)

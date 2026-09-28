@@ -1,7 +1,5 @@
-# BUILD_SPEC §5 Phase 9: CI and release. `build` declares `needs: test`, so
-# nothing is bundled until every leg of the test matrix is green. Both jobs
-# run on windows-latest and macos-latest. The repository is public on purpose:
-# private-repo minutes bill at 2x on Windows and 10x on macOS.
+# BUILD_SPEC §5 Phase 9: `build` needs every Windows and macOS test leg. The
+# public repository avoids private-minute multipliers (2x Windows, 10x macOS).
 
 name: build
 
@@ -12,13 +10,12 @@ on:
   pull_request:
   workflow_dispatch:
 
-# A newer push to the same branch makes the older run's answer irrelevant. Tags
-# are exempt: a release build must not be cancelled by whatever lands next.
+# Cancel stale branch runs, but never release-tag builds.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
-# Read-only by default. The one job that needs to write asks for it itself.
+# Default to read-only; the release job requests writes.
 permissions:
   contents: read
 
@@ -27,7 +24,7 @@ jobs:
     name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
-      # When one platform breaks, the other's result is the useful thing on the page.
+      # Report both platforms when one fails.
       fail-fast: false
       matrix:
         os: [windows-latest, macos-latest]
@@ -37,14 +34,13 @@ jobs:
 
       - uses: ./.github/actions/toolchain
 
-      # `just ci` is `check` + `test`. The two build-dependent guards skip
-      # here, since nothing is built yet; the build job runs them afterwards.
+      # `just ci` runs `check` and `test`; build-dependent guards run after build.
       - name: Lint, typecheck and test
         run: just ci
 
   build:
     name: build (${{ matrix.os }})
-    # The gate. Every leg of `test` must be green before anything is bundled.
+    # Bundle only after every test leg passes.
     needs: test
     runs-on: ${{ matrix.os }}
     strategy:
@@ -62,26 +58,21 @@ jobs:
         with:
           components: clippy
 
-      # PyInstaller does not cross-compile, hence a matrix job. On macOS this
-      # also produces the disk image, a single file that keeps the app's
-      # executable modes across artifact upload where a raw .app would not.
+      # PyInstaller requires a per-platform build. macOS produces a DMG, which
+      # preserves executable modes through artifact upload unlike a raw .app.
       - name: Build the sidecar and the bundle
         run: just build-installer
 
-      # The guards that skipped in the test job, after the build so they have
-      # something to inspect, with `--require-build-checks` so a missing
-      # artefact fails instead of skipping.
+      # Run skipped build guards after output exists; missing artifacts fail.
       - name: Verify the built artefacts
         run: just verify-build
 
-      # After the build, which looks backwards for a lint and is pinned by a
-      # test: `tauri-build` validates `externalBin` on every cargo invocation,
-      # clippy included, so it needs the frozen sidecar to exist.
+      # `tauri-build` validates `externalBin` on every Cargo invocation,
+      # including Clippy, so lint after freezing the sidecar.
       - name: Lint the Rust shell
         run: just check-tauri
 
-      # `if-no-files-found: error` so a bundle that silently failed to appear
-      # fails the job rather than uploading nothing under a green tick.
+      # Fail rather than upload an empty successful artifact.
       - name: Upload the Windows installer
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v7
@@ -100,10 +91,8 @@ jobs:
 
   smoke:
     name: install and run with no Python on the path
-    # §5 Phase 9's "second Windows machine with no Python installed", as near
-    # as CI can state it: a fresh runner, the artefact the build job uploaded,
-    # and the installed sidecar launched with Python scrubbed from PATH. The
-    # scrub is asserted before anything launches.
+    # §5 Phase 9's clean Windows machine: fresh runner, built artifact, and
+    # installed sidecar with Python removed from PATH (asserted before launch).
     needs: build
     runs-on: windows-latest
 
@@ -125,9 +114,7 @@ jobs:
 
   release:
     name: publish the Windows installer and macOS app
-    # Only for a version tag; every green run still leaves the installer as a
-    # workflow artefact. Needs `smoke` too: an installer that did not run on a
-    # clean machine must not become a release.
+    # Publish version tags only after smoke; other green runs retain artifacts.
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [build, smoke]
     runs-on: ubuntu-latest
@@ -149,8 +136,8 @@ jobs:
           name: AgentBase-macos-app
           path: dist
 
-      # A corrected tag may need to replace an existing release's notes and
-      # assets. The macOS app has an ad-hoc signature but is not notarized.
+      # Corrected tags replace notes and assets. The macOS app is ad-hoc signed,
+      # not notarized.
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}

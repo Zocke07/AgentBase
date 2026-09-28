@@ -1,7 +1,7 @@
 -- Migration 008 - agent-proposed memories enter a user-curated inbox.
 --
--- Only exact v0.2 defaults are widened. A user-edited allowlist remains
--- untouched, including one that deliberately removed knowledge access.
+-- Widen only exact v0.2 defaults; preserve edits, including removed knowledge
+-- access.
 
 UPDATE agent_defs
    SET allowed_tools = '["read_file","list_dir","search_knowledge","propose_memory"]',

@@ -1,11 +1,9 @@
-"""Per-model token pricing, in integer micros.
+"""Per-model token pricing in integer micros.
 
-Money never touches a float. Prices are stored per *million* tokens because
-$0.05 per million is 0.05 micros per token, not an integer; the one division
-happens at the point of charging, rounding up. An unpriced model raises rather
-than costing zero, since a zero default would let the cap stop binding
-silently. The rows are list prices recorded on a date, and only affect the
-user's own cap, never what a provider bills.
+Never use floats. Store prices per million tokens because $0.05/million is not
+an integer micros-per-token value; divide and round up only at charge time.
+Unpriced models raise rather than cost zero, which would silently disable caps.
+Rows are dated list prices for the user's cap, never provider billing.
 """
 
 from __future__ import annotations
@@ -28,24 +26,22 @@ __all__ = [
     "is_priced",
 ]
 
-#: A micro is one millionth of a US dollar. §4: `cost_micros`.
+#: One micro is one millionth of a US dollar. §4: ``cost_micros``.
 MICROS_PER_DOLLAR: Final[int] = 1_000_000
 
 #: Prices are quoted per this many tokens.
 TOKENS_PER_PRICE_UNIT: Final[int] = 1_000_000
 
-#: Model ids under this prefix run on the user's own machine and cost nothing.
+#: IDs under this prefix run locally and cost nothing.
 LOCAL_MODEL_PREFIX: Final[str] = "ollama/"
 
-#: Anthropic names a dated snapshot `<alias>-YYYYMMDD` (`claude-haiku-4-5-20251001`)
-#: and prices it exactly as the alias, which is only a pointer to a snapshot.
-#: OpenAI's `-YYYY-MM-DD` snapshots have carried different prices from their
-#: alias, so the rule is deliberately as narrow as Anthropic's format.
+#: Anthropic dated snapshots (for example ``claude-haiku-4-5-20251001``) use
+#: alias pricing. OpenAI dated snapshots can differ, so match Anthropic only.
 _ANTHROPIC_SNAPSHOT: Final[re.Pattern[str]] = re.compile(r"^(claude-[a-z0-9-]+?)-(\d{8})$")
 
 
 class UnknownModelError(LookupError):
-    """Raised when a model has no price. Deliberately not a soft failure."""
+    """Model has no price; deliberately not a soft failure."""
 
     def __init__(self, model: str) -> None:
         super().__init__(
@@ -59,7 +55,7 @@ class UnknownModelError(LookupError):
 
 @dataclass(frozen=True, slots=True)
 class ModelPrice:
-    """What one million input and output tokens cost, in micros."""
+    """Input/output micros cost per million tokens."""
 
     input_micros_per_million: int
     output_micros_per_million: int
@@ -71,10 +67,7 @@ class ModelPrice:
 
 
 def _usd(dollars_per_million_input: str, dollars_per_million_output: str) -> ModelPrice:
-    """Build a price from the published dollar figures, as strings.
-
-    `float("0.05") * 1_000_000` is not 50000.
-    """
+    """Build price from published string dollar figures; floats are inexact."""
     return ModelPrice(
         input_micros_per_million=_dollars_to_micros(dollars_per_million_input),
         output_micros_per_million=_dollars_to_micros(dollars_per_million_output),
@@ -82,18 +75,17 @@ def _usd(dollars_per_million_input: str, dollars_per_million_output: str) -> Mod
 
 
 def _dollars_to_micros(dollars: str) -> int:
-    """Parse a decimal dollar string into micros, exactly and without floats."""
+    """Parse decimal dollar string to micros exactly, without floats."""
     whole, _, fraction = dollars.partition(".")
     fraction = (fraction + "000000")[:6]
     return int(whole) * MICROS_PER_DOLLAR + int(fraction)
 
 
-#: List prices per million tokens, one table per provider, so the settings API
-#: can say which models belong to which. Both checked 2026-09-27: Anthropic rows
-#: against platform.claude.com/docs/en/about-claude/pricing, OpenAI rows against
-#: developers.openai.com/api/docs/pricing. Standard-tier, short-context,
-#: non-batch. `catalog.py` gives each one a tier; a model priced here and
-#: missing there fails a test.
+#: List prices per million tokens by provider, used by settings. Both checked
+#: 2026-09-27, Anthropic against platform.claude.com/docs/en/about-claude/pricing
+#: and OpenAI against developers.openai.com/api/docs/pricing. Standard-tier,
+#: short-context, non-batch. `catalog.py` gives each one a tier; a model
+#: priced here and missing there fails a test.
 _ANTHROPIC: Final[dict[str, ModelPrice]] = {
     "claude-fable-5-1": _usd("10.00", "50.00"),
     "claude-fable-5": _usd("10.00", "50.00"),
@@ -132,17 +124,15 @@ _OPENAI: Final[dict[str, ModelPrice]] = {
     "o3-mini": _usd("1.10", "4.40"),
 }
 
-#: Inference on the user's own hardware, registered explicitly at zero so
-#: "free" and "unpriced" stay different answers. `_lookup` matches any
-#: `ollama/` model; the name is free text, so ``MODELS_BY_PROVIDER`` lists none.
+#: Local inference is explicitly zero so free differs from unpriced. ``_lookup``
+#: matches any ``ollama/`` free-text model, so ``MODELS_BY_PROVIDER`` lists none.
 _LOCAL: Final[dict[str, ModelPrice]] = {
     "ollama/*": ModelPrice(input_micros_per_million=0, output_micros_per_million=0),
 }
 
 PRICES: Final[dict[str, ModelPrice]] = {**_ANTHROPIC, **_OPENAI, **_LOCAL}
 
-#: The priced models of each provider, derived from the same tables as ``PRICES``.
-#: Pickers use `catalog.py`'s order instead.
+#: Priced models by provider. Pickers use `catalog.py`'s order instead.
 MODELS_BY_PROVIDER: Final[dict[str, list[str]]] = {
     "anthropic": sorted(_ANTHROPIC),
     "openai": sorted(_OPENAI),
@@ -151,10 +141,10 @@ MODELS_BY_PROVIDER: Final[dict[str, list[str]]] = {
 
 
 def _lookup(model: str) -> ModelPrice | None:
-    """Resolve a price, or ``None``.
+    """Resolve price or ``None``.
 
-    Local models match by prefix; an Anthropic dated snapshot resolves to its
-    alias. Anything else is priced only by its exact id.
+    Match local models by prefix and Anthropic dated snapshots by alias; otherwise
+    require exact ID.
     """
     if model.startswith(LOCAL_MODEL_PREFIX):
         return PRICES["ollama/*"]
@@ -165,16 +155,16 @@ def _lookup(model: str) -> ModelPrice | None:
 
 
 def is_priced(model: str) -> bool:
-    """Whether :func:`cost_micros` will succeed for ``model``; the pre-flight refuses if not."""
+    """Whether :func:`cost_micros` accepts ``model``; pre-flight refuses otherwise."""
     return _lookup(model) is not None
 
 
 def cost_micros(model: str, usage: TokenUsage) -> int:
-    """What ``usage`` on ``model`` costs, in whole micros.
+    """Return whole-micros ``usage`` cost for ``model``, rounded up.
 
-    Rounded up: a cap must never under-count.
+    Caps must not undercount.
 
-    :raises UnknownModelError: if ``model`` has no registered price.
+        :raises UnknownModelError: if no price is registered.
     """
     price = _lookup(model)
     if price is None:
@@ -185,19 +175,19 @@ def cost_micros(model: str, usage: TokenUsage) -> int:
         + usage.output_tokens * price.output_micros_per_million
     )
 
-    # Ceiling division, integer-only: -(-a // b).
+    # Integer-only ceiling division: ``-(-a // b)``.
     return -(-total // TOKENS_PER_PRICE_UNIT)
 
 
 def format_micros(micros: int) -> str:
-    """Render micros as a dollar string: four places, integer arithmetic only.
+    """Render micros as four-place dollar string using integers.
 
-    Rounded to nearest, unlike :func:`cost_micros`: a display should be the closest
-    true reading, and rounding one micro up would show ``$0.0001``.
+    Unlike :func:`cost_micros`, display rounds nearest: rounding one micro up
+    would falsely show ``$0.0001``.
     """
     sign = "-" if micros < 0 else ""
 
-    # In units of $0.0001, so the carry from .9999 falls out of the division.
+    # Work in $0.0001 units so .9999 carry falls out of division.
     ten_thousandths = (abs(micros) + 50) // 100
     dollars, remainder = divmod(ten_thousandths, 10_000)
     return f"{sign}${dollars}.{remainder:04d}"

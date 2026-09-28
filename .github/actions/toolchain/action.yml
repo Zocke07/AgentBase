@@ -1,22 +1,21 @@
-# The toolchain both CI jobs need, in one place: GitHub Actions has no YAML
-# anchors, and two copies of six steps drift. Every action ref below was
-# confirmed to exist through GitHub's `git/ref` API on 2026-09-11; `setup-uv`
-# is an exact version because astral-sh publishes no bare `v10` tag.
+# Share the CI toolchain because Actions lacks YAML anchors. Action refs were
+# verified with GitHub's `git/ref` API on 2026-09-11; Astral publishes no bare
+# `setup-uv` `v10` tag, so its version is exact.
 name: Toolchain
 description: Install just, uv and Node, and restore this repository's redirected package caches.
 
 runs:
   using: composite
   steps:
-    # CI runs the same `just` recipes a developer does.
+    # CI uses the same `just` recipes as developers.
     - name: Install just
       uses: extractions/setup-just@v4
 
-    # No `actions/setup-python`: uv fetches the pinned interpreter itself.
+    # uv fetches the pinned interpreter; omit `actions/setup-python`.
     - name: Install uv
       uses: astral-sh/setup-uv@v10.1.0
       with:
-        # The justfile redirects UV_CACHE_DIR; `actions/cache` below covers it.
+        # The justfile redirects UV_CACHE_DIR; cache it below.
         enable-cache: false
 
     - name: Install Node
@@ -24,9 +23,8 @@ runs:
       with:
         node-version-file: .nvmrc
 
-    # The justfile redirects every package cache into `.dev/cache`, so that is
-    # the directory worth caching. `src-tauri/target` is deliberately not:
-    # restoring it across runs is how a stale `externalBin` gets bundled.
+    # The justfile redirects package caches to `.dev/cache`. Do not restore
+    # `src-tauri/target`: it can bundle a stale `externalBin`.
     - name: Restore the redirected package caches
       uses: actions/cache@v6
       with:

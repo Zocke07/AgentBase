@@ -1,9 +1,7 @@
-"""The three starter roles a new space can be seeded from.
+"""Starter roles for seeding new spaces.
 
-Migrations 003 and 004 seeded and widened these on the first roster as the
-built-ins; migration 010 retired them from the default space in favour of
-the investment roster, so this Python copy is now the only one. A space
-seeded with them gets editable, deletable rows; ids are minted per copy.
+Migration 010 replaced these in the default space with the investment roster.
+Newly seeded copies remain editable and deletable with fresh IDs.
 """
 
 from __future__ import annotations

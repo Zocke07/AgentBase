@@ -1,12 +1,10 @@
-"""Who is allowed to address this workspace, and as whom.
+"""Workspace chat allowlist and identity mapping.
 
-A bot in a server can be invoked by anybody in it, and §1 constraint 6 only
-covers ambient chatter, not a stranger typing the command. This table is
-what stops them: an id with no entry resolves to nobody, and a message from
-nobody starts no run. Otherwise a stranger reaches the owner's API budget,
-their desktop (every approval dialog) and, through `run_shell`, their user
-account. An empty list therefore means nobody, unlike a definition's empty
-`auto_approve`: in both places the empty case must not be the widening one.
+§1 constraint 6 limits ambient chatter, not strangers issuing commands. An
+unlisted ID resolves to nobody and starts no run; otherwise strangers reach
+the owner's API budget, approval dialogs, and potentially their account via
+``run_shell``. An empty list therefore admits nobody, unlike a definition's
+empty ``auto_approve``; neither empty case may widen access.
 """
 
 from __future__ import annotations
@@ -26,13 +24,12 @@ __all__ = [
     "refusal_text",
 ]
 
-#: Whitespace stripped, since ids are pasted; nothing else normalised, since
-#: case folding could merge two ids a platform considers distinct.
+#: Strip pasted whitespace only; case folding could merge platform-distinct IDs.
 _Trimmed = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
 class ChannelIdentity(BaseModel):
-    """One allowlist entry: this person, on this channel, is that identity."""
+    """Allowlist entry mapping one channel user to one identity."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -42,9 +39,9 @@ class ChannelIdentity(BaseModel):
 
 
 class IdentityDirectory:
-    """Resolution over a list of :class:`ChannelIdentity`.
+    """Resolve :class:`ChannelIdentity` entries.
 
-    Built fresh on each inbound message, so a removed entry stops admitting at once.
+    Rebuild per inbound message so removals take effect immediately.
     """
 
     __slots__ = ("_by_key",)
@@ -56,9 +53,7 @@ class IdentityDirectory:
 
     @staticmethod
     def validated(entries: Sequence[ChannelIdentity]) -> list[ChannelIdentity]:
-        """Check a proposed allowlist, refusing a duplicate on write rather than shadowing it on
-        read.
-        """
+        """Reject duplicate entries on write instead of shadowing them on read."""
         seen: set[tuple[str, str]] = set()
         for entry in entries:
             key = (entry.channel, entry.external_user_id)
@@ -72,7 +67,7 @@ class IdentityDirectory:
         return list(entries)
 
     def resolve(self, channel: str, external_user_id: str) -> str | None:
-        """The internal identity for this sender, or ``None`` to refuse them."""
+        """Return sender's internal identity, or ``None`` to refuse them."""
         return self._by_key.get((channel, external_user_id.strip()))
 
     def __len__(self) -> int:
@@ -80,8 +75,8 @@ class IdentityDirectory:
 
 
 def refusal_text(channel: ChannelName) -> str:
-    """What an unrecognised sender is told: nothing about the workspace, only a refusal."""
-    # One channel today; the parameter stays so a second one names itself.
+    """Return an unrecognized-sender refusal without workspace details."""
+    # Keep parameter so future channels identify themselves.
     where = {"discord": "this Discord account"}[channel]
     return (
         f"This agent workspace is not configured to accept requests from {where}. "

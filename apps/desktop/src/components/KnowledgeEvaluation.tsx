@@ -6,9 +6,8 @@ import * as api from "../lib/api";
 import { MetricBar } from "./MetricBar";
 
 /**
- * Retrieval evaluation: one question per line with the notes it should
- * surface, scored as MRR and recall at k, so a change to ranking can be
- * judged before it reaches a run.
+ * Retrieval evaluation: expected notes per question, scored by MRR and recall@k
+ * before ranking changes reach runs.
  */
 
 export function KnowledgeEvaluationView({ spaceId }: { spaceId: string }) {

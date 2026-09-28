@@ -1,8 +1,7 @@
-"""The event type contract (BUILD_SPEC §4).
+"""Event-type contract (BUILD_SPEC §4).
 
-Adding a member means updating the generated TS types, the TypeScript reducer
-and the chat fold in the same commit. Payloads are opaque JSON objects; the
-emitters define their shapes.
+Adding a member also updates generated TypeScript types, its reducer, and the
+chat fold. Payloads are opaque JSON; emitters define their shapes.
 """
 
 from __future__ import annotations
@@ -26,7 +25,7 @@ __all__ = [
 #: §4 `runs.status`.
 RunStatus = Literal["pending", "running", "paused", "completed", "failed", "cancelled"]
 
-#: Statuses after which no further event will be appended for that run.
+#: Statuses after which a run receives no more events.
 TERMINAL_RUN_STATUSES: frozenset[str] = frozenset({"completed", "failed", "cancelled"})
 
 #: §4 `runs.origin`.
@@ -34,7 +33,7 @@ RunOrigin = Literal["ui", "discord", "schedule"]
 
 
 class EventType(StrEnum):
-    """Every event this application can emit. The list is from §4, verbatim."""
+    """Every event this application emits; list matches §4 verbatim."""
 
     RUN_STARTED = "run.started"
     RUN_COMPLETED = "run.completed"
@@ -49,7 +48,7 @@ class EventType(StrEnum):
     AGENT_COMPLETED = "agent.completed"
 
     LLM_REQUEST = "llm.request"
-    # S105: bandit reads "token" as a credential; this is a streamed output token.
+    # S105: Bandit sees a credential; this is a streamed output token.
     LLM_TOKEN = "llm.token"  # noqa: S105
     LLM_RESPONSE = "llm.response"
     LLM_ERROR = "llm.error"
@@ -71,7 +70,7 @@ class EventType(StrEnum):
     CHANNEL_OUTBOUND = "channel.outbound"
 
 
-#: Events after which no further event can appear for that run; the SSE stream closes on them.
+#: Terminal events after which SSE closes for that run.
 TERMINAL_RUN_EVENTS: frozenset[EventType] = frozenset(
     {
         EventType.RUN_COMPLETED,
@@ -82,10 +81,10 @@ TERMINAL_RUN_EVENTS: frozenset[EventType] = frozenset(
 
 
 class Event(BaseModel):
-    """One append-only row of the log.
+    """Append-only log row.
 
-    ``seq`` is per-run and 1-based: the SSE id and the ``Last-Event-ID``
-    cursor. ``id`` is the global rowid and is never a resume cursor.
+    ``seq`` is a 1-based per-run SSE/``Last-Event-ID`` cursor; global rowid
+    ``id`` is never a resume cursor.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -100,12 +99,12 @@ class Event(BaseModel):
 
 
 class Run(BaseModel):
-    """A row of the `runs` table (§4)."""
+    """``runs`` table row (§4)."""
 
     model_config = ConfigDict(frozen=True)
 
     id: str
-    #: The space this run happened in. Never NULL: an unnamed space is the default one.
+    #: Space where the run occurred; never NULL because unnamed selects default.
     space_id: str
     goal: str
     status: RunStatus

@@ -1,8 +1,7 @@
 /**
- * Portable visualization files. Agents and people write the same small JSON
- * contract, while source data stays in ordinary CSV, TSV, JSON or JSON-lines
- * files. Parsing and chart preparation are pure so the editor, dashboards and
- * tests all make the same decisions.
+ * Portable visualization JSON shared by agents and people; source data remains
+ * CSV, TSV, JSON, or JSON-lines. Pure parsing and chart preparation keep editor,
+ * dashboards, and tests consistent.
  */
 
 export type Scalar = string | number | boolean | null;

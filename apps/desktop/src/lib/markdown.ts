@@ -1,16 +1,12 @@
 /**
- * Obsidian-flavoured Markdown, parsed into a small tree the renderer walks.
+ * Obsidian-flavoured Markdown parsed into a renderer tree.
  *
- * The vault is Obsidian-compatible (BUILD_SPEC Phase 12), so what a person
- * wrote in Obsidian should read the same here: `[[wikilinks]]` with aliases
- * and headings, `![[embeds]]`, `#tags`, `==highlights==`, `> [!callout]`
- * blocks, task lists, tables, and a single newline as a line break. Nothing
- * here produces HTML: the tree is data, and the renderer builds elements from
- * it, so a note cannot inject markup.
+ * The Phase 12 vault renders Obsidian wikilinks (aliases and headings), embeds,
+ * tags, highlights, callouts, task lists, tables, and single-newline breaks.
+ * It produces data, not HTML, so notes cannot inject markup.
  *
- * Every block carries the source line it starts on, counted over the whole
- * file including the frontmatter, so a checkbox ticked in the preview can be
- * written back to the right line of the source.
+ * Blocks retain their whole-file start line, including frontmatter, so preview
+ * checkbox changes update the correct source line.
  */
 
 export type Alignment = "left" | "center" | "right" | null;
@@ -35,7 +31,7 @@ export type Inline =
 
 export interface ListItem {
   readonly line: number;
-  /** null for a plain item; otherwise the character inside the brackets (" " is unchecked). */
+  /** Null for a plain item; otherwise its bracket character (` ` is unchecked). */
   readonly task: string | null;
   readonly children: readonly Block[];
 }
@@ -77,7 +73,7 @@ export interface Property {
 export interface Document {
   readonly properties: readonly Property[];
   readonly blocks: readonly Block[];
-  /** The line the body starts on: zero without frontmatter. */
+  /** Body start line; zero without frontmatter. */
   readonly bodyLine: number;
 }
 
@@ -89,9 +85,8 @@ export function parseMarkdown(source: string): Document {
 // --- frontmatter -----------------------------------------------------------
 
 /**
- * The YAML subset Obsidian's properties panel writes: `key: value`,
- * `key: [a, b]`, and `key:` followed by `- item` lines. Anything else is kept
- * as the text it was.
+ * Parse Obsidian properties: `key: value`, `key: [a, b]`, and `key:` with
+ * `- item` lines. Preserve all other values as text.
  */
 export function parseFrontmatter(source: string): {
   properties: Property[];
@@ -154,7 +149,7 @@ function unquote(value: string): string {
   return value;
 }
 
-/** The tags a note's properties declare, as Obsidian reads them: `tags` or `tag`, list or comma/space separated. */
+/** Read `tags` or `tag` properties as lists or comma/space-separated text. */
 export function propertyTags(properties: readonly Property[]): string[] {
   const tags: string[] = [];
   for (const property of properties) {
@@ -272,7 +267,7 @@ function parseBlocks(lines: readonly string[], firstLine: number): Block[] {
       continue;
     }
 
-    // A paragraph: up to a blank line or the start of another block.
+    // Consume a paragraph through a blank line or next block.
     const text: string[] = [line];
     let cursor = index + 1;
     while (cursor < lines.length) {
@@ -368,7 +363,7 @@ function parseList(
     while (cursor < lines.length) {
       const candidate = lines[cursor] ?? "";
       if (candidate.trim() === "") {
-        // A blank line stays in the item only if indented content follows it.
+        // Retain a blank line only before indented item content.
         const after = lines[cursor + 1];
         if (after !== undefined && after.trim() !== "" && indentOf(after) >= contentIndent) {
           content.push("");
@@ -383,7 +378,7 @@ function parseList(
         cursor += 1;
         continue;
       }
-      // Lazy continuation: prose that wraps under the item without indenting.
+      // Accept unindented prose wrapped under an item.
       const previous = content[content.length - 1] ?? "";
       if (previous !== "" && !startsBlock(lines, cursor) && !LIST.test(expandTabs(candidate))) {
         content.push(candidate.trim());
@@ -400,8 +395,7 @@ function parseList(
       children: parseBlocks(content, itemLine),
     });
     index = cursor;
-    // A blank line between items is fine; a blank line followed by anything
-    // else ends the list.
+    // Allow inter-item blanks; otherwise a blank ends the list.
     while (index < lines.length && (lines[index] ?? "").trim() === "") {
       const after = lines[index + 1];
       if (after === undefined) break;
@@ -564,14 +558,13 @@ function markdownLink(rest: string): { node: Inline; length: number } | null {
   if (SAFE_HREF.test(destination)) {
     return { node: { kind: "link", href: destination, children: parseInline(label) }, length: end + 1 };
   }
-  // A relative destination is another note, which Obsidian also writes as a
-  // Markdown link when asked to.
+  // Obsidian writes relative note destinations as Markdown links too.
   if (destination !== "" && !/^[a-z][a-z0-9+.-]*:/i.test(destination) && !destination.startsWith("#")) {
     let target = destination;
     try {
       target = decodeURIComponent(destination);
     } catch {
-      // Not URI-encoded: use it as written.
+      // Preserve the destination as written, without URI encoding.
     }
     const [path = "", heading] = target.replace(/\.md$/i, "").split("#", 2);
     return {
@@ -613,7 +606,7 @@ function delimited(
   return { node: { kind, children: parseInline(inner) }, length: close + marker.length, marker };
 }
 
-/** `_em_` and `*em*` need a word boundary before them; `snake_case_names` are not emphasis. */
+/** Require a preceding word boundary for emphasis; exclude `snake_case_names`. */
 function boundaryBlocked(source: string, index: number, wrapped: Wrapped): boolean {
   if (wrapped.marker !== "_") return false;
   const before = source[index - 1];
@@ -627,7 +620,7 @@ function tagAllowedAt(source: string, index: number): boolean {
 
 // --- helpers for the editor ---------------------------------------------------------
 
-/** Flip the checkbox on `line` of `source`; a line without one is returned unchanged. */
+/** Toggle a checkbox on `line`; return a non-checkbox line unchanged. */
 export function toggleTaskLine(source: string, line: number, checked: boolean): string {
   const lines = source.replaceAll("\r\n", "\n").split("\n");
   const current = lines[line];
@@ -646,8 +639,7 @@ export function countWords(source: string): number {
 }
 
 /**
- * When the caret sits inside an unfinished `[[`, the text typed so far and
- * where the link began, so the editor can offer note names to complete it.
+ * Return unfinished `[[` text and start offset at the caret for note completion.
  */
 export function openWikilinkAt(source: string, caret: number): { start: number; query: string } | null {
   const before = source.slice(0, caret);

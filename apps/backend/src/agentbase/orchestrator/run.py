@@ -1,10 +1,9 @@
-"""Run lifecycle, the event sequence, and the mailbox agents talk through.
+"""Run lifecycle, event sequence, and agent mailbox.
 
-Agents communicate via `agent.message` events, never direct calls (§5 Phase
-4): :meth:`Mailbox.deliver` appends the row and :meth:`Mailbox.collect` reads
-it back out of SQLite, so a worker's result never travels in a Python
-variable. Slower than passing a string, and the point: an event that fails to
-be written is a run that stops working, not a missing log line.
+Agents communicate through ``agent.message`` events, never direct calls (§5
+Phase 4): :meth:`Mailbox.deliver` appends and :meth:`Mailbox.collect` reads
+SQLite. A worker result never travels in a Python variable. If its event fails
+to write, the run stops rather than losing an audit line.
 """
 
 from __future__ import annotations
@@ -35,7 +34,7 @@ __all__ = [
 
 
 class RunCostExceededError(RuntimeError):
-    """The run spent what one run may; §5 Phase 3's cap, at the run's own scale."""
+    """Run reached its per-run cost ceiling (§5 Phase 3)."""
 
     def __init__(self, reason: str) -> None:
         super().__init__(reason)
@@ -43,7 +42,7 @@ class RunCostExceededError(RuntimeError):
 
 
 class RunDeadlineExceededError(RuntimeError):
-    """The run exceeded `max_run_seconds`. ``reason`` becomes the `run.failed` payload."""
+    """Run exceeded ``max_run_seconds``; ``reason`` becomes ``run.failed`` payload."""
 
     def __init__(self, reason: str) -> None:
         super().__init__(reason)
@@ -51,10 +50,7 @@ class RunDeadlineExceededError(RuntimeError):
 
 
 class RunCancelledError(RuntimeError):
-    """The user asked the run to stop.
-
-    Raised from the deadline check; ``reason`` becomes `run.cancelled`.
-    """
+    """User requested a stop; deadline check raises this as ``run.cancelled``."""
 
     def __init__(self, reason: str) -> None:
         super().__init__(reason)
@@ -62,44 +58,37 @@ class RunCancelledError(RuntimeError):
 
 
 class SpawnRefusedError(RuntimeError):
-    """A spawn refused at `max_agents_per_run`.
-
-    Not a failure of the run: the supervisor carries on.
-    """
+    """Spawn refused at ``max_agents_per_run``; supervisor continues the run."""
 
 
 @dataclass
 class Run:
-    """One run's identity, limits, clock and event sequence.
-
-    Every append goes through :meth:`emit`.
-    """
+    """Run identity, limits, clock, and event sequence; append only through :meth:`emit`."""
 
     store: EventStore
     id: str
     goal: str
     limits: RunLimits
-    #: Injected so tests can drive the wall-clock limit without sleeping.
+    #: Injectable clock for wall-limit tests without sleeping.
     clock: Callable[[], float] = time.monotonic
-    #: The space this run happens in, recorded in `run.started`; ``None`` under app-wide rules.
+    #: Run space recorded in ``run.started``; ``None`` under app-wide rules.
     space: Space | None = None
-    #: The excerpts retrieved before this run started, recorded for replay.
+    #: Pre-run retrieved excerpts, recorded for replay.
     knowledge: tuple[SearchHit, ...] = ()
-    #: Citations the user removed in the pre-run retrieval inspector.
+    #: Citations removed in the pre-run retrieval inspector.
     knowledge_exclusions: tuple[str, ...] = ()
-    #: What this run has spent so far, asked before each model call; ``None``
-    #: where no ledger is wired (tests of the loop alone), which means no ceiling.
+    #: Run spend queried before model calls; ``None`` without a ledger means no ceiling.
     spent_so_far: Callable[[], Awaitable[int]] | None = None
     started_at: float = field(default=0.0, init=False)
     _agents: list[str] = field(default_factory=list, init=False)
-    #: Set by `request_cancel`, consumed by `check_deadline`: a flag, so the
-    #: run stops between model calls where it can still write a terminal event.
+    #: Set by ``request_cancel`` and consumed by ``check_deadline`` between
+    #: model calls, where a terminal event can still be written.
     _cancel_reason: str | None = field(default=None, init=False)
 
     # --- lifecycle ---------------------------------------------------------
 
     async def start(self) -> None:
-        """Emit `run.started` and begin the clock."""
+        """Emit ``run.started`` and start the clock."""
         self.started_at = self.clock()
         payload: dict[str, Any] = {"goal": self.goal, "limits": self.limits.as_payload()}
         if self.space is not None:
@@ -129,7 +118,7 @@ class Run:
     # --- cancellation -------------------------------------------------------
 
     def request_cancel(self, reason: str) -> None:
-        """Ask the run to stop at its next check. The first reason wins."""
+        """Request a stop at the next check; first reason wins."""
         if self._cancel_reason is None:
             self._cancel_reason = reason
 
@@ -153,21 +142,20 @@ class Run:
         return self.clock() - self.started_at
 
     def remaining_seconds(self) -> float:
-        """How much wall-clock budget is left, never negative.
+        """Return nonnegative wall-clock budget remaining.
 
-        The approval gate blocks on this rather than on a timeout of its own,
-        so it cannot wait for a decision the run could no longer act on.
+        The approval gate uses it so it cannot await a decision the run cannot act on.
         """
         return max(0.0, self.limits.max_run_seconds - self.elapsed_seconds())
 
     def check_deadline(self) -> None:
-        """Raise if the run has outlived `max_run_seconds` or was cancelled.
+        """Raise after cancellation or ``max_run_seconds`` expiry.
 
-        Called before each model request rather than on a timer, so the run
-        stops where it can still write a coherent terminal event.
+        Check before each model request, not on a timer, so terminal events
+        remain coherent.
 
-        :raises RunDeadlineExceededError: with a reason fit to show a user.
-        :raises RunCancelledError: when the user asked the run to stop; checked first.
+        :raises RunDeadlineExceededError: with a user-facing reason.
+        :raises RunCancelledError: when user requested a stop; checked first.
         """
         if self._cancel_reason is not None:
             raise RunCancelledError(self._cancel_reason)
@@ -182,14 +170,12 @@ class Run:
             raise RunDeadlineExceededError(msg)
 
     async def check_cost(self) -> None:
-        """Raise if the run has spent what `max_run_cost_micros` allows.
+        """Raise after spending ``max_run_cost_micros``.
 
-        Asked before each model request, like the deadline, from the ledger's
-        rows for this run: an agent retrying an oversized call at a full
-        context window can spend a month's budget in an hour, and the step
-        limit alone does not see money.
+        Query run-ledger rows before each model request: a full-context retry
+        loop can burn a monthly budget despite its step limit.
 
-        :raises RunCostExceededError: with a reason fit to show a user.
+        :raises RunCostExceededError: with a user-facing reason.
         """
         ceiling = self.limits.max_run_cost_micros
         if ceiling <= 0 or self.spent_so_far is None:
@@ -208,9 +194,9 @@ class Run:
         return tuple(self._agents)
 
     def register_agent(self, name: str) -> str:
-        """Claim a unique agent name for this run; two agents sharing one would merge on replay.
+        """Claim a unique run-local agent name; duplicates merge on replay.
 
-        :raises SpawnRefusedError: when the run is already at `max_agents_per_run`.
+        :raises SpawnRefusedError: at ``max_agents_per_run``.
         """
         if len(self._agents) >= self.limits.max_agents_per_run:
             msg = (
@@ -231,13 +217,13 @@ class Run:
 
 
 class Mailbox:
-    """Agent-to-agent messages, carried by the event log rather than around it."""
+    """Agent-to-agent messages carried by the event log."""
 
     def __init__(self, run: Run) -> None:
         self._run = run
 
     async def deliver(self, sender: str, recipient: str, text: str) -> None:
-        """Post a message from one agent to another."""
+        """Post a message between agents."""
         await self._run.emit(
             EventType.AGENT_MESSAGE,
             {"to": recipient, "text": text},
@@ -245,9 +231,9 @@ class Mailbox:
         )
 
     async def collect(self, sender: str, recipient: str) -> str:
-        """Read back the latest message ``sender`` posted to ``recipient``, from the log.
+        """Read latest message from ``sender`` to ``recipient`` from the log.
 
-        :raises LookupError: when no such message is in the log.
+        :raises LookupError: if none exists in the log.
         """
         events = await self._run.store.read(self._run.id)
 

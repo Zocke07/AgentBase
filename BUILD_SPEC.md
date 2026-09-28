@@ -1,31 +1,29 @@
 # BUILD_SPEC.md: Autonomous Agent Co-Working Space
 
-You are building this project from scratch in an empty repository. Read this entire
-document before writing any code. Re-read it at the start of every session.
+Build this project from an empty repository. Read this document before coding
+and at every session start.
 
 ---
 
 ## 0. What we are building
 
-A **local-first desktop application** where multiple AI agents collaborate on tasks, and
-the user watches them work in real time on a live graph. Optionally reachable from Discord.
+A **local-first desktop application** where AI agents collaborate while the user
+watches a live graph. Discord can also reach it.
 *(Telegram was a second channel until 2026-09-11; see the note under Phase 8.)*
 
 It ships as a single installer. The end user is not a developer.
 
 ### Primary success criterion
 
-A user double-clicks an app icon, types a task, and watches agents spawn, call tools, hand
-off to each other, and finish, with every step visible as it happens. No terminal, no
-Docker, no config files.
+A user double-clicks, types a task, and watches every spawn, tool call, handoff,
+and completion, with no terminal, Docker, or config files.
 
 ---
 
 ## 1. Hard constraints: do not violate these
 
-These are decisions already made after long deliberation. Do not "improve" them, do not
-substitute equivalents, do not add the thing they replaced. If you believe one is wrong,
-**stop and say so before implementing anything different.**
+These settled decisions are not interchangeable. Do not "improve," substitute,
+or restore them; if one is wrong, **stop before implementing differently.**
 
 | # | Constraint | Why |
 |---|---|---|
@@ -69,16 +67,15 @@ substitute equivalents, do not add the thing they replaced. If you believe one i
                                                           └────────────────────┘
 ```
 
-**Only model inference leaves the machine.** Orchestration, tool execution, and state are
-all local.
+**Only model inference leaves the machine.** Orchestration, tool execution, and
+state stay local.
 
 ### The one idea everything hangs off
 
-**Every agent action is an append-only event.** The UI is a pure projection of the event
-log. Live view and replay use the same code path. Reconnect resumes from a sequence number.
+**Every agent action is an append-only event.** The UI purely projects that log;
+live and replay share code, and reconnects resume by sequence number.
 
-If you find yourself sending an ad-hoc websocket message that is not an event row, you
-have made a mistake. Fix it rather than working around it.
+Never send an ad-hoc non-event websocket message. Fix the event contract instead.
 
 ---
 
@@ -239,16 +236,15 @@ budget.warning     budget.exceeded
 channel.inbound    channel.outbound
 ```
 
-Adding an event type means updating: `events/types.py`, the generated TS types, and the
-`RunGraph` reducer. Do all three in the same commit.
+New event types update `events/types.py`, generated TS types, and the `RunGraph`
+reducer in one commit.
 
 ---
 
 ## 5. Build phases
 
-Work through these **in order**. Do not start a phase before the previous phase's
-acceptance criteria pass. Do not build ahead. Later additions retain their original
-phase numbers so historical references remain valid.
+Work **in order**; do not start before prior acceptance passes or build ahead.
+Later additions retain original phase numbers for historical references.
 
 ### Phase 0: Scaffold and cross-platform hygiene
 
@@ -264,14 +260,14 @@ phase numbers so historical references remain valid.
 
 ### Phase 1: Packaging spike (do this early, not last)
 
-Before writing any real feature code, prove the hardest packaging problem works:
+Before feature work, prove packaging:
 
 - A trivial FastAPI app returning `{"ok": true}`, compiled with `pyinstaller --onefile`.
 - Tauri v2 `externalBin` pointing at it, a React page that fetches from it and renders the result.
 - Build an actual installer on Windows (NSIS via `tauri build`) and launch it from a normal
   per-user install location.
 
-Known traps to handle here, not later:
+Handle these traps now:
 - `externalBin` requires the `-x86_64-pc-windows-msvc` suffix on the binary filename (target
   triple, not just `-windows` or `.exe`).
 - Tauri caches the resolved sidecar under `target/release/`. A rebuilt binary can silently
@@ -290,12 +286,12 @@ Known traps to handle here, not later:
   to skip; treat it the same as local-model support: the abstraction shouldn't assume x64,
   but don't spend time building or testing it now.
 
-**Accept when:** a built installer on a machine with no Python installed runs, serves, and
-leaves zero orphan processes in Task Manager after the app is closed.
+**Accept when:** a built installer runs and serves on a machine with no Python
+installed, then leaves no Task Manager orphan after close.
 
 ### Phase 2: Event spine
 
-The core. Get this right and everything else is straightforward.
+The core: get it right first.
 
 - SQLite schema + migrations, DB file in the OS app-data dir (via Tauri's path API).
 - `EventStore.append()`: assigns `seq` atomically per run.
@@ -303,8 +299,8 @@ The core. Get this right and everything else is straightforward.
 - `GET /runs/{id}/events` as SSE, honouring `Last-Event-ID` to replay from a sequence number.
 - A `fake_run` debug endpoint that emits a scripted sequence of ~20 events over 10 seconds.
 
-**Accept when:** the debug run streams to a `curl` client, and killing/reconnecting mid-stream
-resumes with zero gaps and zero duplicates.
+**Accept when:** the debug run streams to `curl`; killing and reconnecting
+mid-stream resumes with no gaps or duplicates.
 
 ### Phase 3: Providers, budget, keychain
 
@@ -317,33 +313,26 @@ resumes with zero gaps and zero duplicates.
 - Keys read from OS keychain via `tauri-plugin-keyring`, passed to the sidecar at spawn
   time over stdin, never as a command-line argument (argv is world-readable via `ps`).
 
-**Approved addition, 2026-09-14:** OpenAI has an app-wide access mode,
-`api_key` or `chatgpt`. Both construct a provider named `openai` and use the
-same selected model id, normalized response contract, AgentBase orchestrator,
-tool catalogue, approval gate, event log, usage ledger and run limits. ChatGPT
-access uses the pinned Codex App Server as a credential and inference transport
-only. *(2026-09-18: the App Server executable is fetched from the pinned wheel
-on the first sign-in and kept in the data directory, verified by size and
-SHA-256, rather than frozen into the sidecar, whose one-file form unpacked it
-on every launch. The pin itself is unchanged: `uv.lock` names the wheel.)* It receives one structured model decision per provider call, runs in an
-empty read-only directory with its own tools disabled, and never owns the agent
-loop or executes an AgentBase tool. OAuth tokens stay in the OS credential
-store and are not returned by the local API. AgentBase applies the selected
-model's API-equivalent price to subscription token usage so the existing local
-safety cap behaves the same; this estimate is not an OpenAI API charge.
+**Approved addition, 2026-09-14:** app-wide OpenAI access is `api_key` or
+`chatgpt`. Both build provider `openai` with the selected model ID and same
+normalized response, orchestrator, catalogue, gate, events, ledger, and limits.
+ChatGPT uses pinned Codex App Server only for credentials/inference. Since
+2026-09-18, first sign-in fetches its `uv.lock`-pinned wheel to data storage,
+checks size/SHA-256, and does not freeze it into the sidecar. Each call gets one
+structured decision in an empty read-only directory with tools disabled; App
+Server never owns the loop or executes AgentBase tools. OAuth stays in OS
+credential storage and never reaches the local API. Subscription tokens use
+selected-model API-equivalent pricing for the same local safety cap, not an
+OpenAI API charge.
 
-ChatGPT and API accounts can have different model entitlements and usage
-allowances. AgentBase preserves the requested model and surfaces an access
-error rather than silently substituting another model. Direct Claude
-subscription login is not included because Anthropic's current
-[authentication terms](https://code.claude.com/docs/en/legal-and-compliance#authentication-and-credential-use)
-do not permit a third-party product to offer Claude.ai login or route Free,
-Pro or Max credentials. Anthropic continues to use an API key. The documented
-exception for embedding the unmodified Claude Code binary is a separate
-product mode, not an interchangeable provider credential transport.
+ChatGPT/API accounts can differ in entitlement and allowance. Preserve the
+requested model and surface access errors; never substitute. Direct Claude
+subscription login is excluded because [Anthropic's authentication terms](https://code.claude.com/docs/en/legal-and-compliance#authentication-and-credential-use)
+forbid third-party Claude.ai/Free/Pro/Max credential routing. Anthropic uses an
+API key; embedding unmodified Claude Code is a separate mode, not a transport.
 
-**Accept when:** switching provider is a settings change with no code change, and a run
-that would exceed the monthly cap is refused with a clear reason before any API call fires.
+**Accept when:** provider switching needs no code change, and over-cap runs fail
+clearly before API calls.
 
 ### Phase 4: Orchestrator
 
@@ -355,12 +344,12 @@ that would exceed the monthly cap is refused with a clear reason before any API 
 - Hard limits: max steps per agent, max agents per run, max wall-clock per run. All configurable,
   all enforced, all emit a terminal event when hit.
 
-**Accept when:** a two-worker run completes end to end, and the full event log alone is
-sufficient to reconstruct exactly what happened without reading any other state.
+**Accept when:** a two-worker run completes end to end, and its log alone
+reconstructs exactly what happened without other state.
 
 ### Phase 5: Agent registry (user-defined agents)
 
-Agents stop being hardcoded Python classes and become editable data.
+Agents become editable data, not hardcoded classes.
 
 - `agent_defs` table (see §4) plus CRUD endpoints in `api/agents.py`.
 - `registry.py` loads definitions from the DB at run start. It no longer imports agent
@@ -381,17 +370,13 @@ Agents stop being hardcoded Python classes and become editable data.
   `allowed_tools` must resolve to a registered tool, `max_steps` within the global cap.
   Reject at the API layer with a readable message, not a 500.
 
-**Security note: read this before implementing.** User-authored prompts do **not** widen
-the security model, and must not be allowed to. The approval gate (next phase) lives at the
-*tool execution* layer. A sloppy, over-permissive, or actively adversarial system prompt
-still cannot reach the filesystem or shell without passing the same gate as everything else.
-`auto_approve` on an agent definition may only *narrow* what the global policy already
-permits; it can never grant a risk level the workspace policy has not enabled. If you find
-yourself writing code where an agent definition escalates its own privileges, stop.
+**Security note.** User prompts never widen security. The next-phase gate runs at
+*tool execution*, so even adversarial prompts cannot reach filesystem/shell
+without it. Definition `auto_approve` only *narrows* workspace policy; code
+that lets definitions escalate must stop.
 
-**Accept when:** an agent created entirely through the API (never touching Python) can be
-spawned into a run, and an agent whose `allowed_tools` omits `write_file` is blocked from
-calling it even when its system prompt explicitly instructs it to.
+**Accept when:** an API-created agent runs, while one omitting `write_file` is
+blocked even if its prompt demands it.
 
 ### Phase 6: Tools and the approval gate
 
@@ -415,18 +400,15 @@ calling it even when its system prompt explicitly instructs it to.
   recorded with scope `run` that answers every later call to that tool in the run. A no is
   never for a run: "never allow" is a Settings decision. Default is still ask-everything.)*
 
-**Accept when:** an agent instructed to write outside the workspace root is blocked at the
-sandbox layer, and this is visible in the event log as `tool.denied`.
+**Accept when:** an agent instructed to write outside the workspace root is
+blocked at the sandbox layer, with `tool.denied` visible in the event log.
 
-**Addendum: container-sandboxed `run_shell` (your instance only, not part of the shared
-build).** The app-level sandbox above is a real but limited boundary: a successfully
-prompt-injected or misbehaving shell command still runs as your actual user account. On your
-own always-on instance, wrap `run_shell` specifically in a short-lived container: network
-disabled, read-only mount except the workspace root, CPU/memory capped, killed on timeout.
-This is the one place Docker earns its way into this project on genuine merit rather than as
-a resume line: it's real OS-level isolation for the one tool that can do the most damage, not
-containerization for its own sake. Keep it scoped to this single tool call; do not
-containerize the rest of the app to justify it.
+**Addendum: container-sandboxed `run_shell` (your instance only; not part of
+the shared build).** The app sandbox does not prevent injected/misbehaving
+shells from using your account.
+On an always-on instance, wrap only `run_shell` in short-lived, network-disabled,
+read-only (except workspace), CPU/memory-capped containers killed on timeout.
+Do not containerize the rest of the app.
 
 ### Phase 7: Dashboard
 
@@ -444,8 +426,8 @@ containerize the rest of the app to justify it.
   `run_shell` is visible at the moment of ticking it.
 - Generate TS types from the FastAPI OpenAPI schema; never hand-write the API types.
 
-**Accept when:** replaying a completed run produces pixel-identical UI state to what was
-shown live, and a new agent can be created, edited, and run without leaving the app.
+**Accept when:** replaying a completed run is pixel-identical to live, and the
+app can create, edit, and run an agent.
 
 ### Phase 8: Channel adapters
 
@@ -468,80 +450,59 @@ shown live, and a new agent can be created, edited, and run without leaving the 
 - A run started from Discord must appear live in the dashboard, and vice versa. Same event
   log, no special-casing.
 
-**Accept when:** the same run is observable simultaneously from the dashboard and the
-originating chat channel, and a channel-originated tool call still hits the approval gate.
+**Accept when:** dashboard and originating chat observe the same run
+simultaneously, and channel-originated calls hit the approval gate.
 
 ### Phase 9: CI and release
 
-- **Test job runs before the build job and gates it.** `pytest` on the backend (event store,
-  budget ledger, sandbox, agent registry validation at minimum), `vitest` on the frontend
-  reducers (`RunGraph`, `EventLog`). A red test blocks the build job entirely: CI that only
-  builds and never tests is not CI, it's a compiler check with extra steps.
-- GitHub Actions matrix: `windows-latest` and `macos-latest`. Build the PyInstaller sidecar
-  on each (it does not cross-compile), then the Tauri bundle.
-- Publish the Windows installer and, from 0.2.0, the macOS Apple Silicon app archive.
-  **2026-09-13 deviation from the original build-only macOS scope**, requested in the
-  maintainer's release handoff: constraint 7 and §7 now permit this archive. macOS remains
-  without a trusted Developer ID signature and unnotarized; Developer ID signing,
-  notarization and an Intel release are deferred.
-  Ship the `.app` inside Tauri's `dmg` image, beside a link to `/Applications`. One file
-  survives artifact upload, which strips executable modes from raw files; the link makes
-  the install a drag. **2026-09-18 deviation from the zip the 0.2.0 handoff chose:** the
-  zip left the app in Downloads, where Gatekeeper ran a fresh translocated copy on every
-  launch, Finder searches showed several AgentBase entries and Spotlight listed none,
-  which was the first macOS bug report. The earlier objection to `dmg`, that it could
-  only fail for reasons outside this repository, predates publishing macOS at all; the
-  image is built with `CI=true` so Tauri skips the Finder AppleScript on every host.
-  Mount the image and verify the app's bundle version, shell and sidecar hashes,
-  executable modes, database startup and shutdown before publishing.
-- **Keep the repo public.** Private-repo Actions minutes drain at a 2x multiplier on Windows
-  runners and 10x on macOS: the macOS build job is the expensive one to watch.
-- Keep the Windows installer unsigned for now. Windows does not hard-block an unsigned app: the
-  installer triggers a SmartScreen "Windows protected your PC" prompt, and the user clicks
-  "More info" → "Run anyway" once. No terminal command, no equivalent of `xattr` needed.
-  Document this one click in the `README` so it doesn't read as broken. An EV code-signing
-  cert, optional and not required to ship, removes the warning entirely if it's ever worth the
-  cost.
-- Document macOS Gatekeeper's **Privacy & Security > Open Anyway** path and the scoped
-  `xattr -dr com.apple.quarantine /Applications/AgentBase.app` fallback, plus the keychain
-  access prompt after an app update. The first 0.2.0 archive omitted a complete app-bundle
-  signature and Gatekeeper reported it as damaged. The corrected 0.2.0 release uses Tauri's
-  ad-hoc identity and a strict signature check. Hardened runtime stays disabled because
-  re-signing the PyInstaller one-file sidecar with it enabled prevents the extracted Python
-  library from loading. Revisit the runtime and entitlements with Developer ID signing and
-  notarization instead of adding permissions this release does not use.
+- **Tests gate builds.** Run backend `pytest` (at least event store, budget,
+  sandbox, registry) and frontend `vitest` reducers (`RunGraph`, `EventLog`)
+  first; red tests block build.
+- Matrix: `windows-latest` and `macos-latest`. Build the non-cross-compilable
+  PyInstaller sidecar on each, then Tauri bundle.
+- Publish the Windows installer and, under the **approved 2026-09-13
+  deviation** from the build-only macOS scope (constraint 7 and §7), an
+  unnotarized Apple Silicon macOS archive. Developer ID, notarization, and
+  Intel remain deferred. The **approved 2026-09-18 deviation** replaces the
+  0.2.0 zip handoff with a Tauri `.dmg`: raw artifact uploads strip executable
+  modes, while the image preserves the app and adds an `/Applications` link;
+  it also avoids the Downloads/Gatekeeper translocation caused by zips. Build
+  with `CI=true` to skip Tauri Finder AppleScript. Before publishing, mount and
+  verify bundle version, shell/sidecar hashes, modes, DB startup, and shutdown.
+- **Keep the repo public.** Private Actions use 2x Windows and 10x macOS
+  minutes; macOS build is the cost to watch.
+- Keep Windows unsigned. Document SmartScreen **More info → Run anyway**;
+  an optional EV certificate removes it.
+- Document macOS **Privacy & Security > Open Anyway**, scoped
+  `xattr -dr com.apple.quarantine /Applications/AgentBase.app`, and update
+  keychain prompt. 0.2.0's corrected archive uses Tauri ad-hoc signing with
+  strict verification; hardened runtime remains disabled because it breaks
+  re-signed PyInstaller library loading. Revisit runtime and entitlements with
+  Developer ID/notarization; do not add permissions this release does not use.
 
-**Accept when:** a green CI run produces a downloadable installer that runs on a second
-Windows machine with no Python installed.
+**Accept when:** green CI produces a downloadable installer that runs on a
+second Windows machine without Python.
 
 ### Phase 11: Spaces, and the redesign around them
 
-*Added 2026-09-11 at the maintainer's request. Design first: this section is reviewed by the
-maintainer before any of it is coded (§6, "ask before deviating," and this changes §4).*
+*Added 2026-09-11 at the maintainer's request; review this §4-changing design
+before coding (§6, "ask before deviating").*
 
-*Built 2026-09-12. The maintainer asked for the redesign first, so the order of work below
-ran (4)–(7) against the single workspace and then (1)–(3), (6) and (8): the redesign was
-laid out so the switcher and the space settings page dropped in. Where the build settled a
-question the design left open, or found the design wrong, the note is inline below,
-dated.*
+*Built 2026-09-12. Requested redesign first ran (4)–(7) against one workspace,
+then (1)–(3), (6), and (8), so switcher/settings could drop in. Dated inline
+notes resolve open or incorrect design questions.*
 
-**The idea, in the maintainer's words:** instead of creating standalone agents, let the user
-define a *coworking space* first, and assign agents to live in that space. A run happens in
-a space, with that space's agents, that space's rules, in that space's folder.
+**The idea:** users define a *coworking space*, then assign agents. Runs use
+that space's agents, rules, and folder.
 
-**What a space is.** A named container that owns three things: a **roster** (agent
-definitions belong to exactly one space), a **folder** (the sandbox root for every tool call
-in its runs), and **rules** (model, approval policy, run limits, each either inherited from
-the app-wide default or set here). Runs belong to the space they were started in. Everything
-that is the *user's* rather than a space's stays app-wide: API keys and bot tokens (the
-keychain is process-wide by construction, §1 constraint 4), the monthly budget cap (one
-wallet), the Discord connection and its allowlist.
+**What a space is.** A named **roster** (each definition has one space),
+**folder** (run-tool sandbox root), and **rules** (model, approvals, limits,
+inherited or overridden). Runs belong to their starting space. API/bot
+credentials, monthly cap, Discord connection, and allowlist stay app-wide.
 
-**What a space is not.** Not a tenant, not an account, not a project directory the user
-points at their home folder. §7's non-goals stand. The blast radius of an approval misclick
-is the space's folder, and in v1 that folder is always one this application created.
-*(2026-09-12: settled as written, with no user-picked folder. The space settings page shows the
-path and opens it; it cannot change it.)*
+**What a space is not.** A tenant, account, or user-selected project directory.
+§7 applies. In v1 the app creates its folder, limiting approval-misclick blast
+radius. *(2026-09-12: Settings shows/opens, never changes, that path.)*
 
 #### Data model (§4 additions)
 
@@ -567,8 +528,8 @@ CREATE TABLE spaces (
 -- spend, approvals, events are unchanged: they hang off runs, and a run knows its space.
 ```
 
-The folder is **not a column**: it is `<data dir>/spaces/<id>/`, derived, so a row cannot
-name a path outside the place the application owns. Renaming a space does not move files.
+The folder is derived, not stored: `<data dir>/spaces/<id>/`; rows cannot name
+external paths and renames do not move files.
 
 - **Migration 006** creates `spaces`, inserts the default space (fixed id, name `Main`,
   every rule NULL, so it behaves exactly as the single workspace does today), and moves the
@@ -585,20 +546,16 @@ name a path outside the place the application owns. Renaming a space does not mo
   is the product (§2). Archived spaces leave the switcher and keep their runs viewable.
   Deleting a space with no runs deletes its agents.
 
-#### Rules resolve in layers, and the approval layer only narrows
+#### Rules resolve in layers; approvals only narrow
 
-`effective = definition ∩ space ∩ app-wide` for `auto_approve`, extending §5 Phase 5's rule:
-a definition "can never grant a risk level the workspace policy has not enabled", and now
-neither can a space. The Phase 6 reading holds at each layer: an empty/NULL list means
-*inherit*, not *none*. *(2026-09-12: for a **space**, NULL means inherit and the empty list
-means "ask for everything". The column is nullable precisely so the two can differ, and a
-space stricter than the app-wide policy (a sensitive one that asks about every read)
-is a legitimate thing a nullable column can express and a NOT NULL `'[]'` cannot. A
-definition's column is NOT NULL `'[]'`, so the Phase 6 reading stands there.)* Model and limits are overrides, not narrowings: a space wanting longer
-runs than the default is a legitimate thing, and the wall clock is a cost control that the
-app-wide budget cap still bounds. `run.started` records the effective rules and the space
-(`space: {id, name}`) so a replay can say which rules a run ran under. **No new event
-types**: the §4 list is unchanged, so no three-way update is needed.
+For `auto_approve`, `effective = definition ∩ space ∩ app-wide`; neither
+definition nor space grants absent app policy. A space's NULL inherits, while
+`[]` asks for everything; nullable storage preserves that difference.
+The definition column remains non-NULL `[]`, retaining its Phase 6 behavior.
+Models/limits override rather than narrow, so spaces can run longer while app
+budget still bounds cost. `run.started` records effective rules and
+`space: {id, name}` for replay.
+**No new event types** are required.
 
 #### API
 
@@ -629,138 +586,92 @@ types**: the §4 list is unchanged, so no three-way update is needed.
 
 #### The redesign
 
-This is the visual redesign the maintainer asked for, shaped around spaces so it is done
-once. It replaces the developer dashboard's chrome; it does **not** replace the run
-projection's structure: the graph, the log and the summary stay one pure fold of the log,
-inside the same `run-projection` boundary, and `replayIdentity.test.tsx` keeps passing at
-every step.
+This space-shaped redesign replaces dashboard chrome, not run projection:
+graph, log, and summary remain one pure `run-projection` fold, protected by
+`replayIdentity.test.tsx` throughout.
 
-- **A sidebar, not tabs.** A persistent left rail: the **space switcher** at the top (current
-  space's name, a list to switch, "New space…"), then the current space's sections
-  (*Home*, *Runs*, *Agents*, *Space settings*), and, pinned to the bottom, the app-wide *Settings*
-  (keys, budget, Discord). The header keeps what is global: the budget meter with the
-  month's spend, the provider · model in use for *this space*, and the "N approvals waiting"
-  badge, which is global and opens the run it names in whatever space it is in.
-- **A Home screen per space.** What a person sees when nothing is open: a large goal box
-  ("What should this space work on?") with a Start button; a **Now** strip: runs in progress
-  and approvals waiting, each a card that opens the run; **Recent runs** as cards (status,
-  goal, started, duration, cost) rather than a dense list; and the **roster**: the space's
-  agents with role and an enable toggle, with "Add an agent" and, for an empty space, "Start
-  from the built-in roles". First-launch guidance lives here too: no key configured → one
-  card saying so with a button to Settings and a button for the demo run; no agents → the
-  seed button; no runs → the goal box is the whole screen.
-- **Plain language first, raw types second.** Every event row gets a sentence: *supervisor
-  asked the model*, *writer wants to write hello.txt (waiting for you)*, *writer wrote
-  hello.txt (24 bytes)*, with the raw `llm.request` / `tool.called` kept as a muted mono
-  chip beside it, because the raw type is what a bug report needs and the sentence is what a
-  person reads. Same for the agent card labels and the run status. The sentences are a pure
-  function of the event, so they live in the reducer's module and are covered by the
-  identity test.
-- **A "Now" line above the graph.** One sentence about the run at this cursor: *writer is
-  waiting for your approval*, *3 agents finished; the supervisor is writing the summary*,
-  derived from the fold, so it is identical live and on replay.
-- **Type and colour.** A system UI stack for prose (Segoe UI on Windows, SF on macOS);
-  monospace only for ids, payloads and code. Base size 14 → 15px, 1.5 line height; the
-  uppercase micro-labels go. **Light theme and dark theme**, following the OS
-  (`prefers-color-scheme`) with an override in Settings; both defined as tokens on `:root`
-  so no colour has a single definition. A softer palette: one accent, the three risk colours
-  (unchanged in meaning; they match the gate), status colours for the five run states,
-  and neutral surfaces with one level of elevation for cards. Nothing on screen is coloured
-  for decoration.
-- **Cards for runs, rows for events.** A run is something to pick; an event is something to
-  scan. The event log keeps its table shape (it is the thing you check the graph against)
-  and gains the sentence column; the picker becomes cards.
-- **The approval panel stays docked** (CLAUDE.md, 2026-09-11) and gets the same restyle:
-  risk-coloured edge, the question in a sentence, the decision history collapsed by default,
-  Deny still focused.
-- **Space settings are one page; app settings are another.** *Space settings*: name,
-  description, the folder (shown as a path, with **Open folder** via the Tauri opener plugin
-  - a new, single-purpose dependency, replacing nothing), model, approval policy, limits,
-  each with "Inherit" as the first choice, and a danger zone (archive; delete when
-  allowed). *Settings*: what the current tab holds minus what moved to spaces, plus theme
-  and `channel_space_id`. *(2026-09-12: nothing "moved": model, limits and the approval
-  policy stay on the app page as the defaults every space inherits, since Inherit has to
-  inherit from somewhere the user can see. The opener plugin is used from Rust only, behind
-  one command that refuses any path outside the data directory; none of its JavaScript
-  commands are granted to the webview. 2026-09-19: the model left the app page at the
-  maintainer's request: Settings chooses the provider, every space names its model, with
-  no Inherit, and an agent may pick its own; migration 012 gave existing spaces the model
-  they were inheriting. Limits and the approval policy still inherit from the app page.
-  2026-09-27, at the maintainer's request: a space also names its provider, with no
-  Inherit (migration 016 wrote in the one each space was using); the app-wide provider is
-  only where a new space starts. A provider switch maps the model by tier
-  (`providers/catalog.py`), and Space settings offers to move the agents that name the old
-  provider's models.)*
-- **Windowed event log.** Long runs render only the rows in view. Deferred from the frontend
-  pass as "nothing larger than 291 events has been measured"; the redesign touches every row
-  anyway, and the Home screen's cards mean the log is no longer the first thing loaded.
+- **Sidebar, not tabs.** Persistent rail: top **space switcher** (current,
+  switch, **New space…**); current *Home*, *Runs*, *Agents*, *Space settings*;
+  bottom app-wide *Settings* (keys, budget, Discord). Header retains global
+  monthly budget, selected-space provider/model, and all-space approval badge
+  that opens its run.
+- **Home per space.** Goal + Start; **Now** cards for active runs/approvals;
+  **Recent runs** cards (status, goal, start, duration, cost); roster roles/
+  toggles with add/seed controls. First-launch cards handle missing key,
+  agents, or runs, including Settings/demo-run paths.
+- **Plain language, raw types retained.** Event rows, cards, and statuses have
+  reducer-derived sentences, alongside muted `llm.request` / `tool.called`
+  mono chips for diagnosis. Identity tests cover the pure mapping.
+- **Fold-derived "Now" line.** It summarizes current cursor activity identically
+  in live/replay.
+- **Type and colour.** System prose font (Segoe UI/SF), monospace only for IDs,
+  payloads/code; 15px, 1.5-line prose, no uppercase micro-labels. Tokenized
+  light/dark themes follow OS with Settings override; use one accent, existing
+  risk meanings, five status colors, neutral card elevation, no decorative color.
+- **Runs are cards; events remain rows.** The picker uses cards, while the
+  graph-checking event table adds sentence column.
+- **Approval stays docked** with risk edge, sentence question, collapsed history,
+  and focused Deny.
+- **Separate space/app settings.** Space page: name, description, shown folder
+  and Rust-only **Open folder** restricted to data root, model, approval/limits
+  with **Inherit** first, and archive/delete. The command grants no general
+  JavaScript opener to the webview. App settings provide inherited limits/
+  approval defaults, theme, and `channel_space_id`. Since 2026-09-19, Settings
+  selects provider, each space names a non-inherited model (migration 012
+  filled prior values), and agents may override it. Since 2026-09-27 a space
+  also names its provider (migration 016 filled prior values): the app-wide
+  provider is only where a new space starts, a provider switch maps the model
+  by tier (`providers/catalog.py`), and Space settings offers to move the
+  agents that name the old provider's models.
+- **Windowed log.** Long runs render visible rows only; deferred until >291
+  event measurement, but redesign touches rows and Home no longer opens log.
 
-**Order of work, so the gate stays green throughout:** (1) migration 006 and the `spaces`
-store, test first; (2) `space_id` through the launcher, the sandbox-per-run and the roster
-snapshot, verified with two spaces against a real model; (3) the API and regenerated types;
-(4) the sidebar, switcher and Home screen against the existing panels; (5) the run view
-restyle: sentences, the Now line, theme tokens; (6) space and app settings pages; (7) the
-log windowing; (8) Discord's `channel_space_id`. Each step is its own commit or small group,
-and CLAUDE.md records what the live runs showed.
+**Order:** (1) test-first migration 006/store; (2) `space_id` through launcher,
+per-run sandbox/roster, verified in two real-model spaces; (3) API/types;
+(4) rail/switcher/Home; (5) run restyle; (6) settings; (7) log windowing;
+(8) Discord `channel_space_id`. Commit each small step and record live results.
 
 **Accept when:**
 
-1. Two spaces with different rosters; a run started in space A, against a real local model,
-   with a goal that names one of space B's agents by name, never spawns it: the supervisor's
-   roster in `agent.spawned` lists only A's agents, and the log shows the refusal.
-2. A `write_file` in a run in space A lands under A's folder; a `write_file` from the same
-   run to a path under B's folder is `tool.denied` with `blocked_by: "sandbox"`.
-3. A populated v5 database opens as v6 with every run, event, definition, approval and spend
-   row intact and every run and definition in the default space, and the old workspace
-   folder's files are in the default space's folder.
-4. From a fresh data directory, entirely in the window: create a space, seed its roster,
-   set a key, start a run, answer its approval, replay it. Replay is pixel-identical to
-   live in both themes.
-5. `GET /budget` still refuses a run over the app-wide cap regardless of which space it is
-   in, and each space reports its own spend.
-6. Every acceptance criterion from Phases 6, 7 and 8 still holds, run again, in the new UI.
+1. A real local-model run in space A cannot spawn a named B agent; `agent.spawned`
+   lists only A and log records refusal.
+2. A writes land under A; A writing B produces `tool.denied` with
+   `blocked_by: "sandbox"`.
+3. Populated v5 opens as v6 preserving every run, event, definition, approval,
+   and spend row, with all runs, definitions, and workspace files under the
+   default space.
+4. From fresh data entirely in-window: create/seed space, set key, run/approve,
+   replay identically in both themes.
+5. `GET /budget` enforces app cap across spaces and reports each spend.
+6. Re-run all Phase 6–8 criteria in new UI.
 
 ### Phase 12: Markdown knowledge vault and retrieval-augmented memory
 
-*Added 2026-09-15 at the maintainer's request. This explicitly replaces the v1
-non-goal that excluded vector memory and RAG.*
+*Added 2026-09-15 at the maintainer's request, replacing v1's no-vector-memory/
+RAG non-goal.*
 
-Each space's existing folder is also an Obsidian-compatible vault. Markdown is
-the canonical data, whether a note is edited in AgentBase, Obsidian or another
-text editor. AgentBase must not create a proprietary second copy of note
-content or require Obsidian to be installed.
+Each space folder is an Obsidian-compatible vault. Markdown stays canonical
+across AgentBase/Obsidian/other editors; no proprietary copy or Obsidian install.
 
-- Add a **Knowledge** section per space with a note browser, Markdown source
-  editor, safe preview, YAML properties and tags, wikilinks, backlinks, local
-  search and a linked-note graph.
-- Add **Open in Obsidian** through a narrow Rust command. It accepts only an
-  existing directory under AgentBase's data root, constructs the documented
-  `obsidian://open?path=` URI itself, and does not grant a general URL opener to
-  the webview. *(2026-09-19: the button is offered only when the shell finds
-  Obsidian where its installer puts it; on a machine without it the link has
-  no handler and the launcher's exit status was reaching the user as the
-  error. The folder is a vault regardless, which Obsidian's picker opens.)*
-- Rebuild the index from the live folder when it is used. An edit made outside
-  AgentBase is visible on the next list, search or run without a watcher,
-  reindex job or stale database.
-- Retrieval stays local and combines deterministic hashed term vectors with
-  term overlap, title and tag relevance. Return heading-sized chunks with
-  stable `[[path#heading]]` citations. Do not send notes to a separate embedding
-  service.
-- Retrieve context for the run goal and again for each worker handoff. Mark
-  excerpts as untrusted reference data, never instructions. The exact excerpts
-  sent to the supervisor are recorded in `run.started`; worker excerpts remain
-  visible in that worker's `llm.request` message.
-- A successful run writes its goal and outcome to the unique app-owned path
-  `memory/runs/<run-id>.md` before `run.completed`. That terminal event records
-  `memory_path`, so later runs can retrieve the memory and a replay can locate it.
-- Add the low-risk, approval-gated `search_knowledge` tool for agents that need
-  to refine retrieval while working. Existing user-edited allowlists remain
-  unchanged; seeded roles receive it through migration 007 only while their
-  allowlist still matches a shipped default.
-- Hidden paths, especially `.obsidian`, never appear in the index and cannot be
-  edited through the Knowledge API. Note paths remain inside the per-run space
-  sandbox and must end in `.md`.
+- Add **Knowledge**: browser, source, safe preview, YAML/tags, wikilinks/
+  backlinks, local search, and note graph.
+- **Open in Obsidian** is a narrow Rust command for existing data-root dirs;
+  it constructs `obsidian://open?path=` and grants no webview URL opener. Offer
+  it only at installer-default Obsidian locations; its picker still opens vaults.
+- Index live folders on use, so next list/search/run sees external edits without
+  watcher, reindex task, or stale database.
+- Local retrieval combines deterministic hashed vectors with term/title/tag
+  overlap; return heading chunks with stable `[[path#heading]]`, never remote
+  embeddings.
+- Retrieve cited, untrusted context for goals and handoffs. `run.started`
+  preserves supervisor excerpts; workers retain them in `llm.request`.
+- Before `run.completed`, successful runs write goal/outcome to the unique
+  app-owned `memory/runs/<run-id>.md` and record `memory_path` for retrieval/
+  replay.
+- Add low-risk approval-gated `search_knowledge`. Migration 007 changes seeded
+  roles only when their allowlist remains shipped; user edits stay unchanged.
+- Exclude/uneditable hidden paths (especially `.obsidian`); note paths stay in
+  per-run sandbox and end `.md`.
 
 **Accept when:**
 
@@ -776,53 +687,36 @@ content or require Obsidian to be installed.
    and delete notes, and the Rust shell still grants the webview no opener
    permission.
 
-**0.3.0 additions, agreed 2026-09-17.** The memory inbox: a run memory or an
-agent's `propose_memory` note (medium risk, approval-gated, migration 008 for
-unedited seeded roles) starts as `proposed` and is retrieved only once the user
-approves or pins it; the inbox also archives, merges (originals archived and
-backed up) and forgets memories, and shows the source run, creation date,
-confidence and supporting citations. Ranking adds BM25 to the hashed vector,
-filters by folder, tag, note type, date, pinned state and memory status, caps
-each note at two chunks, and ignores English function words. Each note's
-chunk signals are computed once at parse time and a scan walks the folder
-without resolving every path, so the practical limit rises to 10,000 notes
-with a timing-bounded test against real files; the index is still rebuilt on
-use, with no watcher or background job, per the paragraph above. The Home
-preview shows what a goal retrieves (citation, score, matched terms, token
-cost and the provider and model the excerpts go to) and lets the user exclude
-citations; `run.started` records the excerpts and exclusions, and the run view
-folds them into a "Retrieved context" section. The vault gains move or rename
-with link rewriting, folder import, pinning, unresolved-link and orphan
-counts, templates, daily notes, "Save as note" from an event, and a retrieval
-evaluation screen (MRR and recall at k). Deferred past 0.3.0: local embedding
-models, attachments, PDFs and web clipping.
+**0.3.0 additions, agreed 2026-09-17.** Run memories and medium-risk,
+approval-gated `propose_memory` notes start `proposed`; they are retrieved only
+after approval or pinning, and migration 008 changes only unedited seeded roles.
+Inbox supports archive, forgetting, and merging that archives and backs up
+originals, alongside source/time/confidence/citations. Ranking adds BM25,
+folder/tag/type/date/pin/status filters, two chunks/note, and English-function-
+word removal. Parse once and scan without resolving every path for 10,000 real-
+file timing-tested notes, still rebuilt on use. Home previews citations, scores,
+matches, token cost, and provider/model, and lets users exclude citations;
+`run.started` preserves excerpts and exclusions for **Retrieved context**. Vault adds
+move/rename link rewrite, import, pin, unresolved/orphan counts,
+templates/daily notes, **Save as note** from an event, and MRR/recall
+evaluation. Defer local embeddings, attachments, PDFs, and web clipping.
 
 ### Phase 13: Scheduled runs, usage, and the first-run tour
 
 *Added 2026-09-19 at the maintainer's request.*
 
-- **Schedules.** A space may run a goal on its own at set times: every day
-  or on chosen days at a local time, or every N hours. A schedule starts its
-  run through the same `RunLauncher` as the window and Discord, so it gets the
-  space's roster, rules, folder, approval gate and the shared cap and nothing
-  more; the scheduler never answers an approval. `next_run_at` is stored in
-  UTC and recomputed from the clock after each firing, never added to the
-  previous time. The sidecar remains a child of the window (§7 still excludes
-  a headless or server mode and no tray or service is added), so a time that
-  passes while the app is closed is handled at the next launch per the
-  schedule's missed policy: run once now, or skip. One catch-up, never one
-  per missed occurrence.
-- **Usage.** A section that reads the spend ledger, the rows the cap is
-  enforced on, for one month: totals, by model, by space, by day, and the
-  costliest runs with each run's peak and mean input tokens as its context.
-  Nothing is estimated; a figure not in the ledger is not on the page.
-- **The first-run tour and About.** A short tour that points at real parts of
-  the window and ends on the demo run, shown once on the sidecar's
-  `onboarding_completed` setting and replayable from an About box that shows
-  the sidecar's version and data folder.
-- **The run's memory within reach.** The run summary looks up its memory's
-  status, approves it in place and opens it beside the inbox; a long summary
-  starts folded so the canvas and log stay in view.
+- **Schedules.** Spaces run daily or on chosen local days at a local time, or
+  every N hours, through the same `RunLauncher` as window/Discord, inheriting
+  roster, rules, folder, gate, and shared cap; scheduler never approves. Store
+  `next_run_at` UTC and recompute it from the clock, never the previous time.
+  With app closed (no headless/tray/service), next launch runs once or skips by
+  missed policy, never one catch-up per occurrence.
+- **Usage.** Monthly spend-ledger totals by model/space/day and costliest runs
+  with peak/mean input context; show no estimates or non-ledger figures.
+- **Tour/About.** Point to real UI then demo run once by `onboarding_completed`;
+  About replays it and shows sidecar version/data folder.
+- **Memory near run.** Summary shows memory status, approves in place, opens
+  beside inbox, and folds long text to keep canvas/log visible.
 
 **Accept when:**
 
@@ -842,33 +736,26 @@ models, attachments, PDFs and web clipping.
 
 *Added 2026-09-24 at the maintainer's request for release 0.4.5.*
 
-Visualization stays inside a space and uses its ordinary files. There is no
-chart database, remote renderer or second agent tool: an agent creates data,
-chart definitions, dashboards and diagrams with the existing approval-gated
-`write_file`, and a person can edit the same files in Knowledge.
+Visualization uses ordinary space files: no chart DB, remote renderer, or new
+agent tool. Agents use approval-gated `write_file`; people edit the same files
+in Knowledge.
 
-- Add a **Visualize** section that parses CSV, TSV, JSON, JSONL and NDJSON
-  locally and draws bar, line, area, scatter, pie, metric and table views.
-  A chart selects its category, numeric values, optional series, aggregation,
-  sort and a bounded row count. Every graphic has an accessible source table
-  and exports as SVG or prepared CSV.
-- A saved chart is a versioned `.viz.json` file with schema
-  `agentbase://visualization/v1` and a relative source path. A saved dashboard
-  is `.dashboard.json` with schema `agentbase://dashboard/v1` and a list of
-  saved chart paths in one, two or three columns. Both contracts are validated
-  before rendering and remain small enough for a model to write directly.
-- `.mmd` and `.mermaid` are editable text files. Render them with Mermaid in
-  strict security mode, disable HTML labels, parse the returned SVG, and remove
-  scripts, embedded objects, event attributes and external links before it is
-  inserted. Diagram SVG may be exported.
-- Add compact visual evidence where it changes a decision: relevance bars for
-  retrieved context, MRR and recall bars in retrieval evaluation, and a trust
-  state distribution in the memory inbox. Retain the run graph, knowledge
-  graph and Usage bars as their existing authoritative projections.
-- Data parsing is bounded at 10,000 rows and chart rendering at 2,000 rows.
-  Invalid data, missing sources and invalid contracts are readable errors and
-  never code execution. Nothing in a visualization is treated as an agent
-  instruction.
+- **Visualize** parses CSV/TSV/JSON/JSONL/NDJSON locally into bar, line, area,
+  scatter, pie, metric, or table charts with category/values/series/aggregate/
+  sort/bounded rows; all offer accessible source table and SVG/prepared-CSV export.
+- Charts use validated, versioned relative-source `.viz.json`
+  (`agentbase://visualization/v1`); dashboards use validated one/two/three-
+  column `.dashboard.json` (`agentbase://dashboard/v1`) listing saved chart
+  paths. Validate both before rendering; both stay small enough for direct
+  model writing.
+- Editable `.mmd`/`.mermaid` render with strict Mermaid and disabled HTML
+  labels; parse returned SVG and strip scripts, objects, event attributes, and
+  external links before insertion; export SVG.
+- Add decision-relevant relevance, MRR/recall, and memory-trust visuals while
+  retaining authoritative run/knowledge/Usage projections.
+- Bound parsing at 10,000 and rendering at 2,000 rows. Invalid/missing data or
+  contracts are readable errors, never code execution. Nothing in a
+  visualization is an agent instruction.
 
 **Accept when:**
 

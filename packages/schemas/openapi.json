@@ -157,7 +157,7 @@
         "type": "object"
       },
       "ApprovalResponse": {
-        "description": "One approval, as the dialog renders it.",
+        "description": "Approval data rendered by the dialog.",
         "properties": {
           "args": {
             "additionalProperties": true,
@@ -283,7 +283,7 @@
       },
       "ChannelIdentity": {
         "additionalProperties": false,
-        "description": "One allowlist entry: this person, on this channel, is that identity.",
+        "description": "Allowlist entry mapping one channel user to one identity.",
         "properties": {
           "channel": {
             "const": "discord",
@@ -310,7 +310,7 @@
         "type": "object"
       },
       "ChannelStatusResponse": {
-        "description": "One adapter, as the settings screen renders it.",
+        "description": "Adapter status rendered by the settings screen.",
         "properties": {
           "channel": {
             "title": "Channel",
@@ -444,7 +444,7 @@
         "type": "object"
       },
       "ChatGPTRuntimeResponse": {
-        "description": "The fetched App Server runtime: absent, downloading with progress, ready or failed.",
+        "description": "App Server runtime state: missing, downloading, ready, or failed.",
         "properties": {
           "downloaded_bytes": {
             "default": 0,
@@ -490,7 +490,7 @@
         "type": "object"
       },
       "CopyAgentRequest": {
-        "description": "Where the copy goes. A copy is a new row with a new id, never a built-in.",
+        "description": "Copy destination. Copies get a new ID and are never built-ins.",
         "properties": {
           "space_id": {
             "title": "Space Id",
@@ -504,7 +504,7 @@
         "type": "object"
       },
       "CopyFrom": {
-        "description": "Seed a new space with copies of another space's roster.",
+        "description": "Seed a new space with another space's roster copies.",
         "properties": {
           "copy_from": {
             "title": "Copy From",
@@ -519,7 +519,7 @@
       },
       "CreateAgentRequest": {
         "additionalProperties": false,
-        "description": "A new definition.\n\nNot :class:`~agentbase.store.agents.AgentDef`: a caller must not mint a built-in.",
+        "description": "New definition; callers cannot mint a built-in :class:`AgentDef`.",
         "properties": {
           "allowed_tools": {
             "items": {
@@ -832,7 +832,7 @@
         "type": "object"
       },
       "Event": {
-        "description": "One append-only row of the log.\n\n``seq`` is per-run and 1-based: the SSE id and the ``Last-Event-ID``\ncursor. ``id`` is the global rowid and is never a resume cursor.",
+        "description": "Append-only log row.\n\n``seq`` is a 1-based per-run SSE/``Last-Event-ID`` cursor; global rowid\n``id`` is never a resume cursor.",
         "properties": {
           "agent_id": {
             "anyOf": [
@@ -882,7 +882,7 @@
         "type": "object"
       },
       "EventType": {
-        "description": "Every event this application can emit. The list is from \u00a74, verbatim.",
+        "description": "Every event this application emits; list matches \u00a74 verbatim.",
         "enum": [
           "run.started",
           "run.completed",
@@ -928,7 +928,7 @@
         "type": "object"
       },
       "HealthResponse": {
-        "description": "What `/health` says. The shell polls it to decide the sidecar is up.",
+        "description": "`/health` response; the shell polls it for sidecar readiness.",
         "properties": {
           "instance": {
             "anyOf": [
@@ -1856,7 +1856,7 @@
         "type": "object"
       },
       "ProviderCatalogueResponse": {
-        "description": "What can be selected, and which models are priced, per provider.",
+        "description": "Selectable and priced models by provider.",
         "properties": {
           "catalog": {
             "additionalProperties": {
@@ -1895,7 +1895,7 @@
         "type": "object"
       },
       "ProviderEntry": {
-        "description": "One selectable provider.",
+        "description": "Selectable provider.",
         "properties": {
           "default_model": {
             "anyOf": [
@@ -1965,7 +1965,7 @@
       },
       "ResolveApprovalRequest": {
         "additionalProperties": false,
-        "description": "A decision on one approval. A misspelled field must not be read as a denial.",
+        "description": "Decision on one approval; reject misspelled fields rather than deny.",
         "properties": {
           "approved": {
             "title": "Approved",
@@ -1988,7 +1988,7 @@
         "type": "object"
       },
       "RiskLevel": {
-        "description": "How much damage a tool call can do. Policy is a *set* of levels, never a threshold.",
+        "description": "Potential damage from a tool call; policy uses a set, not a threshold.",
         "enum": [
           "low",
           "medium",
@@ -1998,7 +1998,7 @@
         "type": "string"
       },
       "Run": {
-        "description": "A row of the `runs` table (\u00a74).",
+        "description": "``runs`` table row (\u00a74).",
         "properties": {
           "created_at": {
             "format": "date-time",
@@ -2074,7 +2074,7 @@
         "type": "object"
       },
       "SchedulePreview": {
-        "description": "What a cadence means, before it is saved.",
+        "description": "Cadence preview before saving.",
         "properties": {
           "next": {
             "items": {
@@ -2097,7 +2097,7 @@
         "type": "object"
       },
       "ScheduleResponse": {
-        "description": "A schedule, plus its cadence in words so every screen says the same thing.",
+        "description": "Schedule plus a shared human-readable cadence.",
         "properties": {
           "cadence": {
             "anyOf": [
@@ -2390,7 +2390,7 @@
         "type": "object"
       },
       "SettingsResponse": {
-        "description": "Workspace settings plus the read-only facts the UI needs beside them.",
+        "description": "Workspace settings plus UI read-only facts.",
         "properties": {
           "configured_secrets": {
             "items": {
@@ -2442,7 +2442,7 @@
         "type": "object"
       },
       "SpaceResponse": {
-        "description": "A space, plus where its runs read and write.",
+        "description": "Space and its run read/write location.",
         "properties": {
           "archived": {
             "default": false,
@@ -2659,7 +2659,7 @@
         "type": "object"
       },
       "ToolPolicy": {
-        "description": "What the gate does with a call to one tool, by name, before its risk level is read.\n\n``ASK`` is the default and means the risk-level rule decides; ``ALLOW``\nruns the call without asking; ``DENY`` refuses it without asking. A tool\nabsent from a policy is ``ASK``.",
+        "description": "Per-tool gate decision before risk-level policy.\n\nAbsent tools default to ``ASK``; ``ALLOW`` bypasses the prompt and ``DENY``\nrefuses the call.",
         "enum": [
           "ask",
           "allow",
@@ -2669,7 +2669,7 @@
         "type": "string"
       },
       "ToolResponse": {
-        "description": "One catalogue entry, as the agent editor renders it.",
+        "description": "Catalogue entry rendered by the agent editor.",
         "properties": {
           "available": {
             "title": "Available",
@@ -2699,7 +2699,7 @@
       },
       "UpdateAgentRequest": {
         "additionalProperties": false,
-        "description": "A partial update. Every field optional; omitted fields are untouched.\n\n``None`` is meaningful for `provider` and `model` (back to inheriting), so\n`model_fields_set` separates \"sent as null\" from \"not sent\".",
+        "description": "Partial update; omitted fields stay unchanged.\n\n``None`` restores provider/model inheritance, so ``model_fields_set``\ndistinguishes it from an omitted field.",
         "properties": {
           "allowed_tools": {
             "anyOf": [
@@ -2859,7 +2859,7 @@
       },
       "UpdateScheduleRequest": {
         "additionalProperties": false,
-        "description": "A partial update; fields left out are untouched.",
+        "description": "Partial update; omitted fields remain unchanged.",
         "properties": {
           "cadence": {
             "anyOf": [
@@ -2948,7 +2948,7 @@
       },
       "UpdateSettingsRequest": {
         "additionalProperties": false,
-        "description": "A partial update. Every field optional; omitted fields are untouched.\n\nUnknown fields are rejected, not dropped: Pydantic's default turns a\nmisspelled setting into a `200 OK` that changed nothing. This model must\nlist every field of :class:`~agentbase.store.settings.WorkspaceSettings`\n(they differ in bounds and optionality, so it cannot be the same class),\nand `test_every_workspace_setting_can_be_patched` keeps the two in step.",
+        "description": "Partial update; omitted fields stay unchanged.\n\nReject unknown fields: Pydantic would otherwise return ``200 OK`` for a\nmisspelling. Mirror every :class:`~agentbase.store.settings.WorkspaceSettings`\nfield here; bounds and optionality differ, and the paired test detects drift.",
         "properties": {
           "auto_approve": {
             "anyOf": [
@@ -3156,7 +3156,7 @@
       },
       "UpdateSpaceRequest": {
         "additionalProperties": false,
-        "description": "A partial update. ``None`` means \"inherit\", so `model_fields_set` tells it from \"not sent\".\n\nThe provider cannot be cleared: a space names its own.",
+        "description": "Partial update; ``None`` inherits, so ``model_fields_set`` detects sent null.\n\nThe provider cannot be cleared: a space names its own.",
         "properties": {
           "archived": {
             "anyOf": [
@@ -3296,7 +3296,7 @@
         "type": "object"
       },
       "UsageBucket": {
-        "description": "One slice of the period: a model, a space or a day.",
+        "description": "Period slice by model, space, or day.",
         "properties": {
           "calls": {
             "title": "Calls",
@@ -3607,7 +3607,7 @@
         "type": "object"
       },
       "VerifyResponse": {
-        "description": "Whether the current settings can build a provider, and why not if not.",
+        "description": "Whether current settings can build a provider, with a failure reason.",
         "properties": {
           "model": {
             "anyOf": [
@@ -3845,7 +3845,7 @@
   "paths": {
     "/agents": {
       "get": {
-        "description": "Every definition, enabled or not: this backs the roster editor.",
+        "description": "List all definitions, including disabled ones, for the roster editor.",
         "operationId": "list_agents_agents_get",
         "parameters": [
           {
@@ -3999,7 +3999,7 @@
         "summary": "Get Agent"
       },
       "patch": {
-        "description": "Apply a partial update. A built-in is editable; only the delete path is guarded.",
+        "description": "Apply a partial update; built-ins are editable but not deletable.",
         "operationId": "update_agent_agents__definition_id__patch",
         "parameters": [
           {
@@ -4049,7 +4049,7 @@
     },
     "/agents/{definition_id}/copy": {
       "post": {
-        "description": "A copy of one definition on another space's roster.",
+        "description": "Copy a definition to another space's roster.",
         "operationId": "copy_agent_agents__definition_id__copy_post",
         "parameters": [
           {
@@ -4099,7 +4099,7 @@
     },
     "/approvals": {
       "get": {
-        "description": "Every approval still waiting for an answer, oldest first.",
+        "description": "List unanswered approvals, oldest first.",
         "operationId": "list_approvals_approvals_get",
         "parameters": [
           {
@@ -4187,7 +4187,7 @@
         "summary": "Get Approval"
       },
       "post": {
-        "description": "Allow or deny a pending call, and release the agent waiting on it.\n\n404 for an unknown id; 409 for one already settled, so a second window's\nclick reads as \"already answered\" rather than \"gone\".",
+        "description": "Resolve a pending call and release its agent.\n\nUnknown IDs return 404; settled ones return 409 so another window sees\n\"already answered,\" not \"gone.\"",
         "operationId": "resolve_approval_approvals__approval_id__post",
         "parameters": [
           {
@@ -4295,7 +4295,7 @@
     },
     "/auth/chatgpt/runtime": {
       "post": {
-        "description": "Fetch the pinned App Server runtime once; idempotent while it downloads.",
+        "description": "Fetch the pinned App Server runtime; idempotent during download.",
         "operationId": "chatgpt_install_runtime_auth_chatgpt_runtime_post",
         "responses": {
           "200": {
@@ -4314,7 +4314,7 @@
     },
     "/budget": {
       "get": {
-        "description": "Month-to-date spend against the cap; ``space_id`` adds that space's share beside it.",
+        "description": "Return month-to-date spend and cap; ``space_id`` adds that space's share.",
         "operationId": "get_budget_budget_get",
         "parameters": [
           {
@@ -4383,7 +4383,7 @@
     },
     "/debug/fake_run": {
       "post": {
-        "description": "Start a scripted run so the event spine can be exercised without a model.",
+        "description": "Start a scripted run that exercises events without a model.",
         "operationId": "fake_run_debug_fake_run_post",
         "parameters": [
           {
@@ -4426,7 +4426,7 @@
     },
     "/health": {
       "get": {
-        "description": "Liveness probe, carrying the launch tag so the shell knows it is us.",
+        "description": "Return liveness and the launch tag that identifies this sidecar.",
         "operationId": "health_health_get",
         "responses": {
           "200": {
@@ -4445,7 +4445,7 @@
     },
     "/runs": {
       "get": {
-        "description": "Recent runs, newest first: what the run picker reads. ``origin`` keeps\nonly the runs started from the window, by a schedule, or from Discord.",
+        "description": "List recent runs, newest first; ``origin`` filters UI, schedule, or Discord runs.",
         "operationId": "list_runs_runs_get",
         "parameters": [
           {
@@ -4527,7 +4527,7 @@
         "summary": "List Runs"
       },
       "post": {
-        "description": "Create a run and start the orchestrator on it.\n\nReturns as soon as the row exists; the client watches the run over SSE.\nStarting it is :class:`~agentbase.orchestrator.launcher.RunLauncher`'s\njob, shared with the chat channels.",
+        "description": "Create a run and start its orchestrator.\n\nReturn after creating its row; clients follow it over SSE. The shared\n:class:`~agentbase.orchestrator.launcher.RunLauncher` also serves channels.",
         "operationId": "create_run_runs_post",
         "requestBody": {
           "content": {
@@ -4566,7 +4566,7 @@
     },
     "/runs/{run_id}": {
       "delete": {
-        "description": "Remove a finished run, its events and its approvals. Its spend stays.\n\nA run that has not ended is a 409: the log must never be deleted from\nunder an orchestrator still appending to it. A run this process is still\ndriving is refused even if its row just turned terminal, since the\norchestrator lets go a moment after writing the status. See\n:meth:`~agentbase.events.store.EventStore.delete_run` for what is kept.",
+        "description": "Remove a finished run, events, and approvals; retain its spend.\n\nReturn 409 for unfinished runs so their orchestrator cannot lose its log.\nAlso refuse a locally driven run that just turned terminal: the\norchestrator releases it shortly after status write. See\n:meth:`~agentbase.events.store.EventStore.delete_run` for retained data.",
         "operationId": "delete_run_runs__run_id__delete",
         "parameters": [
           {
@@ -4636,7 +4636,7 @@
     },
     "/runs/{run_id}/cancel": {
       "post": {
-        "description": "Ask a run to stop.\n\n202: the run stops at its next deadline check and writes `run.cancelled`\nitself, so the row returned here may still say `running`. A finished run,\nor one this process is not driving, is a 409.",
+        "description": "Ask a run to stop.\n\n202 means it stops at its next deadline check and writes `run.cancelled`,\nso its returned row may remain `running`. Finished or nonlocal runs return 409.",
         "operationId": "cancel_run_runs__run_id__cancel_post",
         "parameters": [
           {
@@ -4676,7 +4676,7 @@
     },
     "/runs/{run_id}/events": {
       "get": {
-        "description": "Server-sent events for one run, resumable via `Last-Event-ID`.\n\n``after_seq`` is the same cursor for a first connection, which cannot\ncarry the header. On a reconnect the header wins if it is further along.",
+        "description": "Stream one run as resumable SSE via `Last-Event-ID`.\n\n``after_seq`` is the first-connection cursor; on reconnect, the further\nheader cursor wins.",
         "operationId": "stream_run_events_runs__run_id__events_get",
         "parameters": [
           {
@@ -4725,7 +4725,7 @@
     },
     "/runs/{run_id}/events/history": {
       "get": {
-        "description": "The event log as a plain array, for the dashboard's history load, tests and `curl`.",
+        "description": "Return the event log as an array for dashboard history, tests, and `curl`.",
         "operationId": "get_run_events_runs__run_id__events_history_get",
         "parameters": [
           {
@@ -4779,7 +4779,7 @@
     },
     "/schedules": {
       "get": {
-        "description": "Every schedule, or one space's.",
+        "description": "List every schedule or one space's schedules.",
         "operationId": "list_schedules_schedules_get",
         "parameters": [
           {
@@ -4866,7 +4866,7 @@
     },
     "/schedules/preview": {
       "post": {
-        "description": "The cadence in words and its next few times, for the editor before a save.",
+        "description": "Preview a cadence's wording and upcoming times before saving.",
         "operationId": "preview_schedule_schedules_preview_post",
         "requestBody": {
           "content": {
@@ -5021,7 +5021,7 @@
     },
     "/schedules/{schedule_id}/run": {
       "post": {
-        "description": "Start this schedule's run right now, leaving its next time as it was.",
+        "description": "Start this schedule now without changing its next time.",
         "operationId": "run_schedule_now_schedules__schedule_id__run_post",
         "parameters": [
           {
@@ -5077,7 +5077,7 @@
         "summary": "Get Settings"
       },
       "patch": {
-        "description": "Apply a partial settings update.\n\nValidation failures are 400s carrying `{message, field}`.",
+        "description": "Apply a partial settings update; validation failures return field-aware 400s.",
         "operationId": "update_settings_settings_patch",
         "requestBody": {
           "content": {
@@ -5116,7 +5116,7 @@
     },
     "/settings/providers": {
       "get": {
-        "description": "What can be selected, and which models are priced, grouped per provider.\n\nThe dropdowns read this rather than a list that would drift from `pricing.py`.",
+        "description": "List selectable and priced models by provider.\n\nDropdowns use this instead of a list that could drift from ``pricing.py``.",
         "operationId": "list_providers_settings_providers_get",
         "responses": {
           "200": {
@@ -5135,7 +5135,7 @@
     },
     "/settings/verify": {
       "post": {
-        "description": "Check the current settings can build a provider, without calling the model.\n\nThe dashboard's pre-flight: the refusal a run would get, shown before\nStart. With ``space_id`` the space's effective settings are checked.",
+        "description": "Check whether settings can build a provider without calling it.\n\nThis dashboard pre-flight shows a run's refusal before Start. ``space_id``\nchecks effective space settings.",
         "operationId": "verify_provider_settings_verify_post",
         "parameters": [
           {
@@ -5182,7 +5182,7 @@
     },
     "/spaces": {
       "get": {
-        "description": "Every space, archived ones included: their runs are still viewable.",
+        "description": "List all spaces, including archived ones whose runs remain viewable.",
         "operationId": "list_spaces_spaces_get",
         "responses": {
           "200": {
@@ -5203,7 +5203,7 @@
         "summary": "List Spaces"
       },
       "post": {
-        "description": "Create a space and seed its roster.\n\nThe seed is its own write after the row exists, so a partial copy leaves\na space the user can see and fix.",
+        "description": "Create a space and seed its roster.\n\nSeed after creating the row so a partial copy leaves a visible, repairable space.",
         "operationId": "create_space_spaces_post",
         "requestBody": {
           "content": {
@@ -5242,7 +5242,7 @@
     },
     "/spaces/{space_id}": {
       "delete": {
-        "description": "Delete an empty space and its agents. 409 for the default, or one with runs.",
+        "description": "Delete an empty space and agents; return 409 for default or run-containing spaces.",
         "operationId": "delete_space_spaces__space_id__delete",
         "parameters": [
           {
@@ -5532,7 +5532,7 @@
         "summary": "Get File"
       },
       "put": {
-        "description": "Create or overwrite a plain-text file; JSON that does not parse is refused.",
+        "description": "Create or overwrite a text file; reject malformed JSON.",
         "operationId": "write_file_spaces__space_id__knowledge_file_put",
         "parameters": [
           {
@@ -5582,7 +5582,7 @@
     },
     "/spaces/{space_id}/knowledge/files": {
       "get": {
-        "description": "The plain-text files beside the notes: configuration and data the agents use.",
+        "description": "List note-adjacent plain-text configuration and agent-data files.",
         "operationId": "list_files_spaces__space_id__knowledge_files_get",
         "parameters": [
           {
@@ -5622,7 +5622,7 @@
     },
     "/spaces/{space_id}/knowledge/folder": {
       "delete": {
-        "description": "Delete a folder and its notes, after a copy under `.agentbase/backups/`.",
+        "description": "Back up then delete a folder and its notes under `.agentbase/backups/`.",
         "operationId": "delete_folder_spaces__space_id__knowledge_folder_delete",
         "parameters": [
           {
@@ -6226,7 +6226,7 @@
     },
     "/spaces/{space_id}/seed": {
       "post": {
-        "description": "Add the starter roles an existing roster lacks. Safe to press twice.",
+        "description": "Add missing starter roles to a roster; safe to call twice.",
         "operationId": "seed_space_spaces__space_id__seed_post",
         "parameters": [
           {
@@ -6270,7 +6270,7 @@
     },
     "/tools": {
       "get": {
-        "description": "The tool catalogue with each tool's risk level, for the editor's checkboxes.",
+        "description": "List tools and risk levels for editor checkboxes.",
         "operationId": "list_tools_tools_get",
         "responses": {
           "200": {
@@ -6293,7 +6293,7 @@
     },
     "/usage": {
       "get": {
-        "description": "A month of model calls from the ledger: totals, by model, space and day, and the costliest runs.\n\n``period`` is ``YYYY-MM`` and defaults to this month; ``space_id`` narrows\nto one space's runs. Read from the same rows the cap is enforced on, so the\nreport and the meter cannot disagree.",
+        "description": "Report ledger calls by total, model, space, day, and costly run.\n\n``period`` is ``YYYY-MM`` and defaults to this month; ``space_id`` limits\nresults to one space. Use the same rows as cap enforcement, so report and\nmeter agree.",
         "operationId": "get_usage_usage_get",
         "parameters": [
           {

@@ -4,14 +4,12 @@ import { create } from "zustand";
 import * as api from "../lib/api";
 
 /**
- * The roster: every definition on the current space's roster, shared by the
- * Home screen and the Agents page. Keyed on a space. `load` is latest-wins,
- * so a slow fetch cannot overwrite a later reload; `ensure` loads once on
- * mount if nobody has.
+ * Current-space roster shared by Home and Agents. Key by space; latest-wins
+ * loading prevents slow fetches overwriting reloads, and `ensure` loads once.
  */
 export interface RosterState {
   readonly agents: readonly AgentDef[];
-  /** The space whose roster this is. `undefined` is every definition. */
+  /** Roster space; `undefined` selects every definition. */
   readonly spaceId: string | undefined;
   readonly error: string | null;
   readonly loading: boolean;
@@ -52,9 +50,7 @@ export const useRoster = create<RosterState>()((set, get) => ({
   },
 
   ensure: () => {
-    // A list that does not yet know its space has nothing to load: the
-    // shell keys it once the space list has answered, and that is the one
-    // request. Loading here as well was a second, un-keyed fetch on mount.
+    // Wait for a space key; loading earlier duplicates the shell-keyed request.
     const { loaded, loading, spaceId } = get();
     if (spaceId !== undefined && !loaded && !loading) void get().load();
   },

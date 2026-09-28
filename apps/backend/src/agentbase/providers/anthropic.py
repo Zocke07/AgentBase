@@ -1,8 +1,6 @@
-"""Anthropic Messages API, normalized to the provider protocol.
+"""Anthropic Messages API adapter.
 
-Two shape details that are easy to get wrong: the system prompt is a
-top-level field, not a message (a `system` role inside `messages` is a 400),
-and `max_tokens` is required.
+Anthropic requires a top-level system prompt and ``max_tokens``.
 """
 
 from __future__ import annotations
@@ -37,8 +35,7 @@ __all__ = ["ANTHROPIC_VERSION", "DEFAULT_BASE_URL", "AnthropicProvider"]
 
 DEFAULT_BASE_URL: Final[str] = "https://api.anthropic.com"
 
-#: Pinned: the header selects a frozen wire format, so a new version cannot
-#: break a shipped installer.
+#: Pin the wire format used by shipped builds.
 ANTHROPIC_VERSION: Final[str] = "2023-06-01"
 
 
@@ -70,10 +67,7 @@ class AnthropicProvider:
         system: str | None,
         max_tokens: int,
     ) -> dict[str, Any]:
-        """The request body, shared by `complete` and `stream`.
-
-        Shared so streaming is a transport change only.
-        """
+        """Build the request body shared by blocking and streaming calls."""
         if not self._api_key:
             msg = "no Anthropic API key is configured"
             raise ProviderAuthError(msg)
@@ -131,11 +125,7 @@ class AnthropicProvider:
         system: str | None = None,
         max_tokens: int = 4096,
     ) -> AsyncIterator[StreamEvent]:
-        """Stream `POST /v1/messages` with `stream: true`.
-
-        Token counts arrive in two frames: input on `message_start`, output on
-        the final `message_delta`. Reading either alone undercounts.
-        """
+        """Stream ``POST /v1/messages`` and collect token counts across frames."""
         payload = self._payload(messages, tools, system, max_tokens)
         payload["stream"] = True
 
@@ -166,7 +156,7 @@ class AnthropicProvider:
                 if isinstance(value, str):
                     text_parts.append(value)
             elif kind == "thinking":
-                # Extended thinking: never part of the answer. Its signature is not kept.
+                # Keep extended thinking separate from answer text.
                 value = block.get("thinking")
                 if isinstance(value, str):
                     thinking_parts.append(value)
@@ -200,7 +190,7 @@ class AnthropicProvider:
 def _split_system(
     messages: Iterable[Message], system: str | None
 ) -> tuple[str | None, list[dict[str, str]]]:
-    """Lift `Role.SYSTEM` turns into the top-level `system` field."""
+    """Move ``Role.SYSTEM`` turns into Anthropic's top-level system field."""
     collected = [system] if system else []
     turns: list[dict[str, str]] = []
 
@@ -208,7 +198,7 @@ def _split_system(
         if message.role is Role.SYSTEM:
             collected.append(message.content)
             continue
-        # `tool` is not a role Anthropic accepts; a tool result is a user turn.
+        # Anthropic treats tool results as user turns.
         role = "user" if message.role in (Role.USER, Role.TOOL) else "assistant"
         turns.append({"role": role, "content": message.content})
 
@@ -233,21 +223,10 @@ def _optional_str(value: Any) -> str | None:
 
 
 class _StreamState:
-    """Reassembles Anthropic's streamed frames into one :class:`Completion`.
+    """Fold Anthropic frames into a :class:`Completion`.
 
-    Everything the blocking path reads off the response body is collected
-    from a different frame here:
-
-    ============  =====================================================
-    field         where it arrives
-    ============  =====================================================
-    model         ``message_start``
-    input tokens  ``message_start``
-    text          ``content_block_delta`` / ``text_delta``
-    tool calls    ``content_block_start`` plus ``input_json_delta`` parts
-    output tokens ``message_delta`` (final frame, not the first)
-    stop reason   ``message_delta``
-    ============  =====================================================
+    Model and input usage arrive at start; text and tool JSON arrive in block
+    deltas; output usage and stop reason arrive in the final message delta.
     """
 
     def __init__(self, model: str) -> None:
@@ -289,7 +268,7 @@ class _StreamState:
         usage = message.get("usage")
         if isinstance(usage, dict):
             self._input_tokens = _non_negative_int(usage.get("input_tokens"))
-            # Near-zero here; the real figure lands on `message_delta`.
+            # Final ``message_delta`` reports the definitive output count.
             self._output_tokens = _non_negative_int(usage.get("output_tokens"))
 
     def _block_start(self, frame: dict[str, Any]) -> None:
@@ -317,7 +296,7 @@ class _StreamState:
             return ""
 
         if delta.get("type") == "thinking_delta":
-            # Folded, not yielded: a `TextDelta` is the answer being typed.
+            # Preserve thinking without yielding it as answer text.
             thinking = delta.get("thinking")
             if isinstance(thinking, str):
                 self._thinking.append(thinking)
@@ -346,7 +325,7 @@ class _StreamState:
                 self._output_tokens = _non_negative_int(output)
 
     def finish(self, provider: str) -> Completion:
-        """The assembled response. An `error` frame (possible after a `200 OK`) is raised."""
+        """Build the response or raise an error received after HTTP success."""
         if self._error is not None:
             msg = f"{provider} failed mid-stream: {self._error}"
             raise ProviderError(msg)
@@ -380,7 +359,7 @@ def _index_of(frame: dict[str, Any]) -> int:
 
 
 def _parse_arguments(parts: list[str]) -> dict[str, Any]:
-    """Join the `input_json_delta` fragments and decode them; zero fragments means `{}`."""
+    """Decode joined ``input_json_delta`` fragments; absent or invalid means ``{}``."""
     joined = "".join(parts).strip()
     if not joined:
         return {}

@@ -1,4 +1,4 @@
-"""OAuth lifecycle endpoints. No credential or token is ever returned."""
+"""OAuth lifecycle endpoints; never return credentials or tokens."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/auth")
 
 
 class ChatGPTRuntimeResponse(BaseModel):
-    """The fetched App Server runtime: absent, downloading with progress, ready or failed."""
+    """App Server runtime state: missing, downloading, ready, or failed."""
 
     state: Literal["ready", "missing", "downloading", "error"]
     version: str
@@ -51,7 +51,7 @@ async def chatgpt_status(request: Request) -> ChatGPTAuthResponse:
 
 @router.post("/chatgpt/runtime")
 async def chatgpt_install_runtime(request: Request) -> ChatGPTAuthResponse:
-    """Fetch the pinned App Server runtime once; idempotent while it downloads."""
+    """Fetch the pinned App Server runtime; idempotent during download."""
     try:
         status_now = await _runtime(request).install_runtime()
     except Exception as exc:

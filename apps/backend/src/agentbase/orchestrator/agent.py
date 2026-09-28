@@ -1,20 +1,13 @@
-"""The worker agent loop: think, call a tool, observe, repeat.
+"""Worker agent loop: think, call a tool, observe, repeat.
 
-An agent is :class:`AgentSpec`, the frozen form of an `agent_defs` row taken at
-spawn. Everything the loop does becomes an event before it has any other
-effect, because the log is the only thing a replay gets to read (§2).
+An :class:`AgentSpec` freezes an ``agent_defs`` row at spawn. Emit every loop
+effect before anything else because replay reads only the log (§2).
 
-The allowlist is enforced here, against ``spec.allowed_tools``, at the moment
-of the call. Not *offering* a tool (the registry's job) is necessary and not
-sufficient: a model can name any tool string it was never shown, so exposure
-and enforcement read different sources on purpose.
-
-Control calls (`finish`, `handoff`, `spawn_agent`) touch nothing and execute
-directly. A catalogue tool reaches the disk, the shell or the network, so it
-goes through :meth:`Agent._catalogue_call`: sandbox, then approval gate, then
-execution, in that order (§1 constraint 5). A path outside the workspace is
-refused before an approval prompt is composed; a question a user can answer
-wrongly is not a boundary.
+Enforce ``spec.allowed_tools`` at call time. Offering tools is necessary but
+insufficient: models can name unseen strings, so exposure and enforcement use
+different sources. Control calls (``finish``, ``handoff``, ``spawn_agent``)
+touch nothing; catalogue calls use sandbox, approval gate, then execution (§1
+constraint 5). Refuse out-of-workspace paths before composing an approval.
 """
 
 from __future__ import annotations
@@ -51,17 +44,14 @@ __all__ = ["Agent", "AgentSpec", "StepOutcome", "ToolReply"]
 
 logger = logging.getLogger("agentbase.orchestrator")
 
-#: Sent when the model produces prose and calls nothing; without it a chatty
-#: model burns every step saying it is about to begin.
+#: Sent after prose without a call; prevents chatty models burning steps on intent.
 _NO_TOOL_NUDGE: Final[str] = (
     "You did not call a tool. Call `finish` with your result if the task is "
     "done, or call another tool to make progress. Do not reply with prose alone."
 )
 
-#: The most output tokens one model answer may carry. 4096 cut a tool call
-#: that wrote one large file to a broken half, which read as a missing
-#: argument and was retried at full context until the step limit; every
-#: model the price table lists accepts at least this.
+#: Maximum model output. 4096 cut a large-file tool call into an apparent
+#: missing argument, retried at full context; every priced model accepts this.
 MAX_OUTPUT_TOKENS: Final[int] = 16_384
 
 #: The providers' words for "the answer hit the output limit".
@@ -74,61 +64,57 @@ _CUT_OFF_NUDGE: Final[str] = (
     "repeat the same oversized call."
 )
 
-#: How many times in a row the same call may fail the same way, or be made
-#: with the same arguments, before the agent is stopped: a model that repeats
-#: itself spends a full context window on each try and learns nothing from it.
+#: Repeated identical failures or calls before stopping the agent; retries
+#: spend a full context window without learning.
 MAX_SAME_FAILURES: Final[int] = 3
 
-#: Every control call anywhere, so "you may not have this" (a denial) can be
-#: told from "this is not a thing" (an error).
+#: All control calls distinguish denial from an unknown-tool error.
 _ALL_CONTROL_NAMES: Final[frozenset[str]] = SUPERVISOR_CONTROL_NAMES | WORKER_CONTROL_NAMES
 
 
 class _Permission(Enum):
-    """What the agent is allowed to do with a tool call it just made."""
+    """Permission for the tool call just made."""
 
-    #: A control call this agent holds. Executes.
+    #: Held control call; execute it.
     CONTROL = auto()
-    #: A catalogue tool on this agent's allowlist. Sandbox, then gate, then execute.
+    #: Allowed catalogue tool: sandbox, gate, then execute.
     CATALOGUE = auto()
-    #: A real capability this agent does not have. `tool.denied`.
+    #: Registered capability absent from this agent; ``tool.denied``.
     DENIED = auto()
-    #: Not a tool at all. `tool.error`.
+    #: Unknown tool; ``tool.error``.
     UNKNOWN = auto()
 
 
 @dataclass(frozen=True, slots=True)
 class AgentSpec:
-    """What an agent is, resolved and frozen at the moment it spawns.
+    """Agent identity resolved and frozen at spawn.
 
-    Frozen because a definition edited mid-run must not affect the in-flight
-    run (§5 Phase 5); the definition's identity travels with it so a replay
-    can say what the agent was, not only that it ran.
+    Mid-run definition edits cannot affect it (§5 Phase 5); carry definition
+    identity so replay knows what ran, not only that it ran.
     """
 
     name: str
     role: str
     system_prompt: str
-    #: The `agent_defs` row this came from; ``None`` for the supervisor.
+    #: Source ``agent_defs`` row; ``None`` for supervisor.
     definition_id: str | None = None
-    #: The definition's own name, before `Run.register_agent` deduplicated it.
+    #: Definition name before :meth:`Run.register_agent` deduplication.
     definition_name: str | None = None
-    #: An allowlist, never a denylist. Names from :mod:`agentbase.tools.catalogue`.
+    #: Allowlist, never denylist; names from :mod:`agentbase.tools.catalogue`.
     allowed_tools: tuple[str, ...] = ()
-    #: Risk levels this definition asks to have pre-approved. Intersected with
-    #: the workspace policy at the call: it can narrow that policy, never widen it.
+    #: Requested pre-approval risks, intersected with workspace policy at call;
+    #: can narrow but never widen it.
     auto_approve: tuple[RiskLevel, ...] = ()
-    #: Already clamped to the run's ceiling by the registry.
+    #: Registry-clamped run ceiling.
     max_steps: int = 20
-    #: Which control calls this agent holds. A worker's set lacks `spawn_agent`.
+    #: Held control calls; workers lack ``spawn_agent``.
     control_names: frozenset[str] = field(default=WORKER_CONTROL_NAMES)
 
     def as_payload(self) -> dict[str, Any]:
-        """The shape written into `agent.spawned`.
+        """Build the ``agent.spawned`` payload.
 
-        The system prompt is here, once per agent: it is user-authored and the
-        most load-bearing fact about why two runs of one goal differed, and
-        `llm.request` carries the message list without it.
+        Include user-authored system prompt once: it explains divergent runs,
+        while ``llm.request`` omits it.
         """
         return {
             "role": self.role,
@@ -143,30 +129,29 @@ class AgentSpec:
 
 @dataclass(frozen=True, slots=True)
 class StepOutcome:
-    """Why an agent's loop ended, and what it produced."""
+    """Agent-loop exit reason and result."""
 
     result: str
     reason: str
     steps: int
-    #: Set when ``reason`` is ``"handoff"``: who to, and what they were asked.
+    #: Handoff recipient and task when ``reason`` is ``"handoff"``.
     handoff: tuple[str, str] | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class ToolReply:
-    """What a tool call hands back to the model so the loop can continue.
+    """Tool-call reply fed to the next model turn.
 
-    A separate type from :class:`StepOutcome` because an outcome ends the
-    agent and a reply feeds the next turn.
+    Unlike :class:`StepOutcome`, it does not end the agent.
     """
 
     content: str
-    #: The call did not do what was asked: refused, malformed, or it raised.
+    #: Call was refused, malformed, or raised.
     failed: bool = False
 
 
 class Agent:
-    """One worker. Runs until it finishes, hands off, or runs out of steps."""
+    """Worker that runs until finish, handoff, or step exhaustion."""
 
     def __init__(
         self,
@@ -184,8 +169,8 @@ class Agent:
         self._spec = spec
         self._tools = tools
         self._supervisor = supervisor_name
-        #: ``None`` means no catalogue tool can execute (the supervisor's case);
-        #: a permitted call then becomes a `tool.error` saying so.
+        #: ``None`` permits no catalogue execution (supervisor); permitted
+        #: calls then return ``tool.error``.
         self._runtime = runtime
 
     @property
@@ -197,11 +182,10 @@ class Agent:
         return self._spec
 
     async def execute(self, task: str) -> StepOutcome:
-        """Work the task until done, handed off, or out of steps."""
+        """Work until done, handed off, or out of steps."""
         messages: list[Message] = [Message(role=Role.USER, content=task)]
         last_text = ""
-        # The same failure, again and again, is how a model burns a step
-        # budget: the key is the tool and its message, and a success resets it.
+        # Track tool/message failures; success resets. Repeats burn step budget.
         last_failure: tuple[str, str] | None = None
         same_failures = 0
 
@@ -215,9 +199,8 @@ class Agent:
             last_text = completion.text or last_text
 
             if completion.stop_reason in _CUT_OFF_STOPS:
-                # A truncated answer's tool calls are half a call each: not
-                # run, and the model is told why rather than shown a missing
-                # argument it would only supply again.
+                # Do not run truncated calls; explain rather than expose a
+                # missing argument the model would resend.
                 await self._cut_off(completion, messages)
                 key = ("(answer)", "cut off at the output limit")
                 same_failures = same_failures + 1 if key == last_failure else 1
@@ -227,7 +210,7 @@ class Agent:
                 continue
 
             if not completion.tool_calls:
-                # Prose with no call: keep it for context, then nudge.
+                # Preserve prose as context, then nudge a call.
                 messages.append(Message(role=Role.ASSISTANT, content=completion.text))
                 messages.append(Message(role=Role.USER, content=_NO_TOOL_NUDGE))
                 continue
@@ -248,8 +231,8 @@ class Agent:
                         tool_call_id=call.id,
                     )
                 )
-                # A failure counts by its message; a success by its arguments,
-                # since the identical call made again and again is a loop too.
+                # Count failures by message and successes by arguments; both
+                # can form a loop.
                 key = (
                     (call.name, outcome.content)
                     if outcome.failed
@@ -268,7 +251,7 @@ class Agent:
         return await self._out_of_steps(last_text)
 
     async def _cut_off(self, completion: Completion, messages: list[Message]) -> None:
-        """Record a truncated answer and tell the model what to do instead."""
+        """Record a truncated answer and give corrective guidance."""
         messages.append(Message(role=Role.ASSISTANT, content=completion.text or "(cut off)"))
         names = ", ".join(call.name for call in completion.tool_calls)
         for call in completion.tool_calls:
@@ -294,7 +277,7 @@ class Agent:
         )
 
     async def _stuck(self, step: int, what: str, error: str, count: int) -> StepOutcome:
-        """Stop an agent that keeps failing the same way, and say so to the supervisor."""
+        """Stop repeated failures and report them to the supervisor."""
         result = (
             f"{self._spec.name} stopped: {what} failed the same way {count} times in a "
             f"row ({error}). It needs a different approach, not another try."
@@ -308,7 +291,7 @@ class Agent:
     # --- the model ---------------------------------------------------------
 
     async def _call_model(self, messages: list[Message], step: int) -> Completion:
-        """One streamed request, with every stage of it in the log."""
+        """Make one streamed request and log every stage."""
         await self._emit(
             EventType.LLM_REQUEST,
             {
@@ -339,7 +322,7 @@ class Agent:
             raise
 
         if completion is None:
-            # The protocol guarantees a terminal completion.
+            # Provider protocol guarantees terminal completion.
             msg = f"{self._provider.name} ended the stream with no completion"
             await self._emit(EventType.LLM_ERROR, {"error": msg})
             raise ProviderError(msg)
@@ -348,11 +331,11 @@ class Agent:
             EventType.LLM_RESPONSE,
             {
                 "text": completion.text,
-                # Reasoning the provider exposed, or None. Not part of `text`.
+                # Provider-exposed reasoning, if any; separate from ``text``.
                 "thinking": completion.thinking,
                 "input_tokens": completion.usage.input_tokens,
                 "output_tokens": completion.usage.output_tokens,
-                # None only from an unwrapped provider, which the app never builds.
+                # ``None`` only from an unwrapped provider; app never builds one.
                 "cost_micros": completion.cost_micros,
                 "stop_reason": completion.stop_reason,
                 "tool_calls": [
@@ -366,10 +349,9 @@ class Agent:
     # --- tool calls --------------------------------------------------------
 
     def _permit(self, name: str) -> _Permission:
-        """Decide what this agent may do with a call to ``name``.
+        """Decide whether this agent may call ``name``.
 
-        Reads the spec, never ``self._tools``: that list is what the model was
-        shown, and a model is free to ignore it.
+        Read spec, not ``self._tools``: models may ignore displayed tools.
         """
         if name in self._spec.control_names:
             return _Permission.CONTROL
@@ -377,17 +359,17 @@ class Agent:
         if name in self._spec.allowed_tools and is_registered(name):
             return _Permission.CATALOGUE
 
-        # A real capability this agent lacks, versus a name that means nothing.
+        # Distinguish unheld real capability from unknown name.
         if is_registered(name) or name in _ALL_CONTROL_NAMES:
             return _Permission.DENIED
 
         return _Permission.UNKNOWN
 
     async def _handle_call(self, call: ToolCall, step: int) -> StepOutcome | ToolReply:
-        """Emit the call's events, decide whether it may proceed, then dispatch.
+        """Log a call, check permission, then dispatch.
 
-        `tool.requested` is written *before* the permission check, so a replay
-        shows what the agent tried, beside the refusal.
+        Write ``tool.requested`` before permission so replay includes attempts
+        beside refusals.
         """
         details = {"tool": call.name, "args": call.arguments, "call_id": call.id}
         await self._emit(EventType.TOOL_REQUESTED, details)
@@ -406,7 +388,7 @@ class Agent:
         return await self._dispatch(call, step)
 
     async def _denied(self, call: ToolCall) -> ToolReply:
-        """A real tool this agent's definition does not permit: `tool.denied`."""
+        """Deny a registered tool absent from this definition as ``tool.denied``."""
         permitted = ", ".join(sorted(self._spec.allowed_tools)) or "none"
         reason = (
             f"{self._spec.name!r} is not permitted to call {call.name!r}. "
@@ -425,11 +407,10 @@ class Agent:
         return ToolReply(reason, failed=True)
 
     async def _catalogue_call(self, call: ToolCall) -> ToolReply:
-        """Sandbox, then gate, then execute: a permitted tool's whole journey.
+        """Run permitted tool: sandbox, gate, then execution.
 
-        Each way it can stop is a different event: no implementation or bad
-        arguments are `tool.error`; out of the sandbox or refused at the gate
-        are `tool.denied`. `tool.called` is written only when the call runs.
+        Missing implementation/bad arguments yield ``tool.error``; sandbox or
+        gate refusal yields ``tool.denied``. Emit ``tool.called`` only for runs.
         """
         runtime = self._runtime
         tool = runtime.get(call.name) if runtime is not None else None
@@ -496,14 +477,14 @@ class Agent:
         try:
             result = await tool.execute(prepared, runtime.sandbox)
         except ToolExecutionError as exc:
-            # Allowed, correct, and failed anyway: the agent is told and keeps going.
+            # Allowed valid call failed; inform agent and continue.
             await self._emit(
                 EventType.TOOL_ERROR,
                 {"tool": call.name, "call_id": call.id, "error": str(exc)},
             )
             return ToolReply(str(exc), failed=True)
         except Exception as exc:
-            # An unplanned exception in a tool must not take the run with it.
+            # Unexpected tool failure must not end the run.
             logger.exception("tool %s failed in run %s", call.name, self._run.id)
             error = f"{call.name} failed unexpectedly: {exc}"
             await self._emit(
@@ -519,7 +500,7 @@ class Agent:
         return ToolReply(result)
 
     async def _sandbox_denied(self, call: ToolCall, reason: str) -> ToolReply:
-        """Blocked at the sandbox layer, before anybody was asked."""
+        """Deny at sandbox layer before any approval."""
         await self._emit(
             EventType.TOOL_DENIED,
             {
@@ -527,17 +508,17 @@ class Agent:
                 "args": call.arguments,
                 "call_id": call.id,
                 "reason": reason,
-                # Tells a traversal attempt from a declined dialog on replay.
+                # Distinguish sandbox attempt from declined dialog in replay.
                 "blocked_by": "sandbox",
             },
         )
         return ToolReply(reason, failed=True)
 
     async def _dispatch(self, call: ToolCall, step: int) -> StepOutcome | ToolReply:
-        """Carry out one control call.
+        """Execute one control call.
 
-        The fallback is unreachable while `control_names` and these branches
-        agree; it is here because that agreement can break silently.
+        Fallback is unreachable while ``control_names`` and branches agree but
+        protects against silent drift.
         """
         if call.name == "finish":
             return await self._finish(call, step)
@@ -548,7 +529,7 @@ class Agent:
         return await self._unknown_tool(call)
 
     async def _unknown_tool(self, call: ToolCall) -> ToolReply:
-        """A tool that does not exist: a bad call, not a crashed run."""
+        """Report an unknown tool as a bad call, not a crashed run."""
         error = (
             f"{call.name!r} is not a tool you can call. Available tools: "
             f"{', '.join(tool.name for tool in self._tools)}."
@@ -571,10 +552,9 @@ class Agent:
         return StepOutcome(result=result, reason="finished", steps=step)
 
     async def _handoff(self, call: ToolCall, step: int) -> StepOutcome:
-        """A worker deciding the next step is not its job.
+        """End a worker turn and let supervisor decide next step.
 
-        The worker completes and the supervisor decides what to do with the
-        request; a worker cannot spawn or command another agent directly.
+        Workers cannot spawn or command agents directly.
         """
         recipient = _text_argument(call.arguments, "to")
         task = _text_argument(call.arguments, "task")
@@ -593,7 +573,7 @@ class Agent:
         )
 
     async def _out_of_steps(self, last_text: str) -> StepOutcome:
-        """§4 has no `agent.failed`, so a step limit *completes* with a reason."""
+        """§4 has no ``agent.failed``; step limits complete with a reason."""
         steps = self._spec.max_steps
         result = last_text or f"{self._spec.name} stopped after {steps} steps with no result."
 
@@ -608,7 +588,7 @@ class Agent:
 
 
 def _text_argument(arguments: dict[str, Any], key: str) -> str:
-    """Read a string argument, tolerating a model that sent the wrong shape."""
+    """Read a string argument while tolerating wrong model-provided shape."""
     value = arguments.get(key)
     if isinstance(value, str):
         return value

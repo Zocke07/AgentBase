@@ -1,11 +1,8 @@
 /**
- * A force-directed layout for the vault graph, deterministic so the same
- * notes land in the same places on every open: nodes start on a circle in a
- * fixed order and the simulation runs a fixed number of steps with no
- * randomness. Fruchterman and Reingold's springs and charges, with a little
- * gravity so disconnected notes do not drift off. Quadratic in the node
- * count, so the step count falls as the vault grows and a very large graph
- * keeps the circle.
+ * Deterministic Fruchterman-Reingold vault layout: nodes start in a fixed
+ * circle, run fixed simulation steps, and use gravity to retain disconnected
+ * notes. Since it is quadratic, steps decline as the vault grows; huge graphs
+ * remain circular.
  */
 
 export interface Point {
@@ -15,7 +12,7 @@ export interface Point {
 
 /** The distance two linked notes settle at, in canvas pixels. */
 const SPRING = 150;
-/** Beyond this, two notes stop pushing each other apart; it keeps a loner from flying off. */
+/** Repulsion cutoff prevents isolated notes from flying away. */
 const REACH = SPRING * 3;
 /** The pull toward the centre, as a fraction of the distance from it. */
 const GRAVITY = 0.12;

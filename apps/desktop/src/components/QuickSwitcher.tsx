@@ -4,9 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { fuzzyFilter } from "../lib/fuzzy";
 
 /**
- * Obsidian's quick switcher: type part of a title or path, arrow to a match,
- * Enter opens it. A query that names no existing note offers to create one,
- * which is how a vault grows in Obsidian too.
+ * Obsidian-style quick switcher: type title/path, navigate matches, Enter opens.
+ * Unmatched queries offer note creation.
  */
 
 export interface QuickSwitcherProps {

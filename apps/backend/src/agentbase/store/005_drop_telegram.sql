@@ -1,25 +1,16 @@
--- Migration 005 - the Telegram channel is gone (decision of 2026-09-11, in
--- CLAUDE.md; a §6 deviation from BUILD_SPEC §5 Phase 8, which names two
--- channels).
+-- Migration 005 removes Telegram (2026-09-11 decision in CLAUDE.md), a §6
+-- deviation from BUILD_SPEC §5 Phase 8.
 --
--- Settings are key/value rows with a JSON value, so removing a field from
--- `WorkspaceSettings` needs no schema change - an unknown key is ignored on
--- read. Two rows are still touched here, and for a reason each.
+-- JSON key/value settings need no schema change for a removed
+-- `WorkspaceSettings` field; unknown keys are ignored on read.
 --
--- `channel_identities` is a JSON list of `{channel, external_user_id,
--- identity}` and `channel` is validated against the channels this build
--- speaks. An entry for a channel that no longer exists would fail that
--- validation on every read, which takes `GET /settings` down with it - and
--- with it every run, since the launcher reads the settings. Filtering on read
--- would work and would log the same complaint on every request forever; a
--- migration runs exactly once, which is the property Phase 5 chose it for.
+-- Remove Telegram entries from `channel_identities`: validation would otherwise
+-- make every `GET /settings` fail, preventing launcher reads. A one-time
+-- migration avoids repeated read-time errors.
 --
--- `telegram_enabled` is deleted so that the table describes the product.
--- Harmless if left, misleading to anyone who opens the file.
+-- Delete `telegram_enabled` so settings describe the product.
 --
--- Nothing else refers to Telegram: no run was ever started from it (no bot
--- token ever existed), so `runs.origin` holds no such value and the events
--- table carries no `channel.inbound` for it.
+-- No run or event can reference Telegram: no bot token ever existed.
 
 UPDATE settings
 SET value = (

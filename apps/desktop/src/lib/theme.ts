@@ -4,10 +4,9 @@ import { create } from "zustand";
 import { readRenamedStorage, removeRenamedStorage } from "./storage";
 
 /**
- * Light or dark, following the OS with an override. "System" is the absence
- * of the `data-theme` attribute; the stylesheet's tokens do the rest. The
- * choice is a fact about this window, kept in this browser's storage, with
- * the read and write wrapped because storage can be unavailable.
+ * Light or dark theme with OS-following override. "System" removes
+ * `data-theme`; CSS tokens resolve it. Persist per-window choice when storage
+ * is available.
  */
 
 export type Theme = "system" | "light" | "dark";
@@ -45,13 +44,13 @@ export const useThemeStore = create<ThemeState>()((set) => ({
       if (theme === "system") removeRenamedStorage(KEY, LEGACY_KEY);
       else localStorage.setItem(KEY, theme);
     } catch {
-      // Not remembered, still applied for this window.
+      // Apply for this window without persisting.
     }
     set({ theme });
   },
 }));
 
-/** Keep the document root in step with the chosen theme. Called once, by the shell. */
+/** Sync the document root to the chosen theme; called once by the shell. */
 export function useTheme(): Theme {
   const theme = useThemeStore((state) => state.theme);
   useEffect(() => {

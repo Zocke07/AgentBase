@@ -1,11 +1,7 @@
-"""`read_file`, `list_dir`, `write_file`: the three tools that touch the disk.
+"""Filesystem tools: ``read_file``, ``list_dir``, and ``write_file``.
 
-None of them interprets a path: every one goes through
-:meth:`~agentbase.tools.sandbox.Sandbox.resolve_path` in `prepare`, the one
-place containment is decided. Results are truncated, and the truncation is
-stated in the result text: a tool result is repeated in every later
-`llm.request`, and a model that believes it read a whole file reasons about
-the part it did not see.
+All paths pass through :meth:`~agentbase.tools.sandbox.Sandbox.resolve_path`
+before approval. Read and listing results are bounded and report truncation.
 """
 
 from __future__ import annotations
@@ -23,18 +19,18 @@ if TYPE_CHECKING:
 
 __all__ = ["ListDirTool", "ReadFileTool", "WriteFileTool"]
 
-#: How much of a file `read_file` returns. See the module docstring.
+#: Maximum text returned by ``read_file``.
 MAX_READ_CHARS: Final[int] = 20_000
 
-#: How many entries `list_dir` returns.
+#: Maximum entries returned by ``list_dir``.
 MAX_DIR_ENTRIES: Final[int] = 500
 
-#: How much `write_file` will write in one call, so one bad call cannot fill the disk.
+#: Maximum text ``write_file`` writes in one call.
 MAX_WRITE_CHARS: Final[int] = 200_000
 
 
 def _risk(name: str) -> RiskLevel:
-    """The catalogue's risk for ``name``, never a second declaration of it."""
+    """Return catalogue risk for ``name`` without redeclaring it."""
     declaration = lookup(name)
     if declaration is None:  # pragma: no cover: pinned by a test
         msg = f"{name!r} has an implementation but no catalogue entry"
@@ -51,7 +47,7 @@ def _description(name: str) -> str:
 
 
 def _required_str(arguments: dict[str, Any], key: str, tool: str) -> str:
-    """Read a required string argument, or say what was wrong so the model can retry."""
+    """Read a required string argument or raise a retryable error."""
     value = arguments.get(key)
     if value is None:
         msg = f"{tool} needs a {key!r} argument and none was given."
@@ -115,7 +111,7 @@ class ReadFileTool:
                 msg = f"{shown} is a directory, not a file. Use list_dir for it."
                 raise ToolExecutionError(msg)
             try:
-                # A stray byte should not turn a readable file into an error.
+                # Preserve readable text despite stray bytes.
                 return path.read_text(encoding="utf-8", errors="replace")
             except OSError as exc:
                 msg = f"{shown} could not be read: {exc.strerror or exc}"
@@ -162,7 +158,7 @@ class ListDirTool:
         }
 
     def prepare(self, arguments: dict[str, Any], sandbox: Sandbox) -> Prepared:
-        # Optional: listing the root is the obvious first call.
+        # Listing the root is the default first call.
         raw = arguments.get("path") or "."
         if not isinstance(raw, str):
             msg = f"{self.name}'s 'path' must be a string, not {type(raw).__name__}."
@@ -219,10 +215,7 @@ class ListDirTool:
 
 
 class WriteFileTool:
-    """Create or overwrite a file inside the workspace.
-
-    Containment is the sandbox's, not this class's.
-    """
+    """Create or overwrite a sandboxed workspace file."""
 
     name = "write_file"
 
@@ -268,9 +261,8 @@ class WriteFileTool:
         resolved = sandbox.resolve_path(raw)
         shown = sandbox.relative(resolved)
 
-        # "create" and "overwrite" are different decisions for the user.
-        # Checked at prepare time, possibly minutes before the write; a file
-        # created meanwhile makes the description wrong, never the boundary.
+        # Prompt distinguishes creation from overwrite; this is descriptive,
+        # not a concurrency boundary.
         verb = "overwrite" if resolved.exists() else "create"
         return Prepared(
             tool_name=self.name,
@@ -287,7 +279,7 @@ class WriteFileTool:
         def write() -> str:
             try:
                 path.parent.mkdir(parents=True, exist_ok=True)
-                # `newline="\n"`: `write_text` would write CRLF on Windows.
+                # Force LF; ``write_text`` would use CRLF on Windows.
                 with path.open("w", encoding="utf-8", newline="\n") as handle:
                     handle.write(content)
             except OSError as exc:

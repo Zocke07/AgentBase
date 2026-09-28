@@ -2,8 +2,8 @@
 
 ## Adding things
 
-Each of these is a set of places that must agree. In every case a test already
-exists that fails when they do not: read the failure, it names the other place.
+Each checklist names locations that must agree. A test fails when they diverge;
+read its failure to find the other location.
 
 ### An event type
 
@@ -22,21 +22,21 @@ exists that fails when they do not: read the failure, it names the other place.
 
 1. `store/settings.py`: a field on `WorkspaceSettings` with its default.
 2. `api/settings.py`: the same field on `UpdateSettingsRequest`.
-   `test_every_workspace_setting_can_be_patched` compares the two field sets;
-   `extra="forbid"` already makes a missing one a loud 422.
+   `test_every_workspace_setting_can_be_patched` compares their field sets;
+   `extra="forbid"` makes a missing field a loud 422.
 3. `just schemas`.
 4. If a run depends on it, **snapshot it at run start** (see `RunLimits`): a
    run must not be held to different rules at step 1 and step 12.
-5. If a service depends on it (channels), make the `PATCH` handler reconcile
-   immediately. The **Restart AgentBase** button exists for keys, which only
-   reach the sidecar at spawn; a setting must never need it.
+5. For dependent services (channels), reconcile in the `PATCH` handler.
+   **Restart AgentBase** is only for keys, which reach the sidecar at spawn;
+   settings must never need it.
 6. For a space override, also update `store/spaces.py`, `api/spaces.py`,
    `Space.apply_to`, and the space editor. Preserve the distinction between a
-   missing PATCH field, `null` for inheritance, and `[]` for a space's manual
-   approval policy. Check `test_spaces_run.py` for snapshot and isolation tests.
+   missing PATCH field, `null` for inheritance, and `[]` for manual space
+   approval. Check `test_spaces_run.py` for snapshot/isolation tests.
 
-**Never default a value elsewhere that duplicates a setting the user can
-change.** That was the Phase 5 `max_steps` bug; the rule is in CLAUDE.md.
+**Never duplicate a user-changeable setting's default.** Phase 5's `max_steps`
+bug established this CLAUDE.md rule.
 
 ### A secret
 
@@ -48,9 +48,9 @@ change.** That was the Phase 5 `max_steps` bug; the rule is in CLAUDE.md.
    `KeyRows` component offers it through the shell's `restart_app` once any
    key has changed.
 
-Secrets go in the keychain and travel over stdin. Never in `settings`, never in
-a file, never in `argv`, never in a log. `test_no_api_keys_in_tracked_files`
-scans for key-shaped prefixes, including in Markdown.
+Secrets live in the keychain and travel over stdin, never `settings`, files,
+`argv`, or logs. `test_no_api_keys_in_tracked_files` scans key-like prefixes,
+including Markdown.
 
 ### A migration
 
@@ -63,45 +63,39 @@ scans for key-shaped prefixes, including in Markdown.
    `test_store_spaces.py` against populated old schemas. Also start the sidecar
    with a separate temporary data directory to check a fresh install.
 
-Built-ins are seeded by migration, **not** by startup code: a migration runs
-exactly once, so it does not overwrite later user edits. Migration 010 seeds
-the default space's ten investment definitions (fixed ids, `is_builtin = 1`,
-each skipped where the user already has that name) and retires the three
-generic roles 003 seeded, deleting each only while it still holds exactly
-its shipped values and otherwise leaving it as a deletable row. Space
-creation and the explicit seed endpoint use the starter roles in
-`store/builtins.py` through `AgentDefStore`; those copies have fresh ids and
-are deletable, and Python is their only copy now.
+Seed built-ins in migrations, **not** startup: migrations run once and cannot
+overwrite later edits. Migration 010 seeds ten fixed-ID, `is_builtin = 1`
+investment definitions in the default space, skipping names the user already
+has. It retires 003's three generic roles only while each retains exact shipped
+values; otherwise it remains deletable. Space creation and the explicit seed
+endpoint copy `store/builtins.py` starter roles through `AgentDefStore`; copies
+have new IDs, are deletable, and now exist only in Python.
 
 ### A tool
 
-1. `tools/catalogue.py`: a `ToolDeclaration` with a name, description and
-   `RiskLevel`. This is what `allowed_tools` validates against and what the
-   editor's checkboxes render. Policy is a *set* of levels, not a threshold.
+1. `tools/catalogue.py`: a named, described `ToolDeclaration` with `RiskLevel`.
+   `allowed_tools` validates it and editor checkboxes render it. Policy is a
+   *set* of levels, not a threshold.
 2. `tools/builtin/<module>.py`: implement `Tool`: **`prepare`** resolves and
-   validates while touching nothing (the sandbox check lives here, so an
-   out-of-bounds call is refused before anyone is asked), **`execute`** carries
-   out an already-approved call. `Prepared.summary` is the sentence the user
-   reads; build it from the *resolved* call.
+   validates without side effects (including sandbox refusal before approval);
+   **`execute`** performs the approved call. Build user-facing `Prepared.summary`
+   from the *resolved* call.
 3. `tools/builtin/__init__.py`: add to `BUILTIN_TOOLS`. `GET /tools` then
    reports it `available: true`.
 
-Every tool goes through the gate. There is no flag to skip it and there must
-not be one (§1 constraint 5).
+Every tool passes the gate; no bypass flag may exist (§1 constraint 5).
 
 ### A model or a provider
 
-- **Model:** a row in the appropriate provider table in `providers/pricing.py`,
-  from which `PRICES` and `MODELS_BY_PROVIDER` are derived, as dollar *strings*
-  (`_usd("2.50", "10.00")`): never a float near money. It appears in
-  `GET /settings/providers` and the editor dropdown automatically. An unpriced
-  model is refused, not charged at zero; that is the point.
+- **Model:** add a dollar-*string* row (`_usd("2.50", "10.00")`, never float)
+  to its `providers/pricing.py` table; it derives `PRICES` and
+  `MODELS_BY_PROVIDER`, then appears in `GET /settings/providers` and the
+  editor. Refuse unpriced models rather than charging zero.
 - **Provider:** a class implementing `Provider` (both `complete` and
   `stream`) in `providers/`, an entry in `factory.SUPPORTED_PROVIDERS`, and
   a construction branch in `build_provider`, a model catalogue entry, and
   `qualified_model` if it namespaces model ids the way Ollama does.
-  `test_qualified_model_is_what_the_built_provider_reports` covers every
-  provider.
+  `test_qualified_model_is_what_the_built_provider_reports` covers each one.
 
 ### An API route
 
@@ -111,7 +105,7 @@ not be one (§1 constraint 5).
    `openapi.py`, do not weaken the emitter.
 3. If the dashboard calls it, `lib/api.ts`: using only generated types.
    `test_the_schema_covers_every_route_the_dashboard_calls` checks.
-4. Validation and lookup failures are `400`/`404`/`409`/`422` with a readable message and, where
-   possible, the `field` they blame. Never a 500.
+4. Return validation/lookup errors as `400`/`404`/`409`/`422` with a readable
+   message and, where possible, the blamed `field`; never 500.
 
 ---

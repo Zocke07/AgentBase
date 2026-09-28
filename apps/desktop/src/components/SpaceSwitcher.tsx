@@ -5,19 +5,17 @@ import * as api from "../lib/api";
 import { usePresence } from "../state/usePresence";
 
 /**
- * The space switcher at the top of the rail: the current space, a list to
- * switch, and "New space…" (a name and how the roster starts). Archived
- * spaces sit in a collapsed group, still reachable. Creating one hands the
- * result up; the shell owns which space the window is looking at.
+ * Rail-top space switcher with current/list/new-space flow. Archived spaces
+ * remain in a collapsed group. Shell owns selection after creation.
  */
 
 export interface SpaceSwitcherProps {
   spaces: readonly SpaceResponse[];
   currentId: string | null;
   onSelect: (id: string) => void;
-  /** A space was created; the shell reloads the list and may switch to it. */
+  /** Created space; shell reloads and may select it. */
   onCreated: (space: SpaceResponse) => void;
-  /** The rail is icons only: show the space's initial, with the name in the tooltip. */
+  /** Icon-only rail shows initial and name tooltip. */
   compact?: boolean | undefined;
 }
 
