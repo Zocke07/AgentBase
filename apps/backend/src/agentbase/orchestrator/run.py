@@ -169,11 +169,13 @@ class Run:
             )
             raise RunDeadlineExceededError(msg)
 
-    async def check_cost(self) -> None:
-        """Raise after spending ``max_run_cost_micros``.
+    async def check_cost(self, next_call_micros: int = 0) -> None:
+        """Raise when spending ``next_call_micros`` more could pass the ceiling.
 
         Query run-ledger rows before each model request: a full-context retry
-        loop can burn a monthly budget despite its step limit.
+        loop can burn a monthly budget despite its step limit. The next call's
+        pessimistic cost is counted too, as the monthly cap counts it, so an
+        unattended run stops before the call that would cross its ceiling.
 
         :raises RunCostExceededError: with a user-facing reason.
         """
@@ -186,6 +188,14 @@ class Run:
                 f"This run hit its cost limit of {format_micros(ceiling)} (spent "
                 f"{format_micros(spent)}). Raise the limit in settings to allow "
                 f"costlier runs."
+            )
+            raise RunCostExceededError(msg)
+        if spent + next_call_micros > ceiling:
+            msg = (
+                f"This run stopped before its cost limit of {format_micros(ceiling)}: "
+                f"it has spent {format_micros(spent)}, and its next model call could "
+                f"add up to {format_micros(next_call_micros)}. Raise the limit in "
+                f"settings to allow costlier runs."
             )
             raise RunCostExceededError(msg)
 

@@ -545,6 +545,36 @@ async def test_a_run_that_spends_its_cost_limit_fails(
     assert "spent $5.00" in (rebuilt.outcome or "")
 
 
+async def test_a_run_stops_before_a_call_that_could_cross_its_cost_limit(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+) -> None:
+    """With nobody watching, the ceiling is the spending bound, so it must hold
+    before the call that would cross it, the way the monthly cap does."""
+    await settings.update({"max_run_cost_micros": 1_000_000})
+    script = [
+        # 150,000 claude-opus-5 input tokens cost $0.75: under the $1.00 ceiling.
+        says(
+            "Delegating.",
+            call("spawn_agent", "c1", agent="researcher", task="t"),
+            input_tokens=150_000,
+        ),
+        # A next call may write 16,384 output tokens (up to $0.41), which could
+        # carry the run past $1.00, so it is never made.
+        says("Would read.", call("finish", "w1", result="never reached")),
+        says("Would finish.", call("finish", "c2", result="never reached")),
+    ]
+
+    run_id, rebuilt = await drive(store, settings, agents, ledger, secrets, script)
+
+    assert rebuilt.status == "failed"
+    assert "before its cost limit of $1.00" in (rebuilt.outcome or "")
+    assert await ledger.run_spent_micros(run_id) < 1_000_000
+
+
 async def test_a_cost_limit_of_zero_is_no_ceiling(
     store: EventStore,
     settings: SettingsStore,

@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Final
 
+from agentbase.budget.ledger import estimate_usage
 from agentbase.events.types import EventType
 from agentbase.orchestrator.control import (
     SUPERVISOR_CONTROL_NAMES,
@@ -30,6 +31,7 @@ from agentbase.providers.base import (
     Role,
     TextDelta,
 )
+from agentbase.providers.pricing import cost_micros, is_priced
 from agentbase.tools.base import ToolArgumentError, ToolExecutionError
 from agentbase.tools.catalogue import is_registered
 from agentbase.tools.sandbox import SandboxViolationError, UrlNotAllowedError
@@ -191,7 +193,7 @@ class Agent:
 
         for step in range(1, self._spec.max_steps + 1):
             self._run.check_deadline()
-            await self._run.check_cost()
+            await self._run.check_cost(self._next_call_micros(messages))
 
             await self._emit(EventType.AGENT_THINKING, {"step": step})
 
@@ -289,6 +291,19 @@ class Agent:
         return StepOutcome(result=result, reason="stuck", steps=step)
 
     # --- the model ---------------------------------------------------------
+
+    def _next_call_micros(self, messages: list[Message]) -> int:
+        """The most the next model call could cost, as the ledger projects it.
+
+        An unpriced model counts as nothing here; the ledger refuses the call.
+        """
+        model = self._provider.model
+        if not is_priced(model):
+            return 0
+        projected = estimate_usage(
+            messages, max_tokens=MAX_OUTPUT_TOKENS, system=self._spec.system_prompt
+        )
+        return cost_micros(model, projected)
 
     async def _call_model(self, messages: list[Message], step: int) -> Completion:
         """Make one streamed request and log every stage."""
