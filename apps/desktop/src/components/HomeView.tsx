@@ -25,6 +25,9 @@ export interface HomeViewProps {
   space: SpaceResponse | null;
   /** Current start refusal or null. */
   blocker: string | null;
+  /** What the refusal is about: app setup, this space's own settings (a
+   * model the account cannot use) or the month's cap. */
+  blockerKind?: BlockerKind | undefined;
   /** All pending approvals, identifying blocked cards. */
   pendingApprovals: readonly ApprovalResponse[];
   /** Open-run log status when table lags. */
@@ -35,6 +38,8 @@ export interface HomeViewProps {
   onOpenRuns: () => void;
   onOpenAgents: () => void;
   onOpenSettings: () => void;
+  /** Open this space's settings, where its model is chosen. */
+  onOpenSpaceSettings?: (() => void) | undefined;
   /** Open a cited note in the Knowledge section. */
   onOpenNote?: ((path: string, heading: string | null) => void) | undefined;
   /** Spend/settings may change; shell reloads header. */
@@ -49,6 +54,15 @@ export interface HomeViewProps {
   /** Home changed the schedules (the pipeline turned on). */
   onSchedulesChanged?: (() => void) | undefined;
 }
+
+export type BlockerKind = "setup" | "space" | "cap";
+
+/** The pre-flight card's title for each cause. */
+const BLOCKER_TITLE: Record<BlockerKind, string> = {
+  setup: "One step before your first run",
+  space: "This space needs a different model",
+  cap: "This month's spending cap is reached",
+};
 
 const NO_SCHEDULES: ScheduleResponse[] = [];
 
@@ -67,6 +81,7 @@ function readyLine(names: readonly string[]): string {
 export function HomeView({
   space,
   blocker,
+  blockerKind = "setup",
   pendingApprovals,
   liveStatus,
   modelLabel,
@@ -74,6 +89,7 @@ export function HomeView({
   onOpenRuns,
   onOpenAgents,
   onOpenSettings,
+  onOpenSpaceSettings,
   onOpenNote,
   onWorkspaceChanged,
   runCapMicros = null,
@@ -219,12 +235,18 @@ export function HomeView({
       <div className="home__inner">
         {blocker !== null && (
           <section className="card card--notice home__preflight" role="status" data-testid="preflight">
-            <h2 className="card__title">One step before your first run</h2>
+            <h2 className="card__title">{BLOCKER_TITLE[blockerKind]}</h2>
             <p>{blocker}</p>
             <div className="card__actions">
-              <button type="button" className="button" onClick={onOpenSettings}>
-                Open settings
-              </button>
+              {blockerKind === "space" && onOpenSpaceSettings !== undefined ? (
+                <button type="button" className="button" onClick={onOpenSpaceSettings}>
+                  Open Space settings
+                </button>
+              ) : (
+                <button type="button" className="button" onClick={onOpenSettings}>
+                  Open settings
+                </button>
+              )}
               <button type="button" className="button" onClick={() => void demo()}>
                 Try a demo run
               </button>

@@ -33,6 +33,10 @@ export interface SpaceSettingsViewProps {
   onChanged: (space: SpaceResponse | null) => void;
   /** Open Automations, where this space's schedules now live. */
   onOpenAutomations?: (() => void) | undefined;
+  /** Whether the section is shown. A ChatGPT sign-in or sign-out happens in
+   * app Settings and changes which models the plan includes, so a return
+   * here reads them again. */
+  active?: boolean | undefined;
 }
 
 interface Form {
@@ -134,7 +138,13 @@ function diff(opened: Form, form: Form): UpdateSpaceRequest {
   return patch;
 }
 
-export function SpaceSettingsView({ space, settings, onChanged, onOpenAutomations }: SpaceSettingsViewProps) {
+export function SpaceSettingsView({
+  space,
+  settings,
+  onChanged,
+  onOpenAutomations,
+  active = true,
+}: SpaceSettingsViewProps) {
   const catalogue = useFetched(api.listProviders, EMPTY_CATALOGUE);
   // Which models a ChatGPT plan includes follows the OpenAI access mode.
   const access = settings?.settings.openai_access;
@@ -145,6 +155,15 @@ export function SpaceSettingsView({ space, settings, onChanged, onOpenAutomation
     seenAccess.current = access;
     reloadCatalogue();
   }, [access, reloadCatalogue]);
+  const [visit, setVisit] = useState(0);
+  const wasActive = useRef(active);
+  useEffect(() => {
+    if (active && !wasActive.current) {
+      reloadCatalogue();
+      setVisit((count) => count + 1);
+    }
+    wasActive.current = active;
+  }, [active, reloadCatalogue]);
   const tools = useFetched(api.listTools, NO_TOOLS);
   // Keep above remounting form so list reload `updated_at` changes do not hide
   // its saved notice, or what became of the agents a provider switch moved.
@@ -160,6 +179,7 @@ export function SpaceSettingsView({ space, settings, onChanged, onOpenAutomation
           settings={settings}
           catalogue={catalogue.data}
           tools={tools.data}
+          visit={visit}
           saved={saved}
           onEdited={() => {
             setSaved(null);
@@ -193,6 +213,7 @@ function SpaceForm({
   settings,
   catalogue,
   tools,
+  visit,
   saved,
   onEdited,
   onSaved,
@@ -200,6 +221,8 @@ function SpaceForm({
 }: SpaceSettingsViewProps & {
   catalogue: ProviderCatalogueResponse;
   tools: readonly ToolResponse[];
+  /** Moves on each return to the section, so the plan check runs again. */
+  visit: number;
   /** What the last save did, in a sentence; null before one. */
   saved: string | null;
   onEdited: () => void;
@@ -219,7 +242,6 @@ function SpaceForm({
   const errorFor = (field: string): string | null => errors[field] ?? null;
 
   const patch = diff(opened, form);
-  const dirty = Object.keys(patch).length > 0;
   const inherited = settings?.settings;
   const providerEntry = catalogue.providers.find((entry) => entry.name === form.provider);
   const knownModels = catalogue.models[form.provider] ?? [];
@@ -260,21 +282,29 @@ function SpaceForm({
   // Staying on OpenAI is a plan too when a ChatGPT subscription lacks the
   // space's model or an agent's: offered, never applied on its own.
   const repairing = planned !== null && planned.provider === opened.provider;
+  const moves = planned === null ? [] : planned.agents.filter((agent) => moving.has(agent.id));
+  // Moving only agents is a change too: a repair can leave the space's model be.
+  const dirty = Object.keys(patch).length > 0 || moves.length > 0;
   const chatgpt = inherited?.openai_access === "chatgpt";
-  const [repair, setRepair] = useState<ProviderSwitchPlan | null>(null);
+  const planLimited = opened.provider === "openai" && chatgpt;
+  const [repairFound, setRepair] = useState<ProviderSwitchPlan | null>(null);
+  // Bumped after a save that moved only agents, which remounts nothing.
+  const [checked, setChecked] = useState(0);
   useEffect(() => {
-    if (opened.provider !== "openai" || !chatgpt) return undefined;
+    if (!planLimited) return undefined;
     let live = true;
     api
       .planProviderSwitch(space.id, "openai")
       .then((plan) => {
-        if (live && (plan.model !== opened.model || plan.agents.length > 0)) setRepair(plan);
+        if (live) setRepair(plan.model !== opened.model || plan.agents.length > 0 ? plan : null);
       })
       .catch(() => undefined);
     return () => {
       live = false;
     };
-  }, [space.id, opened.provider, opened.model, chatgpt]);
+  }, [space.id, opened.model, planLimited, visit, checked]);
+  // A found repair is stale once the space leaves a ChatGPT plan's limits.
+  const repair = planLimited ? repairFound : null;
 
   const save = async () => {
     setErrors({});
@@ -296,8 +326,7 @@ function SpaceForm({
     if (!dirty) return;
     setSaving(true);
     try {
-      const updated = await api.updateSpace(space.id, patch);
-      const moves = planned === null ? [] : planned.agents.filter((agent) => moving.has(agent.id));
+      const updated = Object.keys(patch).length > 0 ? await api.updateSpace(space.id, patch) : space;
       const stuck: string[] = [];
       for (const agent of moves) {
         try {
@@ -320,6 +349,13 @@ function SpaceForm({
               }. Applies to the next run.`
             : "Saved. Applies to the next run.",
       );
+      if (updated === space) {
+        // Nothing remounts the form when the space row is unchanged.
+        setSwitchPlan(null);
+        setMoving(new Set());
+        setRepair(null);
+        setChecked((count) => count + 1);
+      }
       onChanged(updated);
     } catch (failure) {
       if (failure instanceof ApiError) setErrors({ [failure.field ?? FORM]: failure.message });

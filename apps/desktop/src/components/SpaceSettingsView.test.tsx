@@ -132,6 +132,84 @@ describe("a ChatGPT plan that lacks a model", () => {
     expect(mocked.updateAgent).toHaveBeenCalledWith("a-1", { provider: "openai", model: "gpt-5.6-luna" });
   });
 
+  it("saves a repair that moves only agents, and checks again after", async () => {
+    /* The space's own model was in the plan, so the form saw no change and
+       kept Save disabled: the ticked agents could never be moved. */
+    const user = userEvent.setup();
+    const included: SpaceResponse = { ...lab, provider: "openai", model: "gpt-5.6-terra" };
+    const chatgpt: SettingsResponse = {
+      ...settings,
+      settings: { ...settings.settings, provider: "openai", openai_access: "chatgpt" },
+    };
+    mocked.listProviders.mockResolvedValue({
+      providers: [{ name: "openai", requires_key: true, free_text_model: false }],
+      models: { openai: ["gpt-6-sol", "gpt-5.6-terra"] },
+      catalog: {},
+    });
+    mocked.planProviderSwitch.mockResolvedValueOnce({
+      provider: "openai",
+      model: "gpt-5.6-terra",
+      agents: [
+        { id: "a-1", name: "scanner", provider: "openai", model: "gpt-6-luna", to_model: "gpt-5.6-luna" },
+      ],
+    });
+    mocked.planProviderSwitch.mockResolvedValue({ provider: "openai", model: "gpt-5.6-terra", agents: [] });
+    mocked.updateAgent.mockResolvedValue({} as never);
+    const onChanged = vi.fn();
+    render(<SpaceSettingsView space={included} settings={chatgpt} onChanged={onChanged} />);
+
+    const notice = await screen.findByTestId("plan-repair");
+    expect(notice.textContent).not.toContain("this space's model");
+    await user.click(screen.getByTestId("plan-repair-apply"));
+    await user.click(screen.getByRole("button", { name: "Save space" }));
+
+    await waitFor(() => {
+      expect(mocked.updateAgent).toHaveBeenCalledWith("a-1", { provider: "openai", model: "gpt-5.6-luna" });
+    });
+    expect(mocked.updateSpace).not.toHaveBeenCalled();
+    expect((await screen.findByTestId("space-saved")).textContent).toContain(
+      "1 agent moved to models your ChatGPT plan includes",
+    );
+    expect(onChanged).toHaveBeenCalledWith(included);
+    // Checked again, and nothing is left to offer.
+    await waitFor(() => {
+      expect(mocked.planProviderSwitch).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.queryByTestId("plan-repair")).toBeNull();
+    expect(screen.getByRole("button", { name: "Save space" })).toHaveProperty("disabled", true);
+  });
+
+  it("drops the offer once access leaves the plan, and checks again on a return", async () => {
+    const onOpenai: SpaceResponse = { ...lab, provider: "openai", model: "gpt-6-sol" };
+    const chatgpt: SettingsResponse = {
+      ...settings,
+      settings: { ...settings.settings, provider: "openai", openai_access: "chatgpt" },
+    };
+    const apiKey: SettingsResponse = {
+      ...settings,
+      settings: { ...settings.settings, provider: "openai", openai_access: "api_key" },
+    };
+    mocked.planProviderSwitch.mockResolvedValue({ provider: "openai", model: "gpt-5.6-terra", agents: [] });
+    const { rerender } = render(
+      <SpaceSettingsView space={onOpenai} settings={chatgpt} onChanged={vi.fn()} active />,
+    );
+    await screen.findByTestId("plan-repair");
+
+    rerender(<SpaceSettingsView space={onOpenai} settings={apiKey} onChanged={vi.fn()} active />);
+    expect(screen.queryByTestId("plan-repair")).toBeNull();
+
+    // A sign-in or sign-out in app Settings changes the plan: a return rereads it.
+    rerender(<SpaceSettingsView space={onOpenai} settings={chatgpt} onChanged={vi.fn()} active={false} />);
+    const before = mocked.planProviderSwitch.mock.calls.length;
+    const catalogues = mocked.listProviders.mock.calls.length;
+    rerender(<SpaceSettingsView space={onOpenai} settings={chatgpt} onChanged={vi.fn()} active />);
+    await waitFor(() => {
+      expect(mocked.planProviderSwitch.mock.calls.length).toBeGreaterThan(before);
+    });
+    expect(mocked.listProviders.mock.calls.length).toBeGreaterThan(catalogues);
+    expect(await screen.findByTestId("plan-repair")).toBeTruthy();
+  });
+
   it("offers nothing where OpenAI access uses an API key", async () => {
     render(
       <SpaceSettingsView space={{ ...lab, provider: "openai", model: "gpt-6-sol" }} settings={settings} onChanged={vi.fn()} />,

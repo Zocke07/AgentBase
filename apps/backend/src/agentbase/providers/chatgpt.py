@@ -418,7 +418,11 @@ class CodexAppServerRuntime:
             return None
         try:
             listed = await self._require_client().models(include_hidden=True)
-        except (CodexError, ProviderError, RuntimeError, OSError):
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # Any failure, a reply the SDK cannot parse included, is "unknown":
+            # it must never take the catalogue or a check down with it.
             return None
         if listed.next_cursor is not None:
             return None

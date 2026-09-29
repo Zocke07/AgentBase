@@ -167,11 +167,13 @@ offered GPT-6 Astra and the GPT-5.6 and GPT-5.5 models, but not GPT-6 Sol or
 Luna. Once you are signed in, AgentBase asks the account which models it
 includes. The model pickers list those first and show the rest as **Not in
 your ChatGPT plan**; a new space, or one switched to OpenAI, starts on a model
-the plan includes; **Check** and Home say when a space's model is not one; and
-**Space settings** offers **Use the closest models it includes** for the space
-and any agent naming one it lacks. AgentBase never swaps a model on its own: a
-run on a model the plan lacks stops with that reason, and an API key reaches
-every model.
+the plan includes; Home says when a space's model is not one, and its button
+opens **Space settings**. There, a space on OpenAI offers **Use the closest
+models it includes** for its own model and for its agents that name one the
+plan lacks. An agent in a space on another provider that names an OpenAI model
+is changed in its own editor. AgentBase never swaps a model on its own: a run
+on a model the plan lacks stops with that reason, and an API key reaches every
+model.
 
 The first **Sign in with ChatGPT** downloads the OpenAI Codex App Server
 runtime (about 113 MB on macOS, 138 MB on Windows) from PyPI into AgentBase's

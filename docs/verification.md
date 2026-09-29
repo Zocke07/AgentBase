@@ -4,6 +4,32 @@ Updated 2026-09-29. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
+## ChatGPT plan models, 2026-09-29, on `main`, not released
+
+A signed-in ChatGPT account refused GPT-6 Sol, the space's model, with an
+HTTP 400 from Codex. `8cef8c2` reads the account's Codex `model/list` and keeps
+pickers, new-space defaults and tier mappings to it; the review fixes that
+followed are covered below.
+
+- **Gate.** `just check` passed (ruff, format, mypy on the host and
+  `--platform win32`, eslint, tsc); backend **1016 passed, 12 skipped, 1
+  failed**, the failure being the hygiene test on an untracked file outside
+  this work; desktop **49 files, 518 tests**. `just schemas` changed nothing.
+- **Review.** Two read-only reviewers and a verifier ran. The correctness
+  reviewer failed after five restarts and the verifier was interrupted, so
+  each of the constraints reviewer's six findings was checked against the code
+  by hand; all six held and were fixed. The worst: a repair that moved only
+  agents could not be saved, because the form counted only space fields as a
+  change. Its new test failed on the old code.
+- **Tests.** New tests cover the agents-only repair and the check after it,
+  the offer disappearing when access leaves the plan and returning when the
+  section is shown again, Home sending a missing model to Space settings, the
+  app-wide check leaving the backing model alone, a provider change and the
+  catalogue default keeping to the plan, a plan with no priced model, and a
+  model list the SDK cannot read.
+- **Not checked live.** No ChatGPT account was signed in during these checks,
+  so the plan paths ran against fakes of the runtime and the Codex client.
+
 ## Autonomy first (Phase 16), 2026-09-29, branch `autonomy-first`, not released
 
 Built on a separate worktree branched from `main` at `b718844`, so the

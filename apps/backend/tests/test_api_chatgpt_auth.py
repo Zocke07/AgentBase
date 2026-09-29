@@ -289,3 +289,47 @@ def test_staying_on_openai_plans_the_move_to_models_the_plan_includes(
     assert [(agent["name"], agent["to_model"]) for agent in plan["agents"]] == [
         ("scanner", "gpt-5.6-luna")
     ]
+
+
+def test_the_app_wide_check_leaves_the_backing_model_alone(app_paths: AppPaths) -> None:
+    """The app-wide model only backs a space row naming none, and each
+    space's check covers what its runs use: Settings must not report it."""
+    client, _ = _plan_client(app_paths)
+    with client:
+        client.patch(
+            "/settings",
+            json={"provider": "openai", "model": "gpt-6-sol", "openai_access": "chatgpt"},
+        )
+        verdict = client.post("/settings/verify").json()
+
+    assert verdict["ok"] is True
+
+
+def test_a_provider_change_starts_on_a_model_the_plan_includes(app_paths: AppPaths) -> None:
+    client, _ = _plan_client(app_paths)
+    with client:
+        client.patch("/settings", json={"openai_access": "chatgpt"})
+        changed = client.patch("/settings", json={"provider": "openai"}).json()
+        entries = client.get("/settings/providers").json()["providers"]
+
+    assert changed["settings"]["model"] == "gpt-5.6-sol"
+    defaults = {entry["name"]: entry["default_model"] for entry in entries}
+    assert defaults["openai"] == "gpt-5.6-sol"
+
+
+def test_a_plan_with_no_priced_model_says_so_rather_than_offer_one(
+    app_paths: AppPaths,
+) -> None:
+    runtime = FakeChatGPTRuntime(
+        ChatGPTAuthStatus(state="connected"), included=frozenset({"gpt-reserve"})
+    )
+    with TestClient(create_app(app_paths, chatgpt_runtime=runtime)) as client:
+        client.patch("/settings", json={"openai_access": "chatgpt"})
+        space = client.post(
+            "/spaces", json={"name": "Lab", "provider": "openai", "model": "gpt-6-sol"}
+        ).json()
+        verdict = client.post("/settings/verify", params={"space_id": space["id"]}).json()
+
+    assert verdict["ok"] is False
+    assert "none of the models it does include has a price" in verdict["reason"]
+    assert verdict["suggested_model"] is None

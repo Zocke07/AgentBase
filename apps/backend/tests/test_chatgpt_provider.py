@@ -263,10 +263,13 @@ class _FakeCodex:
         self.listed: list[str] = ["gpt-6-astra", "gpt-5.6-sol"]
         self.next_cursor: str | None = None
         self.model_calls = 0
+        self.model_error: Exception | None = None
 
     async def models(self, *, include_hidden: bool = False) -> Any:
         self.model_calls += 1
         assert include_hidden is True
+        if self.model_error is not None:
+            raise self.model_error
         return SimpleNamespace(
             data=[SimpleNamespace(model=name, id=name) for name in self.listed],
             next_cursor=self.next_cursor,
@@ -366,6 +369,16 @@ async def test_a_list_it_cannot_trust_blocks_nothing(tmp_path: Path) -> None:
     refuse a model the account may well include."""
     fake = _FakeCodex()
     fake.next_cursor = "page-2"
+    runtime = CodexAppServerRuntime(tmp_path / "codex", codex=cast(AsyncCodex, fake))
+
+    assert await runtime.models() is None
+
+
+async def test_a_list_reply_it_cannot_read_blocks_nothing(tmp_path: Path) -> None:
+    """The SDK validates the reply: a shape a newer Codex sends must read as
+    unknown, not take the catalogue and the pre-flight check down with it."""
+    fake = _FakeCodex()
+    fake.model_error = ValueError("1 validation error for ModelListResponse")
     runtime = CodexAppServerRuntime(tmp_path / "codex", codex=cast(AsyncCodex, fake))
 
     assert await runtime.models() is None

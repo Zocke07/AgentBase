@@ -10,7 +10,7 @@ import { AgentsView } from "./components/AgentsView";
 import { AutomationsView } from "./components/AutomationsView";
 import { BudgetMeter } from "./components/BudgetMeter";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { HomeView } from "./components/HomeView";
+import { type BlockerKind, HomeView } from "./components/HomeView";
 import { KnowledgeView } from "./components/KnowledgeView";
 import { Rail, type Section } from "./components/Rail";
 import { RunsView } from "./components/RunsView";
@@ -355,6 +355,14 @@ export function App() {
       : budget !== null && budget.percent_used >= 100
         ? `This month's cap of ${budget.cap_display} is reached, so further runs are refused.`
         : null;
+  // A model the account cannot use is fixed in Space settings, where the
+  // space's model is chosen; everything else in app Settings.
+  const blockerKind: BlockerKind =
+    verified !== null && !verified.ok
+      ? (verified.suggested_model ?? null) !== null
+        ? "space"
+        : "setup"
+      : "cap";
 
   // The start screen stays until the first screen has what it is drawn from,
   // so the window does not open half-filled; then it never comes back.
@@ -470,7 +478,7 @@ export function App() {
                 className="app__setup"
                 title={verified.reason ?? "Tasks cannot start until setup is finished."}
                 onClick={() => {
-                  setSection("settings");
+                  setSection(blockerKind === "space" ? "space" : "settings");
                 }}
               >
                 Finish setup
@@ -513,6 +521,7 @@ export function App() {
               <HomeView
                 space={space}
                 blocker={blocker}
+                blockerKind={blockerKind}
                 pendingApprovals={pendingApprovals}
                 liveStatus={liveStatus}
                 modelLabel={
@@ -531,6 +540,9 @@ export function App() {
                 }}
                 onOpenSettings={() => {
                   setSection("settings");
+                }}
+                onOpenSpaceSettings={() => {
+                  setSection("space");
                 }}
                 onOpenNote={openNote}
                 onWorkspaceChanged={refreshWorkspace}
@@ -627,6 +639,7 @@ export function App() {
                 <SpaceSettingsView
                   space={space}
                   settings={settings}
+                  active={section === "space"}
                   onOpenAutomations={() => {
                     setSection("automations");
                   }}

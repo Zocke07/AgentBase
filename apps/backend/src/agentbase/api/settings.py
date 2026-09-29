@@ -140,6 +140,16 @@ def _ledger(request: Request) -> BudgetLedger:
     return ledger
 
 
+async def _new_space_model(request: Request, provider: str, openai_access: str) -> str:
+    """The model a new space on ``provider`` starts on: the default tier, kept
+    to what a ChatGPT plan includes when one limits the provider."""
+    fallback = default_model_for(provider) or ""
+    included = await plan_models(provider, openai_access, _chatgpt_runtime(request))
+    if included is None:
+        return fallback
+    return equivalent(None, provider, provider, included) or fallback
+
+
 def _chatgpt_runtime(request: Request) -> ChatGPTRuntime:
     runtime: ChatGPTRuntime = request.app.state.chatgpt_runtime
     return runtime
@@ -201,7 +211,11 @@ async def update_settings(request: Request, body: UpdateSettingsRequest) -> Sett
         # its provider so it cannot name a model from a different provider.
         current = await _settings_store(request).get()
         if changes["provider"] != current.provider:
-            changes["model"] = default_model_for(changes["provider"]) or ""
+            changes["model"] = await _new_space_model(
+                request,
+                changes["provider"],
+                changes.get("openai_access", current.openai_access),
+            )
 
     if "channel_space_id" in changes:
         wanted = changes["channel_space_id"].strip()
@@ -288,7 +302,11 @@ async def list_providers(request: Request) -> ProviderCatalogueResponse:
                 name=name,
                 requires_key=secret is not None,
                 free_text_model=f"{name}/*" in PRICES,
-                default_model=default_model_for(name),
+                default_model=(
+                    await _new_space_model(request, name, settings.openai_access)
+                    if name == "openai"
+                    else default_model_for(name)
+                ),
             )
             for name, secret in sorted(SUPPORTED_PROVIDERS.items())
         ],
@@ -396,18 +414,25 @@ async def verify_provider(request: Request, space_id: str | None = None) -> Veri
         included = await plan_models(
             settings.provider, settings.openai_access, _chatgpt_runtime(request)
         )
-        if included is not None and settings.model not in included:
+        # A space's own model is what its runs use. The app-wide model only
+        # backs a row naming none, so the app-wide check leaves it alone.
+        if space_id is not None and included is not None and settings.model not in included:
             closest = equivalent(settings.model, "openai", "openai", included)
-            offer = (
-                f" The closest it includes is {closest}; choose it in Space settings."
-                if closest is not None
-                else " Choose a model it includes in Space settings."
-            )
+            if closest is None:
+                return VerifyResponse(
+                    ok=False,
+                    reason=(
+                        f"Your ChatGPT subscription does not include {settings.model}, and "
+                        f"none of the models it does include has a price in this version of "
+                        f"AgentBase, so runs through it are refused. Use an OpenAI API key."
+                    ),
+                )
             return VerifyResponse(
                 ok=False,
                 reason=(
                     f"Your ChatGPT subscription does not include {settings.model}, so runs "
-                    f"in this space would fail.{offer} An OpenAI API key reaches every model."
+                    f"in this space would fail. The closest it includes is {closest}; choose "
+                    f"it in Space settings. An OpenAI API key reaches every model."
                 ),
                 suggested_model=closest,
             )

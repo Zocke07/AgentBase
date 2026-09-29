@@ -150,6 +150,23 @@ describe("starting a run", () => {
     expect(onOpenSettings).toHaveBeenCalled();
   });
 
+  it("sends a model the account cannot use to Space settings, where it is chosen", async () => {
+    const user = userEvent.setup();
+    const onOpenSpaceSettings = vi.fn();
+    const { onOpenSettings } = home({
+      blocker: "Your ChatGPT subscription does not include gpt-6-sol.",
+      blockerKind: "space",
+      onOpenSpaceSettings,
+    });
+
+    const card = screen.getByTestId("preflight");
+    expect(card.textContent).toContain("This space needs a different model");
+    expect(card.textContent).not.toContain("first run");
+    await user.click(screen.getByRole("button", { name: "Open Space settings" }));
+    expect(onOpenSpaceSettings).toHaveBeenCalled();
+    expect(onOpenSettings).not.toHaveBeenCalled();
+  });
+
   it("offers the scripted demo run when a real one cannot start", async () => {
     const user = userEvent.setup();
     mocked.startDebugRun.mockResolvedValue(row("running", "run-demo", "demo"));
