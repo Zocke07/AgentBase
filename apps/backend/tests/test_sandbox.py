@@ -223,6 +223,61 @@ def test_the_violation_names_the_path_that_was_refused(sandbox: Sandbox) -> None
     assert "workspace" in message
 
 
+# --- app-owned paths are refused to agent writes ---------------------------
+#
+# Once medium risk can be answered by policy, nobody reads a write before it
+# happens. The app's own records then need a boundary of their own: a memory
+# written into `memory/` would skip the inbox, and a hidden folder holds
+# Obsidian's settings and the app's backups.
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "memory/runs/planted.md",
+        "memory/inbox/planted.md",
+        "memory/note.md",
+        "Memory/runs/planted.md",
+        ".obsidian/app.json",
+        ".agentbase/backups/x.md",
+        "notes/.hidden.md",
+        "notes/.cache/data.json",
+    ],
+)
+def test_an_agent_write_to_an_app_owned_path_is_refused(sandbox: Sandbox, path: str) -> None:
+    with pytest.raises(SandboxViolationError) as caught:
+        sandbox.resolve_write_path(path)
+
+    assert "managed by AgentBase" in str(caught.value)
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["notes/memory.md", "memoryx/a.md", "research/memory/notes.md", "raw/news.json"],
+)
+def test_ordinary_agent_writes_still_resolve(sandbox: Sandbox, path: str) -> None:
+    """Only the top-level `memory` folder is the app's; the word itself is not."""
+    assert sandbox.resolve_write_path(path).is_relative_to(sandbox.root)
+
+
+def test_a_link_into_the_memory_folder_is_refused_to_writes(sandbox: Sandbox) -> None:
+    """The check runs on the resolved path, so a link cannot rename the folder."""
+    (sandbox.root / "memory" / "runs").mkdir(parents=True)
+    link = sandbox.root / "notes"
+    try:
+        _link_to_directory(link, sandbox.root / "memory")
+    except (OSError, NotImplementedError, AttributeError):  # pragma: no cover
+        pytest.skip("this platform/user can create neither a symlink nor a junction")
+
+    with pytest.raises(SandboxViolationError):
+        sandbox.resolve_write_path("notes/runs/planted.md")
+
+
+def test_reads_of_app_owned_paths_are_unchanged(sandbox: Sandbox) -> None:
+    """Agents may still read memory notes; only writing them is the app's."""
+    assert sandbox.resolve_path("memory/runs/x.md").is_relative_to(sandbox.root)
+
+
 # --- the root itself -------------------------------------------------------
 
 

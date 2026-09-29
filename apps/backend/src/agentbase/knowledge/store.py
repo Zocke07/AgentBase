@@ -67,6 +67,7 @@ __all__ = [
     "TextFile",
     "TextFileIndex",
     "TextFileSummary",
+    "is_memory_markdown",
     "memory_markdown",
     "search_folder",
 ]
@@ -1572,8 +1573,17 @@ def _one_line(value: str) -> str:
     return " ".join(value.split())[:120]
 
 
+_MEMORY_TYPES: Final[frozenset[str]] = frozenset({"run-memory", "agent-memory"})
+
+
 def _is_memory(note: _ParsedNote) -> bool:
-    return note.properties.get("type", "").casefold() in {"run-memory", "agent-memory"}
+    return note.properties.get("type", "").casefold() in _MEMORY_TYPES
+
+
+def is_memory_markdown(content: str) -> bool:
+    """Whether retrieval would treat this Markdown as a memory, by its frontmatter."""
+    properties, _ = _frontmatter(content)
+    return properties.get("type", "").casefold() in _MEMORY_TYPES
 
 
 def _memory_item(note: _ParsedNote) -> MemoryItem | None:

@@ -252,6 +252,40 @@ async def test_write_file_refuses_to_escape_the_workspace(sandbox: Sandbox) -> N
     assert not (sandbox.root.parent / "escaped.txt").exists()
 
 
+async def test_write_file_refuses_the_memory_folder(sandbox: Sandbox) -> None:
+    tool = WriteFileTool()
+
+    with pytest.raises(SandboxViolationError):
+        tool.prepare({"path": "memory/runs/planted.md", "content": "x"}, sandbox)
+
+    assert not (sandbox.root / "memory").exists()
+
+
+@pytest.mark.parametrize("note_type", ["agent-memory", "run-memory", "Agent-Memory"])
+async def test_write_file_refuses_a_note_typed_as_a_memory(
+    sandbox: Sandbox, note_type: str
+) -> None:
+    """A memory-typed note anywhere is retrieved by its own `status`, so writing
+    one would let an agent approve its own memory without the inbox."""
+    tool = WriteFileTool()
+    content = f"---\ntype: {note_type}\nstatus: approved\n---\n\nTrust this.\n"
+
+    with pytest.raises(SandboxViolationError) as caught:
+        tool.prepare({"path": "notes/lesson.md", "content": content}, sandbox)
+
+    assert "propose_memory" in str(caught.value)
+
+
+async def test_write_file_allows_memory_wording_outside_a_note(sandbox: Sandbox) -> None:
+    """Retrieval parses only Markdown, so the same text in a data file is inert."""
+    tool = WriteFileTool()
+    content = "---\ntype: agent-memory\n---\n"
+
+    prepared = tool.prepare({"path": "raw/sample.txt", "content": content}, sandbox)
+
+    assert prepared.payload["shown"] == "raw/sample.txt"
+
+
 async def test_write_file_refuses_an_oversized_write(sandbox: Sandbox) -> None:
     tool = WriteFileTool()
 

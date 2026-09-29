@@ -107,6 +107,32 @@ class Sandbox:
 
         return resolved
 
+    def resolve_write_path(self, candidate: str) -> Path:
+        """Resolve a path an agent wants to write, refusing app-owned places.
+
+        The top-level ``memory`` folder is where the inbox and run memories
+        live, and hidden folders hold Obsidian's settings and the app's
+        backups. A write there would skip the memory inbox, so it is refused
+        before any policy can answer it. The check runs on the resolved path,
+        so a link cannot rename its way in.
+
+        :raises SandboxViolationError: for everything :meth:`resolve_path`
+            refuses, and for an app-owned destination.
+        """
+        resolved = self.resolve_path(candidate)
+        parts = resolved.relative_to(self.root).parts
+        hidden = any(part.startswith(".") for part in parts)
+        # Case-folded because Windows and macOS treat Memory/ as memory/.
+        if hidden or (parts and parts[0].casefold() == "memory"):
+            msg = (
+                f"{candidate!r} is managed by AgentBase and agents cannot write "
+                f"there. The memory folder and hidden folders such as .obsidian "
+                f"hold the app's own records; to suggest a memory, use "
+                f"propose_memory, which puts it in the inbox for review."
+            )
+            raise SandboxViolationError(msg)
+        return resolved
+
     def relative(self, path: Path) -> str:
         """Render a resolved path relative to the root, for prompts and payloads."""
         try:

@@ -1,7 +1,8 @@
 """Filesystem tools: ``read_file``, ``list_dir``, and ``write_file``.
 
 All paths pass through :meth:`~agentbase.tools.sandbox.Sandbox.resolve_path`
-before approval. Read and listing results are bounded and report truncation.
+before approval, and writes through ``resolve_write_path``, which also keeps
+agents out of the app's own records. Read and listing results are bounded and report truncation.
 """
 
 from __future__ import annotations
@@ -9,8 +10,10 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any, Final
 
+from agentbase.knowledge.store import is_memory_markdown
 from agentbase.tools.base import Prepared, ToolArgumentError, ToolExecutionError
 from agentbase.tools.catalogue import RiskLevel, lookup
+from agentbase.tools.sandbox import SandboxViolationError
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -258,8 +261,19 @@ class WriteFileTool:
             )
             raise ToolArgumentError(msg)
 
-        resolved = sandbox.resolve_path(raw)
+        resolved = sandbox.resolve_write_path(raw)
         shown = sandbox.relative(resolved)
+
+        # A memory-typed note is retrieved by its own `status`, so writing one
+        # would approve a memory without the inbox. Retrieval reads only
+        # Markdown, which is the only kind worth refusing.
+        if resolved.suffix.casefold() == ".md" and is_memory_markdown(content):
+            msg = (
+                f"{shown} is written as a memory note, and agents cannot write "
+                f"memories directly. Use propose_memory, which puts it in the "
+                f"inbox for review."
+            )
+            raise SandboxViolationError(msg)
 
         # Prompt distinguishes creation from overwrite; this is descriptive,
         # not a concurrency boundary.
