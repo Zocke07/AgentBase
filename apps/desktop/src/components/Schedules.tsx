@@ -14,9 +14,9 @@ import { whenLabel } from "../lib/format";
 import { useFetched } from "../state/useFetched";
 
 /**
- * Space schedules run goals while the app is open. List next/last executions;
- * editor previews daily, weekly, or N-hour cadence through sidecar scheduler
- * logic, matching saved behavior.
+ * Space schedules run goals on their own while the app is open. List next/last
+ * executions; the editor previews daily, weekly, N-hour or after-another-stage
+ * cadence through the sidecar's own scheduler logic, matching saved behavior.
  */
 
 export interface SchedulesProps {
@@ -25,6 +25,8 @@ export interface SchedulesProps {
   settings: SettingsResponse | null;
   /** Open schedule's latest run; absent without run navigation. */
   onOpenRun?: ((runId: string) => void) | undefined;
+  /** Open the editor for a new schedule with this goal; a new nonce reopens it. */
+  draftRequest?: { goal: string; nonce: number } | null | undefined;
 }
 
 type Cadence = CreateScheduleRequest["cadence"];
@@ -130,7 +132,14 @@ function names(tools: string[]): string {
   return tools.length <= 1 ? tools.join("") : `${tools.slice(0, -1).join(", ")} and ${tools[tools.length - 1] ?? ""}`;
 }
 
-export function Schedules({ space, settings, onOpenRun }: SchedulesProps) {
+/** What happens to a question nobody is there to answer, in the sidecar's terms. */
+function expiryWords(seconds: number | null): string {
+  if (seconds === null) return "with nobody to answer, it expires after a short wait";
+  if (seconds === 0) return "with nobody to answer, it is refused at once";
+  return `with nobody to answer, it expires after ${String(seconds)} seconds`;
+}
+
+export function Schedules({ space, settings, onOpenRun, draftRequest }: SchedulesProps) {
   const load = useCallback(() => api.listSchedules(space.id), [space.id]);
   const schedules = useFetched(load, NO_SCHEDULES);
   // Editor target: none, new schedule, or row ID.
@@ -142,13 +151,37 @@ export function Schedules({ space, settings, onOpenRun }: SchedulesProps) {
 
   const allowed = effectiveAutoApprove(space, settings);
   const policies = effectiveToolPolicies(space, settings);
-  const always = Object.keys(policies).filter((tool) => policies[tool] === "allow");
+  // High risk is never answered by policy, whatever an older setting says.
+  const always = Object.keys(policies).filter((tool) => policies[tool] === "allow" && tool !== "run_shell");
   const never = Object.keys(policies).filter((tool) => policies[tool] === "deny");
+  const hosts = settings?.settings.auto_approve_hosts ?? [];
+  const anyHost = hosts.includes("*");
+  const fetchesByPolicy =
+    allowed.includes("medium") || always.includes("http_get") || always.includes("read_feed");
+  const questionSeconds = settings?.settings.unattended_question_seconds ?? null;
   const runSeconds = space.max_run_seconds ?? settings?.settings.max_run_seconds ?? null;
   const steps = space.max_steps_per_agent ?? settings?.settings.max_steps_per_agent ?? null;
   const agentsPerRun = space.max_agents_per_run ?? settings?.settings.max_agents_per_run ?? null;
   const runCap = space.max_run_cost_micros ?? settings?.settings.max_run_cost_micros ?? null;
   const unattended = allowed.length > 0 || always.length > 0;
+  // A space set to answer nothing itself is the reason, not the app-wide choice.
+  const supervisedSpace = Array.isArray(space.auto_approve) && space.auto_approve.length === 0;
+
+  // Run now opens the run it started; the list shows its outcome either way.
+  const runNow = async (row: ScheduleResponse): Promise<string> => {
+    const run = await api.runScheduleNow(row.id);
+    onOpenRun?.(run.id);
+    return `Started a run for ${row.name}: ${run.id.slice(0, 8)}.`;
+  };
+
+  // A request to repeat a goal opens a new editor once per request, adjusted
+  // while rendering rather than in an effect so it never shows a stale frame.
+  const [handledDraft, setHandledDraft] = useState<number | null>(null);
+  if (draftRequest !== null && draftRequest !== undefined && draftRequest.nonce !== handledDraft) {
+    setHandledDraft(draftRequest.nonce);
+    setEditing({ kind: "new" });
+    setNotice(null);
+  }
 
   const act = async (id: string, work: () => Promise<string | null>) => {
     setBusyId(id);
@@ -184,8 +217,9 @@ export function Schedules({ space, settings, onOpenRun }: SchedulesProps) {
         )}
       </div>
       <p className="settings__hint">
-        A goal this space runs on its own at set times, while AgentBase is open. A time that passes
-        while the app is closed is run once at the next launch or skipped, as each schedule says.
+        A goal this space runs on its own at set times, or right after another schedule&apos;s run
+        completes, while AgentBase is open. A time that passes while the app is closed is run once at
+        the next launch or skipped, as each schedule says.
       </p>
       {space.archived === true && (
         <p className="settings__hint schedules__warning" role="status">
@@ -193,7 +227,7 @@ export function Schedules({ space, settings, onOpenRun }: SchedulesProps) {
         </p>
       )}
       {/* What a run with nobody at the window will do here, read the way the
-          sidecar reads it: levels, then answers by tool, then the limits. */}
+          sidecar reads it: levels, then answers by tool, hosts, then the limits. */}
       <div className={unattended ? "schedules__readout" : "schedules__readout schedules__readout--warn"} data-testid="schedules-policy">
         <p>
           <b>Unattended, a run here</b>{" "}
@@ -201,28 +235,30 @@ export function Schedules({ space, settings, onOpenRun }: SchedulesProps) {
             ? `${[
                 allowed.length > 0 ? `calls ${allowed.join("- and ")}-risk tools without asking` : "",
                 always.length > 0 ? `runs ${names(always)} without asking whatever the level` : "",
+                fetchesByPolicy && !anyHost
+                  ? hosts.length > 0
+                    ? `fetches from ${names([...hosts])} without asking and asks before any other site`
+                    : "asks before fetching from any site"
+                  : "",
                 never.length > 0 ? `is refused ${names(never)}` : "",
               ]
                 .filter((part) => part !== "")
-                .join(", ")}; everything else asks and, with nobody to answer, waits${
-                runSeconds !== null ? ` up to ${String(runSeconds)} seconds` : ""
-              }, then the run fails.`
-            : `asks before every tool call${never.length > 0 ? ` (and is refused ${names(never)})` : ""} and, with nobody to answer, each question waits${
-                runSeconds !== null ? ` up to ${String(runSeconds)} seconds` : ""
-              }, then the run fails.`}
+                .join(", ")}. It always asks before run_shell; any question ${expiryWords(questionSeconds)} and the run carries on without that call.`
+            : `asks before every tool call${never.length > 0 ? ` (and is refused ${names(never)})` : ""}, and each question ${expiryWords(questionSeconds)}, so the run does little on its own.`}
           {steps !== null && agentsPerRun !== null && runSeconds !== null && (
             <>
               {" "}
               It stops at {String(steps)} steps per agent, {String(agentsPerRun)} agents,{" "}
-              {String(runSeconds)} seconds{runCap !== null && runCap > 0 && ` or $${(runCap / 1_000_000).toFixed(2)} spent`},
+              {String(runSeconds)} seconds{runCap !== null && runCap > 0 && ` or before spending $${(runCap / 1_000_000).toFixed(2)}`},
               unless a schedule sets its own time limit below.
             </>
           )}
         </p>
         {!unattended && (
           <p>
-            To let it work on its own, tick the risk levels you trust or set the tools it needs to
-            Always allow, under Limits and approvals above.
+            {supervisedSpace
+              ? "This space is set to Supervised in Space settings. Set its approvals back to the app-wide policy to let it work on its own."
+              : "To let it work on its own, choose Autonomous under Approvals in Settings."}
           </p>
         )}
       </div>
@@ -277,6 +313,8 @@ export function Schedules({ space, settings, onOpenRun }: SchedulesProps) {
                   <p className="schedule__when">
                     {row.enabled === false ? (
                       "Off"
+                    ) : row.cadence.kind === "after" ? (
+                      "Starts when the stage before it completes"
                     ) : row.next_run_at !== null && row.next_run_at !== undefined ? (
                       <>Next: {whenLabel(row.next_run_at)}</>
                     ) : (
@@ -316,10 +354,7 @@ export function Schedules({ space, settings, onOpenRun }: SchedulesProps) {
                     className="button button--small"
                     disabled={busy || space.archived === true}
                     onClick={() => {
-                      void act(row.id, async () => {
-                        const run = await api.runScheduleNow(row.id);
-                        return `Started a run for ${row.name}: ${run.id.slice(0, 8)}.`;
-                      });
+                      void act(row.id, () => runNow(row));
                     }}
                   >
                     Run now
@@ -383,9 +418,11 @@ export function Schedules({ space, settings, onOpenRun }: SchedulesProps) {
 
       {editing.kind !== "none" && (
         <ScheduleEditor
-          key={editing.kind === "row" ? editing.id : "new"}
+          key={editing.kind === "row" ? editing.id : `new-${String(draftRequest?.nonce ?? 0)}`}
           spaceId={space.id}
           existing={editingRow}
+          others={schedules.data.filter((row) => editing.kind !== "row" || row.id !== editing.id)}
+          initialGoal={editing.kind === "new" ? (draftRequest?.goal ?? "") : ""}
           onCancel={() => {
             setEditing({ kind: "none" });
           }}
@@ -407,15 +444,22 @@ export function Schedules({ space, settings, onOpenRun }: SchedulesProps) {
 function ScheduleEditor({
   spaceId,
   existing,
+  others,
+  initialGoal,
   onCancel,
   onSaved,
 }: {
   spaceId: string;
   existing: ScheduleResponse | null;
+  /** The space's other schedules, which a stage may follow. */
+  others: readonly ScheduleResponse[];
+  initialGoal: string;
   onCancel: () => void;
   onSaved: (saved: ScheduleResponse, created: boolean) => void;
 }) {
-  const [draft, setDraft] = useState<Draft>(() => (existing === null ? BLANK : fromSchedule(existing)));
+  const [draft, setDraft] = useState<Draft>(() =>
+    existing === null ? { ...BLANK, goal: initialGoal } : fromSchedule(existing),
+  );
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState<{ summary: string; next: string[] } | null>(null);
@@ -531,6 +575,7 @@ function ScheduleEditor({
               ["daily", "Every day"],
               ["weekly", "On chosen days"],
               ["interval", "Every few hours"],
+              ["after", "After another schedule"],
             ] as const
           ).map(([kind, label]) => (
             <label key={kind} className="editor__tool">
@@ -547,7 +592,31 @@ function ScheduleEditor({
             </label>
           ))}
         </div>
-        {draft.kind !== "interval" && (
+        {draft.kind === "after" && (
+          <label className="editor__field">
+            <span>Starts when this schedule&apos;s run completes</span>
+            <select
+              value={draft.after}
+              onChange={(changed) => {
+                set("after", changed.target.value);
+              }}
+              aria-invalid={errorFor("after") !== null}
+              data-testid="schedule-after"
+            >
+              <option value="">Choose a schedule…</option>
+              {others.map((other) => (
+                <option key={other.id} value={other.id}>
+                  {other.name}
+                </option>
+              ))}
+            </select>
+            <span className="editor__hint">
+              A failed or stopped run ends the chain there, and says so on the next stage.
+            </span>
+            <FieldError message={errorFor("after")} />
+          </label>
+        )}
+        {(draft.kind === "daily" || draft.kind === "weekly") && (
           <label className="editor__field editor__field--narrow">
             <span>At</span>
             <input
@@ -604,12 +673,14 @@ function ScheduleEditor({
         <p className="schedule-editor__preview" data-testid="schedule-preview">
           {preview === null
             ? "Times are in this computer's local time."
-            : `${preview.summary}. Next: ${preview.next.map(whenLabel).join(", ")}.`}
+            : preview.next.length === 0
+              ? `${preview.summary}.`
+              : `${preview.summary}. Next: ${preview.next.map(whenLabel).join(", ")}.`}
         </p>
         <FieldError message={errorFor("cadence")} />
       </fieldset>
 
-      <fieldset className="editor__tools">
+      <fieldset className="editor__tools" hidden={draft.kind === "after"}>
         <legend>If the app is closed at that time</legend>
         <label className="editor__tool">
           <input

@@ -47,6 +47,8 @@ function settingsWith(autoApprove: RiskLevel[]): SettingsResponse {
       provider: "ollama",
       model: "qwen3:4b",
       auto_approve: autoApprove,
+      auto_approve_hosts: ["news.google.com", "stooq.com"],
+      unattended_question_seconds: 120,
       max_steps_per_agent: 20,
       max_agents_per_run: 5,
       max_run_seconds: 600,
@@ -110,7 +112,15 @@ describe("Schedules", () => {
 
     const warning = screen.getByTestId("schedules-policy");
     expect(warning.textContent).toContain("asks before every tool call");
-    expect(warning.textContent).toContain("up to 600 seconds");
+    expect(warning.textContent).toContain("expires after 120 seconds");
+    expect(warning.textContent).toContain("choose Autonomous under Approvals in Settings");
+  });
+
+  it("points at the space itself when the space is the one set to ask", async () => {
+    render(<Schedules space={{ ...lab, auto_approve: [] }} settings={settingsWith(["low", "medium"])} />);
+    await screen.findByTestId("schedule-sched-1");
+
+    expect(screen.getByTestId("schedules-policy").textContent).toContain("set to Supervised in Space settings");
   });
 
   it("says what an unattended run may call when the policy allows something", async () => {
@@ -121,8 +131,18 @@ describe("Schedules", () => {
 
     const note = screen.getByTestId("schedules-policy");
     expect(note.textContent).toContain("calls low-risk tools without asking");
-    expect(note.textContent).toContain("up to 900 seconds");
+    expect(note.textContent).toContain("always asks before run_shell");
+    expect(note.textContent).toContain("expires after 120 seconds and the run carries on without that call");
     expect(note.textContent).toContain("stops at 20 steps per agent, 5 agents, 900 seconds");
+  });
+
+  it("names the hosts an unattended fetch may reach when medium risk runs on its own", async () => {
+    render(<Schedules space={lab} settings={settingsWith(["low", "medium"])} />);
+    await screen.findByTestId("schedule-sched-1");
+
+    expect(screen.getByTestId("schedules-policy").textContent).toContain(
+      "fetches from news.google.com and stooq.com without asking and asks before any other site",
+    );
   });
 
   it("reads the answers by tool into the unattended readout, the stricter one per tool", async () => {
@@ -157,6 +177,71 @@ describe("Schedules", () => {
     await userEvent.click(within(row).getByRole("button", { name: "Run now" }));
     expect(mocked.runScheduleNow).toHaveBeenCalledWith("sched-1");
     expect((await screen.findByRole("status")).textContent).toContain("Started a run for Morning digest");
+  });
+
+  it("opens the run that Run now started", async () => {
+    mocked.runScheduleNow.mockResolvedValue({
+      id: "run-now-1",
+      space_id: "space-lab",
+      goal: digest.goal,
+      status: "pending",
+      origin: "schedule",
+      origin_ref: "sched-1",
+      created_at: "2026-09-19T00:00:00Z",
+    });
+    const onOpenRun = vi.fn();
+    render(<Schedules space={lab} settings={settingsWith(["low"])} onOpenRun={onOpenRun} />);
+    const row = await screen.findByTestId("schedule-sched-1");
+
+    await userEvent.click(within(row).getByRole("button", { name: "Run now" }));
+    await waitFor(() => {
+      expect(onOpenRun).toHaveBeenCalledWith("run-now-1");
+    });
+  });
+
+  it("makes a stage that starts after another schedule, with no time of its own", async () => {
+    mocked.previewSchedule.mockResolvedValue({ summary: "After Morning digest completes", next: [] });
+    mocked.createSchedule.mockResolvedValue({
+      ...digest,
+      id: "sched-3",
+      name: "Write it up",
+      cadence: { kind: "after", schedule_id: "sched-1" },
+      next_run_at: null,
+      summary: "After Morning digest completes",
+    });
+    render(<Schedules space={lab} settings={settingsWith(["low", "medium"])} />);
+    await screen.findByTestId("schedule-sched-1");
+
+    await userEvent.click(screen.getByRole("button", { name: "New schedule" }));
+    const editor = screen.getByTestId("schedule-editor");
+    await userEvent.type(within(editor).getByTestId("schedule-name"), "Write it up");
+    await userEvent.type(within(editor).getByTestId("schedule-goal"), "Write up the digest.");
+    await userEvent.click(within(editor).getByTestId("schedule-kind-after"));
+    expect(within(editor).queryByTestId("schedule-at")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Create schedule" }));
+    expect(screen.getByRole("alert").textContent).toContain("Pick the schedule this one follows");
+
+    await userEvent.selectOptions(within(editor).getByTestId("schedule-after"), "sched-1");
+    await waitFor(() => {
+      expect(screen.getByTestId("schedule-preview").textContent).toBe("After Morning digest completes.");
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Create schedule" }));
+    expect(mocked.createSchedule).toHaveBeenCalledWith(
+      expect.objectContaining({ cadence: { kind: "after", schedule_id: "sched-1" } }),
+    );
+  });
+
+  it("opens a new schedule with the goal it was asked to repeat", async () => {
+    render(
+      <Schedules
+        space={lab}
+        settings={settingsWith(["low"])}
+        draftRequest={{ goal: "Summarise the inbox.", nonce: 1 }}
+      />,
+    );
+
+    const editor = await screen.findByTestId("schedule-editor");
+    expect(within(editor).getByTestId<HTMLTextAreaElement>("schedule-goal").value).toBe("Summarise the inbox.");
   });
 
   it("creates a weekly schedule from the picker, previewing it as it is built", async () => {
