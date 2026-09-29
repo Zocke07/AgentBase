@@ -133,7 +133,8 @@ async def test_cancelling_releases_an_agent_blocked_on_the_gate(
 ) -> None:
     """The gate borrows the run's wall clock, so without this a cancel would
     take effect only when the approval expired: ten minutes by default."""
-    await settings.update({"max_run_seconds": 600})
+    # Autonomy is the default; this workspace asks, so the write blocks.
+    await settings.update({"max_run_seconds": 600, "auto_approve": []})
     runtime, service = tool_runtime(store, db, workspace)
     await agents.create(
         {

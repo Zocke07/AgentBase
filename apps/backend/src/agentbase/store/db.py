@@ -68,6 +68,7 @@ MIGRATION_FILES: tuple[tuple[int, str], ...] = (
     (15, "015_news_feed_reader.sql"),
     (16, "016_space_providers_and_opus_5_5.sql"),
     (17, "017_high_risk_never_automatic.sql"),
+    (18, "018_autonomous_defaults.sql"),
 )
 
 #: Migrations requiring deferred foreign-key checks.

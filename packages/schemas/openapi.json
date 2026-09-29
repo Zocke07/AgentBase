@@ -3765,7 +3765,7 @@
             "type": "array"
           },
           "channel_approvals": {
-            "default": "dashboard_only",
+            "default": "originator",
             "enum": [
               "dashboard_only",
               "originator"

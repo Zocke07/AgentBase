@@ -14,6 +14,8 @@ import pytest
 
 from agentbase.events.types import EventType
 from agentbase.orchestrator import execute_run
+from agentbase.store.db import Database
+from agentbase.store.settings import SettingsStore
 from agentbase.tools.approval import ApprovalScope, ApprovalStatus, approval_prompt
 from agentbase.tools.base import Prepared
 from agentbase.tools.builtin.filesystem import WriteFileTool
@@ -37,12 +39,21 @@ if TYPE_CHECKING:
     from agentbase.providers.base import Completion
     from agentbase.secrets import SecretStore
     from agentbase.store.agents import AgentDefStore
-    from agentbase.store.db import Database
-    from agentbase.store.settings import SettingsStore
     from agentbase.tools.approval import ApprovalDecision, ApprovalService
     from agentbase.tools.runtime import ToolRuntime
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def _asking(settings: SettingsStore) -> None:
+    """Start every test here from a workspace that asks about everything.
+
+    Autonomy is the default, but these tests are about the question path: what
+    a person is asked, when, and what their answer does. A test about policy
+    answers sets its own. Synchronous, so the file's plain tests can use it.
+    """
+    settings._update_sync({"auto_approve": []})
 
 
 @pytest.fixture
@@ -540,20 +551,30 @@ async def test_a_pre_approved_risk_level_runs_without_asking(
     assert (workspace / "notes.txt").read_text(encoding="utf-8") == "auto"
 
 
-async def test_the_default_workspace_asks_about_everything(
+async def test_a_fresh_workspace_answers_low_and_medium_itself_and_asks_about_the_rest(
     store: EventStore,
-    settings: SettingsStore,
     db: Database,
     workspace: Path,
+    tmp_path: Path,
 ) -> None:
-    """§5 Phase 6 defaults every risk, including low, to manual approval."""
-    resolved = await settings.get()
-    assert resolved.auto_approve == []
+    """Autonomy is the default (the 2026-09-29 Phase 6 deviation): reads, writes
+    inside the space and fetches from the listed hosts run on their own, and
+    high risk still asks. A database of its own is read, since this file's
+    fixture narrows the shared one."""
+    other = Database(tmp_path / "fresh.sqlite3")
+    other.connect()
+    try:
+        fresh = await SettingsStore(other).get()
+    finally:
+        other.close()
+    assert fresh.auto_approve == [RiskLevel.LOW, RiskLevel.MEDIUM]
+    assert fresh.tool_policies == {}
+    assert fresh.auto_approve_hosts == ["news.google.com", "stooq.com"]
 
-    runtime, _ = tool_runtime(store, db, workspace, auto_approve=resolved.auto_approve)
-    for level in RiskLevel:
-        assert runtime.auto_approve_for(()) == frozenset()
-        assert runtime.auto_approve_for((level,)) == frozenset()
+    runtime, _ = tool_runtime(store, db, workspace, auto_approve=fresh.auto_approve)
+    assert runtime.auto_approve_for(()) == frozenset({RiskLevel.LOW, RiskLevel.MEDIUM})
+    assert runtime.auto_approve_for((RiskLevel.LOW,)) == frozenset({RiskLevel.LOW})
+    assert runtime.auto_approve_for((RiskLevel.HIGH,)) == frozenset()
 
 
 async def test_a_definition_cannot_pre_approve_beyond_the_workspace(

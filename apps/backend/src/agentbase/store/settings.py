@@ -70,11 +70,15 @@ DEFAULT_OPENAI_ACCESS: Final[OpenAIAccess] = "api_key"
 #: Where a local Ollama daemon listens. Loopback, like everything else.
 DEFAULT_OLLAMA_BASE_URL: Final[str] = "http://127.0.0.1:11434"
 
-#: Pre-authorized risk levels; empty means every tool call asks by default.
-DEFAULT_AUTO_APPROVE: Final[tuple[RiskLevel, ...]] = ()
+#: Risk levels answered by policy. Autonomy is the default (2026-09-29): reads,
+#: writes inside the space and listed fetches run on their own, and high risk
+#: (``run_shell``) always asks. Migration 018 pins upgraded installs to the
+#: answers they had, because an unsaved key reads this constant.
+DEFAULT_AUTO_APPROVE: Final[tuple[RiskLevel, ...]] = (RiskLevel.LOW, RiskLevel.MEDIUM)
 
-#: Hosts a network call may reach on the policy's word; ``*`` is any public host.
-DEFAULT_AUTO_APPROVE_HOSTS: Final[tuple[str, ...]] = ("*",)
+#: Hosts a network call may reach on the policy's word: the shipped collectors'
+#: sources. ``*`` is any public host; migration 018 pins it for upgraded installs.
+DEFAULT_AUTO_APPROVE_HOSTS: Final[tuple[str, ...]] = ("news.google.com", "stooq.com")
 
 #: Configurable run limits.
 DEFAULT_MAX_STEPS_PER_AGENT: Final[int] = 20
@@ -86,10 +90,12 @@ DEFAULT_MAX_RUN_COST_MICROS: Final[int] = 2_000_000
 #: How long a scheduled run's question waits before it expires unanswered.
 DEFAULT_UNATTENDED_QUESTION_SECONDS: Final[int] = 120
 
-#: Chat-run approval responder. ``dashboard_only`` is strict by default;
-#: ``originator`` also permits the chat requester to answer.
+#: Chat-run approval responder. ``originator`` lets the person who addressed
+#: the bot answer their own run's questions in chat, so it works on its own
+#: and comes back only for a question; ``dashboard_only`` keeps answers in the
+#: window, and migration 018 pins it for upgraded installs.
 ChannelApprovalPolicy = Literal["dashboard_only", "originator"]
-DEFAULT_CHANNEL_APPROVALS: Final[ChannelApprovalPolicy] = "dashboard_only"
+DEFAULT_CHANNEL_APPROVALS: Final[ChannelApprovalPolicy] = "originator"
 
 
 class WorkspaceSettings(BaseModel):

@@ -546,7 +546,10 @@ def test_the_approval_policy_can_be_turned_back_off(client: TestClient) -> None:
 
 
 def test_the_host_list_round_trips_normalized_and_refuses_a_url(client: TestClient) -> None:
-    assert client.get("/settings").json()["settings"]["auto_approve_hosts"] == ["*"]
+    assert client.get("/settings").json()["settings"]["auto_approve_hosts"] == [
+        "news.google.com",
+        "stooq.com",
+    ]
 
     saved = client.patch(
         "/settings",
@@ -580,7 +583,8 @@ def test_high_risk_cannot_be_pre_approved(client: TestClient) -> None:
     assert "ask a person" in levels.json()["detail"]["message"]
     assert shell.status_code == 400
     assert shell.json()["detail"]["field"] == "tool_policies"
-    assert client.get("/settings").json()["settings"]["auto_approve"] == []
+    # Nothing was stored: the fresh default is still in force.
+    assert client.get("/settings").json()["settings"]["auto_approve"] == ["low", "medium"]
 
 
 def test_an_invalid_risk_level_is_rejected(client: TestClient) -> None:

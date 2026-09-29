@@ -9,9 +9,12 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 
+import pytest
+
 from agentbase.store import db as db_module
 from agentbase.store.db import LATEST_SCHEMA_VERSION, Database
 from agentbase.store.settings import SettingsStore
+from agentbase.store.spaces import DEFAULT_SPACE_ID
 
 if TYPE_CHECKING:
     from agentbase.config import AppPaths
@@ -109,3 +112,96 @@ def test_017_strips_high_risk_answers_and_keeps_the_rest(app_paths: AppPaths) ->
         assert [str(level) for level in settings.auto_approve] == ["low"]
     finally:
         upgraded.close()
+
+
+# --- migration 018: autonomy is the default for fresh installs only ------------
+#
+# Settings store only the keys someone saved and fill the rest from code, so a
+# new default would silently change every upgraded install. 018 pins the old
+# answers into any database that has been used; a fresh one keeps none.
+
+_PINNED = {
+    "auto_approve": [],
+    "auto_approve_hosts": ["*"],
+    "channel_approvals": "dashboard_only",
+}
+
+
+def _used(database: Database, how: str) -> None:
+    with database.write() as connection:
+        if how == "a run":
+            connection.execute(
+                "INSERT INTO runs (id, space_id, goal, status, origin, created_at)"
+                " VALUES ('r1', ?, 'g', 'completed', 'ui', ?)",
+                (DEFAULT_SPACE_ID, _NOW),
+            )
+        elif how == "a saved setting":
+            connection.execute(
+                "INSERT INTO settings (key, value, updated_at) VALUES ('provider', ?, ?)",
+                (json.dumps("openai"), _NOW),
+            )
+        elif how == "a schedule":
+            connection.execute(
+                "INSERT INTO schedules (id, space_id, name, goal, cadence, created_at, updated_at)"
+                " VALUES ('s1', ?, 'n', 'g', ?, ?, ?)",
+                (DEFAULT_SPACE_ID, json.dumps({"kind": "daily", "at": "09:00"}), _NOW, _NOW),
+            )
+        elif how == "a space of its own":
+            connection.execute(
+                "INSERT INTO spaces (id, name, created_at, updated_at)"
+                " VALUES ('lab', 'Lab', ?, ?)",
+                (_NOW, _NOW),
+            )
+
+
+@pytest.mark.parametrize(
+    "how", ["a run", "a saved setting", "a schedule", "a space of its own"]
+)
+def test_018_keeps_a_used_install_asking_as_it_did(app_paths: AppPaths, how: str) -> None:
+    seventeen = _at_version(app_paths, 17)
+    try:
+        _used(seventeen, how)
+    finally:
+        seventeen.close()
+
+    upgraded = _upgraded(app_paths)
+    try:
+        rows = _settings_rows(upgraded)
+        for key, value in _PINNED.items():
+            assert rows[key] == value, key
+        settings = SettingsStore(upgraded)._get_sync()
+        assert settings.auto_approve == []
+        assert settings.auto_approve_hosts == ["*"]
+        assert settings.channel_approvals == "dashboard_only"
+    finally:
+        upgraded.close()
+
+
+def test_018_leaves_an_answer_someone_already_saved(app_paths: AppPaths) -> None:
+    seventeen = _at_version(app_paths, 17)
+    try:
+        _put_settings(seventeen, {"auto_approve": ["low"], "channel_approvals": "originator"})
+    finally:
+        seventeen.close()
+
+    upgraded = _upgraded(app_paths)
+    try:
+        rows = _settings_rows(upgraded)
+        assert rows["auto_approve"] == ["low"]
+        assert rows["channel_approvals"] == "originator"
+        assert rows["auto_approve_hosts"] == ["*"]
+    finally:
+        upgraded.close()
+
+
+def test_a_fresh_install_starts_autonomous(app_paths: AppPaths) -> None:
+    fresh = _upgraded(app_paths)
+    try:
+        assert _settings_rows(fresh) == {}
+        settings = SettingsStore(fresh)._get_sync()
+        assert [str(level) for level in settings.auto_approve] == ["low", "medium"]
+        assert settings.auto_approve_hosts == ["news.google.com", "stooq.com"]
+        assert settings.channel_approvals == "originator"
+        assert settings.tool_policies == {}
+    finally:
+        fresh.close()

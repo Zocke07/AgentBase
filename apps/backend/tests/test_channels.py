@@ -392,7 +392,8 @@ async def test_a_channel_originated_tool_call_still_hits_the_approval_gate(
     workspace.mkdir(exist_ok=True)
     runtime, approvals = tool_runtime(store, db, workspace)
 
-    await allow(settings)
+    # Autonomy is the default; this workspace asks, so the gate's question shows.
+    await allow(settings, auto_approve=[])
     await agents.create(
         {
             "name": "file_writer",
@@ -462,7 +463,8 @@ async def test_the_question_is_surfaced_in_chat_while_the_run_waits(
     workspace.mkdir(exist_ok=True)
     runtime, approvals = tool_runtime(store, db, workspace)
 
-    await allow(settings)
+    # Autonomy is the default; this workspace asks, so the gate's question shows.
+    await allow(settings, auto_approve=[])
     await agents.create(
         {
             "name": "file_writer",
