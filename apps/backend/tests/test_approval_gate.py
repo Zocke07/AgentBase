@@ -15,8 +15,9 @@ import pytest
 from agentbase.events.types import EventType
 from agentbase.orchestrator import execute_run
 from agentbase.tools.approval import ApprovalScope, ApprovalStatus, approval_prompt
+from agentbase.tools.base import Prepared
 from agentbase.tools.builtin.filesystem import WriteFileTool
-from agentbase.tools.catalogue import RiskLevel
+from agentbase.tools.catalogue import RiskLevel, ToolPolicy
 from agentbase.tools.sandbox import Sandbox
 from support import (
     ReconstructedRun,
@@ -37,7 +38,7 @@ if TYPE_CHECKING:
     from agentbase.store.agents import AgentDefStore
     from agentbase.store.db import Database
     from agentbase.store.settings import SettingsStore
-    from agentbase.tools.approval import ApprovalService
+    from agentbase.tools.approval import ApprovalDecision, ApprovalService
     from agentbase.tools.runtime import ToolRuntime
 
 pytestmark = pytest.mark.anyio
@@ -126,8 +127,8 @@ async def test_an_agent_told_to_write_outside_the_workspace_is_blocked(
     escape: str,
 ) -> None:
     """§5 Phase 6: block traversal in a real run and prove no file was written."""
-    # Pre-approve all risks so only the sandbox can refuse this call.
-    await settings.update({"auto_approve": [RiskLevel.LOW, RiskLevel.MEDIUM, RiskLevel.HIGH]})
+    # Pre-approve every level policy may answer, so only the sandbox can refuse.
+    await settings.update({"auto_approve": [RiskLevel.LOW, RiskLevel.MEDIUM]})
     runtime, _ = tool_runtime(store, db, workspace)
 
     rebuilt = await writer_run(
@@ -986,3 +987,77 @@ async def test_a_no_is_never_for_the_run(
 
     assert (await service.store.get(first)).scope is ApprovalScope.CALL  # type: ignore[union-attr]
     assert (workspace / "other.txt").read_text(encoding="utf-8") == "two"
+
+
+# --- high risk is always a person's decision -----------------------------------
+#
+# `run_shell` runs as the user with no OS isolation, so once most calls are
+# answered by policy, the one that could do anything must still reach a person.
+# Settings refuse to store such an answer; the gate holds even if one arrives.
+
+
+async def test_high_risk_asks_even_when_policy_would_allow_it(
+    store: EventStore, db: Database, workspace: Path
+) -> None:
+    _, service = tool_runtime(store, db, workspace)
+    run = await store.create_run(goal="shell", origin="schedule")
+    prepared = Prepared(
+        tool_name="run_shell",
+        summary="run the command 'ls'",
+        raw_arguments={"command": "ls"},
+    )
+
+    task = asyncio.create_task(
+        service.request(
+            run_id=run.id,
+            agent="worker",
+            prepared=prepared,
+            risk=RiskLevel.HIGH,
+            auto_approve=[RiskLevel.LOW, RiskLevel.MEDIUM, RiskLevel.HIGH],
+            deadline=5,
+            policy=ToolPolicy.ALLOW,
+        )
+    )
+    pending = await _wait_for_approval(service)
+    await service.resolve(pending, approved=True)
+    decision = await asyncio.wait_for(task, timeout=5)
+
+    assert decision.allowed and not decision.automatic
+    requested = [
+        e.payload for e in await store.read(run.id) if e.type is EventType.APPROVAL_REQUESTED
+    ]
+    assert requested[0].get("automatic", False) is False
+
+
+async def test_a_yes_for_the_run_is_never_kept_for_high_risk(
+    store: EventStore, db: Database, workspace: Path
+) -> None:
+    _, service = tool_runtime(store, db, workspace)
+    run = await store.create_run(goal="shell", origin="ui")
+
+    async def ask(command: str) -> ApprovalDecision:
+        return await service.request(
+            run_id=run.id,
+            agent="worker",
+            prepared=Prepared(
+                tool_name="run_shell",
+                summary=f"run the command {command!r}",
+                raw_arguments={"command": command},
+            ),
+            risk=RiskLevel.HIGH,
+            auto_approve=(),
+            deadline=5,
+        )
+
+    first_task = asyncio.create_task(ask("ls"))
+    first = await _wait_for_approval(service)
+    record = await service.resolve(first, approved=True, scope=ApprovalScope.RUN)
+    await asyncio.wait_for(first_task, timeout=5)
+    assert record.scope is ApprovalScope.CALL
+
+    # The next shell command in the same run is asked about again.
+    second_task = asyncio.create_task(ask("rm -rf build"))
+    second = await _wait_for_approval(service, after=first)
+    await service.resolve(second, approved=False)
+    decision = await asyncio.wait_for(second_task, timeout=5)
+    assert not decision.allowed

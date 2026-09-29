@@ -115,7 +115,7 @@ async def test_a_write_lands_in_the_run_spaces_folder_and_another_spaces_folder_
     app_paths: AppPaths,
 ) -> None:
     """Criterion 2: the sandbox is the space's folder, per run."""
-    await settings.update({"auto_approve": [RiskLevel.LOW, RiskLevel.MEDIUM, RiskLevel.HIGH]})
+    await settings.update({"auto_approve": [RiskLevel.LOW, RiskLevel.MEDIUM]})
     space_a = await spaces.create({"name": "A"})
     space_b = await spaces.create({"name": "B"})
     await agents.create(

@@ -18,11 +18,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from agentbase.providers.factory import SUPPORTED_PROVIDERS
 from agentbase.tools.catalogue import (
+    POLICY_LEVELS,
     RiskLevel,
     ToolPolicy,
     effective_auto_approve,
     effective_tool_policies,
     is_registered,
+    policy_may_allow,
 )
 
 if TYPE_CHECKING:
@@ -427,6 +429,12 @@ def _validated_tool_policies(value: Any) -> dict[str, ToolPolicy] | None:
                 f"{entry!r} is not a tool policy. Valid answers: ask, allow, deny.",
                 field="tool_policies",
             ) from None
+        if policy is ToolPolicy.ALLOW and not policy_may_allow(str(name)):
+            raise SpaceValidationError(
+                f"{name} cannot be set to always allow: it is high risk, so a "
+                f"person answers every call to it.",
+                field="tool_policies",
+            )
         if policy is not ToolPolicy.ASK:
             policies[str(name)] = policy
     return policies
@@ -450,6 +458,12 @@ def _validated_auto_approve(value: Any) -> tuple[RiskLevel, ...] | None:
                 f"{entry!r} is not a risk level. Valid levels: {known}.",
                 field="auto_approve",
             ) from None
+        if level not in POLICY_LEVELS:
+            raise SpaceValidationError(
+                "high risk calls always ask a person: run_shell runs commands as "
+                "you with no isolation, so it cannot be pre-approved.",
+                field="auto_approve",
+            )
         if level not in levels:
             levels.append(level)
     return tuple(levels)

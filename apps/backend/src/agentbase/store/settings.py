@@ -14,7 +14,13 @@ from typing import TYPE_CHECKING, Any, Final, Literal
 from pydantic import BaseModel, Field, field_validator
 
 from agentbase.channels.identity import ChannelIdentity, IdentityDirectory
-from agentbase.tools.catalogue import RiskLevel, ToolPolicy, is_registered
+from agentbase.tools.catalogue import (
+    POLICY_LEVELS,
+    RiskLevel,
+    ToolPolicy,
+    is_registered,
+    policy_may_allow,
+)
 
 if TYPE_CHECKING:
     from agentbase.store.db import Database
@@ -126,6 +132,19 @@ class WorkspaceSettings(BaseModel):
     #: the data and comes back exactly when "start over" deletes that data.
     onboarding_completed: bool = False
 
+    @field_validator("auto_approve")
+    @classmethod
+    def _auto_approve_leaves_high_risk_to_a_person(
+        cls, levels: list[RiskLevel]
+    ) -> list[RiskLevel]:
+        if any(level not in POLICY_LEVELS for level in levels):
+            msg = (
+                "high risk calls always ask a person: run_shell runs commands as "
+                "you with no isolation, so it cannot be pre-approved."
+            )
+            raise ValueError(msg)
+        return levels
+
     @field_validator("tool_policies")
     @classmethod
     def _tool_policies_name_real_tools(
@@ -135,6 +154,17 @@ class WorkspaceSettings(BaseModel):
         unknown = sorted(name for name in policies if not is_registered(name))
         if unknown:
             msg = f"Unknown tool{'s' if len(unknown) > 1 else ''}: {', '.join(unknown)}."
+            raise ValueError(msg)
+        refused = sorted(
+            name
+            for name, policy in policies.items()
+            if policy is ToolPolicy.ALLOW and not policy_may_allow(name)
+        )
+        if refused:
+            msg = (
+                f"{', '.join(refused)} cannot be set to always allow: it is high "
+                f"risk, so a person answers every call to it."
+            )
             raise ValueError(msg)
         # `ask` is the absence of an answer; storing it would only clutter the row.
         return {

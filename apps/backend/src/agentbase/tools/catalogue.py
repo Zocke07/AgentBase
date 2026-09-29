@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "CATALOGUE",
+    "POLICY_LEVELS",
     "RiskLevel",
     "ToolDeclaration",
     "ToolPolicy",
@@ -22,6 +23,7 @@ __all__ = [
     "effective_tool_policies",
     "is_registered",
     "lookup",
+    "policy_may_allow",
     "stricter",
     "tool_names",
 ]
@@ -143,6 +145,18 @@ def is_registered(name: str) -> bool:
 
 def lookup(name: str) -> ToolDeclaration | None:
     return _BY_NAME.get(name)
+
+
+#: Risk levels a policy may answer without a person. ``run_shell`` is the only
+#: high-risk tool and runs as the user with no OS isolation, so however much else
+#: runs on its own, a person decides each call to it.
+POLICY_LEVELS: Final[frozenset[RiskLevel]] = frozenset({RiskLevel.LOW, RiskLevel.MEDIUM})
+
+
+def policy_may_allow(name: str) -> bool:
+    """Whether a policy may answer calls to ``name`` with a yes."""
+    declaration = _BY_NAME.get(name)
+    return declaration is not None and declaration.risk in POLICY_LEVELS
 
 
 def effective_tool_policies(

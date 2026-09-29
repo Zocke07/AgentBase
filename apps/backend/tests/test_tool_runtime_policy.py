@@ -47,6 +47,17 @@ def test_settings_refuse_a_policy_for_a_tool_that_does_not_exist() -> None:
     assert kept.tool_policies == {"write_file": ToolPolicy.DENY}
 
 
+def test_settings_refuse_to_answer_high_risk_by_policy() -> None:
+    """`run_shell` has no OS isolation, so a person decides every call to it."""
+    with pytest.raises(ValueError, match="high risk"):
+        WorkspaceSettings(auto_approve=[RiskLevel.LOW, RiskLevel.HIGH])
+    with pytest.raises(ValueError, match="run_shell"):
+        WorkspaceSettings(tool_policies={"run_shell": ToolPolicy.ALLOW})
+    # Refusing it outright is still an answer the app may give on its own.
+    kept = WorkspaceSettings(tool_policies={"run_shell": ToolPolicy.DENY})
+    assert kept.tool_policies == {"run_shell": ToolPolicy.DENY}
+
+
 def test_policy_for_narrows_an_allow_by_the_definition_levels(tmp_path) -> None:  # type: ignore[no-untyped-def]
     from agentbase.events.bus import EventBus
     from agentbase.events.store import EventStore

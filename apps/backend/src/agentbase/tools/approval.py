@@ -17,7 +17,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from agentbase.events.types import EventType
-from agentbase.tools.catalogue import RiskLevel, ToolPolicy
+from agentbase.tools.catalogue import POLICY_LEVELS, RiskLevel, ToolPolicy
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -318,7 +318,10 @@ class ApprovalService:
         """
         if policy is ToolPolicy.DENY:
             return await self._deny_by_policy(run_id, agent, prepared, risk)
-        if policy is ToolPolicy.ALLOW or risk in frozenset(auto_approve):
+        # Settings refuse to store a yes for high risk; this holds even if one
+        # arrives some other way, because approval is not containment.
+        answerable = risk in POLICY_LEVELS
+        if answerable and (policy is ToolPolicy.ALLOW or risk in frozenset(auto_approve)):
             return await self._auto_approve(run_id, agent, prepared, risk)
 
         # Reuse a denial for the same call so users are not asked twice.
@@ -329,7 +332,11 @@ class ApprovalService:
             return await self._deny_by_precedent(run_id, agent, prepared, risk, precedent)
 
         # Reuse run-scoped approval for subsequent calls to the same tool.
-        allowance = await self._store.find_allowed_for_run(run_id, prepared.tool_name)
+        allowance = (
+            await self._store.find_allowed_for_run(run_id, prepared.tool_name)
+            if answerable
+            else None
+        )
         if allowance is not None:
             return await self._allow_by_precedent(run_id, agent, prepared, risk, allowance)
 
@@ -656,11 +663,17 @@ class ApprovalService:
     ) -> ApprovalRecord:
         """Settle durable state, then wake its in-memory waiter.
 
-        Run scope applies only to approvals and covers later calls to the tool.
+        Run scope applies only to a yes for a low or medium risk call, and
+        covers later calls to that tool.
 
         :raises ApprovalNotPendingError: unknown, or already settled.
         """
         status = ApprovalStatus.APPROVED if approved else ApprovalStatus.DENIED
+        if approved and scope is ApprovalScope.RUN:
+            # A yes for the run would answer later high-risk calls unseen.
+            pending = await self._store.get(approval_id)
+            if pending is not None and pending.risk not in POLICY_LEVELS:
+                scope = ApprovalScope.CALL
         record = await self._store.settle(
             approval_id, status, scope if approved else ApprovalScope.CALL
         )

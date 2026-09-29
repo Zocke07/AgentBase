@@ -537,12 +537,25 @@ def test_the_approval_policy_can_be_turned_back_off(client: TestClient) -> None:
     store: a user withdrawing pre-authorization must not be read as "no change
     requested", which would leave the gate silently permissive.
     """
-    client.patch("/settings", json={"auto_approve": ["high"]})
+    client.patch("/settings", json={"auto_approve": ["medium"]})
 
     response = client.patch("/settings", json={"auto_approve": []})
 
     assert response.status_code == 200
     assert response.json()["settings"]["auto_approve"] == []
+
+
+def test_high_risk_cannot_be_pre_approved(client: TestClient) -> None:
+    """A person answers every high-risk call, whatever else runs on its own."""
+    levels = client.patch("/settings", json={"auto_approve": ["low", "high"]})
+    shell = client.patch("/settings", json={"tool_policies": {"run_shell": "allow"}})
+
+    assert levels.status_code == 400
+    assert levels.json()["detail"]["field"] == "auto_approve"
+    assert "ask a person" in levels.json()["detail"]["message"]
+    assert shell.status_code == 400
+    assert shell.json()["detail"]["field"] == "tool_policies"
+    assert client.get("/settings").json()["settings"]["auto_approve"] == []
 
 
 def test_an_invalid_risk_level_is_rejected(client: TestClient) -> None:

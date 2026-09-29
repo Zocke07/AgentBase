@@ -113,6 +113,18 @@ def test_a_space_narrows_the_per_tool_answers_and_can_inherit_again(client: Test
     assert back.json()["tool_policies"] is None
 
 
+def test_a_space_cannot_pre_approve_high_risk(client: TestClient) -> None:
+    lab = _create(client, "Lab")
+
+    levels = client.patch(f"/spaces/{lab['id']}", json={"auto_approve": ["high"]})
+    shell = client.patch(f"/spaces/{lab['id']}", json={"tool_policies": {"run_shell": "allow"}})
+
+    assert levels.status_code == 400
+    assert levels.json()["detail"]["field"] == "auto_approve"
+    assert shell.status_code == 400
+    assert shell.json()["detail"]["field"] == "tool_policies"
+
+
 def test_a_rule_can_be_set_and_set_back_to_inherit(client: TestClient) -> None:
     lab = _create(client, "Lab")
 
