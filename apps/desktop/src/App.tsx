@@ -7,6 +7,7 @@ import type {
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AgentsView } from "./components/AgentsView";
+import { AutomationsView } from "./components/AutomationsView";
 import { BudgetMeter } from "./components/BudgetMeter";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { HomeView } from "./components/HomeView";
@@ -66,6 +67,8 @@ export function App() {
   } | null>(null);
   // Bump after a run changes memory status to reload vault inbox.
   const [memoryNonce, setMemoryNonce] = useState(0);
+  // A goal Home asked Automations to repeat; the nonce reopens the editor.
+  const [scheduleDraft, setScheduleDraft] = useState<{ goal: string; nonce: number } | null>(null);
   // First-run tour follows the sidecar flag only when settings provides it.
   const [tourOpen, setTourOpen] = useState<boolean | null>(null);
   // Vault-reported inbox count for the rail badge.
@@ -247,6 +250,11 @@ export function App() {
     setMemoryNonce((current) => current + 1);
   }, []);
 
+  const automate = useCallback((goal: string) => {
+    setScheduleDraft((current) => ({ goal, nonce: (current?.nonce ?? 0) + 1 }));
+    setSection("automations");
+  }, []);
+
   const tourShowing = tourOpen ?? settings?.settings.onboarding_completed === false;
 
   const closeTour = useCallback(() => {
@@ -400,6 +408,7 @@ export function App() {
         <header className="app__header">
           <h1 className="app__title">
             {section === "home" && (space?.name ?? "Home")}
+            {section === "automations" && "Automations"}
             {section === "runs" && "Runs"}
             {section === "agents" && "Agents"}
             {section === "knowledge" && "Knowledge"}
@@ -494,7 +503,27 @@ export function App() {
                 }}
                 onOpenNote={openNote}
                 onWorkspaceChanged={refreshWorkspace}
+                runCapMicros={space?.max_run_cost_micros ?? settings?.settings.max_run_cost_micros ?? null}
+                onOpenAutomations={() => {
+                  setSection("automations");
+                }}
+                onAutomate={automate}
               />
+            </ErrorBoundary>
+          </div>
+          <div className="app__view" hidden={section !== "automations"}>
+            <ErrorBoundary label="the automations section">
+              {space === null ? (
+                <p className="runs-view__placeholder">Loading the space…</p>
+              ) : (
+                <AutomationsView
+                  key={space.id}
+                  space={space}
+                  settings={settings}
+                  onOpenRun={openRun}
+                  draftRequest={scheduleDraft}
+                />
+              )}
             </ErrorBoundary>
           </div>
           <div className="app__view" hidden={section !== "runs"}>
@@ -563,7 +592,9 @@ export function App() {
                 <SpaceSettingsView
                   space={space}
                   settings={settings}
-                  onOpenRun={openRun}
+                  onOpenAutomations={() => {
+                    setSection("automations");
+                  }}
                   onChanged={(changed) => {
                     void loadSpaces().then(() => {
                       if (changed === null) setSection("home");

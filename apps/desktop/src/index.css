@@ -3107,6 +3107,56 @@ button.md__tag:hover {
   color: var(--muted);
 }
 
+/* What runs on its own comes first: one line, and the pipeline offer when it waits. */
+.home__automations-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.home__automations-line p {
+  margin: 0;
+}
+
+.home__automations-actions {
+  display: flex;
+  flex: none;
+  gap: 0.5rem;
+}
+
+.pipeline-offer {
+  display: grid;
+  gap: 0.5rem;
+  border-left: 4px solid var(--accent);
+}
+
+.automations__intro {
+  max-width: 60rem;
+  margin: 0;
+  color: var(--muted);
+}
+
+.new-run__title {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.new-run__step {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
 .new-run {
   display: flex;
   flex-direction: column;
@@ -3154,7 +3204,10 @@ button.md__tag:hover {
 .new-run__actions {
   display: flex;
   flex: none;
+  flex-wrap: wrap;
   gap: 0.5rem;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .new-run__retrieval {

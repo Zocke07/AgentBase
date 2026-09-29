@@ -133,6 +133,30 @@ describe("what is sent", () => {
     expect(screen.getByTestId("space-auto-medium").closest("label")?.textContent).toContain("still asks");
   });
 
+  it("never offers to pre-approve high risk, and names nothing ticked as Supervised", async () => {
+    const user = userEvent.setup();
+    render(<SpaceSettingsView space={lab} settings={settings} onChanged={vi.fn()} />);
+
+    await user.click(screen.getByTestId("space-approvals-own"));
+    expect(screen.queryByTestId("space-auto-high")).toBeNull();
+    expect(screen.getByTestId("space-approvals-own").closest("label")?.textContent).toContain("Supervised");
+    expect(screen.getByTestId("space-approvals-inherit").closest("label")?.textContent).toContain(
+      "low risk run on their own",
+    );
+  });
+
+  it("points at Automations, where the schedules now live", async () => {
+    const user = userEvent.setup();
+    const onOpenAutomations = vi.fn();
+    render(
+      <SpaceSettingsView space={lab} settings={settings} onChanged={vi.fn()} onOpenAutomations={onOpenAutomations} />,
+    );
+
+    expect(screen.queryByTestId("schedules")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Open Automations" }));
+    expect(onOpenAutomations).toHaveBeenCalled();
+  });
+
   it("offers only stricter answers for a tool, and inherits again once none is left", async () => {
     /* The app allows write_file, asks about read_file and refuses run_shell:
        write_file can be made to ask or be refused here, read_file can only

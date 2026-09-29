@@ -18,7 +18,6 @@ import { useRoster } from "../state/roster";
 import { useFetched } from "../state/useFetched";
 
 import { ModelOptions } from "./ModelOptions";
-import { Schedules } from "./Schedules";
 
 /**
  * One space's name, description, read-only folder, inherited rules, and danger
@@ -32,8 +31,8 @@ export interface SpaceSettingsViewProps {
   settings: SettingsResponse | null;
   /** Space changed, archived, or deleted; shell reloads list. */
   onChanged: (space: SpaceResponse | null) => void;
-  /** Open a schedule's latest run. */
-  onOpenRun?: ((runId: string) => void) | undefined;
+  /** Open Automations, where this space's schedules now live. */
+  onOpenAutomations?: (() => void) | undefined;
 }
 
 interface Form {
@@ -54,7 +53,8 @@ interface Form {
 
 const MICROS_PER_DOLLAR = 1_000_000;
 
-const RISK_LEVELS: readonly RiskLevel[] = ["low", "medium", "high"];
+/** Levels a policy may answer; high risk (run_shell) always asks a person. */
+const RISK_LEVELS: readonly RiskLevel[] = ["low", "medium"];
 const LIMITS = ["max_steps_per_agent", "max_agents_per_run", "max_run_seconds"] as const;
 const LIMIT_LABEL: Record<(typeof LIMITS)[number], string> = {
   max_steps_per_agent: "Steps per agent",
@@ -134,7 +134,7 @@ function diff(opened: Form, form: Form): UpdateSpaceRequest {
   return patch;
 }
 
-export function SpaceSettingsView({ space, settings, onChanged, onOpenRun }: SpaceSettingsViewProps) {
+export function SpaceSettingsView({ space, settings, onChanged, onOpenAutomations }: SpaceSettingsViewProps) {
   const catalogue = useFetched(api.listProviders, EMPTY_CATALOGUE);
   const tools = useFetched(api.listTools, NO_TOOLS);
   // Keep above remounting form so list reload `updated_at` changes do not hide
@@ -161,7 +161,18 @@ export function SpaceSettingsView({ space, settings, onChanged, onOpenRun }: Spa
             onChanged(changed);
           }}
         />
-        <Schedules key={space.id} space={space} settings={settings} onOpenRun={onOpenRun} />
+        <section className="settings__section" data-testid="space-schedules-moved">
+          <h2>Schedules</h2>
+          <p className="settings__hint">
+            What this space runs on its own lives in Automations, beside what an unattended run may do
+            under the rules above.
+          </p>
+          {onOpenAutomations !== undefined && (
+            <button type="button" className="button button--small" onClick={onOpenAutomations}>
+              Open Automations
+            </button>
+          )}
+        </section>
         {!space.is_default && <DangerZone space={space} onChanged={onChanged} />}
       </div>
     </div>
@@ -522,7 +533,11 @@ function SpaceForm({
             <span className="editor__tool-description">
               Inherit the app-wide policy
               {inherited !== undefined &&
-                ` (${(inherited.auto_approve ?? []).length === 0 ? "ask for everything" : (inherited.auto_approve ?? []).join(", ")})`}
+                ` (${
+                  (inherited.auto_approve ?? []).length === 0
+                    ? "ask before every call"
+                    : `${(inherited.auto_approve ?? []).join(" and ")} risk run on their own`
+                })`}
             </span>
           </label>
           <label className="editor__tool">
@@ -535,7 +550,9 @@ function SpaceForm({
               }}
               data-testid="space-approvals-own"
             />
-            <span className="editor__tool-description">This space&apos;s own policy: nothing ticked asks for everything</span>
+            <span className="editor__tool-description">
+              This space&apos;s own policy: nothing ticked makes it Supervised, asking before every call
+            </span>
           </label>
           {form.auto_approve !== null && (
             <div className="editor__risks">
@@ -561,8 +578,7 @@ function SpaceForm({
                     <span className={`risk risk--${level}`}>{level}</span>
                     <span className="editor__tool-description">
                       {level === "low" && "reads inside the folder"}
-                      {level === "medium" && "writes inside the folder, fetches a public URL"}
-                      {level === "high" && "runs a shell command"}
+                      {level === "medium" && "writes inside the folder, fetches from a listed site"}
                       {inherited !== undefined && chosen && !allowedAbove && ": not enabled app-wide, so still asks"}
                     </span>
                   </label>
@@ -572,7 +588,8 @@ function SpaceForm({
           )}
           <p className="editor__hint">
             A space can narrow the app-wide policy but never widen it: a level ticked here that the
-            app-wide policy does not include still stops for you.
+            app-wide policy does not include still stops for you. High risk, which runs a shell
+            command, always asks.
           </p>
           <FieldError field="auto_approve" message={errorFor("auto_approve")} />
         </fieldset>

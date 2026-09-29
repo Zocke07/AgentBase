@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
+import { STARTERS } from "../lib/pipeline";
 import { useFetched } from "../state/useFetched";
 
 /**
@@ -39,24 +40,6 @@ function sizeLabel(size: number): string {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-const STARTERS: readonly { path: string; content: string; why: string }[] = [
-  {
-    path: "config/watchlist.json",
-    why: "the tickers the collectors follow",
-    content: '{\n  "watchlist": [\n    { "ticker": "AAPL", "company_name": "Apple Inc.", "aliases": ["Apple"] }\n  ]\n}\n',
-  },
-  {
-    path: "config/sources.json",
-    why: "the feeds and URL templates the collectors fetch",
-    content:
-      '{\n  "news": {\n    "google_news_rss": {\n      "url_template": "https://news.google.com/rss/search?q={ticker}+when:1d&hl=en-US&gl=US&ceid=US:en",\n      "auth": "none"\n    }\n  },\n  "prices": {\n    "stooq": {\n      "url_template": "https://stooq.com/q/d/l/?s={ticker_lower}.us&i=d",\n      "auth": "none"\n    }\n  }\n}\n',
-  },
-  {
-    path: "config/limits.json",
-    why: "the hard risk rules the risk manager restates",
-    content: '{\n  "max_position_pct": 10,\n  "max_sector_pct": 30,\n  "max_daily_loss_pct": 3\n}\n',
-  },
-];
 
 export function FilesPanel({ spaceId, part, open, onOpen, onChanged, reloadNonce = 0 }: FilesPanelProps) {
   const load = useCallback(() => api.listFiles(spaceId), [spaceId]);

@@ -351,6 +351,8 @@ export const createRun = (
   goal: string,
   spaceId?: string,
   excludedCitations: string[] = [],
+  /** Step through: every call asks, the manual and debug path. */
+  supervised = false,
 ): Promise<Run> =>
   request<Run>("/runs", {
     method: "POST",
@@ -358,6 +360,7 @@ export const createRun = (
       goal,
       space_id: spaceId ?? null,
       excluded_citations: excludedCitations,
+      ...(supervised ? { supervised: true } : {}),
     }),
   });
 

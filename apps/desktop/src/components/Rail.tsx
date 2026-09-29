@@ -41,6 +41,15 @@ const SECTIONS: readonly { id: Section; label: string; icon: ReactNode }[] = [
     ),
   },
   {
+    id: "automations",
+    label: "Automations",
+    icon: (
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        <path d="M10 2.5a7.5 7.5 0 1 0 7.5 7.5H16a6 6 0 1 1-1.8-4.3L12 7.9h5.5V2.4l-2.2 2.2A7.5 7.5 0 0 0 10 2.5zm-.8 3.5h1.6v4.2l3 1.8-.8 1.3-3.8-2.3z" />
+      </svg>
+    ),
+  },
+  {
     id: "runs",
     label: "Runs",
     icon: (

@@ -1,18 +1,22 @@
-import type { AgentDef, ApprovalResponse, Run, SearchHit, SpaceResponse } from "@agentbase/schemas";
-import { useEffect, useState } from "react";
+import type { AgentDef, ApprovalResponse, Run, ScheduleResponse, SearchHit, SpaceResponse } from "@agentbase/schemas";
+import { useCallback, useEffect, useState } from "react";
 
 import * as api from "../lib/api";
+import { whenLabel } from "../lib/format";
 import { useRoster } from "../state/roster";
 import { unfinished, useRunList } from "../state/runList";
+import { useFetched } from "../state/useFetched";
 
 import { Markdown } from "./Markdown";
 import { MetricBar } from "./MetricBar";
+import { PipelineOffer } from "./PipelineOffer";
 import { RunCard } from "./RunCard";
 
 /**
- * Home when no run is open: preflight, goal, active/pending "Now", recent-run
- * cards, and roster toggles. Fresh installs show only goal; no state is tied
- * to a specific run.
+ * Home when no run is open: preflight, what runs on its own (the automations
+ * strip, with the shipped pipeline's one-click start), active/pending "Now",
+ * Run once for a single task you watch, recent-run cards and roster toggles.
+ * No state is tied to a specific run.
  */
 
 export interface HomeViewProps {
@@ -34,7 +38,14 @@ export interface HomeViewProps {
   onOpenNote?: ((path: string, heading: string | null) => void) | undefined;
   /** Spend/settings may change; shell reloads header. */
   onWorkspaceChanged: () => void;
+  /** Per-run spending ceiling in micros, named where the pipeline is offered. */
+  runCapMicros?: number | null | undefined;
+  onOpenAutomations?: (() => void) | undefined;
+  /** Open Automations with a new schedule for this goal ("" for a blank one). */
+  onAutomate?: ((goal: string) => void) | undefined;
 }
+
+const NO_SCHEDULES: ScheduleResponse[] = [];
 
 /** How many finished runs the Home screen shows before pointing at the list. */
 const RECENT = 6;
@@ -60,8 +71,19 @@ export function HomeView({
   onOpenSettings,
   onOpenNote,
   onWorkspaceChanged,
+  runCapMicros = null,
+  onOpenAutomations,
+  onAutomate,
 }: HomeViewProps) {
   const [goal, setGoal] = useState("");
+  const [stepThrough, setStepThrough] = useState(false);
+  const [pipelineNotice, setPipelineNotice] = useState<string | null>(null);
+  const spaceId = space?.id ?? null;
+  const loadSchedules = useCallback(
+    () => (spaceId === null ? Promise.resolve(NO_SCHEDULES) : api.listSchedules(spaceId)),
+    [spaceId],
+  );
+  const schedules = useFetched(loadSchedules, NO_SCHEDULES);
   const [starting, setStarting] = useState(false);
   const [retrieving, setRetrieving] = useState(false);
   const [retrieval, setRetrieval] = useState<SearchHit[] | null>(null);
@@ -103,8 +125,9 @@ export function HomeView({
     setStarting(true);
     setStartError(null);
     try {
-      const run =
-        excludedCitations.length === 0
+      const run = stepThrough
+        ? await api.createRun(trimmed, space?.id, excludedCitations, true)
+        : excludedCitations.length === 0
           ? await api.createRun(trimmed, space?.id)
           : await api.createRun(trimmed, space?.id, excludedCitations);
       setGoal("");
@@ -202,6 +225,36 @@ export function HomeView({
           </section>
         )}
 
+        <section className="home__section home__automations" data-testid="home-automations">
+          {pipelineNotice !== null && (
+            <p className="settings__saved" role="status">
+              {pipelineNotice}
+            </p>
+          )}
+          {space !== null && (
+            <PipelineOffer
+              spaceId={space.id}
+              schedules={schedules.data}
+              runCapMicros={runCapMicros}
+              onTurnedOn={(written) => {
+                setPipelineNotice(
+                  written.length > 0
+                    ? `The pipeline is on. Created ${written.join(", ")} from their templates.`
+                    : "The pipeline is on.",
+                );
+                schedules.reload();
+              }}
+            />
+          )}
+          <AutomationsLine
+            schedules={schedules.data}
+            loaded={!schedules.loading}
+            spaceName={space?.name ?? "this space"}
+            onOpenAutomations={onOpenAutomations}
+            onAutomate={onAutomate}
+          />
+        </section>
+
         <form
           className="new-run"
           data-testid="new-run"
@@ -210,6 +263,7 @@ export function HomeView({
             void start();
           }}
         >
+          <h2 className="new-run__title">Run once</h2>
           <label className="new-run__label" htmlFor="goal">
             {firstLaunch
               ? `What should ${space?.name ?? "this space"} work on first?`
@@ -326,6 +380,34 @@ export function HomeView({
               </p>
             )}
             <div className="new-run__actions">
+              <label
+                className="new-run__step"
+                title="The manual and debug path: every tool call waits for your answer, whatever the approval policy would do."
+              >
+                <input
+                  type="checkbox"
+                  checked={stepThrough}
+                  onChange={(changed) => {
+                    setStepThrough(changed.target.checked);
+                  }}
+                  data-testid="step-through"
+                />
+                <span>Step through: ask me before every call</span>
+              </label>
+              {onAutomate !== undefined && (
+                <button
+                  type="button"
+                  className="button"
+                  disabled={goal.trim() === ""}
+                  title="Open Automations with a new schedule for this goal"
+                  onClick={() => {
+                    onAutomate(goal.trim());
+                  }}
+                  data-testid="make-recurring"
+                >
+                  Make this recurring
+                </button>
+              )}
               <button
                 type="button"
                 className="button"
@@ -439,6 +521,62 @@ export function HomeView({
               ))}
             </ul>
           </section>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+/**
+ * One line on what runs here on its own: how many automations are on and the
+ * next one due, or an offer to automate a task when nothing does yet.
+ */
+function AutomationsLine({
+  schedules,
+  loaded,
+  spaceName,
+  onOpenAutomations,
+  onAutomate,
+}: {
+  schedules: readonly ScheduleResponse[];
+  loaded: boolean;
+  spaceName: string;
+  onOpenAutomations?: (() => void) | undefined;
+  onAutomate?: ((goal: string) => void) | undefined;
+}) {
+  if (!loaded) return null;
+  const on = schedules.filter((row) => row.enabled !== false);
+  const timed = on
+    .filter((row) => row.next_run_at !== null && row.next_run_at !== undefined)
+    .sort((left, right) => (left.next_run_at ?? "").localeCompare(right.next_run_at ?? ""));
+  const next = timed[0];
+
+  return (
+    <div className="home__automations-line" data-testid="home-automations-line">
+      <p>
+        {on.length === 0
+          ? `Nothing in ${spaceName} runs on its own yet.`
+          : `${String(on.length)} automation${on.length === 1 ? "" : "s"} on.${
+              next !== undefined ? ` Next: ${next.name}, ${whenLabel(next.next_run_at ?? "")}.` : ""
+            }`}
+      </p>
+      <div className="home__automations-actions">
+        {on.length === 0 && onAutomate !== undefined && (
+          <button
+            type="button"
+            className="button button--small"
+            onClick={() => {
+              onAutomate("");
+            }}
+          >
+            Automate a task
+          </button>
+        )}
+        {onOpenAutomations !== undefined && (
+          <button type="button" className="button button--small" onClick={onOpenAutomations}>
+            Open Automations
+          </button>
         )}
       </div>
     </div>

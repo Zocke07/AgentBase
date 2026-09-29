@@ -1,9 +1,10 @@
-import type { AgentDef, Run } from "@agentbase/schemas";
+import type { AgentDef, Run, ScheduleResponse } from "@agentbase/schemas";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../lib/api";
+import { PIPELINE_SCHEDULE_IDS } from "../lib/pipeline";
 import { useRoster } from "../state/roster";
 import { useRunList } from "../state/runList";
 
@@ -21,6 +22,10 @@ vi.mock("../lib/api", () => ({
   searchKnowledge: vi.fn(),
   startDebugRun: vi.fn(),
   updateAgent: vi.fn(),
+  listSchedules: vi.fn(),
+  updateSchedule: vi.fn(),
+  listFiles: vi.fn(),
+  writeFile: vi.fn(),
 }));
 
 const mocked = vi.mocked(api);
@@ -92,6 +97,7 @@ beforeEach(() => {
   useRoster.setState({ spaceId: "space-main" });
   mocked.listRuns.mockResolvedValue([row("completed")]);
   mocked.listAgents.mockResolvedValue([writer]);
+  mocked.listSchedules.mockResolvedValue([]);
 });
 
 describe("starting a run", () => {
@@ -324,5 +330,114 @@ describe("the roster", () => {
     await user.click(await screen.findByRole("button", { name: "Add an agent" }));
 
     expect(onOpenAgents).toHaveBeenCalled();
+  });
+});
+
+
+describe("working on its own", () => {
+  const main = {
+    id: "space-main",
+    name: "Main",
+    description: "",
+    provider: null,
+    model: null,
+    auto_approve: null,
+    max_steps_per_agent: null,
+    max_agents_per_run: null,
+    max_run_seconds: null,
+    archived: false,
+    created_at: "2026-09-15T00:00:00Z",
+    updated_at: "2026-09-15T00:00:00Z",
+    folder: "/data/spaces/space-main",
+    is_default: true,
+  };
+
+  const stage = (id: string, name: string, enabled = false): ScheduleResponse => ({
+    id,
+    space_id: "space-main",
+    name,
+    goal: `Run ${name}.`,
+    cadence: { kind: "weekly", at: "07:00", weekdays: [0, 1, 2, 3, 4] },
+    missed: "run_on_launch",
+    enabled,
+    next_run_at: enabled ? "2026-09-30T05:00:00+00:00" : null,
+    last_run_at: null,
+    last_run_id: null,
+    last_outcome: null,
+    created_at: "2026-09-29T00:00:00Z",
+    updated_at: "2026-09-29T00:00:00Z",
+    summary: "Weekdays at 07:00",
+  });
+
+  it("steps through a run when asked, as the manual fallback", async () => {
+    const user = userEvent.setup();
+    mocked.createRun.mockResolvedValue(row("pending", "run-new", "look around"));
+    home();
+
+    await user.type(screen.getByTestId("goal-input"), "look around");
+    await user.click(screen.getByTestId("step-through"));
+    await user.click(screen.getByRole("button", { name: "Start run" }));
+
+    expect(mocked.createRun).toHaveBeenCalledWith("look around", undefined, [], true);
+  });
+
+  it("hands a goal to Automations to make it recurring", async () => {
+    const user = userEvent.setup();
+    const onAutomate = vi.fn();
+    home({ onAutomate });
+
+    expect(screen.getByTestId<HTMLButtonElement>("make-recurring").disabled).toBe(true);
+    await user.type(screen.getByTestId("goal-input"), "Summarise the inbox");
+    await user.click(screen.getByTestId("make-recurring"));
+
+    expect(onAutomate).toHaveBeenCalledWith("Summarise the inbox");
+  });
+
+  it("offers to automate a task when nothing runs on its own", async () => {
+    const user = userEvent.setup();
+    const onAutomate = vi.fn();
+    home({ space: main, onAutomate });
+
+    const line = await screen.findByTestId("home-automations-line");
+    expect(line.textContent).toContain("Nothing in Main runs on its own yet.");
+    await user.click(screen.getByRole("button", { name: "Automate a task" }));
+    expect(onAutomate).toHaveBeenCalledWith("");
+  });
+
+  it("says how many automations are on and which is next", async () => {
+    mocked.listSchedules.mockResolvedValue([stage("s-1", "Digest", true), stage("s-2", "Off")]);
+    home({ space: main });
+
+    const line = await screen.findByTestId("home-automations-line");
+    await waitFor(() => {
+      expect(line.textContent).toContain("1 automation on. Next: Digest");
+    });
+  });
+
+  it("turns the shipped pipeline on in one click, writing only the files that are missing", async () => {
+    const user = userEvent.setup();
+    const pipeline = PIPELINE_SCHEDULE_IDS.map((id, index) => stage(id, `Stage ${String(index)}`));
+    mocked.listSchedules.mockResolvedValue(pipeline);
+    mocked.listFiles.mockResolvedValue({
+      files: [{ path: "config/watchlist.json", size: 10, updated_at: "2026-09-29T00:00:00Z" }],
+    });
+    mocked.writeFile.mockResolvedValue({ path: "x", size: 1, updated_at: "", content: "" });
+    mocked.updateSchedule.mockImplementation((id) =>
+      Promise.resolve({ ...stage(id, "x", true) }),
+    );
+    home({ space: main, runCapMicros: 2_000_000 });
+
+    const offer = await screen.findByTestId("pipeline-offer");
+    expect(offer.textContent).toContain("before spending $2.00");
+    await user.click(screen.getByTestId("pipeline-turn-on"));
+
+    await waitFor(() => {
+      expect(mocked.updateSchedule).toHaveBeenCalledTimes(5);
+    });
+    expect(mocked.writeFile.mock.calls.map((call) => call[1])).toEqual([
+      "config/sources.json",
+      "config/limits.json",
+    ]);
+    expect((await screen.findByRole("status")).textContent).toContain("The pipeline is on");
   });
 });
