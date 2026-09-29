@@ -38,9 +38,25 @@ logger = logging.getLogger("agentbase.api")
 router = APIRouter()
 
 #: Scripted debug sequence: 20 events over 10 seconds at the default step
-#: (§5 Phase 2), shaped and keyed like a real run for identical rendering.
+#: (§5 Phase 2), shaped and keyed like a real run for identical rendering. It
+#: is the first run a new user sees, so it shows the default: the file read is
+#: answered by policy and recorded, not put to a person.
 _FAKE_RUN_SCRIPT: Final[tuple[tuple[EventType, str | None, dict[str, Any]], ...]] = (
-    (EventType.RUN_STARTED, None, {"goal": "Summarise the quarterly report"}),
+    (
+        EventType.RUN_STARTED,
+        None,
+        {
+            "goal": "Summarise the quarterly report",
+            "approval": {
+                "levels": ["low", "medium"],
+                "tool_policies": {},
+                "hosts": ["news.google.com", "stooq.com"],
+                "question_seconds": None,
+                "supervised": False,
+                "origin": "ui",
+            },
+        },
+    ),
     (
         EventType.AGENT_SPAWNED,
         "supervisor",
@@ -85,6 +101,8 @@ _FAKE_RUN_SCRIPT: Final[tuple[tuple[EventType, str | None, dict[str, Any]], ...]
             "risk": "low",
             "prompt": 'Agent "researcher" wants to read q3.md: Allow / Deny',
             "summary": "read the file q3.md",
+            "automatic": True,
+            "rule": "level",
         },
     ),
     (
@@ -94,7 +112,7 @@ _FAKE_RUN_SCRIPT: Final[tuple[tuple[EventType, str | None, dict[str, Any]], ...]
             "approval_id": "demo-approval-1",
             "tool": "read_file",
             "status": "approved",
-            "automatic": False,
+            "automatic": True,
         },
     ),
     (
@@ -104,7 +122,7 @@ _FAKE_RUN_SCRIPT: Final[tuple[tuple[EventType, str | None, dict[str, Any]], ...]
             "tool": "read_file",
             "call_id": "demo-1",
             "approval_id": "demo-approval-1",
-            "automatic": False,
+            "automatic": True,
         },
     ),
     (

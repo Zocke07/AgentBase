@@ -414,6 +414,12 @@ def test_the_fake_run_speaks_the_reducers_dialect(client: TestClient) -> None:
 
     resolved = next(e for e in events if e["type"] == "approval.resolved")
     assert resolved["payload"]["status"] == "approved"
+    # The first run a new user sees shows the default: policy answered, on record.
+    requested = next(e for e in events if e["type"] == "approval.requested")
+    assert requested["payload"]["automatic"] is True
+    assert resolved["payload"]["automatic"] is True
+    started = next(e for e in events if e["type"] == "run.started")
+    assert started["payload"]["approval"]["levels"] == ["low", "medium"]
     result = next(e for e in events if e["type"] == "tool.result")
     assert isinstance(result["payload"]["result"], str)
 
