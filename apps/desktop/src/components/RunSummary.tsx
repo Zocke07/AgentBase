@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 
 import * as api from "../lib/api";
 import { ellipsise, formatCount, formatDuration, formatMicros } from "../lib/format";
-import { STATUS_LABEL } from "../state/describe";
+import { policySentence, STATUS_LABEL } from "../state/describe";
 import type { RunView } from "../state/reducer";
 
 import { Markdown } from "./Markdown";
@@ -59,6 +59,12 @@ export function RunSummary({
           <p className="run-summary__origin" data-testid="run-origin">
             Started from {view.origin.channel} by {view.origin.identity ?? "an unknown identity"}
             {view.origin.displayName !== null && ` (${view.origin.displayName})`}
+          </p>
+        )}
+        {view.approvalPolicy !== null && (
+          // With nobody answering calls one by one, this is why each one ran.
+          <p className="run-summary__policy" data-testid="run-policy">
+            {policySentence(view.approvalPolicy)}
           </p>
         )}
       </header>

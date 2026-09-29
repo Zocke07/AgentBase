@@ -968,6 +968,7 @@ async def test_a_yes_for_the_run_answers_every_later_call_to_that_tool(
     resolved = [e.payload for e in events if e.type is EventType.APPROVAL_RESOLVED]
     assert resolved[0]["scope"] == "run"
     assert requested[1]["automatic"] is True and requested[1]["precedent"] == first
+    assert requested[1]["rule"] == "run"
     assert resolved[1]["precedent"] == first
     assert requested[2].get("automatic", False) is False
     assert (await service.store.get(first)).scope is ApprovalScope.RUN  # type: ignore[union-attr]
@@ -1258,6 +1259,7 @@ async def test_an_unanswered_question_in_a_scheduled_run_expires_and_the_run_goe
     assert "earlier in this run" in denied[1]["reason"]
     requested = [e.payload for e in events if e.type is EventType.APPROVAL_REQUESTED]
     assert requested[1]["automatic"] is True and "precedent" in requested[1]
+    assert requested[1]["rule"] == "unanswered"
     assert await service.store.list_pending(run_id) == []
 
 

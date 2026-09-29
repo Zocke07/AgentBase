@@ -3,7 +3,13 @@ import type { Event } from "@agentbase/schemas";
 import { ellipsise, summariseArgs } from "../lib/format";
 import { display, flag, int, record, text, type Payload } from "../lib/payload";
 
-import { pendingApprovals, type AgentNode, type RunStatus, type RunView } from "./reducer";
+import {
+  pendingApprovals,
+  type AgentNode,
+  type RunApprovalPolicy,
+  type RunStatus,
+  type RunView,
+} from "./reducer";
 
 /**
  * Plain-language event sentences, agent-state labels, and cursor-specific run
@@ -181,24 +187,41 @@ export function sentenceFor(event: Event): string {
     case "approval.requested": {
       // `summary` is the sidecar's resolved-call rendering.
       const summary = read("summary") ?? phrase.infinitive;
-      // `precedent` names the earlier in-run denial that settles this call.
+      // `rule` names what answered without asking; with nobody watching a
+      // run, it is the reason each call ran or did not.
+      const rule = read("rule");
+      // `precedent` names the earlier in-run answer that settles this call.
       if (read("precedent") !== null) {
+        if (rule === "run") return `${who} wants to ${summary}: allowed by your yes for this run.`;
+        if (rule === "unanswered") return `${who} wants to ${summary}: went unanswered earlier in this run.`;
         return `${who} wants to ${summary}: already denied earlier in this run.`;
       }
-      return flag(payload, "automatic")
-        ? `${who} wants to ${summary}: allowed by policy.`
-        : `${who} wants to ${summary}: waiting for you.`;
+      if (read("policy") === "deny") return `${who} wants to ${summary}: never allowed here.`;
+      if (!flag(payload, "automatic")) return `${who} wants to ${summary}: waiting for you.`;
+      const host = read("host");
+      const why =
+        rule === "tool"
+          ? `${read("tool") ?? "this tool"} is always allowed`
+          : rule === "level"
+            ? `${read("risk") ?? "this"} risk runs on its own`
+            : null;
+      if (why === null) return `${who} wants to ${summary}: allowed by policy.`;
+      return `${who} wants to ${summary}: allowed by policy (${why}${host === null ? "" : `, and ${host} is a listed site`}).`;
     }
     case "approval.resolved": {
       const tool = read("tool") ?? "?";
       const automatic = flag(payload, "automatic");
       switch (read("status")) {
         case "approved":
-          return automatic ? `Policy allowed ${who}'s ${tool} call.` : `You allowed ${who}'s ${tool} call.`;
+          if (!automatic) return `You allowed ${who}'s ${tool} call.`;
+          return read("precedent") !== null
+            ? `Your yes for this run allowed ${who}'s ${tool} call.`
+            : `Policy allowed ${who}'s ${tool} call.`;
         case "denied":
-          return automatic
-            ? `Your earlier answer denied ${who}'s ${tool} call again.`
-            : `You denied ${who}'s ${tool} call.`;
+          if (!automatic) return `You denied ${who}'s ${tool} call.`;
+          return read("policy") === "deny"
+            ? `Policy refused ${who}'s ${tool} call.`
+            : `Your earlier answer denied ${who}'s ${tool} call again.`;
         case "expired":
           return `${who}'s ${tool} call went unanswered and expired.`;
         default:
@@ -289,6 +312,43 @@ function list(names: readonly string[]): string {
 
 function plural(count: number, noun: string): string {
   return `${String(count)} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+/**
+ * What a run could do without asking, from the policy `run.started` recorded.
+ * Replay reads the same record, so the sentence is the one live showed.
+ */
+export function policySentence(policy: RunApprovalPolicy): string {
+  if (policy.supervised) return "Stepped through: every call asked first.";
+  const fetches =
+    policy.levels.includes("medium") ||
+    policy.allowTools.includes("http_get") ||
+    policy.allowTools.includes("read_feed");
+  const parts = [
+    policy.levels.length > 0
+      ? `${list(policy.levels)} risk ran on its own`
+      : policy.allowTools.length === 0
+        ? "every call asked first"
+        : "",
+    policy.allowTools.length > 0 ? `${list(policy.allowTools)} always allowed` : "",
+    fetches
+      ? policy.hosts.includes("*")
+        ? "fetches from any public site"
+        : policy.hosts.length > 0
+          ? `fetches from ${list(policy.hosts)} only`
+          : "every fetch asked"
+      : "",
+    policy.denyTools.length > 0 ? `${list(policy.denyTools)} never allowed` : "",
+    "run_shell always asked",
+  ].filter((part) => part !== "");
+  const unattended =
+    policy.questionSeconds === null
+      ? ""
+      : policy.questionSeconds === 0
+        ? " Nobody was watching, so a question was refused at once."
+        : ` Nobody was watching, so a question expired after ${String(policy.questionSeconds)} seconds.`;
+  const sentence = parts.join("; ");
+  return `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}.${unattended}`;
 }
 
 /**

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { LogBuilder, twoAgentRun } from "../test/log";
 
-import { callPhrase, nowLine, sentenceFor } from "./describe";
+import { callPhrase, nowLine, policySentence, sentenceFor } from "./describe";
 import { KNOWN_EVENT_TYPES, reduceAll } from "./reducer";
 
 /**
@@ -115,6 +115,63 @@ describe("a sentence for every event", () => {
     expect(sentenceFor(repeatSettled)).toBe("Your earlier answer denied writer-2's write_file call again.");
   });
 
+  it("says which rule answered a call nobody was asked about", () => {
+    /* With autonomy the default, most calls answer themselves; the log is
+       where a person reads why each one ran, or did not. */
+    const log = new LogBuilder();
+    const byLevel = log.add(
+      "approval.requested",
+      {
+        tool: "read_feed",
+        summary: "read up to 20 complete entries from https://news.google.com/rss",
+        risk: "medium",
+        automatic: true,
+        rule: "level",
+        host: "news.google.com",
+      },
+      "news-scanner",
+    );
+    expect(sentenceFor(byLevel)).toBe(
+      "news-scanner wants to read up to 20 complete entries from https://news.google.com/rss: allowed by policy (medium risk runs on its own, and news.google.com is a listed site).",
+    );
+    const byTool = log.add(
+      "approval.requested",
+      { tool: "write_file", summary: "create the file a.md (1 characters)", risk: "medium", automatic: true, rule: "tool" },
+      "writer",
+    );
+    expect(sentenceFor(byTool)).toContain("allowed by policy (write_file is always allowed)");
+    const never = log.add(
+      "approval.requested",
+      { tool: "http_get", summary: "fetch https://x.test/ over the internet", automatic: true, policy: "deny" },
+      "writer",
+    );
+    expect(sentenceFor(never)).toBe("writer wants to fetch https://x.test/ over the internet: never allowed here.");
+    const refused = log.add(
+      "approval.resolved",
+      { tool: "http_get", status: "denied", automatic: true, policy: "deny" },
+      "writer",
+    );
+    expect(sentenceFor(refused)).toBe("Policy refused writer's http_get call.");
+    const forRun = log.add(
+      "approval.requested",
+      { tool: "write_file", summary: "create the file b.md (1 characters)", automatic: true, precedent: "ap-1", rule: "run" },
+      "writer",
+    );
+    expect(sentenceFor(forRun)).toBe("writer wants to create the file b.md (1 characters): allowed by your yes for this run.");
+    const forRunSettled = log.add(
+      "approval.resolved",
+      { tool: "write_file", status: "approved", automatic: true, precedent: "ap-1" },
+      "writer",
+    );
+    expect(sentenceFor(forRunSettled)).toBe("Your yes for this run allowed writer's write_file call.");
+    const unanswered = log.add(
+      "approval.requested",
+      { tool: "write_file", summary: "create the file c.md (1 characters)", automatic: true, precedent: "ap-2", rule: "unanswered" },
+      "writer",
+    );
+    expect(sentenceFor(unanswered)).toContain("went unanswered earlier in this run");
+  });
+
   it("truncates what a model wrote so a row stays a row", () => {
     const log = new LogBuilder();
     const long = log.add("agent.message", { to: "supervisor", text: "x".repeat(500) }, "writer");
@@ -218,5 +275,31 @@ describe("the Now line", () => {
       incremental = reduceAll([event], incremental);
       expect(nowLine(incremental)).toBe(at(index + 1));
     }
+  });
+});
+
+describe("the approval policy a run acted under", () => {
+  const base = {
+    levels: ["low", "medium"],
+    allowTools: [],
+    denyTools: [],
+    hosts: ["news.google.com", "stooq.com"],
+    questionSeconds: null,
+    supervised: false,
+    origin: "ui",
+  };
+
+  it("names the levels, the sites and the one tool that always asks", () => {
+    expect(policySentence(base)).toBe(
+      "Low and medium risk ran on its own; fetches from news.google.com and stooq.com only; run_shell always asked.",
+    );
+  });
+
+  it("says a scheduled run's question expired, and a stepped-through run asked first", () => {
+    expect(policySentence({ ...base, questionSeconds: 120, denyTools: ["http_get"] })).toBe(
+      "Low and medium risk ran on its own; fetches from news.google.com and stooq.com only; http_get never allowed; run_shell always asked. Nobody was watching, so a question expired after 120 seconds.",
+    );
+    expect(policySentence({ ...base, supervised: true })).toBe("Stepped through: every call asked first.");
+    expect(policySentence({ ...base, levels: [] })).toBe("Every call asked first; run_shell always asked.");
   });
 });

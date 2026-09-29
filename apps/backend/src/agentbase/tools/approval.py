@@ -571,6 +571,8 @@ class ApprovalService:
                 "summary": prepared.summary,
                 "automatic": True,
                 "precedent": precedent.id,
+                # An earlier yes for the rest of this run, not a policy.
+                "rule": "run",
             },
             agent_id=agent,
         )
@@ -626,6 +628,10 @@ class ApprovalService:
                 "summary": prepared.summary,
                 "automatic": True,
                 "precedent": precedent.id,
+                # Why the earlier call did not happen: a no, or nobody there.
+                "rule": "unanswered"
+                if precedent.status is ApprovalStatus.EXPIRED
+                else "denied",
             },
             agent_id=agent,
         )

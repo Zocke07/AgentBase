@@ -102,6 +102,30 @@ describe("RunSummary", () => {
     expect(screen.getByTestId("fact-duration").textContent).toBe("27s");
   });
 
+  it("says what the run could do without asking, from run.started, and nothing for an older run", () => {
+    const log = new LogBuilder();
+    const view = reduceAll([
+      log.add("run.started", {
+        goal: "scan",
+        approval: {
+          levels: ["low", "medium"],
+          tool_policies: {},
+          hosts: ["news.google.com"],
+          question_seconds: 120,
+          supervised: false,
+          origin: "schedule",
+        },
+      }),
+    ]);
+    const { unmount } = render(<RunSummary view={view} />);
+    expect(screen.getByTestId("run-policy").textContent).toContain("Low and medium risk ran on its own");
+    expect(screen.getByTestId("run-policy").textContent).toContain("a question expired after 120 seconds");
+    unmount();
+
+    render(<RunSummary view={reduceAll(twoAgentRun())} />);
+    expect(screen.queryByTestId("run-policy")).toBeNull();
+  });
+
   it("shows what the run cost, from the log", () => {
     render(<RunSummary view={reduceAll(twoAgentRun())} />);
 

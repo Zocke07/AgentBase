@@ -3607,7 +3607,8 @@ button.md__tag:hover {
 
 /* Where a channel-originated run came from. Reads as a caption, because the
    goal is the headline and this is the provenance under it. */
-.run-summary__origin {
+.run-summary__origin,
+.run-summary__policy {
   margin: 0;
   flex-basis: 100%;
   color: var(--muted);
