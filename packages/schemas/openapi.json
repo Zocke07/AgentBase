@@ -5065,7 +5065,7 @@
     },
     "/schedules/{schedule_id}/run": {
       "post": {
-        "description": "Start this schedule now without changing its next time.",
+        "description": "Start this schedule now without changing its next time.\n\nIt goes through the scheduler, so a run started by hand gets the\nschedule's own time limit and the same guard against overlapping itself.",
         "operationId": "run_schedule_now_schedules__schedule_id__run_post",
         "parameters": [
           {

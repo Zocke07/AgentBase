@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from agentbase.orchestrator.scheduler import MISSED_AFTER, Fired, Scheduler
+from agentbase.orchestrator.scheduler import MISSED_AFTER, Fired, ScheduleBusyError, Scheduler
 from agentbase.store.db import LATEST_SCHEMA_VERSION
 from agentbase.store.schedules import (
     DailyCadence,
@@ -525,3 +525,23 @@ async def test_a_schedule_with_its_own_time_limit_hands_it_to_the_launcher(
     fired = await scheduler.tick()
     assert [entry.schedule_id for entry in fired] == [long.id]
     assert launcher.launched[-1]["max_run_seconds"] == 3600
+
+
+async def test_run_now_is_bounded_like_a_timed_start_and_leaves_the_next_time(
+    schedules: ScheduleStore, scheduler: Scheduler, launcher: FakeLauncher
+) -> None:
+    created = await schedules.create({**_fields(name="Nightly"), "max_run_seconds": 1800})
+
+    run = await scheduler.run_now(created)
+
+    assert launcher.launched[-1]["max_run_seconds"] == 1800
+    after = await schedules.require(created.id)
+    assert after.last_run_id == run.id
+    assert after.last_outcome == "Started by hand."
+    assert after.next_run_at == created.next_run_at
+
+    # Pressing it again while that run is going starts nothing.
+    launcher.driving.add(run.id)
+    with pytest.raises(ScheduleBusyError, match="has not finished"):
+        await scheduler.run_now(after)
+    assert len(launcher.launched) == 1

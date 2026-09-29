@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from agentbase.events.types import Run
+from agentbase.orchestrator.scheduler import ScheduleBusyError
 from agentbase.store.schedules import (
     MAX_GOAL_LENGTH,
     MAX_NAME_LENGTH,
@@ -27,7 +28,6 @@ from agentbase.store.schedules import (
 from agentbase.store.spaces import SpaceArchivedError, SpaceNotFoundError
 
 if TYPE_CHECKING:
-    from agentbase.orchestrator.launcher import RunLauncher
     from agentbase.orchestrator.scheduler import Scheduler
     from agentbase.store.schedules import ScheduleStore
 
@@ -89,11 +89,6 @@ def _schedules(request: Request) -> ScheduleStore:
 def _scheduler(request: Request) -> Scheduler:
     scheduler: Scheduler = request.app.state.scheduler
     return scheduler
-
-
-def _launcher(request: Request) -> RunLauncher:
-    launcher: RunLauncher = request.app.state.launcher
-    return launcher
 
 
 def _reject(message: str, field: str | None) -> HTTPException:
@@ -159,27 +154,21 @@ async def delete_schedule(request: Request, schedule_id: str) -> Response:
 
 @router.post("/schedules/{schedule_id}/run", status_code=201)
 async def run_schedule_now(request: Request, schedule_id: str) -> Run:
-    """Start this schedule now without changing its next time."""
-    store = _schedules(request)
+    """Start this schedule now without changing its next time.
+
+    It goes through the scheduler, so a run started by hand gets the
+    schedule's own time limit and the same guard against overlapping itself.
+    """
     try:
-        schedule = await store.require(schedule_id)
+        schedule = await _schedules(request).require(schedule_id)
     except ScheduleNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     try:
-        run = await _launcher(request).launch(
-            schedule.goal,
-            space_id=schedule.space_id,
-            origin="schedule",
-            origin_ref=schedule.id,
-        )
+        return await _scheduler(request).run_now(schedule)
     except SpaceNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except SpaceArchivedError as exc:
+    except (SpaceArchivedError, ScheduleBusyError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    await store.note_run(
-        schedule.id, now=store.now(), run_id=run.id, outcome="Started by hand."
-    )
-    return run
 
 
 @router.post("/schedules/preview")

@@ -22,10 +22,11 @@ from typing import TYPE_CHECKING, Final
 from agentbase.store.spaces import SpaceArchivedError, SpaceNotFoundError
 
 if TYPE_CHECKING:
+    from agentbase.events.types import Run as RunRow
     from agentbase.orchestrator.launcher import RunLauncher
     from agentbase.store.schedules import Schedule, ScheduleStore
 
-__all__ = ["DEFAULT_POLL_SECONDS", "Fired", "Scheduler"]
+__all__ = ["DEFAULT_POLL_SECONDS", "Fired", "ScheduleBusyError", "Scheduler"]
 
 logger = logging.getLogger("agentbase.scheduler")
 
@@ -34,6 +35,10 @@ DEFAULT_POLL_SECONDS: Final[float] = 60.0
 
 #: Startup-due threshold distinguishing closed-app work from sidecar startup.
 MISSED_AFTER: Final[timedelta] = timedelta(minutes=2)
+
+
+class ScheduleBusyError(RuntimeError):
+    """Run now refused: the schedule's previous run is still going."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,6 +164,31 @@ class Scheduler:
         await self.schedules.advance(schedule.id, now=now, outcome=outcome, run_id=run.id)
         logger.info("schedule %s started run %s", schedule.name, run.id)
         return Fired(schedule.id, run.id, outcome)
+
+    async def run_now(self, schedule: Schedule) -> RunRow:
+        """Start a schedule by hand, bounded exactly as a timed start is.
+
+        The same overlap guard and time limit apply, and the next time is left
+        where it was.
+
+        :raises ScheduleBusyError: while its previous run is still going.
+        :raises SpaceNotFoundError: if its space no longer exists.
+        :raises SpaceArchivedError: if its space is archived.
+        """
+        if self._still_running(schedule):
+            msg = f"{schedule.name}'s previous run has not finished yet."
+            raise ScheduleBusyError(msg)
+        run = await self.launcher.launch(
+            schedule.goal,
+            space_id=schedule.space_id,
+            origin="schedule",
+            origin_ref=schedule.id,
+            max_run_seconds=schedule.max_run_seconds,
+        )
+        await self.schedules.note_run(
+            schedule.id, now=self.schedules.now(), run_id=run.id, outcome="Started by hand."
+        )
+        return run
 
     def _still_running(self, schedule: Schedule) -> bool:
         """Whether this schedule's last run remains active in this process."""
