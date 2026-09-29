@@ -40,6 +40,10 @@ def _body(**overrides: Any) -> dict[str, Any]:
 
 
 def test_a_schedule_is_created_listed_by_space_and_described(client: TestClient) -> None:
+    # A fresh install ships the investment pipeline's schedules, switched off.
+    shipped = [entry["id"] for entry in client.get("/schedules").json()]
+    assert len(shipped) == 5
+    assert not any(entry["enabled"] for entry in client.get("/schedules").json())
     created = client.post("/schedules", json=_body())
     assert created.status_code == 201, created.text
     schedule = created.json()
@@ -51,9 +55,10 @@ def test_a_schedule_is_created_listed_by_space_and_described(client: TestClient)
     assert next_run > datetime.now(UTC)
     assert next_run.astimezone().strftime("%H:%M") == "09:00"
 
-    assert [entry["id"] for entry in client.get("/schedules").json()] == [schedule["id"]]
+    everything = [entry["id"] for entry in client.get("/schedules").json()]
+    assert sorted(everything) == sorted([*shipped, schedule["id"]])
     listed = client.get("/schedules", params={"space_id": DEFAULT_SPACE_ID}).json()
-    assert [entry["id"] for entry in listed] == [schedule["id"]]
+    assert sorted(entry["id"] for entry in listed) == sorted(everything)
     assert client.get("/schedules", params={"space_id": "elsewhere"}).json() == []
     assert client.get(f"/schedules/{schedule['id']}").json() == schedule
     assert client.get("/schedules/ghost").status_code == 404

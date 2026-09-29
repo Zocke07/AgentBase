@@ -255,6 +255,7 @@ def test_migration_009_adds_the_table(db: Database) -> None:
 async def test_creating_a_schedule_computes_its_first_time_in_utc(
     schedules: ScheduleStore,
 ) -> None:
+    shipped = {entry.id for entry in await schedules.list_all(DEFAULT_SPACE_ID)}
     created = await schedules.create(_fields())
     assert created.enabled is True
     assert created.next_run_at == _utc(2026, 9, 18, 7, 0)  # 09:00 in the zone
@@ -262,7 +263,7 @@ async def test_creating_a_schedule_computes_its_first_time_in_utc(
     assert created.cadence == DailyCadence(kind="daily", at="09:00")
 
     listed = await schedules.list_all(DEFAULT_SPACE_ID)
-    assert [entry.id for entry in listed] == [created.id]
+    assert {entry.id for entry in listed} - shipped == {created.id}
     assert await schedules.list_all("some-other-space") == []
 
 

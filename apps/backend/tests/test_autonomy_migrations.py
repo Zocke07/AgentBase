@@ -205,3 +205,116 @@ def test_a_fresh_install_starts_autonomous(app_paths: AppPaths) -> None:
         assert settings.tool_policies == {}
     finally:
         fresh.close()
+
+
+# --- migration 019: the shipped examples run as a pipeline ----------------------
+
+_PIPELINE: dict[str, dict[str, Any]] = {
+    "Morning collection": {"kind": "weekly", "at": "07:00", "weekdays": [0, 1, 2, 3, 4]},
+    "Theses and risk": {"kind": "after", "follows": "Morning collection"},
+    "Daily decision": {"kind": "after", "follows": "Theses and risk"},
+    "Weekly knowledge": {"kind": "weekly", "at": "09:00", "weekdays": [5]},
+    "Weekly review": {"kind": "weekly", "at": "18:00", "weekdays": [6]},
+}
+
+_WIDENED = ("bull-architect", "bear-architect", "risk-manager", "decision", "review-analyst")
+
+
+def _schedules(database: Database) -> dict[str, dict[str, Any]]:
+    with database.read() as connection:
+        rows = connection.execute(
+            "SELECT id, space_id, name, goal, cadence, enabled, next_run_at, max_run_seconds"
+            " FROM schedules"
+        ).fetchall()
+    return {row["name"]: {**dict(row), "cadence": json.loads(row["cadence"])} for row in rows}
+
+
+def _levels(database: Database, name: str) -> list[str]:
+    with database.read() as connection:
+        row = connection.execute(
+            "SELECT auto_approve FROM agent_defs WHERE space_id = ? AND name = ?",
+            (DEFAULT_SPACE_ID, name),
+        ).fetchone()
+    return list(json.loads(row["auto_approve"]))
+
+
+def test_a_fresh_install_ships_the_pipeline_switched_off(app_paths: AppPaths) -> None:
+    fresh = _upgraded(app_paths)
+    try:
+        schedules = _schedules(fresh)
+        assert set(schedules) == set(_PIPELINE)
+        ids = {name: row["id"] for name, row in schedules.items()}
+        for name, cadence in _PIPELINE.items():
+            row = schedules[name]
+            assert row["space_id"] == DEFAULT_SPACE_ID
+            # Nothing spends until someone turns it on.
+            assert row["enabled"] == 0 and row["next_run_at"] is None, name
+            assert row["max_run_seconds"] == 1800, name
+            if cadence["kind"] == "after":
+                assert row["cadence"] == {
+                    "kind": "after",
+                    "schedule_id": ids[str(cadence["follows"])],
+                }
+            else:
+                assert row["cadence"] == cadence, name
+        # The whole morning collection fits one run: the supervisor and four workers.
+        morning = schedules["Morning collection"]["goal"]
+        for agent in ("news-scanner", "market-movers", "event-calendar", "portfolio-review"):
+            assert agent in morning
+        assert "person" in schedules["Daily decision"]["goal"]
+        for name in _WIDENED:
+            assert _levels(fresh, name) == ["low", "medium"], name
+    finally:
+        fresh.close()
+
+
+def test_019_widens_only_untouched_stages_and_seeds_only_what_the_roster_can_run(
+    app_paths: AppPaths,
+) -> None:
+    eighteen = _at_version(app_paths, 18)
+    try:
+        with eighteen.write() as connection:
+            # Someone narrowed the bear themselves, and deleted the decision agent.
+            connection.execute(
+                "UPDATE agent_defs SET allowed_tools = ? WHERE space_id = ? AND name = ?",
+                (json.dumps(["read_file", "write_file"]), DEFAULT_SPACE_ID, "bear-architect"),
+            )
+            connection.execute(
+                "DELETE FROM agent_defs WHERE space_id = ? AND name = 'decision'",
+                (DEFAULT_SPACE_ID,),
+            )
+            connection.execute(
+                "UPDATE agent_defs SET role = 'My own scanner.' WHERE name = 'news-scanner'"
+            )
+    finally:
+        eighteen.close()
+
+    upgraded = _upgraded(app_paths)
+    try:
+        assert _levels(upgraded, "bull-architect") == ["low", "medium"]
+        assert _levels(upgraded, "bear-architect") == ["low"]
+        schedules = _schedules(upgraded)
+        assert "Daily decision" not in schedules
+        assert {"Morning collection", "Theses and risk", "Weekly review"} <= set(schedules)
+        with upgraded.read() as connection:
+            role = connection.execute(
+                "SELECT role FROM agent_defs WHERE name = 'news-scanner'"
+            ).fetchone()["role"]
+        assert role == "My own scanner."
+    finally:
+        upgraded.close()
+
+
+def test_the_scanner_is_described_as_what_it_now_reads(app_paths: AppPaths) -> None:
+    fresh = _upgraded(app_paths)
+    try:
+        with fresh.read() as connection:
+            role = connection.execute(
+                "SELECT role FROM agent_defs WHERE name = 'news-scanner'"
+            ).fetchone()["role"]
+        assert role == (
+            "Collects public news about watchlist tickers into a fixed schema. "
+            "Performs no analysis."
+        )
+    finally:
+        fresh.close()

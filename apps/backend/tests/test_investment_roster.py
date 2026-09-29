@@ -19,7 +19,9 @@ from agentbase.store.spaces import DEFAULT_SPACE_ID
 if TYPE_CHECKING:
     from agentbase.config import AppPaths
 
-#: What 010 seeds: name, model, allowed tools, step ceiling, narrowed levels.
+#: What a fresh install ships: name, model, allowed tools, step ceiling and
+#: narrowed levels, after 010 seeds it and later migrations move untouched rows.
+#: Migration 019 lets every stage write its output by policy.
 ROSTER: Final[dict[str, tuple[str, tuple[str, ...], int, tuple[str, ...]]]] = {
     "news-scanner": (
         "claude-haiku-4-5",
@@ -55,22 +57,32 @@ ROSTER: Final[dict[str, tuple[str, tuple[str, ...], int, tuple[str, ...]]]] = {
         "claude-sonnet-5",
         ("read_file", "list_dir", "search_knowledge", "write_file"),
         12,
-        ("low",),
+        ("low", "medium"),
     ),
     "bear-architect": (
         "claude-sonnet-5",
         ("read_file", "list_dir", "search_knowledge", "write_file"),
         12,
-        ("low",),
+        ("low", "medium"),
     ),
-    "risk-manager": ("claude-sonnet-5", ("read_file", "list_dir", "write_file"), 10, ("low",)),
+    "risk-manager": (
+        "claude-sonnet-5",
+        ("read_file", "list_dir", "write_file"),
+        10,
+        ("low", "medium"),
+    ),
     # Seeded on Opus 5; migration 016 moves the untouched row to Opus 5.5.
-    "decision": ("claude-opus-5-5", ("read_file", "list_dir", "write_file"), 8, ("low",)),
+    "decision": (
+        "claude-opus-5-5",
+        ("read_file", "list_dir", "write_file"),
+        8,
+        ("low", "medium"),
+    ),
     "review-analyst": (
         "claude-sonnet-5",
         ("read_file", "list_dir", "write_file", "propose_memory"),
         15,
-        ("low",),
+        ("low", "medium"),
     ),
 }
 
