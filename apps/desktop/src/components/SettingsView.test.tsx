@@ -167,6 +167,47 @@ describe("saving", () => {
     expect(mocked.updateSettings).toHaveBeenCalledWith({ tool_policies: { run_shell: "deny" } });
   });
 
+  it("chooses Autonomous or Supervised in one click, and Supervised keeps a refusal", async () => {
+    const user = userEvent.setup();
+    view();
+    await loaded();
+    expect(screen.getByTestId<HTMLInputElement>("setting-preset-supervised").checked).toBe(true);
+
+    await user.click(screen.getByTestId("setting-preset-autonomous"));
+    await user.selectOptions(screen.getByTestId("setting-policy-run_shell"), "deny");
+    await user.click(screen.getByRole("button", { name: "Save settings" }));
+    expect(mocked.updateSettings).toHaveBeenLastCalledWith({
+      auto_approve: ["low", "medium"],
+      tool_policies: { run_shell: "deny" },
+    });
+  });
+
+  it("never offers a high-risk tick, nor Always allow for run_shell", async () => {
+    view();
+    await loaded();
+
+    expect(screen.queryByTestId("setting-auto-high")).toBeNull();
+    const shell = screen.getByTestId("setting-policy-run_shell");
+    const answers = [...shell.querySelectorAll("option")].map((option) => option.value);
+    expect(answers).toEqual(["ask", "deny"]);
+  });
+
+  it("sends the sites a fetch may reach as a list, and the unattended wait as a number", async () => {
+    const user = userEvent.setup();
+    view();
+    await loaded();
+
+    await user.type(screen.getByTestId("setting-hosts"), "news.google.com, .stooq.com");
+    await user.clear(screen.getByTestId("setting-question-seconds"));
+    await user.type(screen.getByTestId("setting-question-seconds"), "60");
+    await user.click(screen.getByRole("button", { name: "Save settings" }));
+
+    expect(mocked.updateSettings).toHaveBeenCalledWith({
+      auto_approve_hosts: ["news.google.com", ".stooq.com"],
+      unattended_question_seconds: 60,
+    });
+  });
+
   it("converts the cap from dollars to integer micros", async () => {
     /* Money is integer micros end to end (§5 Phase 3). The field takes dollars
        because that is what a person thinks in; the conversion rounds to whole

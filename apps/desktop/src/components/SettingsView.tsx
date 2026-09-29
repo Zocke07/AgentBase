@@ -59,6 +59,10 @@ interface Form {
   auto_approve: RiskLevel[];
   /** Per-tool answers; absent tools ask according to risk levels. */
   tool_policies: Record<string, ToolPolicy>;
+  /** Sites a fetch may reach without asking, as typed: commas or new lines. */
+  auto_approve_hosts: string;
+  /** Seconds a scheduled run's question waits, as typed. */
+  unattended_question_seconds: string;
   discord_enabled: boolean;
   channel_identities: ChannelIdentity[];
   channel_approvals: "dashboard_only" | "originator";
@@ -66,7 +70,26 @@ interface Form {
   channel_space_id: string;
 }
 
-const RISK_LEVELS: readonly RiskLevel[] = ["low", "medium", "high"];
+/** Levels a policy may answer; high risk (run_shell) always asks a person. */
+const RISK_LEVELS: readonly RiskLevel[] = ["low", "medium"];
+
+/** The two named approval policies; anything else reads as Custom. */
+type Preset = "autonomous" | "supervised" | "custom";
+
+function presetOf(form: Form): Preset {
+  const allows = Object.values(form.tool_policies).some((answer) => answer === "allow");
+  if (form.auto_approve.join() === "low,medium") return "autonomous";
+  if (form.auto_approve.length === 0 && !allows) return "supervised";
+  return "custom";
+}
+
+/** "a.com, .b.com" or one per line, as a list; blank entries dropped. */
+function hostList(typed: string): string[] {
+  return typed
+    .split(/[\s,]+/)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry !== "");
+}
 const MICROS_PER_DOLLAR = 1_000_000;
 /** The key for a refusal the server did not attribute to a field. */
 const FORM = "__form__";
@@ -94,9 +117,11 @@ function fromSettings(settings: WorkspaceSettings): Form {
     run_cap: ((settings.max_run_cost_micros ?? 0) / MICROS_PER_DOLLAR).toFixed(2),
     auto_approve: [...(settings.auto_approve ?? [])],
     tool_policies: { ...(settings.tool_policies ?? {}) },
+    auto_approve_hosts: (settings.auto_approve_hosts ?? []).join(", "),
+    unattended_question_seconds: String(settings.unattended_question_seconds ?? ""),
     discord_enabled: settings.discord_enabled ?? false,
     channel_identities: [...(settings.channel_identities ?? [])],
-    channel_approvals: settings.channel_approvals ?? "dashboard_only",
+    channel_approvals: settings.channel_approvals ?? "originator",
     channel_space_id: settings.channel_space_id ?? "",
   };
 }
@@ -132,6 +157,12 @@ function diff(opened: Form, form: Form): UpdateSettingsRequest {
   if (form.auto_approve.join() !== opened.auto_approve.join()) patch.auto_approve = form.auto_approve;
   if (JSON.stringify(form.tool_policies) !== JSON.stringify(opened.tool_policies)) {
     patch.tool_policies = form.tool_policies;
+  }
+  if (hostList(form.auto_approve_hosts).join() !== hostList(opened.auto_approve_hosts).join()) {
+    patch.auto_approve_hosts = hostList(form.auto_approve_hosts);
+  }
+  if (form.unattended_question_seconds !== opened.unattended_question_seconds) {
+    patch.unattended_question_seconds = Number(form.unattended_question_seconds);
   }
   if (form.discord_enabled !== opened.discord_enabled) patch.discord_enabled = form.discord_enabled;
   if (JSON.stringify(form.channel_identities) !== JSON.stringify(opened.channel_identities)) {
@@ -518,12 +549,55 @@ function SettingsForm({
           </label>
         </div>
 
-        <fieldset className="editor__tools">
+        <fieldset className="editor__tools" data-testid="setting-approvals">
           <legend>Calls that run without asking</legend>
           <p className="editor__hint">
-            The app-wide policy for unattended runs. Nothing ticked means every tool call stops for
-            you; a space or agent definition can narrow this further but never widen it.
+            The app-wide policy every run acts under, and above all the runs nobody is watching. A
+            space or agent definition can narrow it but never widen it. Every answer, including one the
+            policy gives, is recorded in the run&apos;s log.
           </p>
+          <div className="editor__risks" role="radiogroup" aria-label="Approval policy">
+            {(
+              [
+                [
+                  "autonomous",
+                  "Autonomous (recommended)",
+                  "Reads, writes inside the space and fetches from the listed sites run on their own. A shell command, or a fetch from anywhere else, still asks.",
+                ],
+                [
+                  "supervised",
+                  "Supervised",
+                  "Ask before every call. Automations then do little on their own.",
+                ],
+                ["custom", "Custom", "Choose levels and answers by tool below."],
+              ] as const
+            ).map(([value, label, description]) => (
+              <label key={value} className="editor__tool">
+                <input
+                  type="radio"
+                  name="approval-preset"
+                  checked={presetOf(form) === value}
+                  onChange={() => {
+                    if (value === "autonomous") set("auto_approve", ["low", "medium"]);
+                    if (value === "supervised") {
+                      set("auto_approve", []);
+                      // A "never allow" stays: supervising only narrows.
+                      set(
+                        "tool_policies",
+                        Object.fromEntries(
+                          Object.entries(form.tool_policies).filter(([, answer]) => answer !== "allow"),
+                        ),
+                      );
+                    }
+                  }}
+                  data-testid={`setting-preset-${value}`}
+                />
+                <span className="editor__tool-description">
+                  <b>{label}</b>: {description}
+                </span>
+              </label>
+            ))}
+          </div>
           <div className="editor__risks">
             {RISK_LEVELS.map((level) => (
               <label key={level} className="editor__tool">
@@ -543,13 +617,54 @@ function SettingsForm({
                 <span className={`risk risk--${level}`}>{level}</span>
                 <span className="editor__tool-description">
                   {level === "low" && "reads inside the workspace"}
-                  {level === "medium" && "writes inside the workspace, fetches a public URL"}
-                  {level === "high" && "runs a shell command"}
+                  {level === "medium" && "writes inside the workspace, fetches from a listed site"}
                 </span>
               </label>
             ))}
+            <p className="editor__hint">
+              <span className="risk risk--high">high</span> runs a shell command as you, with no
+              isolation, so it always asks.
+            </p>
           </div>
           <FieldError field="auto_approve" message={errorFor("auto_approve")} />
+          <label className="editor__field">
+            <span>Sites a fetch may reach without asking</span>
+            <input
+              type="text"
+              value={form.auto_approve_hosts}
+              placeholder="news.google.com, stooq.com"
+              onChange={(changed) => {
+                set("auto_approve_hosts", changed.target.value);
+                setErrors(({ auto_approve_hosts: _cleared, ...rest }) => rest);
+              }}
+              aria-invalid={errorFor("auto_approve_hosts") !== null}
+              data-testid="setting-hosts"
+            />
+            <span className="editor__hint">
+              Separate them with commas. .stooq.com covers that domain and every name under it, and *
+              allows any public site. A fetch from anywhere else asks, so a page an agent reads cannot
+              send your files to a site nobody chose.
+            </span>
+            <FieldError field="auto_approve_hosts" message={errorFor("auto_approve_hosts")} />
+          </label>
+          <label className="editor__field editor__field--narrow">
+            <span>Seconds a scheduled run waits for an answer</span>
+            <input
+              type="number"
+              min={0}
+              value={form.unattended_question_seconds}
+              onChange={(changed) => {
+                set("unattended_question_seconds", changed.target.value);
+              }}
+              aria-invalid={errorFor("unattended_question_seconds") !== null}
+              data-testid="setting-question-seconds"
+            />
+            <span className="editor__hint">
+              Nobody watches a scheduled run, so its question expires after this long and the run carries
+              on without that call. 0 refuses at once. A run you start keeps waiting for you.
+            </span>
+            <FieldError field="unattended_question_seconds" message={errorFor("unattended_question_seconds")} />
+          </label>
         </fieldset>
 
         <fieldset className="editor__tools" data-testid="setting-tool-policies">
@@ -561,7 +676,8 @@ function SettingsForm({
             <b>Never allow</b>, it is refused every time, even with its level ticked. For example,
             with <b>low</b> ticked, <code>write_file</code> on Always allow and <code>run_shell</code>{" "}
             on Never allow: reads and writes run on their own, a shell command is refused, and a web
-            fetch (medium, unticked) still asks. A space can only make an answer stricter.
+            fetch (medium, unticked) still asks. <code>run_shell</code> can never be set to Always
+            allow. A space can only make an answer stricter.
           </p>
           {tools.length === 0 ? (
             <p className="editor__hint">The tool catalogue has not loaded.</p>
@@ -586,11 +702,13 @@ function SettingsForm({
                           set("tool_policies", chosen === "ask" ? rest : { ...rest, [tool.name]: chosen });
                         }}
                       >
-                        {TOOL_POLICIES.map((choice) => (
-                          <option key={choice.value} value={choice.value}>
-                            {choice.label}
-                          </option>
-                        ))}
+                        {TOOL_POLICIES.filter((choice) => tool.risk !== "high" || choice.value !== "allow").map(
+                          (choice) => (
+                            <option key={choice.value} value={choice.value}>
+                              {choice.label}
+                            </option>
+                          ),
+                        )}
                       </select>
                     </td>
                   </tr>
@@ -657,8 +775,8 @@ function SettingsForm({
           <legend>Who may answer an approval</legend>
           {(
             [
+              ["originator", "The person who started the run in chat can answer it there, as well as here."],
               ["dashboard_only", "Only this window: the question is shown in chat, answered here."],
-              ["originator", "Also the chat user who started the run."],
             ] as const
           ).map(([value, label]) => (
             <label key={value} className="editor__tool">

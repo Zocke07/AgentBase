@@ -146,23 +146,33 @@ export function ApprovalPanel({ approvals, onResolve, readOnly }: ApprovalPanelP
             >
               Allow
             </button>
-            <button
-              type="button"
-              className="button button--allow-run"
-              disabled={busy !== null}
-              title={`Allow this call and every later ${current.tool} call in this run without asking`}
-              onClick={() => void answer(true, "run")}
-            >
-              Allow for this run
-            </button>
+            {/* A high-risk call is answered one at a time: run_shell has no
+                isolation, and the sidecar keeps no yes for the run for it. */}
+            {current.risk !== "high" && (
+              <button
+                type="button"
+                className="button button--allow-run"
+                disabled={busy !== null}
+                title={`Allow this call and every later ${current.tool} call in this run without asking`}
+                onClick={() => void answer(true, "run")}
+              >
+                Allow for this run
+              </button>
+            )}
           </div>
         )}
 
         <p className="approval__note">
           Denying stops this call, not the run. The supervisor may delegate the
-          work again and ask a second time. <b>Allow for this run</b> also answers
-          every later {current.tool} call in this run; to answer for every run,
-          set the tool in Settings.
+          work again and ask a second time.{" "}
+          {current.risk === "high" ? (
+            <>A high-risk call is always asked about, one call at a time.</>
+          ) : (
+            <>
+              <b>Allow for this run</b> also answers every later {current.tool} call in this run;
+              to answer for every run, set the tool in Settings.
+            </>
+          )}
         </p>
       </div>
     </section>

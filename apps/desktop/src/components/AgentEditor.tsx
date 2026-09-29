@@ -50,7 +50,9 @@ interface FormState {
   enabled: boolean;
 }
 
-const RISK_LEVELS: readonly RiskLevel[] = ["low", "medium", "high"];
+/** Levels a policy may answer; high risk (run_shell) always asks a person, so
+    a definition naming it would narrow nothing and is not offered. */
+const RISK_LEVELS: readonly RiskLevel[] = ["low", "medium"];
 
 const isRiskLevel = (value: string): value is RiskLevel =>
   (RISK_LEVELS as readonly string[]).includes(value);
@@ -383,7 +385,9 @@ export function AgentEditor({
         <p className="editor__hint">
           An allowlist: an agent can call nothing that is not ticked here. Ticking
           a tool is permission from the definition, not from you: every call still
-          stops at the approval gate unless your policy pre-approves its risk level.
+          passes the approval gate, and runs on its own only when your policy
+          answers it, by risk level, by tool and, for a fetch, by site. A shell
+          command always asks.
         </p>
 
         {tools.map((tool) => (
@@ -431,8 +435,7 @@ export function AgentEditor({
               <span className={`risk risk--${level}`}>{level}</span>
               <span className="editor__tool-description">
                 {level === "low" && "reads inside the space folder"}
-                {level === "medium" && "writes inside the space folder, fetches a public URL"}
-                {level === "high" && "runs a shell command"}
+                {level === "medium" && "writes inside the space folder, fetches from a listed site"}
               </span>
             </label>
           ))}

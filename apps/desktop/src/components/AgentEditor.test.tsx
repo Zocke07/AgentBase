@@ -185,9 +185,11 @@ describe("the tool allowlist", () => {
   it("says plainly that ticking a tool is not the same as approving its calls", () => {
     editor();
 
-    expect(screen.getByTestId("agent-editor").textContent).toContain(
-      "every call still stops at the approval gate",
-    );
+    const text = screen.getByTestId("agent-editor").textContent;
+    expect(text).toContain("every call still passes the approval gate");
+    expect(text).toContain("A shell command always asks");
+    // A definition cannot pre-approve high risk, so it is not offered.
+    expect(screen.queryByTestId("auto-high")).toBeNull();
   });
 });
 

@@ -214,4 +214,17 @@ describe("answering", () => {
     expect(screen.queryByRole("button", { name: "Deny" })).toBeNull();
     expect(screen.getByTestId("approval-panel").textContent).toContain("earlier point");
   });
+
+  it("offers no yes for the run on a high-risk call", () => {
+    render(
+      <ApprovalPanel
+        approvals={[{ ...pending, tool: "run_shell", risk: "high" }]}
+        onResolve={vi.fn()}
+        readOnly={null}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Allow for this run" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Allow" })).toBeDefined();
+  });
 });
