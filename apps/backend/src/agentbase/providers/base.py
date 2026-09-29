@@ -136,6 +136,13 @@ class ProviderUnavailableError(ProviderError):
     """Transport failure or 5xx; retryable."""
 
 
+class ProviderModelUnavailableError(ProviderError):
+    """The account cannot use the requested model; not retryable.
+
+    The model is never swapped for another: the person chooses one.
+    """
+
+
 @runtime_checkable
 class Provider(Protocol):
     """Model information and operations visible to orchestrator."""

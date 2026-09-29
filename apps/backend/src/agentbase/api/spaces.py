@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from agentbase.providers.catalog import equivalent
+from agentbase.providers.chatgpt import plan_models
 from agentbase.providers.factory import SUPPORTED_PROVIDERS
 from agentbase.store.agents import AgentDef
 from agentbase.store.settings import default_model_for
@@ -96,6 +97,14 @@ def _reject(message: str, field: str | None) -> HTTPException:
     return HTTPException(status_code=400, detail={"message": message, "field": field})
 
 
+async def _included(request: Request, provider: str) -> frozenset[str] | None:
+    """The models an account limits ``provider`` to, if one does (a ChatGPT plan)."""
+    settings = await _settings(request).get()
+    return await plan_models(
+        provider, settings.openai_access, getattr(request.app.state, "chatgpt_runtime", None)
+    )
+
+
 def _settings(request: Request) -> SettingsStore:
     store: SettingsStore = request.app.state.settings
     return store
@@ -124,14 +133,19 @@ async def _with_model(request: Request, changes: dict[str, Any], current: Space 
 
     if changes.get("model") is not None:
         return
+    # A ChatGPT plan can lack models the price list sells; map within it.
+    included = await _included(request, provider)
     if current is not None and "provider" in changes and provider != was:
-        mapped = equivalent(current.model, was, provider)
+        mapped = equivalent(current.model, was, provider, included)
         if mapped is not None:
             changes["model"] = mapped
         return
     if current is not None and "model" not in changes:
         return
     fallback = default_model_for(provider)
+    if fallback is not None and included is not None:
+        # Start where a new space starts, the default tier, among the plan's models.
+        fallback = equivalent(None, provider, provider, included) or fallback
     if fallback is not None:
         changes["model"] = fallback
     elif current is None:
@@ -252,17 +266,43 @@ async def plan_provider_switch(
     except SpaceNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     was = space.provider or (await _settings(request).get()).provider
+    included = await _included(request, provider)
+    definitions = await _agents(request).list_all(space_id)
     if provider == was:
-        return ProviderSwitchPlan(provider=provider, model=space.model, agents=[])
+        # Staying put is a plan too where a ChatGPT plan lacks some models: the
+        # space and the agents naming one it lacks, each with its closest.
+        if included is None:
+            return ProviderSwitchPlan(provider=provider, model=space.model, agents=[])
+        lacking = [
+            definition
+            for definition in definitions
+            if definition.model is not None
+            and (definition.provider or provider) == provider
+            and definition.model not in included
+        ]
+        return ProviderSwitchPlan(
+            provider=provider,
+            model=equivalent(space.model, provider, provider, included),
+            agents=[
+                AgentMove(
+                    id=definition.id,
+                    name=definition.name,
+                    provider=definition.provider,
+                    model=definition.model,
+                    to_model=equivalent(definition.model, provider, provider, included),
+                )
+                for definition in lacking
+            ],
+        )
     stranded = [
         definition
-        for definition in await _agents(request).list_all(space_id)
+        for definition in definitions
         if definition.provider == was
         or (definition.provider is None and definition.model is not None)
     ]
     return ProviderSwitchPlan(
         provider=provider,
-        model=equivalent(space.model, was, provider),
+        model=equivalent(space.model, was, provider, included),
         agents=[
             AgentMove(
                 id=definition.id,
@@ -271,7 +311,7 @@ async def plan_provider_switch(
                 model=definition.model,
                 to_model=None
                 if definition.model is None
-                else equivalent(definition.model, was, provider),
+                else equivalent(definition.model, was, provider, included),
             )
             for definition in stranded
         ],

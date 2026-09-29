@@ -147,12 +147,15 @@ export function AgentsView({ workspaceProvider, spaceId = null, spaces = [] }: A
           guarded(() => {
             setSelectedId(id);
             setEditing("existing");
+            // Reread which models a ChatGPT plan includes: access may have changed.
+            catalogue.reload();
           });
         }}
         onCreate={() => {
           guarded(() => {
             setSelectedId(null);
             setEditing("new");
+            catalogue.reload();
           });
         }}
         onToggleEnabled={(agent) => void toggleEnabled(agent)}

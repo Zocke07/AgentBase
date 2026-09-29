@@ -162,9 +162,16 @@ API-key and ChatGPT access both remain the `openai` provider. They use the same
 selected model id, AgentBase agent loop, tool catalogue, approvals, event log,
 run limits and normalized token accounting. Switching the access radio is the
 only AgentBase behavior change. OpenAI can expose different models and usage
-allowances to a ChatGPT plan and an API account. AgentBase does not silently
-replace an unavailable model; the run reports the provider error so you can
-choose another model or return to API-key access.
+allowances to a ChatGPT plan and an API account: in September 2026 a plan
+offered GPT-6 Astra and the GPT-5.6 and GPT-5.5 models, but not GPT-6 Sol or
+Luna. Once you are signed in, AgentBase asks the account which models it
+includes. The model pickers list those first and show the rest as **Not in
+your ChatGPT plan**; a new space, or one switched to OpenAI, starts on a model
+the plan includes; **Check** and Home say when a space's model is not one; and
+**Space settings** offers **Use the closest models it includes** for the space
+and any agent naming one it lacks. AgentBase never swaps a model on its own: a
+run on a model the plan lacks stops with that reason, and an API key reaches
+every model.
 
 The first **Sign in with ChatGPT** downloads the OpenAI Codex App Server
 runtime (about 113 MB on macOS, 138 MB on Windows) from PyPI into AgentBase's

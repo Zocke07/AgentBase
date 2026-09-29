@@ -5,7 +5,8 @@ import { modelLabel, modelOptionLabel } from "../lib/format";
 /**
  * A provider's models as `<option>`s: the current lineup first, older models
  * still sold after it, each with its tier and price, so a choice does not
- * need a pricing page open beside it. The catalogue decides the order.
+ * need a pricing page open beside it. The catalogue decides the order; where
+ * it marks what a ChatGPT plan includes, those come first instead.
  */
 
 export interface ModelOptionsProps {
@@ -24,6 +25,31 @@ export function ModelOptions({ entries, models }: ModelOptionsProps) {
             {modelLabel(model)}
           </option>
         ))}
+      </>
+    );
+  }
+  // With OpenAI through a ChatGPT subscription the plan, not the price list,
+  // decides what runs: its models come first, the rest are shown but cannot
+  // be chosen, so a space never lands on a model every run would fail with.
+  if (entries.some((entry) => entry.available === false)) {
+    const included = entries.filter((entry) => entry.available !== false);
+    const lacking = entries.filter((entry) => entry.available === false);
+    return (
+      <>
+        <optgroup label="In your ChatGPT plan">
+          {included.map((entry) => (
+            <option key={entry.id} value={entry.id}>
+              {modelOptionLabel(entry)}
+            </option>
+          ))}
+        </optgroup>
+        <optgroup label="Not in your ChatGPT plan (API key only)">
+          {lacking.map((entry) => (
+            <option key={entry.id} value={entry.id} disabled>
+              {modelOptionLabel(entry)}
+            </option>
+          ))}
+        </optgroup>
       </>
     );
   }

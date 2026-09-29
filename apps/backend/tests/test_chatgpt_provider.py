@@ -13,6 +13,7 @@ from agentbase.providers.base import (
     Completion,
     Message,
     Provider,
+    ProviderModelUnavailableError,
     Role,
     TextDelta,
     TokenUsage,
@@ -25,6 +26,7 @@ from agentbase.providers.chatgpt import (
     ChatGPTSubscriptionProvider,
     CodexAppServerRuntime,
     _decision_prompt,
+    _mapped_provider_error,
     _parse_decision,
     _visible_structured_text,
 )
@@ -258,6 +260,17 @@ class _FakeCodex:
         self.thread = _FakeThread()
         self.thread_kwargs: dict[str, Any] = {}
         self.closed = False
+        self.listed: list[str] = ["gpt-6-astra", "gpt-5.6-sol"]
+        self.next_cursor: str | None = None
+        self.model_calls = 0
+
+    async def models(self, *, include_hidden: bool = False) -> Any:
+        self.model_calls += 1
+        assert include_hidden is True
+        return SimpleNamespace(
+            data=[SimpleNamespace(model=name, id=name) for name in self.listed],
+            next_cursor=self.next_cursor,
+        )
 
     async def account(self) -> Any:
         return SimpleNamespace(account=_FakeAccount())
@@ -335,3 +348,37 @@ async def test_codex_runtime_streams_only_decoded_text_then_the_decision(
     assert terminal.text == "Hello 👋"
     assert terminal.usage == TokenUsage(44, 11)
     assert terminal.tool_calls == ()
+
+
+async def test_the_account_says_which_models_it_may_use_and_is_asked_once(
+    tmp_path: Path,
+) -> None:
+    fake = _FakeCodex()
+    runtime = CodexAppServerRuntime(tmp_path / "codex", codex=cast(AsyncCodex, fake))
+
+    assert await runtime.models() == frozenset({"gpt-6-astra", "gpt-5.6-sol"})
+    assert await runtime.models() == frozenset({"gpt-6-astra", "gpt-5.6-sol"})
+    assert fake.model_calls == 1
+
+
+async def test_a_list_it_cannot_trust_blocks_nothing(tmp_path: Path) -> None:
+    """A second page means the list is partial: check nothing rather than
+    refuse a model the account may well include."""
+    fake = _FakeCodex()
+    fake.next_cursor = "page-2"
+    runtime = CodexAppServerRuntime(tmp_path / "codex", codex=cast(AsyncCodex, fake))
+
+    assert await runtime.models() is None
+
+
+def test_a_model_the_plan_lacks_reads_as_a_sentence_not_json() -> None:
+    raw = RuntimeError(
+        '{"type":"error","status":400,"error":{"type":"invalid_request_error","message":'
+        "\"The 'gpt-6-sol' model is not supported when using Codex with a ChatGPT account.\"}}"
+    )
+
+    mapped = _mapped_provider_error(raw, "gpt-6-sol")
+
+    assert isinstance(mapped, ProviderModelUnavailableError)
+    assert "does not include gpt-6-sol" in str(mapped)
+    assert "{" not in str(mapped)

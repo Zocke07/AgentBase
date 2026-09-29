@@ -91,6 +91,58 @@ const twoProviders = {
   catalog: {},
 };
 
+describe("a ChatGPT plan that lacks a model", () => {
+  it("offers the closest models the plan includes, and moves them only on save", async () => {
+    const user = userEvent.setup();
+    const onOpenai: SpaceResponse = { ...lab, provider: "openai", model: "gpt-6-sol" };
+    const chatgpt: SettingsResponse = {
+      ...settings,
+      settings: { ...settings.settings, provider: "openai", openai_access: "chatgpt" },
+    };
+    mocked.listProviders.mockResolvedValue({
+      providers: [{ name: "openai", requires_key: true, free_text_model: false }],
+      models: { openai: ["gpt-6-sol", "gpt-5.6-terra"] },
+      catalog: {},
+    });
+    mocked.planProviderSwitch.mockResolvedValue({
+      provider: "openai",
+      model: "gpt-5.6-terra",
+      agents: [
+        { id: "a-1", name: "scanner", provider: "openai", model: "gpt-6-luna", to_model: "gpt-5.6-luna" },
+      ],
+    });
+    mocked.updateAgent.mockResolvedValue({} as never);
+    render(<SpaceSettingsView space={onOpenai} settings={chatgpt} onChanged={vi.fn()} />);
+
+    const notice = await screen.findByTestId("plan-repair");
+    expect(mocked.planProviderSwitch).toHaveBeenCalledWith("space-lab", "openai");
+    expect(notice.textContent).toContain("does not include GPT-6 Sol, this space's model");
+    expect(notice.textContent).toContain("(scanner)");
+    // Nothing moved yet: it is an offer.
+    expect(mocked.updateSpace).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTestId("plan-repair-apply"));
+    expect(screen.getByTestId<HTMLSelectElement>("space-model").value).toBe("gpt-5.6-terra");
+    expect(screen.getByTestId("switch-plan").textContent).toContain("models your ChatGPT plan includes");
+    await user.click(screen.getByRole("button", { name: "Save space" }));
+
+    await waitFor(() => {
+      expect(mocked.updateSpace).toHaveBeenCalledWith("space-lab", { model: "gpt-5.6-terra" });
+    });
+    expect(mocked.updateAgent).toHaveBeenCalledWith("a-1", { provider: "openai", model: "gpt-5.6-luna" });
+  });
+
+  it("offers nothing where OpenAI access uses an API key", async () => {
+    render(
+      <SpaceSettingsView space={{ ...lab, provider: "openai", model: "gpt-6-sol" }} settings={settings} onChanged={vi.fn()} />,
+    );
+    await screen.findByTestId("space-form");
+
+    expect(mocked.planProviderSwitch).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("plan-repair")).toBeNull();
+  });
+});
+
 describe("what is sent", () => {
   it("sends a rule set back to blank as null, so the sidecar reads it as inherit", async () => {
     const user = userEvent.setup();

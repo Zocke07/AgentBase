@@ -8,7 +8,7 @@ import type {
   ToolResponse,
   UpdateSpaceRequest,
 } from "@agentbase/schemas";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
@@ -136,6 +136,15 @@ function diff(opened: Form, form: Form): UpdateSpaceRequest {
 
 export function SpaceSettingsView({ space, settings, onChanged, onOpenAutomations }: SpaceSettingsViewProps) {
   const catalogue = useFetched(api.listProviders, EMPTY_CATALOGUE);
+  // Which models a ChatGPT plan includes follows the OpenAI access mode.
+  const access = settings?.settings.openai_access;
+  const seenAccess = useRef(access);
+  const { reload: reloadCatalogue } = catalogue;
+  useEffect(() => {
+    if (seenAccess.current === access) return;
+    seenAccess.current = access;
+    reloadCatalogue();
+  }, [access, reloadCatalogue]);
   const tools = useFetched(api.listTools, NO_TOOLS);
   // Keep above remounting form so list reload `updated_at` changes do not hide
   // its saved notice, or what became of the agents a provider switch moved.
@@ -248,6 +257,24 @@ function SpaceForm({
       });
   };
   const planned = switchPlan !== null && switchPlan.provider === form.provider ? switchPlan : null;
+  // Staying on OpenAI is a plan too when a ChatGPT subscription lacks the
+  // space's model or an agent's: offered, never applied on its own.
+  const repairing = planned !== null && planned.provider === opened.provider;
+  const chatgpt = inherited?.openai_access === "chatgpt";
+  const [repair, setRepair] = useState<ProviderSwitchPlan | null>(null);
+  useEffect(() => {
+    if (opened.provider !== "openai" || !chatgpt) return undefined;
+    let live = true;
+    api
+      .planProviderSwitch(space.id, "openai")
+      .then((plan) => {
+        if (live && (plan.model !== opened.model || plan.agents.length > 0)) setRepair(plan);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [space.id, opened.provider, opened.model, chatgpt]);
 
   const save = async () => {
     setErrors({});
@@ -288,7 +315,9 @@ function SpaceForm({
         stuck.length > 0
           ? `Saved, but ${String(stuck.length)} agent${stuck.length === 1 ? "" : "s"} could not be moved: ${stuck.join("; ")}.`
           : moved > 0
-            ? `Saved. ${String(moved)} agent${moved === 1 ? "" : "s"} moved to ${providerLabel(form.provider)}. Applies to the next run.`
+            ? `Saved. ${String(moved)} agent${moved === 1 ? "" : "s"} moved to ${
+                repairing ? "models your ChatGPT plan includes" : providerLabel(form.provider)
+              }. Applies to the next run.`
             : "Saved. Applies to the next run.",
       );
       onChanged(updated);
@@ -436,6 +465,34 @@ function SpaceForm({
           </label>
         </div>
 
+        {repair !== null && planned === null && (
+          <div className="card card--notice plan-repair" role="status" data-testid="plan-repair">
+            <p>
+              Your ChatGPT subscription does not include{" "}
+              {[
+                ...(repair.model !== opened.model ? [`${modelLabel(opened.model)}, this space's model`] : []),
+                ...repair.agents.map((agent) => `${modelLabel(agent.model ?? "")} (${agent.name})`),
+              ].join("; ")}
+              . Runs that use them fail until each names a model the plan includes, or OpenAI access
+              uses an API key.
+            </p>
+            <div className="card__actions">
+              <button
+                type="button"
+                className="button button--small"
+                onClick={() => {
+                  setSwitchPlan(repair);
+                  setMoving(new Set(repair.agents.map((agent) => agent.id)));
+                  if (repair.model !== null && repair.model !== opened.model) set("model", repair.model);
+                  onEdited();
+                }}
+                data-testid="plan-repair-apply"
+              >
+                Use the closest models it includes
+              </button>
+            </div>
+          </div>
+        )}
         {planError !== null && (
           <p className="field-error" role="alert">
             Could not work out what the switch would change: {planError}
@@ -443,10 +500,15 @@ function SpaceForm({
         )}
         {planned !== null && planned.agents.length > 0 && (
           <fieldset className="switch-plan" data-testid="switch-plan">
-            <legend>Also move these agents to {providerLabel(planned.provider)}?</legend>
+            <legend>
+              {repairing
+                ? "Also move these agents to models your ChatGPT plan includes?"
+                : `Also move these agents to ${providerLabel(planned.provider)}?`}
+            </legend>
             <p className="settings__hint">
-              They name {providerLabel(opened.provider)} models, so left alone they keep using{" "}
-              {providerLabel(opened.provider)} and its key. Each moves to the model at the same level.
+              {repairing
+                ? "Each names a model the subscription does not include, and moves to the closest one it does."
+                : `They name ${providerLabel(opened.provider)} models, so left alone they keep using ${providerLabel(opened.provider)} and its key. Each moves to the model at the same level.`}
             </p>
             <ul className="switch-plan__list">
               {planned.agents.map((agent) => (

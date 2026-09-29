@@ -15,7 +15,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Final, Literal
+from typing import TYPE_CHECKING, Final, Literal
+
+if TYPE_CHECKING:
+    from collections.abc import Collection
 
 __all__ = [
     "DEFAULT_TIER",
@@ -24,6 +27,7 @@ __all__ = [
     "Tier",
     "catalog_for",
     "equivalent",
+    "lineup",
     "tier_of",
 ]
 
@@ -125,16 +129,38 @@ def _nearest(tier: Tier) -> list[Tier]:
     return sorted(TIERS, key=lambda other: (abs(TIERS.index(other) - at), -TIERS.index(other)))
 
 
-def equivalent(model: str | None, source: str, target: str) -> str | None:
-    """``model`` on ``source``'s counterpart among ``target``'s current models.
+def lineup(provider: str, available: Collection[str] | None = None) -> list[CatalogEntry]:
+    """The models a mapping may land on.
 
-    Same provider: unchanged. A model with no tier (typed, or unknown) maps
-    to the target's default tier. ``None`` where the target's models are
-    typed (Ollama), since nothing local can be guessed.
+    The current lineup, or, where an account lists the models it may use (a
+    ChatGPT subscription through Codex), every listed model the catalog
+    prices, current ones first. Older models count there because a plan can
+    carry a model the API has moved on from.
     """
-    if source == target:
+    entries = catalog_for(provider)
+    if available is None:
+        return [entry for entry in entries if entry.current]
+    allowed = [entry for entry in entries if entry.model in available]
+    return sorted(allowed, key=lambda entry: not entry.current)
+
+
+def equivalent(
+    model: str | None,
+    source: str,
+    target: str,
+    available: Collection[str] | None = None,
+) -> str | None:
+    """``model`` on ``source``'s counterpart among ``target``'s models.
+
+    Same provider: unchanged, unless ``available`` excludes it, when it maps
+    to the nearest listed tier. A model with no tier (typed, or unknown) maps
+    to the target's default tier. ``None`` where the target's models are
+    typed (Ollama), since nothing local can be guessed, or where nothing the
+    account lists is priced.
+    """
+    if source == target and (available is None or model in available):
         return model
-    current = [entry for entry in catalog_for(target) if entry.current]
+    current = lineup(target, available)
     if not current:
         return None
     wanted = tier_of(source, model) or DEFAULT_TIER

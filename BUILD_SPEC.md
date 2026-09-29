@@ -330,7 +330,12 @@ selected-model API-equivalent pricing for the same local safety cap, not an
 OpenAI API charge.
 
 ChatGPT/API accounts can differ in entitlement and allowance. Preserve the
-requested model and surface access errors; never substitute. Direct Claude
+requested model and surface access errors; never substitute. *(2026-09-29:
+a signed-in account's Codex `model/list` marks which priced models its plan
+includes. Pickers, new-space defaults and tier mappings keep to them, the
+pre-flight check names a space model the plan lacks, and Space settings offers
+the closest included models. A run still never substitutes; an unknown or
+partial list blocks nothing.)* Direct Claude
 subscription login is excluded because [Anthropic's authentication terms](https://code.claude.com/docs/en/legal-and-compliance#authentication-and-credential-use)
 forbid third-party Claude.ai/Free/Pro/Max credential routing. Anthropic uses an
 API key; embedding unmodified Claude Code is a separate mode, not a transport.

@@ -393,6 +393,7 @@ export interface ModelEntry {
   current: boolean;
   input_micros_per_million: number;
   output_micros_per_million: number;
+  available?: boolean | null;
 }
 
 export interface MoveNoteRequest {
@@ -731,6 +732,7 @@ export interface VerifyResponse {
   reason?: string | null;
   provider?: string | null;
   model?: string | null;
+  suggested_model?: string | null;
 }
 
 /** On chosen weekdays at a local time of day. */

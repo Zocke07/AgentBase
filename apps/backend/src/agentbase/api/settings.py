@@ -16,8 +16,8 @@ from agentbase.budget.ledger import current_period
 from agentbase.budget.usage import UsageReport, UsageStore
 from agentbase.channels.identity import ChannelIdentity
 from agentbase.providers.base import ProviderAuthError
-from agentbase.providers.catalog import Tier, catalog_for
-from agentbase.providers.chatgpt import ChatGPTRuntime
+from agentbase.providers.catalog import Tier, catalog_for, equivalent
+from agentbase.providers.chatgpt import ChatGPTRuntime, plan_models
 from agentbase.providers.factory import (
     SUPPORTED_PROVIDERS,
     UnknownProviderError,
@@ -256,6 +256,9 @@ class ModelEntry(BaseModel):
     current: bool
     input_micros_per_million: int
     output_micros_per_million: int
+    #: Whether the signed-in ChatGPT subscription includes it; ``None`` where
+    #: no account limits the provider's models, or its list is not known.
+    available: bool | None = None
 
 
 class ProviderCatalogueResponse(BaseModel):
@@ -270,11 +273,15 @@ class ProviderCatalogueResponse(BaseModel):
 
 
 @router.get("/settings/providers")
-async def list_providers() -> ProviderCatalogueResponse:
+async def list_providers(request: Request) -> ProviderCatalogueResponse:
     """List selectable and priced models by provider.
 
     Dropdowns use this instead of a list that could drift from ``pricing.py``.
+    With OpenAI through a ChatGPT subscription, each OpenAI model also says
+    whether the plan includes it, so a picker can keep to those.
     """
+    settings = await _settings_store(request).get()
+    included = await plan_models("openai", settings.openai_access, _chatgpt_runtime(request))
     return ProviderCatalogueResponse(
         providers=[
             ProviderEntry(
@@ -297,6 +304,11 @@ async def list_providers() -> ProviderCatalogueResponse:
                     current=entry.current,
                     input_micros_per_million=PRICES[entry.model].input_micros_per_million,
                     output_micros_per_million=PRICES[entry.model].output_micros_per_million,
+                    available=(
+                        entry.model in included
+                        if included is not None and name == "openai"
+                        else None
+                    ),
                 )
                 for entry in catalog_for(name)
             ]
@@ -351,6 +363,9 @@ class VerifyResponse(BaseModel):
     #: Built provider and model when ``ok`` is true.
     provider: str | None = None
     model: str | None = None
+    #: When the account cannot run the space's model: the closest one it can,
+    #: offered, never applied, since the model is never swapped on its own.
+    suggested_model: str | None = None
 
 
 @router.post("/settings/verify")
@@ -377,6 +392,24 @@ async def verify_provider(request: Request, space_id: str | None = None) -> Veri
             return VerifyResponse(
                 ok=False,
                 reason=f"ChatGPT is not signed in. Sign in to ChatGPT in settings.{detail}",
+            )
+        included = await plan_models(
+            settings.provider, settings.openai_access, _chatgpt_runtime(request)
+        )
+        if included is not None and settings.model not in included:
+            closest = equivalent(settings.model, "openai", "openai", included)
+            offer = (
+                f" The closest it includes is {closest}; choose it in Space settings."
+                if closest is not None
+                else " Choose a model it includes in Space settings."
+            )
+            return VerifyResponse(
+                ok=False,
+                reason=(
+                    f"Your ChatGPT subscription does not include {settings.model}, so runs "
+                    f"in this space would fail.{offer} An OpenAI API key reaches every model."
+                ),
+                suggested_model=closest,
             )
 
     try:

@@ -27,6 +27,8 @@ if TYPE_CHECKING:
 class FakeChatGPTRuntime:
     auth: ChatGPTAuthStatus
     closed: bool = False
+    #: The account's model list; ``None`` is unknown.
+    included: frozenset[str] | None = None
 
     async def status(self) -> ChatGPTAuthStatus:
         return self.auth
@@ -55,6 +57,9 @@ class FakeChatGPTRuntime:
 
     async def logout(self) -> None:
         self.auth = ChatGPTAuthStatus(state="disconnected")
+
+    async def models(self) -> frozenset[str] | None:
+        return self.included
 
     async def infer(
         self,
@@ -146,6 +151,7 @@ def test_chatgpt_access_verifies_as_openai_without_an_api_key(app_paths: AppPath
         "reason": None,
         "provider": "openai",
         "model": "gpt-5.6-terra",
+        "suggested_model": None,
     }
 
 
@@ -188,3 +194,98 @@ def test_the_runtime_can_be_fetched_before_sign_in_and_reports_progress(
         }
         assert client.get("/auth/chatgpt").json()["state"] == "preparing"
         assert "token" not in started.text.lower()
+
+
+# --- a plan that lacks models the price list sells -------------------------------
+
+#: What Codex listed for a ChatGPT account on 2026-09-29: GPT-6 Sol and Luna
+#: are API models the subscription does not include.
+PLAN = frozenset({"gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5"})
+
+
+def _plan_client(app_paths: AppPaths) -> tuple[TestClient, FakeChatGPTRuntime]:
+    runtime = FakeChatGPTRuntime(ChatGPTAuthStatus(state="connected"), included=PLAN)
+    return TestClient(create_app(app_paths, chatgpt_runtime=runtime)), runtime
+
+
+def test_the_catalogue_says_which_openai_models_the_plan_includes(app_paths: AppPaths) -> None:
+    client, _ = _plan_client(app_paths)
+    with client:
+        before = client.get("/settings/providers").json()["catalog"]["openai"]
+        assert {entry["available"] for entry in before} == {None}
+
+        client.patch("/settings", json={"provider": "openai", "openai_access": "chatgpt"})
+        after = {
+            entry["id"]: entry["available"]
+            for entry in client.get("/settings/providers").json()["catalog"]["openai"]
+        }
+        anthropic = client.get("/settings/providers").json()["catalog"]["anthropic"]
+
+    assert after["gpt-6-sol"] is False and after["gpt-6-luna"] is False
+    assert after["gpt-6-astra"] is True and after["gpt-5.6-sol"] is True
+    assert {entry["available"] for entry in anthropic} == {None}
+
+
+def test_a_new_space_on_the_plan_starts_on_a_model_it_includes(app_paths: AppPaths) -> None:
+    client, _ = _plan_client(app_paths)
+    with client:
+        client.patch("/settings", json={"openai_access": "chatgpt"})
+        created = client.post("/spaces", json={"name": "Lab", "provider": "openai"}).json()
+
+    # A new space starts on the default tier, strong: the plan has one where
+    # the API lineup did not, so it is GPT-5.6 Sol rather than GPT-6 Sol.
+    assert created["model"] == "gpt-5.6-sol"
+
+
+def test_the_check_names_a_model_the_plan_lacks_and_offers_the_closest(
+    app_paths: AppPaths,
+) -> None:
+    client, _ = _plan_client(app_paths)
+    with client:
+        client.patch("/settings", json={"openai_access": "chatgpt"})
+        space = client.post(
+            "/spaces", json={"name": "Lab", "provider": "openai", "model": "gpt-6-sol"}
+        ).json()
+        verdict = client.post("/settings/verify", params={"space_id": space["id"]}).json()
+
+    assert verdict["ok"] is False
+    assert "does not include gpt-6-sol" in verdict["reason"]
+    # GPT-6 Sol is a balanced model; the plan's balanced one is GPT-5.6 Terra.
+    assert verdict["suggested_model"] == "gpt-5.6-terra"
+
+
+def test_staying_on_openai_plans_the_move_to_models_the_plan_includes(
+    app_paths: AppPaths,
+) -> None:
+    client, _ = _plan_client(app_paths)
+    with client:
+        client.patch("/settings", json={"openai_access": "chatgpt"})
+        space = client.post(
+            "/spaces", json={"name": "Lab", "provider": "openai", "model": "gpt-6-sol"}
+        ).json()
+        for name, provider, model in (
+            ("scanner", "openai", "gpt-6-luna"),
+            ("drafter", "openai", "gpt-5.6-terra"),
+            ("follower", None, None),
+        ):
+            created = client.post(
+                "/agents",
+                json={
+                    "space_id": space["id"],
+                    "name": name,
+                    "role": "r",
+                    "system_prompt": "p",
+                    "provider": provider,
+                    "model": model,
+                    "allowed_tools": [],
+                },
+            )
+            assert created.status_code == 201, created.text
+        plan = client.get(
+            f"/spaces/{space['id']}/provider-switch", params={"provider": "openai"}
+        ).json()
+
+    assert plan["model"] == "gpt-5.6-terra"
+    assert [(agent["name"], agent["to_model"]) for agent in plan["agents"]] == [
+        ("scanner", "gpt-5.6-luna")
+    ]

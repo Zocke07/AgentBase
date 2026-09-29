@@ -73,3 +73,30 @@ def test_a_round_trip_through_the_gap_does_not_come_back() -> None:
 def test_an_unlisted_model_has_no_tier() -> None:
     assert tier_of("anthropic", "claude-3-haiku") is None
     assert tier_of("anthropic", None) is None
+
+
+#: A ChatGPT plan's models (Codex, 2026-09-29): GPT-6 Sol and Luna are API-only.
+PLAN = frozenset({"gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5"})
+
+
+@pytest.mark.parametrize(
+    ("model", "source", "expected"),
+    [
+        ("claude-opus-5-5", "anthropic", "gpt-5.6-sol"),
+        ("claude-haiku-4-5", "anthropic", "gpt-5.6-luna"),
+        ("gpt-6-sol", "openai", "gpt-5.6-terra"),
+        ("gpt-6-luna", "openai", "gpt-5.6-luna"),
+        ("gpt-6-astra", "openai", "gpt-6-astra"),
+    ],
+)
+def test_a_plan_limits_the_mapping_to_models_it_includes(
+    model: str, source: str, expected: str
+) -> None:
+    """Within the plan, a tier maps as it would on the price list, and a model
+    the plan already includes is left alone."""
+    assert equivalent(model, source, "openai", PLAN) == expected
+
+
+def test_without_a_plan_the_mapping_is_unchanged() -> None:
+    assert equivalent("claude-opus-5-5", "anthropic", "openai") == "gpt-6-sol"
+    assert equivalent("gpt-6-sol", "openai", "openai") == "gpt-6-sol"

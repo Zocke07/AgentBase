@@ -10,9 +10,10 @@ import asyncio
 import contextlib
 import json
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Final, Literal, Protocol, runtime_checkable
 
 from openai_codex import (
     ApprovalMode,
@@ -30,6 +31,7 @@ from agentbase.providers.base import (
     Message,
     ProviderAuthError,
     ProviderError,
+    ProviderModelUnavailableError,
     ProviderRateLimitedError,
     ProviderUnavailableError,
     Role,
@@ -57,6 +59,7 @@ __all__ = [
     "ChatGPTRuntime",
     "ChatGPTSubscriptionProvider",
     "CodexAppServerRuntime",
+    "plan_models",
 ]
 
 AuthState = Literal["connected", "connecting", "preparing", "disconnected", "error"]
@@ -147,6 +150,10 @@ class ChatGPTRuntime(ChatGPTInferenceRuntime, ChatGPTStreamingInferenceRuntime, 
 
     async def logout(self) -> None: ...
 
+    async def models(self) -> frozenset[str] | None:
+        """The models the signed-in account may use, or ``None`` when unknown."""
+        ...
+
     async def aclose(self) -> None: ...
 
 
@@ -197,6 +204,24 @@ _CODEX_OVERRIDES = (
 )
 
 
+async def plan_models(
+    provider: str, openai_access: str, runtime: ChatGPTRuntime | None
+) -> frozenset[str] | None:
+    """The models an account limits ``provider`` to, where one does.
+
+    Only OpenAI through a ChatGPT subscription is limited this way: the plan,
+    not a price list, decides what Codex will run. ``None`` everywhere else,
+    and whenever the account's list is not known.
+    """
+    if provider != "openai" or openai_access != "chatgpt" or runtime is None:
+        return None
+    return await runtime.models()
+
+
+#: How long an account's model list is trusted before it is asked again.
+_MODELS_TTL_SECONDS: Final[float] = 600.0
+
+
 class CodexAppServerRuntime:
     """Pinned Codex App Server runtime for OAuth and model requests.
 
@@ -220,6 +245,9 @@ class CodexAppServerRuntime:
         self._login_task: asyncio.Task[None] | None = None
         self._login_error: str | None = None
         self._lock = asyncio.Lock()
+        #: The account's model list and when it was read (monotonic seconds).
+        self._models: frozenset[str] | None = None
+        self._models_at = 0.0
 
     def _ensure_directories(self) -> None:
         # App Server requires ``CODEX_HOME``. AgentBase owns both paths; keyring
@@ -327,6 +355,8 @@ class CodexAppServerRuntime:
             codex = self._require_client()
             self._ensure_directories()
             self._login_error = None
+            # Another account may sign in, with another plan.
+            self._models = None
             handle = await codex.login_chatgpt()
             attempt = ChatGPTLoginAttempt(handle.login_id, handle.auth_url)
             self._login_handle = handle
@@ -364,12 +394,39 @@ class CodexAppServerRuntime:
 
     async def logout(self) -> None:
         await self.cancel_login()
+        self._models = None
         codex = self._client()
         if codex is None:
             # Sign-in cannot exist without an installed runtime.
             return
         self._ensure_directories()
         await codex.logout()
+
+    async def models(self) -> frozenset[str] | None:
+        """The models this ChatGPT account may use through Codex (`model/list`).
+
+        ``None`` when that is not known: not signed in, the call failed, or the
+        list came back in more than one page. Callers then check nothing, so an
+        unknown never blocks a model the account can in fact use.
+        """
+        if (
+            self._models is not None
+            and time.monotonic() - self._models_at < _MODELS_TTL_SECONDS
+        ):
+            return self._models
+        if (await self.status()).state != "connected":
+            return None
+        try:
+            listed = await self._require_client().models(include_hidden=True)
+        except (CodexError, ProviderError, RuntimeError, OSError):
+            return None
+        if listed.next_cursor is not None:
+            return None
+        found = frozenset(
+            name for entry in listed.data for name in (entry.model, entry.id) if name
+        )
+        self._models, self._models_at = found, time.monotonic()
+        return found
 
     async def aclose(self) -> None:
         task = self._login_task
@@ -417,7 +474,7 @@ class CodexAppServerRuntime:
         except asyncio.CancelledError:
             raise
         except (CodexError, RuntimeError) as exc:
-            raise _mapped_provider_error(exc) from exc
+            raise _mapped_provider_error(exc, model) from exc
 
         if result.final_response is None:
             raise ProviderError("ChatGPT returned no structured response.")
@@ -535,7 +592,7 @@ class CodexAppServerRuntime:
         except asyncio.CancelledError:
             raise
         except (CodexError, RuntimeError) as exc:
-            raise _mapped_provider_error(exc) from exc
+            raise _mapped_provider_error(exc, model) from exc
 
         encoded = final_response or fallback_response
         if encoded is None and streamed_item is not None:
@@ -809,10 +866,18 @@ def _visible_structured_text(encoded: str) -> str | None:
     return visible if isinstance(visible, str) else None
 
 
-def _mapped_provider_error(exc: CodexError | RuntimeError) -> ProviderError:
+def _mapped_provider_error(exc: CodexError | RuntimeError, model: str) -> ProviderError:
     if isinstance(exc, ServerBusyError):
         return ProviderRateLimitedError(_safe_error(exc))
     message = _safe_error(exc)
+    # The service answers a model the plan lacks with raw JSON; say what it
+    # means and what to do. The model is never swapped for another.
+    if "not supported when using codex with a chatgpt account" in message.lower():
+        return ProviderModelUnavailableError(
+            f"Your ChatGPT subscription does not include {model}. Choose a model your "
+            f"plan includes in Space settings (or the agent's own model), or use an "
+            f"OpenAI API key in Settings."
+        )
     if isinstance(exc, CodexError):
         lowered = message.lower()
         if "auth" in lowered or "login" in lowered or "401" in lowered:

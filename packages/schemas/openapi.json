@@ -1707,6 +1707,17 @@
       "ModelEntry": {
         "description": "One selectable model: where it sits in the lineup and what it costs.",
         "properties": {
+          "available": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available"
+          },
           "current": {
             "title": "Current",
             "type": "boolean"
@@ -3709,6 +3720,17 @@
               }
             ],
             "title": "Reason"
+          },
+          "suggested_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggested Model"
           }
         },
         "required": [
@@ -5193,7 +5215,7 @@
     },
     "/settings/providers": {
       "get": {
-        "description": "List selectable and priced models by provider.\n\nDropdowns use this instead of a list that could drift from ``pricing.py``.",
+        "description": "List selectable and priced models by provider.\n\nDropdowns use this instead of a list that could drift from ``pricing.py``.\nWith OpenAI through a ChatGPT subscription, each OpenAI model also says\nwhether the plan includes it, so a picker can keep to those.",
         "operationId": "list_providers_settings_providers_get",
         "responses": {
           "200": {
