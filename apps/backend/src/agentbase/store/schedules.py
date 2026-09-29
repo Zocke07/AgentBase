@@ -605,6 +605,22 @@ class ScheduleStore:
             row = connection.execute(f"{_SELECT} WHERE id = ?", (schedule_id,)).fetchone()
         return _row_to_schedule(row)
 
+    async def note_outcome(self, schedule_id: str, *, now: datetime, outcome: str) -> Schedule:
+        """Record what the scheduler decided without starting a run or moving the time."""
+        return await asyncio.to_thread(self._note_outcome_sync, schedule_id, now, outcome)
+
+    def _note_outcome_sync(self, schedule_id: str, now: datetime, outcome: str) -> Schedule:
+        stamp = now.astimezone(UTC).isoformat()
+        with self._db.write() as connection:
+            changed = connection.execute(
+                "UPDATE schedules SET last_outcome = ?, updated_at = ? WHERE id = ?",
+                (outcome, stamp, schedule_id),
+            ).rowcount
+            if not changed:
+                raise ScheduleNotFoundError(schedule_id)
+            row = connection.execute(f"{_SELECT} WHERE id = ?", (schedule_id,)).fetchone()
+        return _row_to_schedule(row)
+
     async def delete(self, schedule_id: str) -> None:
         await asyncio.to_thread(self._delete_sync, schedule_id)
 

@@ -190,7 +190,9 @@ def create_app(
 
         # Start last: its first pass launches jobs due while closed, not orphans.
         app.state.schedules = ScheduleStore(database)
-        app.state.scheduler = Scheduler(app.state.schedules, app.state.launcher)
+        app.state.scheduler = Scheduler(
+            app.state.schedules, app.state.launcher, interrupted=frozenset(interrupted)
+        )
         await app.state.scheduler.start()
 
         try:

@@ -7,7 +7,9 @@ scheduler never answers approvals.
 
 Its startup pass catches up schedules missed while the window was closed:
 run once or advance according to ``missed``. Compute the next time from now,
-not missed time, so a week-closed laptop does not fire seven runs.
+not missed time, so a week-closed laptop does not fire seven runs. A
+schedule whose run the app closed on is treated the same way: run again once
+at launch, or noted and left, by the same policy.
 """
 
 from __future__ import annotations
@@ -55,6 +57,8 @@ class Scheduler:
     schedules: ScheduleStore
     launcher: RunLauncher
     poll_seconds: float = DEFAULT_POLL_SECONDS
+    #: Runs the previous process left unfinished, failed at this launch.
+    interrupted: frozenset[str] = frozenset()
     _task: asyncio.Task[None] | None = field(default=None, init=False)
     _wake: asyncio.Event = field(default_factory=asyncio.Event, init=False)
 
@@ -121,6 +125,31 @@ class Scheduler:
             fired.append(
                 await self._fire(
                     schedule, now, note=f"the app was closed at {when}, so it ran at launch"
+                )
+            )
+        fired.extend(await self._rerun_interrupted(now, {entry.schedule_id for entry in fired}))
+        return fired
+
+    async def _rerun_interrupted(self, now: datetime, settled: set[str]) -> list[Fired]:
+        """Settle schedules whose last run the app closed on, once each."""
+        if not self.interrupted:
+            return []
+        fired: list[Fired] = []
+        for schedule in await self.schedules.list_all():
+            if (
+                not schedule.enabled
+                or schedule.id in settled
+                or schedule.last_run_id not in self.interrupted
+            ):
+                continue
+            if schedule.missed == "skip":
+                outcome = "Not run again: the app closed during its last run."
+                await self.schedules.note_outcome(schedule.id, now=now, outcome=outcome)
+                fired.append(Fired(schedule.id, None, outcome))
+                continue
+            fired.append(
+                await self._fire(
+                    schedule, now, note="the app closed during its last run, so it ran again"
                 )
             )
         return fired

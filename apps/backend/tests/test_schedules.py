@@ -545,3 +545,38 @@ async def test_run_now_is_bounded_like_a_timed_start_and_leaves_the_next_time(
     with pytest.raises(ScheduleBusyError, match="has not finished"):
         await scheduler.run_now(after)
     assert len(launcher.launched) == 1
+
+
+async def test_a_scheduled_run_the_app_closed_on_runs_again_once_at_launch(
+    schedules: ScheduleStore, launcher: FakeLauncher, clock: Clock
+) -> None:
+    """A restart, even the one a new API key asks for, must not lose a pipeline
+    stage until its next time; the missed-time policy decides, as for a missed time."""
+    again = await schedules.create(_fields(name="Again", missed="run_on_launch"))
+    leave = await schedules.create(_fields(name="Leave", missed="skip"))
+    finished = await schedules.create(_fields(name="Finished"))
+    clock.now = _utc(2026, 9, 18, 7, 0, 5)
+    first = Scheduler(schedules, launcher)  # type: ignore[arg-type]
+    started = {entry.schedule_id: entry.run_id for entry in await first.tick()}
+    assert set(started) == {again.id, leave.id, finished.id}
+
+    # The app closes mid-run for two of them; the next launch fails those runs.
+    clock.now = _utc(2026, 9, 18, 7, 10)
+    interrupted = frozenset({started[again.id], started[leave.id]})
+    relaunched = Scheduler(schedules, launcher, interrupted=interrupted)  # type: ignore[arg-type]
+    fired = {entry.schedule_id: entry for entry in await relaunched.catch_up()}
+
+    assert set(fired) == {again.id, leave.id}
+    assert fired[again.id].run_id is not None
+    assert fired[again.id].outcome == (
+        "Started a run: the app closed during its last run, so it ran again."
+    )
+    assert fired[leave.id].run_id is None
+    assert (await schedules.require(leave.id)).last_outcome == (
+        "Not run again: the app closed during its last run."
+    )
+    assert len(launcher.launched) == 4
+
+    # Once only: a second pass in the same process starts nothing more.
+    await relaunched.catch_up()
+    assert len(launcher.launched) == 4
