@@ -1,8 +1,8 @@
 import type { SpaceResponse, UsageBucket, UsageReport, UsageRun } from "@agentbase/schemas";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import * as api from "../lib/api";
-import { clockDate, ellipsise, formatCount, formatMicros, periodLabel } from "../lib/format";
+import { clockDate, ellipsise, formatCount, modelLabel, moneyShort, periodLabel, providerLabel } from "../lib/format";
 import { useFetched } from "../state/useFetched";
 
 import { Skeleton } from "./Skeleton";
@@ -21,11 +21,17 @@ export interface UsageViewProps {
   onOpenRun: (runId: string) => void;
   /** Where the cap is changed. */
   onOpenSettings: () => void;
+  /**
+   * The app-wide month-to-date spend the header meter shows. When it moves
+   * while this section is open, a run has spent since the report was read,
+   * so the report is read again and agrees with the meter.
+   */
+  ledgerMicros?: number | null | undefined;
 }
 
 type Scope = "space" | "all";
 
-export function UsageView({ space, active, onOpenRun, onOpenSettings }: UsageViewProps) {
+export function UsageView({ space, active, onOpenRun, onOpenSettings, ledgerMicros = null }: UsageViewProps) {
   const [scope, setScope] = useState<Scope>("space");
   const [period, setPeriod] = useState<string | null>(null);
   const spaceId = scope === "space" ? (space?.id ?? null) : null;
@@ -41,6 +47,13 @@ export function UsageView({ space, active, onOpenRun, onOpenSettings }: UsageVie
     if (active && !wasActive.current) reload();
     wasActive.current = active;
   }, [active, reload]);
+  const seenLedger = useRef(ledgerMicros);
+  useEffect(() => {
+    if (seenLedger.current === ledgerMicros) return;
+    seenLedger.current = ledgerMicros;
+    // A closed section catches up when it is opened, above.
+    if (active) reload();
+  }, [active, ledgerMicros, reload]);
 
   const periods = report === null ? [] : report.periods.includes(report.period) ? report.periods : [report.period, ...report.periods];
   const cap = report?.cap_micros ?? 0;
@@ -121,14 +134,14 @@ export function UsageView({ space, active, onOpenRun, onOpenSettings }: UsageVie
               <span className="usage__card-note">
                 {scope === "all" ? (
                   <>
-                    of the {formatMicros(cap)} cap · {percent}%
+                    of the {moneyShort(cap)} monthly limit · {percent}%
                     <span className="usage__meter" aria-hidden="true">
                       <span style={{ width: `${String(percent)}%` }} />
                     </span>
                   </>
                 ) : (
                   <>
-                    the cap is app-wide ({formatMicros(cap)}); see all spaces for its use
+                    the {moneyShort(cap)} monthly limit is shared by every space; see All spaces for its use
                   </>
                 )}
               </span>
@@ -141,14 +154,14 @@ export function UsageView({ space, active, onOpenRun, onOpenSettings }: UsageVie
           {report.by_day.length > 0 && (
             <section className="usage__section">
               <h3>By day</h3>
-              <DayChart days={report.by_day} />
+              <DayChart period={report.period} days={report.by_day} />
             </section>
           )}
 
           <div className="usage__columns">
             <section className="usage__section">
               <h3>By model</h3>
-              <BucketTable rows={report.by_model} empty="No model calls in this period." testId="usage-models" />
+              <BucketTable rows={report.by_model} empty="No model calls in this period." testId="usage-models" name={modelName} />
             </section>
             {scope === "all" && (
               <section className="usage__section">
@@ -186,26 +199,80 @@ function Card({ label, value, note, testId }: { label: string; value: string; no
   );
 }
 
-/** Cost bars for ledger days only; no-row days are gaps, not zeros. */
-function DayChart({ days }: { days: readonly UsageBucket[] }) {
+/**
+ * Cost bars in a slot for every day of the period, so a bar sits at its date;
+ * a day with no ledger rows is an empty slot, a gap rather than a zero. Days
+ * are the ledger's, in UTC.
+ */
+function DayChart({ period, days }: { period: string; days: readonly UsageBucket[] }) {
   const most = Math.max(1, ...days.map((day) => day.cost_micros));
+  const byDay = new Map(days.map((day) => [day.key, day]));
+  const peak = days.reduce<UsageBucket | null>((best, day) => (best === null || day.cost_micros > best.cost_micros ? day : best), null);
   return (
-    <div className="usage__chart" role="img" aria-label={`Spend by day: ${days.map((day) => `${day.label} ${day.cost_display}`).join(", ")}`}>
-      {days.map((day) => (
-        <div
-          key={day.key}
-          className="usage__bar"
-          title={`${day.label}: ${day.cost_display}, ${String(day.calls)} call${day.calls === 1 ? "" : "s"}, ${formatCount(day.input_tokens)} in, ${formatCount(day.output_tokens)} out`}
-        >
-          <span className="usage__bar-fill" style={{ height: `${String(Math.max(2, Math.round((day.cost_micros * 100) / most)))}%` }} />
-          <span className="usage__bar-label">{day.label.slice(8)}</span>
-        </div>
-      ))}
-    </div>
+    <>
+      <div className="usage__chart" role="img" aria-label={`Spend by day: ${days.map((day) => `${day.label} ${day.cost_display}`).join(", ")}`}>
+        {daysOf(period, days).map((key, index) => {
+          const day = byDay.get(key);
+          const date = index + 1;
+          return (
+            <div
+              key={key}
+              className={`usage__bar${day === undefined ? "" : " usage__bar--spent"}`}
+              title={day === undefined ? `${key}: nothing spent` : `${day.label}: ${day.cost_display}, ${String(day.calls)} call${day.calls === 1 ? "" : "s"}, ${formatCount(day.input_tokens)} in, ${formatCount(day.output_tokens)} out`}
+              data-testid={`usage-day-${key}`}
+            >
+              <span className="usage__bar-track">
+                {day !== undefined && <span className="usage__bar-fill" style={{ height: `${String(Math.max(2, Math.round((day.cost_micros * 100) / most)))}%` }} />}
+              </span>
+              <span className="usage__bar-label">{day !== undefined || date === 1 || date % 5 === 0 ? date : ""}</span>
+            </div>
+          );
+        })}
+      </div>
+      {peak !== null && (
+        <p className="usage__chart-note">
+          Most in one day: {peak.cost_display} on {peak.label}. Days are counted in UTC.
+        </p>
+      )}
+    </>
   );
 }
 
-function BucketTable({ rows, empty, testId }: { rows: readonly UsageBucket[]; empty: string; testId: string }) {
+/** `YYYY-MM-DD` for every day of a `YYYY-MM` period, or the ledger's own days if it does not parse. */
+function daysOf(period: string, days: readonly UsageBucket[]): string[] {
+  const match = /^(\d{4})-(\d{2})$/.exec(period);
+  if (match === null) return days.map((day) => day.key);
+  const [, year = "", month = ""] = match;
+  const count = new Date(Date.UTC(Number(year), Number(month), 0)).getUTCDate();
+  return Array.from({ length: count }, (_unused, index) => `${period}-${String(index + 1).padStart(2, "0")}`);
+}
+
+/**
+ * A model row by the name the header uses ("GPT-5.6 Terra"), its provider
+ * beside it; the ledger's own identifier stays on the row's tooltip.
+ */
+function modelName(row: UsageBucket): ReactNode {
+  const slash = row.key.indexOf("/");
+  if (slash < 0) return row.label;
+  return (
+    <span title={row.label}>
+      {modelLabel(row.key.slice(slash + 1))}
+      <span className="usage__origin"> · {providerLabel(row.key.slice(0, slash))}</span>
+    </span>
+  );
+}
+
+function BucketTable({
+  rows,
+  empty,
+  testId,
+  name = (row) => row.label,
+}: {
+  rows: readonly UsageBucket[];
+  empty: string;
+  testId: string;
+  name?: (row: UsageBucket) => ReactNode;
+}) {
   if (rows.length === 0) return <p className="usage__empty">{empty}</p>;
   return (
     <table className="usage__table" data-testid={testId}>
@@ -229,7 +296,7 @@ function BucketTable({ rows, empty, testId }: { rows: readonly UsageBucket[]; em
       <tbody>
         {rows.map((row) => (
           <tr key={row.key}>
-            <td>{row.label}</td>
+            <td>{name(row)}</td>
             <td className="usage__num">{formatCount(row.calls)}</td>
             <td className="usage__num">{formatCount(row.input_tokens)}</td>
             <td className="usage__num">{formatCount(row.output_tokens)}</td>

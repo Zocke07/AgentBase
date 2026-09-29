@@ -5841,10 +5841,10 @@ button.md__tag:hover {
   gap: 1rem;
 }
 
+/* Every day of the month has a slot, so one day of spend is one narrow bar
+   in its place, not a slab across the whole chart. */
 .usage__chart {
   display: flex;
-  gap: 0.3rem;
-  align-items: flex-end;
   height: 8rem;
   padding-top: 0.5rem;
 }
@@ -5853,14 +5853,25 @@ button.md__tag:hover {
   display: flex;
   flex: 1 1 0;
   flex-direction: column;
-  justify-content: flex-end;
   gap: 0.25rem;
   height: 100%;
   min-width: 0;
 }
 
+.usage__bar-track {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  justify-content: center;
+  border-bottom: 1px solid var(--border);
+}
+
+/* The slots touch so the baseline under them is one line; the bar leaves the
+   space between days. */
 .usage__bar-fill {
   display: block;
+  width: 70%;
+  max-width: 1.75rem;
   border-radius: 3px 3px 0 0;
   background: var(--accent);
   opacity: 0.85;
@@ -5870,13 +5881,28 @@ button.md__tag:hover {
   opacity: 1;
 }
 
+/* One fixed height, numbered or not, so every slot's baseline lines up. */
 .usage__bar-label {
+  flex: none;
+  height: 1rem;
   overflow: hidden;
+  line-height: 1rem;
   color: var(--muted);
   font-size: 0.6667rem;
   text-align: center;
   text-overflow: clip;
   white-space: nowrap;
+}
+
+.usage__bar--spent .usage__bar-label {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.usage__chart-note {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 .usage__table {
@@ -6650,9 +6676,11 @@ input[type="radio"] {
   font-weight: 600;
 }
 
-.visualize__controls input,
+/* Text fields and pickers fill the column; a checkbox keeps its own size, or
+   it takes the row and squeezes its label against the far edge. */
+.visualize__controls input:not([type="checkbox"]),
 .visualize__controls select,
-.dashboard-editor__controls input,
+.dashboard-editor__controls input:not([type="checkbox"]),
 .dashboard-editor__controls select,
 .diagram-editor__source input {
   width: 100%;
@@ -6680,9 +6708,18 @@ input[type="radio"] {
 .visualize__values label,
 .dashboard-editor__controls fieldset label {
   display: flex;
-  gap: 0.4rem;
-  align-items: center;
+  gap: 0.45rem;
+  align-items: flex-start;
+  color: var(--text);
+  line-height: 1.35;
   overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.visualize__values input[type="checkbox"],
+.dashboard-editor__controls fieldset input[type="checkbox"] {
+  flex: none;
+  margin: 0.1rem 0 0;
 }
 
 .visualize__preview,
@@ -6780,6 +6817,12 @@ input[type="radio"] {
   fill: var(--bad);
 }
 
+.viz-chart__note {
+  margin: 0.6rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
 .viz-chart__empty {
   display: grid;
   min-height: 12rem;
@@ -6871,8 +6914,25 @@ input[type="radio"] {
   max-height: 42rem;
 }
 
+/* Below the width where the rail becomes a drawer, three panes side by side
+   leave the chart narrower than its figure: the settings go above it, laid
+   out in columns so they do not push the chart far down. */
 @media (max-width: 1100px) {
   .dashboard--3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .visualize { grid-template-columns: 13rem minmax(0, 1fr); }
+  .visualize__editor,
+  .diagram-editor,
+  .dashboard-editor { grid-template-columns: 1fr; grid-template-rows: auto 1fr; overflow: auto; }
+  .visualize__controls,
+  .dashboard-editor__controls,
+  .diagram-editor__source { overflow: visible; border-right: 0; border-bottom: 1px solid var(--border); }
+  .visualize__controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+    align-items: start;
+  }
+  .visualize__preview,
+  .diagram-editor__preview { overflow: visible; }
 }
 
 @media (max-width: 850px) {

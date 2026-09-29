@@ -4,6 +4,42 @@ Updated 2026-09-29. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
+## Visualize and Usage refinements, 2026-09-29, on `main`, not released
+
+From the maintainer's screenshots:
+- `config/limits.json` charted as one bar group labelled "10".
+- The Values checkboxes squeezed their labels against the far edge.
+- The legend cut names short.
+- Usage drew a single day of spend as one bar across the whole chart.
+- An open Usage showed $0.1374 while the header showed $0.16.
+
+- **Gate.** `just check` passed; desktop **49 files, 529 tests**; backend
+  **1017 passed, 12 skipped, 1 failed**, the failure being the hygiene test on
+  the same untracked file outside this work.
+- **Tests first.** The new parsing and first-chart tests failed on the old
+  code. They cover:
+  - flat, nested and keyed JSON objects;
+  - a movers file and a theses file shaped as the roster's prompts describe;
+  - averaging a repeated category, and counting the rows a plain chart leaves
+    out.
+  New chart tests cover round axis steps, a bar width cap and whole legend
+  names that wrap. New Usage tests cover a slot for every day and reading
+  the report again when the header's total moves.
+- **Browser.** A scratch sidecar on port 8790, Vite and headless Chrome, at
+  1440 by 900 and 900 by 800. Results:
+  - limits drew as three bars on a 0, 10, 20, 30 axis;
+  - sources drew as a table;
+  - movers and theses drew by ticker, the theses as "3 groups from 5 rows ·
+    average";
+  - checkboxes were 13 px wide;
+  - Usage showed 30 day slots with narrow bars;
+  - there were no console errors.
+  The first pass found the chart clipped at 900 px, a layout that predates
+  this work, and the Usage baseline broken; both were fixed and checked again.
+- **Not checked.** The light theme and the dashboard editor's checkboxes were
+  not looked at, though the same rule serves both. Usage following the header
+  was checked in unit tests only.
+
 ## ChatGPT plan models, 2026-09-29, on `main`, not released
 
 A signed-in ChatGPT account refused GPT-6 Sol, the space's model, with an

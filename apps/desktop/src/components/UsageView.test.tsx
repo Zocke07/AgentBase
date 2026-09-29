@@ -96,8 +96,10 @@ describe("UsageView", () => {
     expect(screen.getByTestId("usage-input").textContent).toContain("4,700");
     expect(screen.getByTestId("usage-output").textContent).toContain("370");
 
+    // Models by the names the header uses, the ledger's identifier on the tooltip.
     const models = screen.getByTestId("usage-models");
-    expect(models.textContent).toContain("claude-opus-5");
+    expect(models.textContent).toContain("Claude Opus 5 · Anthropic");
+    expect(within(models).getByTitle("anthropic · claude-opus-5")).toBeDefined();
     expect(models.textContent).toContain("$0.0140");
     // The space table only makes sense across spaces.
     expect(screen.queryByTestId("usage-spaces")).toBeNull();
@@ -130,7 +132,7 @@ describe("UsageView", () => {
     await waitFor(() => {
       expect(mocked.getUsage).toHaveBeenCalledWith("2026-08", null);
     });
-    expect(screen.getByTestId("usage-spent").textContent).toContain("of the $20.0000 cap");
+    expect(screen.getByTestId("usage-spent").textContent).toContain("of the $20 monthly limit");
     expect(screen.getByTestId("usage-spaces").textContent).toContain("Lab");
   });
 
@@ -146,6 +148,44 @@ describe("UsageView", () => {
     });
     rerender(<UsageView space={lab} active={false} onOpenRun={vi.fn()} onOpenSettings={vi.fn()} />);
     rerender(<UsageView space={lab} active onOpenRun={vi.fn()} onOpenSettings={vi.fn()} />);
+    await waitFor(() => {
+      expect(mocked.getUsage).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  it("gives every day of the month a slot, so a day's spend sits at its date", async () => {
+    /* With spend on one day, that day's bar stretched across the whole chart. */
+    render(<UsageView space={lab} active onOpenRun={vi.fn()} onOpenSettings={vi.fn()} />);
+    await screen.findByTestId("usage-spent");
+
+    const chart = screen.getByRole("img", { name: /Spend by day/ });
+    expect(chart.children).toHaveLength(30);
+    expect(screen.getByTestId("usage-day-2026-09-19").className).toContain("usage__bar--spent");
+    expect(screen.getByTestId("usage-day-2026-09-20").className).not.toContain("usage__bar--spent");
+    expect(screen.getByTestId("usage-day-2026-09-20").getAttribute("title")).toContain("nothing spent");
+    expect(screen.getByText(/Most in one day: \$0\.0091 on 2026-09-19/)).toBeDefined();
+  });
+
+  it("reads the ledger again when the header's total moves while the section is open", async () => {
+    /* The header showed $0.16 while an open Usage still showed the $0.1374 it
+       had read before the run's last calls. */
+    const view = (active: boolean, ledgerMicros: number) => (
+      <UsageView space={lab} active={active} ledgerMicros={ledgerMicros} onOpenRun={vi.fn()} onOpenSettings={vi.fn()} />
+    );
+    const { rerender } = render(view(true, 137_400));
+    await waitFor(() => {
+      expect(mocked.getUsage).toHaveBeenCalledTimes(1);
+    });
+
+    rerender(view(true, 160_000));
+    await waitFor(() => {
+      expect(mocked.getUsage).toHaveBeenCalledTimes(2);
+    });
+
+    // Closed, it waits to be opened, which reads it once.
+    rerender(view(false, 160_000));
+    rerender(view(false, 205_548));
+    rerender(view(true, 205_548));
     await waitFor(() => {
       expect(mocked.getUsage).toHaveBeenCalledTimes(3);
     });

@@ -9,11 +9,20 @@ charts, dashboards, Mermaid diagrams, and data sources; it neither uploads,
 stores, nor converts them into proprietary binaries.
 
 Charts read `.csv`, `.tsv`, `.json`, `.jsonl`, and `.ndjson`. JSON arrays are
-tables; objects with one array use it; other objects are one row. CSV/TSV
-support quoted fields, embedded delimiters, and newlines. Parsing stops at
-10,000 rows and rendering at 2,000 to keep large exports responsive.
+tables, and an object that holds an array uses its largest one. An object of
+records keyed by name, such as `{"AAPL": {...}, "MSFT": {...}}`, is one row per
+key, with the key in a `key` column. Any other object, such as a settings file
+like `config/limits.json`, is one row per setting, with `field` and `value`
+columns (nested settings are named by their dotted path), so each figure gets
+a bar of its own. CSV/TSV support quoted fields, embedded delimiters, and
+newlines. Parsing stops at 10,000 rows and rendering at 2,000 to keep large
+exports responsive.
 
-Choose a data source to infer a first chart, then set:
+Choose a data source to infer a first chart. It is drawn along a date that
+changes from row to row, or else a short label such as a ticker, never an ID,
+a link or a sentence. Where several rows share a category, the first chart
+averages them. A chart that does not combine them draws only the first row of
+each category, and says how many rows it left out. Then set:
 
 - **Chart:** bar, line, area, scatter, pie, metric or table.
 - **X / category:** horizontal labels or row number.
@@ -88,4 +97,5 @@ Visualization also supports fast decisions:
   a run's recorded context;
 - retrieval evaluation shows MRR, recall at k and each case as progress bars;
 - the memory inbox shows the proposed, approved and archived distribution;
-- Usage retains its day-by-day spend chart.
+- Usage retains its day-by-day spend chart, with a place for every day of the
+  month.

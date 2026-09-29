@@ -21,6 +21,11 @@ const TOP = 26;
 const BOTTOM = 58;
 const PLOT_WIDTH = WIDTH - LEFT - RIGHT;
 const PLOT_HEIGHT = HEIGHT - TOP - BOTTOM;
+/** The widest a single bar is drawn, in view-box units. */
+const MAX_BAR = 56;
+/** Legend names show this many characters; the full name is the entry's tooltip. */
+const LEGEND_LENGTH = 28;
+const LEGEND_ROW = 18;
 const COLOURS = [
   "var(--viz-1)",
   "var(--viz-2)",
@@ -42,7 +47,12 @@ export function Chart({ data, spec, compact = false }: ChartProps) {
       <div className="viz-chart__head">
         <div>
           <h3>{spec.title || "Untitled visualization"}</h3>
-          <p>{prepared.rows.length} row{prepared.rows.length === 1 ? "" : "s"} · {spec.chart}</p>
+          <p>
+            {spec.aggregate === "none"
+              ? plural(prepared.rows.length, "row")
+              : `${plural(prepared.rows.length, "group")} from ${plural(prepared.sourceRows, "row")} · ${spec.aggregate}`}{" "}
+            · {spec.chart}
+          </p>
         </div>
         <div className="viz-chart__actions">
           <button
@@ -83,6 +93,15 @@ export function Chart({ data, spec, compact = false }: ChartProps) {
         )}
       </div>
 
+      {prepared.repeated > 0 && spec.chart !== "table" && (
+        <p className="viz-chart__note" role="note">
+          {prepared.repeated === 1
+            ? `1 row shares its ${spec.x ?? "category"} with an earlier row and is not drawn.`
+            : `${String(prepared.repeated)} rows share their ${spec.x ?? "category"} with an earlier row and are not drawn.`}{" "}
+          Choose an aggregate to combine them, or Show data to see every row.
+        </p>
+      )}
+
       {(tableOpen || spec.chart === "table") && <DataTable data={prepared.rows} columns={prepared.columns.map((column) => column.name)} />}
     </section>
   );
@@ -90,20 +109,23 @@ export function Chart({ data, spec, compact = false }: ChartProps) {
 
 function CartesianChart({ spec, prepared }: { spec: VisualizationSpec; prepared: ReturnType<typeof prepareChart> }) {
   const values = prepared.series.flatMap((series) => series.points.map((point) => point.value));
-  const minimum = Math.min(0, ...values);
-  const maximum = Math.max(0, ...values);
-  const span = maximum - minimum || 1;
-  const y = (value: number) => TOP + ((maximum - value) / span) * PLOT_HEIGHT;
+  const scale = niceScale(Math.min(0, ...values), Math.max(0, ...values));
+  const span = scale.high - scale.low;
+  const y = (value: number) => TOP + ((scale.high - value) / span) * PLOT_HEIGHT;
   const zero = y(0);
   const labelStep = Math.max(1, Math.ceil(prepared.labels.length / 10));
   const categoryWidth = PLOT_WIDTH / Math.max(1, prepared.labels.length);
+  // About 7px a character at the axis font: a label gets the room its slot has.
+  const labelLength = Math.max(4, Math.min(32, Math.floor((categoryWidth * labelStep) / 7)));
   const pointFor = (seriesIndex: number, label: string) => prepared.series[seriesIndex]?.points.find((point) => point.label === label);
-  const ticks = Array.from({ length: 5 }, (_unused, index) => maximum - (span * index) / 4);
+  const legend = prepared.series.length > 1 ? legendLayout(prepared.series.map((series) => series.name)) : [];
+  const legendRows = legend.reduce((rows, item) => Math.max(rows, item.row + 1), 1);
+  const height = HEIGHT + (legendRows - 1) * LEGEND_ROW;
 
   return (
-    <svg className="viz-chart__svg" viewBox={`0 0 ${String(WIDTH)} ${String(HEIGHT)}`} role="img" aria-label={`${spec.chart} chart: ${spec.title}`}>
+    <svg className="viz-chart__svg" viewBox={`0 0 ${String(WIDTH)} ${String(height)}`} role="img" aria-label={`${spec.chart} chart: ${spec.title}`}>
       <title>{spec.title}</title>
-      {ticks.map((tick) => (
+      {scale.ticks.map((tick) => (
         <g key={tick}>
           <line className="viz-chart__grid" x1={LEFT} x2={WIDTH - RIGHT} y1={y(tick)} y2={y(tick)} />
           <text className="viz-chart__axis-label" x={LEFT - 9} y={y(tick) + 4} textAnchor="end">{shortNumber(tick)}</text>
@@ -111,19 +133,24 @@ function CartesianChart({ spec, prepared }: { spec: VisualizationSpec; prepared:
       ))}
       <line className="viz-chart__axis" x1={LEFT} x2={WIDTH - RIGHT} y1={zero} y2={zero} />
       {prepared.labels.map((label, index) => index % labelStep === 0 && (
-        <text
-          key={label}
-          className="viz-chart__axis-label"
-          x={LEFT + categoryWidth * (index + 0.5)}
-          y={HEIGHT - BOTTOM + 22}
-          textAnchor="middle"
-        >
-          {truncate(label, 14)}
-        </text>
+        <g key={label}>
+          <title>{label}</title>
+          <text
+            className="viz-chart__axis-label"
+            x={LEFT + categoryWidth * (index + 0.5)}
+            y={HEIGHT - BOTTOM + 22}
+            textAnchor="middle"
+          >
+            {truncate(label, labelLength)}
+          </text>
+        </g>
       ))}
 
       {spec.chart === "bar" ? prepared.labels.flatMap((label, labelIndex) => {
-        const width = Math.max(1, (categoryWidth * 0.76) / Math.max(1, prepared.series.length));
+        // A few categories would otherwise make each bar a slab a third of the chart wide.
+        const group = Math.min(categoryWidth * 0.76, MAX_BAR * Math.max(1, prepared.series.length));
+        const width = Math.max(1, group / Math.max(1, prepared.series.length));
+        const start = LEFT + categoryWidth * labelIndex + (categoryWidth - group) / 2;
         return prepared.series.map((series, seriesIndex) => {
           const point = pointFor(seriesIndex, label);
           if (point === undefined) return null;
@@ -132,7 +159,7 @@ function CartesianChart({ spec, prepared }: { spec: VisualizationSpec; prepared:
             <rect
               key={`${series.name}:${label}`}
               className="viz-chart__mark"
-              x={LEFT + categoryWidth * labelIndex + categoryWidth * 0.12 + width * seriesIndex}
+              x={start + width * seriesIndex}
               y={top}
               width={Math.max(1, width - 2)}
               height={Math.max(1, Math.abs(zero - y(point.value)))}
@@ -162,14 +189,49 @@ function CartesianChart({ spec, prepared }: { spec: VisualizationSpec; prepared:
         );
       })}
 
-      {prepared.series.length > 1 && prepared.series.map((series, index) => (
-        <g key={series.name} transform={`translate(${String(LEFT + index * 132)}, ${String(HEIGHT - 11)})`}>
+      {legend.map((item, index) => (
+        <g key={item.name} transform={`translate(${String(LEFT + item.x)}, ${String(HEIGHT - 11 + item.row * LEGEND_ROW)})`}>
+          <title>{item.name}</title>
           <rect width="10" height="10" y="-9" rx="2" fill={colour(index)} />
-          <text className="viz-chart__legend" x="15">{truncate(series.name, 16)}</text>
+          <text className="viz-chart__legend" x="15">{truncate(item.name, LEGEND_LENGTH)}</text>
         </g>
       ))}
     </svg>
   );
+}
+
+/**
+ * Axis bounds and ticks on round steps (1, 2, 2.5 or 5 times a power of ten),
+ * so a 0 to 30 axis reads 0, 10, 20, 30 rather than quarters of the maximum.
+ */
+function niceScale(minimum: number, maximum: number): { low: number; high: number; ticks: number[] } {
+  const rough = (maximum - minimum || Math.abs(maximum) || 1) / 4;
+  const power = 10 ** Math.floor(Math.log10(rough));
+  const step = [1, 2, 2.5, 5, 10].map((multiple) => multiple * power).find((candidate) => candidate >= rough) ?? 10 * power;
+  const low = Math.floor(minimum / step) * step;
+  const high = Math.max(Math.ceil(maximum / step) * step, low + step);
+  const count = Math.round((high - low) / step);
+  const ticks = Array.from({ length: count + 1 }, (_unused, index) => Number((high - step * index).toPrecision(12)));
+  return { low, high, ticks };
+}
+
+/**
+ * Legend entries laid left to right, each as wide as its name, starting a new
+ * row rather than cutting names to fit a fixed slot.
+ */
+function legendLayout(names: string[]): { name: string; x: number; row: number }[] {
+  let x = 0;
+  let row = 0;
+  return names.map((name) => {
+    const width = 15 + Math.min(name.length, LEGEND_LENGTH) * 6.6 + 22;
+    if (x > 0 && x + width > PLOT_WIDTH) {
+      x = 0;
+      row += 1;
+    }
+    const item = { name, x, row };
+    x += width;
+    return item;
+  });
 }
 
 function PieChart({ spec, prepared }: { spec: VisualizationSpec; prepared: ReturnType<typeof prepareChart> }) {
@@ -292,6 +354,10 @@ function shortNumber(value: number): string {
 
 function colour(index: number): string {
   return COLOURS[index % COLOURS.length] ?? COLOURS[0];
+}
+
+function plural(count: number, noun: string): string {
+  return `${String(count)} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 function truncate(value: string, length: number): string {

@@ -301,10 +301,12 @@ allowed tools.
 ## Follow cost, tokens and context
 
 **Usage** (Ctrl/Cmd+7) is a month of model calls from the same ledger the
-monthly cap is enforced on, so it always agrees with the meter in the header.
-The cards show what was spent (against the cap, when every space is shown),
-how many model calls were made across how many runs, and the input and output
-tokens. Below them: a bar per day, a table per model, a table per space, and
+monthly cap is enforced on, so it agrees with the meter in the header; while it
+is open, a run that spends refreshes it. The cards show what was spent
+(against the cap, when every space is shown), how many model calls were made
+across how many runs, and the input and output tokens. Below them: a place for
+every day of the month with a bar on each day that spent (days are counted in
+UTC, as the ledger records them), a table per model, a table per space, and
 the costliest runs with their calls, tokens and **context**: the most tokens
 any one call in that run sent, and the mean per call. A goal in that table
 opens the run. The period picker offers every month the ledger has; **This

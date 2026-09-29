@@ -71,6 +71,13 @@ export interface PreparedChart {
   series: ChartSeries[];
   rows: DataRow[];
   columns: DataColumn[];
+  /** Source rows the chart was drawn from, before any aggregate. */
+  sourceRows: number;
+  /**
+   * Rows not drawn because an earlier row in the same series has the same
+   * category. Only a chart without an aggregate leaves rows out this way.
+   */
+  repeated: number;
 }
 
 const DATA_LIMIT = 10_000;
@@ -140,7 +147,7 @@ export function dashboardJson(spec: DashboardSpec): string {
 
 export function defaultVisualization(path: string, data: DataSet): VisualizationSpec {
   const numeric = data.columns.filter((column) => column.kind === "number").map((column) => column.name);
-  const dimension = data.columns.find((column) => column.kind === "date" || column.kind === "text")?.name ?? data.columns[0]?.name ?? null;
+  const dimension = defaultDimension(data);
   const y = numeric.filter((name) => name !== dimension).slice(0, 3);
   const title = path.split("/").at(-1)?.replace(/\.[^.]+$/, "") ?? "Visualization";
   return {
@@ -151,10 +158,16 @@ export function defaultVisualization(path: string, data: DataSet): Visualization
     x: dimension,
     y,
     series: null,
-    aggregate: "none",
+    // Several rows per category would draw only the first of each; a first
+    // chart shows their average instead, and says so in its settings.
+    aggregate: dimension !== null && y.length > 0 && repeats(data.rows, dimension) ? "average" : "none",
     sort: "source",
     limit: 250,
   };
+}
+
+function repeats(rows: DataRow[], name: string): boolean {
+  return new Set(rows.map((row) => row[name] ?? null)).size < rows.length;
 }
 
 export function parseDataFile(path: string, source: string): DataSet {
@@ -193,7 +206,11 @@ export function prepareChart(data: DataSet, spec: VisualizationSpec): PreparedCh
   const y = spec.y.filter((field) => known.has(field));
   const seriesField = spec.series !== null && known.has(spec.series) ? spec.series : null;
   let rows = data.rows.slice(0, Math.min(spec.limit, CHART_LIMIT));
+  const sourceRows = rows.length;
   if (spec.aggregate !== "none") rows = aggregateRows(rows, x, y, seriesField, spec.aggregate);
+  const drawn = new Set(
+    rows.map((row, index) => JSON.stringify([seriesField === null ? null : row[seriesField] ?? null, x === null ? index : row[x] ?? null])),
+  );
   rows = sortRows(rows, x, y[0] ?? null, spec.sort);
 
   const labels = unique(rows.map((row, index) => labelOf(x === null ? index + 1 : row[x] ?? index + 1)));
@@ -220,7 +237,7 @@ export function prepareChart(data: DataSet, spec: VisualizationSpec): PreparedCh
       })),
     }));
   }
-  return { labels, series, rows, columns: data.columns };
+  return { labels, series, rows, columns: data.columns, sourceRows, repeated: rows.length - drawn.size };
 }
 
 function parseDelimited(source: string, delimiter: string): string[][] {
@@ -269,12 +286,70 @@ function tabularRows(table: string[][]): DataRow[] {
   return body.map((cells) => Object.fromEntries(names.map((name, index) => [name, cells[index]?.trim() ?? null])));
 }
 
+/**
+ * The column a first chart is drawn along. A date that changes makes a time
+ * series. Otherwise a short text label that tells rows apart (a ticker, a
+ * name), since an ID, a URL or a sentence makes an unreadable axis. A date all
+ * rows share, as one collector run stamps them, tells nothing apart.
+ */
+function defaultDimension(data: DataSet): string | null {
+  const varies = (name: string) => new Set(data.rows.map((row) => row[name] ?? null)).size > 1;
+  const series = data.columns.find((column) => column.kind === "date" && varies(column.name));
+  if (series !== undefined) return series.name;
+  const label = data.columns.find((column) => column.kind === "text" && varies(column.name) && shortLabels(data.rows, column.name));
+  if (label !== undefined) return label.name;
+  return data.columns.find((column) => column.kind === "date" || column.kind === "text")?.name ?? data.columns[0]?.name ?? null;
+}
+
+/** Longer than this on average reads as an ID or prose, not an axis label. */
+const LABEL_LENGTH = 24;
+
+function shortLabels(rows: DataRow[], name: string): boolean {
+  const values = rows.map((row) => row[name]).filter((value) => typeof value === "string");
+  return values.length > 0 && sum(values.map((value) => value.length)) / values.length <= LABEL_LENGTH;
+}
+
 function rowsFromJson(value: unknown): DataRow[] {
   if (Array.isArray(value)) return value.map(normalizeRow);
   if (!isRecord(value)) return [{ value: scalar(value) }];
+  const keyed = keyedRows(value);
+  if (keyed !== null) return keyed;
   const arrays = nestedArrays(value, 0).sort((left, right) => right.length - left.length);
   if (arrays[0] !== undefined) return arrays[0].map(normalizeRow);
-  return [normalizeRow(value, 0)];
+  return fieldRows(value);
+}
+
+/**
+ * `{"AAPL": {"last": 1}, "MSFT": {"last": 2}}`: a record per key, read as one
+ * row per key with the key as a column. Only where every record is flat, so an
+ * API envelope (`{"data": {"items": [...]}}`) still finds its table.
+ */
+function keyedRows(value: Record<string, unknown>): DataRow[] | null {
+  const entries = Object.entries(value);
+  const flat = (item: unknown) =>
+    isRecord(item) &&
+    Object.values(item).every((field) => !isRecord(field) && !(Array.isArray(field) && field.some((part) => isRecord(part) || Array.isArray(part))));
+  if (entries.length === 0 || !entries.every(([, item]) => flat(item))) return null;
+  const name = entries.some(([, item]) => isRecord(item) && "key" in item) ? "_key" : "key";
+  return entries.map(([key, item], index) => ({ [name]: key, ...normalizeRow(item, index) }));
+}
+
+/**
+ * A settings object such as `{"max_position_pct": 10, "max_sector_pct": 30}`:
+ * one row per field, nested fields named by their dotted path, so each figure
+ * is a bar of its own rather than one row of columns.
+ */
+function fieldRows(value: Record<string, unknown>): DataRow[] {
+  const rows: DataRow[] = [];
+  const visit = (prefix: string, item: unknown, depth: number) => {
+    if (isRecord(item) && depth < 6) {
+      for (const [key, child] of Object.entries(item)) visit(prefix === "" ? key : `${prefix}.${key}`, child, depth + 1);
+    } else {
+      rows.push({ field: prefix, value: isRecord(item) ? JSON.stringify(item) : scalar(item) });
+    }
+  };
+  visit("", value, 0);
+  return rows;
 }
 
 function nestedArrays(value: unknown, depth: number): unknown[][] {

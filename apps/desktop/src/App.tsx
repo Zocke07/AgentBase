@@ -624,6 +624,7 @@ export function App() {
               <UsageView
                 space={space}
                 active={section === "usage"}
+                ledgerMicros={budget?.spent_micros ?? null}
                 onOpenRun={openRunWherever}
                 onOpenSettings={() => {
                   setSection("settings");
