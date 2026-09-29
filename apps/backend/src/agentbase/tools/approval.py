@@ -347,11 +347,13 @@ class ApprovalService:
                     host=host,
                 )
 
-        # Reuse a denial for the same call so users are not asked twice.
+        # Reuse a denial for the same call so users are not asked twice. A
+        # person's no outranks a later yes for the run; a question that only
+        # went unanswered does not, since somebody has answered since.
         precedent = await self._store.find_denied(
             run_id, prepared.tool_name, prepared.raw_arguments
         )
-        if precedent is not None:
+        if precedent is not None and precedent.status is ApprovalStatus.DENIED:
             return await self._deny_by_precedent(run_id, agent, prepared, risk, precedent)
 
         # Reuse run-scoped approval for subsequent calls to the same tool.
@@ -362,6 +364,8 @@ class ApprovalService:
         )
         if allowance is not None:
             return await self._allow_by_precedent(run_id, agent, prepared, risk, allowance)
+        if precedent is not None:
+            return await self._deny_by_precedent(run_id, agent, prepared, risk, precedent)
 
         record = await self._store.create(
             run_id, prepared.tool_name, prepared.raw_arguments, risk
@@ -645,6 +649,9 @@ class ApprovalService:
                 "status": str(settled.status),
                 "automatic": True,
                 "precedent": precedent.id,
+                "rule": "unanswered"
+                if precedent.status is ApprovalStatus.EXPIRED
+                else "denied",
             },
             agent_id=agent,
         )

@@ -255,6 +255,20 @@ def test_an_agent_write_to_an_app_owned_path_is_refused(sandbox: Sandbox, path: 
 
 @pytest.mark.parametrize(
     "path",
+    ["notes/lesson.md.", "notes /lesson.md", "memory./x.md", "memory /x.md", "notes./a.md"],
+)
+def test_a_name_windows_would_rewrite_is_refused_to_writes(sandbox: Sandbox, path: str) -> None:
+    """Windows drops a trailing dot or space from each name as it creates it,
+    so `notes/lesson.md.` becomes a Markdown note and `memory./x.md` lands in
+    the memory folder. No platform needs such a name, so none is written."""
+    with pytest.raises(SandboxViolationError) as caught:
+        sandbox.resolve_write_path(path)
+
+    assert "ends in a dot or a space" in str(caught.value)
+
+
+@pytest.mark.parametrize(
+    "path",
     ["notes/memory.md", "memoryx/a.md", "research/memory/notes.md", "raw/news.json"],
 )
 def test_ordinary_agent_writes_still_resolve(sandbox: Sandbox, path: str) -> None:

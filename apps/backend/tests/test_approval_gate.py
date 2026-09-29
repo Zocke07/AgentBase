@@ -1361,3 +1361,69 @@ async def test_a_supervised_run_asks_before_every_call_but_keeps_refusals(
     # The app-wide "never allow" for read_file still answered without asking.
     assert writer.denied_tools == ["read_file"]
     assert (workspace / "a.md").read_text(encoding="utf-8") == "x"
+
+
+async def test_a_later_yes_for_the_run_answers_a_call_that_once_went_unanswered(
+    store: EventStore, db: Database, workspace: Path
+) -> None:
+    """Nobody was there, then somebody was: a person's yes for the run covers
+    the call that expired before they arrived, rather than its old silence."""
+    _, service = tool_runtime(store, db, workspace)
+    run = await store.create_run(goal="write", origin="schedule")
+
+    def write(path: str) -> Prepared:
+        return Prepared(
+            tool_name="write_file",
+            summary=f"create the file {path}",
+            raw_arguments={"path": path, "content": "x"},
+        )
+
+    async def ask(path: str, deadline: float) -> ApprovalDecision:
+        return await service.request(
+            run_id=run.id,
+            agent="writer",
+            prepared=write(path),
+            risk=RiskLevel.MEDIUM,
+            auto_approve=(),
+            deadline=deadline,
+            unattended=True,
+        )
+
+    expired = await ask("a.md", 0)
+    assert not expired.allowed
+
+    later = asyncio.create_task(ask("c.md", 5))
+    pending = await _wait_for_approval(service)
+    await service.resolve(pending, approved=True, scope=ApprovalScope.RUN)
+    assert (await asyncio.wait_for(later, timeout=5)).allowed
+
+    retried = await ask("a.md", 5)
+    assert retried.allowed
+
+    events = await store.read(run.id)
+    resolved = [e.payload for e in events if e.type is EventType.APPROVAL_RESOLVED]
+    assert resolved[-1].get("precedent") == pending
+
+
+async def test_a_refusal_carried_over_says_why_on_both_events(
+    store: EventStore, db: Database, workspace: Path
+) -> None:
+    _, service = tool_runtime(store, db, workspace)
+    run = await store.create_run(goal="write", origin="schedule")
+    prepared = Prepared(
+        tool_name="write_file", summary="create the file a.md", raw_arguments={"path": "a.md"}
+    )
+    for _ in range(2):
+        await service.request(
+            run_id=run.id,
+            agent="writer",
+            prepared=prepared,
+            risk=RiskLevel.MEDIUM,
+            auto_approve=(),
+            deadline=0,
+            unattended=True,
+        )
+
+    events = await store.read(run.id)
+    resolved = [e.payload for e in events if e.type is EventType.APPROVAL_RESOLVED]
+    assert resolved[-1]["rule"] == "unanswered"

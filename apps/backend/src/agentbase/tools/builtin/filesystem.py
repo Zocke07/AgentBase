@@ -267,7 +267,9 @@ class WriteFileTool:
         # A memory-typed note is retrieved by its own `status`, so writing one
         # would approve a memory without the inbox. Retrieval reads only
         # Markdown, which is the only kind worth refusing.
-        if resolved.suffix.casefold() == ".md" and is_memory_markdown(content):
+        # Read the name as retrieval will find it, whatever its spelling.
+        is_note = resolved.name.rstrip(". ").casefold().endswith(".md")
+        if is_note and is_memory_markdown(content):
             msg = (
                 f"{shown} is written as a memory note, and agents cannot write "
                 f"memories directly. Use propose_memory, which puts it in the "

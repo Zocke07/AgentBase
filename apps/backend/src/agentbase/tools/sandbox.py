@@ -126,6 +126,15 @@ class Sandbox:
         """
         resolved = self.resolve_path(candidate)
         parts = resolved.relative_to(self.root).parts
+        # Windows drops a trailing dot or space from each name as it creates
+        # it, so `lesson.md.` would become a note and `memory.` the memory
+        # folder, past every check below. No platform needs such a name.
+        if any(part.endswith((".", " ")) for part in parts):
+            msg = (
+                f"{candidate!r} has a name that ends in a dot or a space, which "
+                f"Windows would quietly change. Use a plain name such as 'notes.md'."
+            )
+            raise SandboxViolationError(msg)
         hidden = any(part.startswith(".") for part in parts)
         # Case-folded because Windows and macOS treat Memory/ as memory/.
         if hidden or (parts and parts[0].casefold() == "memory"):
