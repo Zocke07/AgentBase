@@ -11,16 +11,11 @@ import * as api from "./api";
  */
 
 /** The data files the investment agents read, each with the template it starts from. */
-export const STARTERS: readonly {
-  path: string;
-  content: string;
-  why: string;
-}[] = [
+export const STARTERS: readonly { path: string; content: string; why: string }[] = [
   {
     path: "config/watchlist.json",
     why: "the tickers the collectors follow",
-    content:
-      '{\n  "watchlist": [\n    { "ticker": "AAPL", "company_name": "Apple Inc.", "aliases": ["Apple"] }\n  ]\n}\n',
+    content: '{\n  "watchlist": [\n    { "ticker": "AAPL", "company_name": "Apple Inc.", "aliases": ["Apple"] }\n  ]\n}\n',
   },
   {
     path: "config/sources.json",
@@ -31,8 +26,7 @@ export const STARTERS: readonly {
   {
     path: "config/limits.json",
     why: "the hard risk rules the risk manager restates",
-    content:
-      '{\n  "max_position_pct": 10,\n  "max_sector_pct": 30,\n  "max_daily_loss_pct": 3\n}\n',
+    content: '{\n  "max_position_pct": 10,\n  "max_sector_pct": 30,\n  "max_daily_loss_pct": 3\n}\n',
   },
 ];
 
@@ -46,18 +40,12 @@ export const PIPELINE_SCHEDULE_IDS: readonly string[] = [
 ];
 
 /** The seeded pipeline schedules still present in a space's list, in stage order. */
-export function pipelineOf(
-  schedules: readonly ScheduleResponse[],
-): ScheduleResponse[] {
-  return PIPELINE_SCHEDULE_IDS.flatMap((id) =>
-    schedules.filter((row) => row.id === id),
-  );
+export function pipelineOf(schedules: readonly ScheduleResponse[]): ScheduleResponse[] {
+  return PIPELINE_SCHEDULE_IDS.flatMap((id) => schedules.filter((row) => row.id === id));
 }
 
 /** Whether a space holds the seeded pipeline with none of it switched on yet. */
-export function pipelineWaiting(
-  schedules: readonly ScheduleResponse[],
-): boolean {
+export function pipelineWaiting(schedules: readonly ScheduleResponse[]): boolean {
   const seeded = pipelineOf(schedules);
   return seeded.length > 0 && seeded.every((row) => row.enabled === false);
 }
@@ -75,13 +63,8 @@ export interface PipelineResult {
  * (Windows and macOS folders ignore case). A stage that refuses does not stop
  * the others; the result names it.
  */
-export async function turnOnPipeline(
-  spaceId: string,
-  schedules: readonly ScheduleResponse[],
-): Promise<PipelineResult> {
-  const present = new Set(
-    (await api.listFiles(spaceId)).files.map((file) => file.path.toLowerCase()),
-  );
+export async function turnOnPipeline(spaceId: string, schedules: readonly ScheduleResponse[]): Promise<PipelineResult> {
+  const present = new Set((await api.listFiles(spaceId)).files.map((file) => file.path.toLowerCase()));
   const written: string[] = [];
   for (const starter of STARTERS) {
     if (present.has(starter.path.toLowerCase())) continue;
@@ -94,10 +77,7 @@ export async function turnOnPipeline(
     try {
       await api.updateSchedule(row.id, { enabled: true });
     } catch (failure) {
-      failed.push({
-        name: row.name,
-        reason: failure instanceof Error ? failure.message : String(failure),
-      });
+      failed.push({ name: row.name, reason: failure instanceof Error ? failure.message : String(failure) });
     }
   }
   return { written, failed };
@@ -106,13 +86,8 @@ export async function turnOnPipeline(
 /** The notice after an attempt; `null` when the offer shows its own error. */
 export function pipelineNotice(result: PipelineResult | null): string | null {
   if (result === null) return null;
-  const created =
-    result.written.length > 0
-      ? ` Created ${result.written.join(", ")} from their templates.`
-      : "";
+  const created = result.written.length > 0 ? ` Created ${result.written.join(", ")} from their templates.` : "";
   if (result.failed.length === 0) return `The pipeline is on.${created}`;
-  const refused = result.failed
-    .map((stage) => `${stage.name} (${stage.reason})`)
-    .join("; ");
+  const refused = result.failed.map((stage) => `${stage.name} (${stage.reason})`).join("; ");
   return `Part of the pipeline is on.${created} Not turned on: ${refused}.`;
 }

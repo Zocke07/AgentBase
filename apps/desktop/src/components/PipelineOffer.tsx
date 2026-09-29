@@ -1,12 +1,7 @@
 import type { ScheduleResponse } from "@agentbase/schemas";
 import { useState } from "react";
 
-import {
-  pipelineOf,
-  pipelineWaiting,
-  turnOnPipeline,
-  type PipelineResult,
-} from "../lib/pipeline";
+import { pipelineOf, pipelineWaiting, turnOnPipeline, type PipelineResult } from "../lib/pipeline";
 
 /**
  * The one-click start of the shipped investment pipeline, shown only while its
@@ -25,12 +20,7 @@ export interface PipelineOfferProps {
   onTurnedOn: (result: PipelineResult | null) => void;
 }
 
-export function PipelineOffer({
-  spaceId,
-  schedules,
-  runCapMicros,
-  onTurnedOn,
-}: PipelineOfferProps) {
+export function PipelineOffer({ spaceId, schedules, runCapMicros, onTurnedOn }: PipelineOfferProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,25 +43,18 @@ export function PipelineOffer({
 
   return (
     <section className="card pipeline-offer" data-testid="pipeline-offer">
-      <h2 className="card__title">
-        The investment pipeline is ready to run on its own
-      </h2>
+      <h2 className="card__title">The investment pipeline is ready to run on its own</h2>
       <p>
-        {stages.length} schedules are set up and switched off:{" "}
-        {stages.map((row) => row.name).join(", ")}. Turned on, the morning
-        collection runs on weekdays, the theses and the daily decision follow it
-        as soon as each stage completes, and the knowledge and review stages run
-        weekly. The decision is a recommendation for you to review; nothing is
-        bought or sold.
+        {stages.length} schedules are set up and switched off: {stages.map((row) => row.name).join(", ")}.
+        Turned on, the morning collection runs on weekdays, the theses and the daily decision follow it
+        as soon as each stage completes, and the knowledge and review stages run weekly. The decision is
+        a recommendation for you to review; nothing is bought or sold.
       </p>
       <p className="settings__hint">
         Each run stops at its time limit
-        {runCapMicros !== null &&
-          runCapMicros > 0 &&
-          ` and before spending $${(runCapMicros / 1_000_000).toFixed(2)}`}
-        , and the monthly cap still holds. Any data file the agents read that is
-        missing is created from its template first; edit config/watchlist.json
-        in Knowledge to choose your tickers.
+        {runCapMicros !== null && runCapMicros > 0 && ` and before spending $${(runCapMicros / 1_000_000).toFixed(2)}`}, and
+        the monthly cap still holds. Any data file the agents read that is missing is created from its
+        template first; edit config/watchlist.json in Knowledge to choose your tickers.
       </p>
       {error !== null && (
         <p className="field-error" role="alert">

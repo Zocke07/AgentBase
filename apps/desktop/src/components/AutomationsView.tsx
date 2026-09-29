@@ -44,17 +44,15 @@ export function AutomationsView({
     if (schedulesNonce > 0) reload();
   }, [schedulesNonce, reload]);
   const [notice, setNotice] = useState<string | null>(null);
-  const runCap =
-    space.max_run_cost_micros ?? settings?.settings.max_run_cost_micros ?? null;
+  const runCap = space.max_run_cost_micros ?? settings?.settings.max_run_cost_micros ?? null;
 
   return (
     <div className="settings automations" data-testid="automations">
       <div className="settings__form">
         <p className="automations__intro">
-          Automations are how {space.name} works on its own. Calls your approval
-          policy allows run without asking; anything else waits in the approvals
-          dock, and a question nobody answers expires so the run carries on
-          without that call.
+          Automations are how {space.name} works on its own. Calls your approval policy allows run
+          without asking; anything else waits in the approvals dock, and a question nobody answers
+          expires so the run carries on without that call.
         </p>
         {notice !== null && (
           <p className="settings__saved" role="status">

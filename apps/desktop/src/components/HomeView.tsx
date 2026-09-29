@@ -1,11 +1,4 @@
-import type {
-  AgentDef,
-  ApprovalResponse,
-  Run,
-  ScheduleResponse,
-  SearchHit,
-  SpaceResponse,
-} from "@agentbase/schemas";
+import type { AgentDef, ApprovalResponse, Run, ScheduleResponse, SearchHit, SpaceResponse } from "@agentbase/schemas";
 import { useCallback, useEffect, useState } from "react";
 
 import * as api from "../lib/api";
@@ -94,10 +87,7 @@ export function HomeView({
   const [pipelineNotice, setPipelineNotice] = useState<string | null>(null);
   const spaceId = space?.id ?? null;
   const loadSchedules = useCallback(
-    () =>
-      spaceId === null
-        ? Promise.resolve(NO_SCHEDULES)
-        : api.listSchedules(spaceId),
+    () => (spaceId === null ? Promise.resolve(NO_SCHEDULES) : api.listSchedules(spaceId)),
     [spaceId],
   );
   const schedules = useFetched(loadSchedules, NO_SCHEDULES);
@@ -131,19 +121,12 @@ export function HomeView({
     ensureRoster();
   }, [ensureRuns, ensureRoster]);
 
-  const waitingOn = new Set(
-    pendingApprovals.map((approval) => approval.run_id),
-  );
+  const waitingOn = new Set(pendingApprovals.map((approval) => approval.run_id));
   const statusOf = (run: Run): Run["status"] =>
-    liveStatus !== null && liveStatus.runId === run.id
-      ? liveStatus.status
-      : run.status;
+    liveStatus !== null && liveStatus.runId === run.id ? liveStatus.status : run.status;
 
   // "Now" includes ongoing runs and user questions.
-  const now = runs.filter(
-    (run) =>
-      unfinished({ ...run, status: statusOf(run) }) || waitingOn.has(run.id),
-  );
+  const now = runs.filter((run) => unfinished({ ...run, status: statusOf(run) }) || waitingOn.has(run.id));
   const recent = runs.filter((run) => !now.includes(run)).slice(0, RECENT);
   const firstLaunch = runsLoaded && runs.length === 0;
   const enabled = agents.filter((agent) => agent.enabled !== false);
@@ -165,22 +148,15 @@ export function HomeView({
       onOpenRun(run.id);
       void reloadRuns();
     } catch (failure) {
-      setStartError(
-        failure instanceof Error ? failure.message : String(failure),
-      );
+      setStartError(failure instanceof Error ? failure.message : String(failure));
     } finally {
       setStarting(false);
     }
   };
 
-  const kept = (retrieval ?? []).filter(
-    (hit) => !excludedCitations.includes(hit.citation),
-  );
+  const kept = (retrieval ?? []).filter((hit) => !excludedCitations.includes(hit.citation));
   const includedCount = kept.length;
-  const includedTokens = kept.reduce(
-    (total, hit) => total + (hit.estimated_tokens ?? 0),
-    0,
-  );
+  const includedTokens = kept.reduce((total, hit) => total + (hit.estimated_tokens ?? 0), 0);
 
   const previewRetrieval = async () => {
     const trimmed = goal.trim();
@@ -191,9 +167,7 @@ export function HomeView({
       setRetrieval((await api.searchKnowledge(space.id, trimmed, 6)).hits);
       setExcludedCitations([]);
     } catch (failure) {
-      setStartError(
-        failure instanceof Error ? failure.message : String(failure),
-      );
+      setStartError(failure instanceof Error ? failure.message : String(failure));
     } finally {
       setRetrieving(false);
     }
@@ -207,9 +181,7 @@ export function HomeView({
       onOpenRun(run.id);
       void reloadRuns();
     } catch (failure) {
-      setDemoError(
-        failure instanceof Error ? failure.message : String(failure),
-      );
+      setDemoError(failure instanceof Error ? failure.message : String(failure));
     }
   };
 
@@ -222,9 +194,7 @@ export function HomeView({
       await api.seedSpace(space.id);
       await reloadRoster();
     } catch (failure) {
-      setRosterError(
-        failure instanceof Error ? failure.message : String(failure),
-      );
+      setRosterError(failure instanceof Error ? failure.message : String(failure));
     } finally {
       setSeeding(false);
     }
@@ -238,37 +208,24 @@ export function HomeView({
       await reloadRoster();
       onWorkspaceChanged();
     } catch (failure) {
-      setRosterError(
-        failure instanceof Error ? failure.message : String(failure),
-      );
+      setRosterError(failure instanceof Error ? failure.message : String(failure));
     } finally {
       setBusyAgent(null);
     }
   };
 
   return (
-    <div
-      className={`home${firstLaunch ? " home--first" : ""}`}
-      data-testid="home"
-    >
+    <div className={`home${firstLaunch ? " home--first" : ""}`} data-testid="home">
       <div className="home__inner">
         {blocker !== null && (
-          <section
-            className="card card--notice home__preflight"
-            role="status"
-            data-testid="preflight"
-          >
+          <section className="card card--notice home__preflight" role="status" data-testid="preflight">
             <h2 className="card__title">One step before your first run</h2>
             <p>{blocker}</p>
             <div className="card__actions">
               <button type="button" className="button" onClick={onOpenSettings}>
                 Open settings
               </button>
-              <button
-                type="button"
-                className="button"
-                onClick={() => void demo()}
-              >
+              <button type="button" className="button" onClick={() => void demo()}>
                 Try a demo run
               </button>
             </div>
@@ -280,10 +237,7 @@ export function HomeView({
           </section>
         )}
 
-        <section
-          className="home__section home__automations"
-          data-testid="home-automations"
-        >
+        <section className="home__section home__automations" data-testid="home-automations">
           {pipelineNotice !== null && (
             <p className="settings__saved" role="status">
               {pipelineNotice}
@@ -294,9 +248,7 @@ export function HomeView({
               spaceId={space.id}
               // Only this space's rows: a list still loading after a switch
               // must not turn on another space's schedules.
-              schedules={schedules.data.filter(
-                (row) => row.space_id === space.id,
-              )}
+              schedules={schedules.data.filter((row) => row.space_id === space.id)}
               runCapMicros={runCapMicros}
               onTurnedOn={(result) => {
                 setPipelineNotice(noticeFor(result));
@@ -350,21 +302,15 @@ export function HomeView({
             data-tour="goal"
           />
           {retrieval !== null && (
-            <fieldset
-              className="new-run__retrieval"
-              data-testid="retrieval-preview"
-            >
+            <fieldset className="new-run__retrieval" data-testid="retrieval-preview">
               <legend>Notes it will read</legend>
               <p>
                 {retrieval.length > 0 ? (
                   <>
-                    {includedCount === 1
-                      ? "This passage"
-                      : `These ${String(includedCount)} passages`}{" "}
-                    from this space&apos;s notes will be sent along with your
-                    task to <strong>{modelLabel ?? "the model"}</strong> (about{" "}
-                    {includedTokens} tokens). Untick anything you would rather
-                    keep out.
+                    {includedCount === 1 ? "This passage" : `These ${String(includedCount)} passages`} from this
+                    space&apos;s notes
+                    will be sent along with your task to <strong>{modelLabel ?? "the model"}</strong> (about{" "}
+                    {includedTokens} tokens). Untick anything you would rather keep out.
                   </>
                 ) : (
                   "None of this space's notes or approved memories match this task, so it will start from your words alone."
@@ -378,9 +324,7 @@ export function HomeView({
                     onChange={(event) => {
                       setExcludedCitations((current) =>
                         event.target.checked
-                          ? current.filter(
-                              (citation) => citation !== hit.citation,
-                            )
+                          ? current.filter((citation) => citation !== hit.citation)
                           : [...current, hit.citation],
                       );
                     }}
@@ -402,22 +346,14 @@ export function HomeView({
                       </button>
                     )}
                     {hit.excerpt !== "" && (
-                      <Markdown
-                        source={hit.excerpt}
-                        className="md--compact new-run__excerpt"
-                      />
+                      <Markdown source={hit.excerpt} className="md--compact new-run__excerpt" />
                     )}
-                    <MetricBar
-                      value={hit.score}
-                      label={`Relevance for ${hit.citation}`}
-                    />
+                    <MetricBar value={hit.score} label={`Relevance for ${hit.citation}`} />
                     <small>
-                      {Math.round(hit.score * 100)}% relevance ·{" "}
-                      {hit.estimated_tokens ?? 0} tokens
+                      {Math.round(hit.score * 100)}% relevance · {hit.estimated_tokens ?? 0} tokens
                       {(hit.matched_terms ?? []).length > 0 &&
                         ` · matched ${(hit.matched_terms ?? []).join(", ")}`}
-                      {(hit.reasons ?? []).length > 0 &&
-                        ` · ${(hit.reasons ?? []).join(" · ")}`}
+                      {(hit.reasons ?? []).length > 0 && ` · ${(hit.reasons ?? []).join(" · ")}`}
                     </small>
                   </span>
                 </label>
@@ -436,30 +372,18 @@ export function HomeView({
                     ? "No agents are enabled: the supervisor will have nobody to delegate to."
                     : ""
                   : readyLine(enabled.map((agent) => agent.name))}
-                {firstLaunch &&
-                  rosterLoaded &&
-                  agents.length === 0 &&
-                  space !== null && (
-                    <>
-                      {" "}
-                      <button
-                        type="button"
-                        className="link"
-                        disabled={seeding}
-                        onClick={() => void seed()}
-                      >
-                        Start from the starter roles
-                      </button>
-                    </>
-                  )}
+                {firstLaunch && rosterLoaded && agents.length === 0 && space !== null && (
+                  <>
+                    {" "}
+                    <button type="button" className="link" disabled={seeding} onClick={() => void seed()}>
+                      Start from the starter roles
+                    </button>
+                  </>
+                )}
                 {firstLaunch && (
                   <>
                     {" "}
-                    <button
-                      type="button"
-                      className="link"
-                      onClick={onOpenAgents}
-                    >
+                    <button type="button" className="link" onClick={onOpenAgents}>
                       Manage agents
                     </button>
                   </>
@@ -510,9 +434,7 @@ export function HomeView({
                 className="button button--primary"
                 disabled={starting || goal.trim() === "" || blocker !== null}
                 aria-busy={starting}
-                title={
-                  blocker ?? "Enter starts it too; Shift+Enter makes a new line"
-                }
+                title={blocker ?? "Enter starts it too; Shift+Enter makes a new line"}
               >
                 {starting ? "Starting…" : "Start run"}
               </button>
@@ -549,22 +471,13 @@ export function HomeView({
           <section className="home__section" data-testid="home-recent">
             <header className="home__head">
               <h2>Recent runs</h2>
-              <button
-                type="button"
-                className="button button--small"
-                onClick={onOpenRuns}
-              >
+              <button type="button" className="button button--small" onClick={onOpenRuns}>
                 All runs
               </button>
             </header>
             <div className="cards">
               {recent.map((run) => (
-                <RunCard
-                  key={run.id}
-                  run={run}
-                  liveStatus={statusOf(run)}
-                  onOpen={onOpenRun}
-                />
+                <RunCard key={run.id} run={run} liveStatus={statusOf(run)} onOpen={onOpenRun} />
               ))}
             </div>
           </section>
@@ -574,11 +487,7 @@ export function HomeView({
           <section className="home__section" data-testid="home-roster">
             <header className="home__head">
               <h2>Agents</h2>
-              <button
-                type="button"
-                className="button button--small"
-                onClick={onOpenAgents}
-              >
+              <button type="button" className="button button--small" onClick={onOpenAgents}>
                 Add an agent
               </button>
             </header>
@@ -589,15 +498,9 @@ export function HomeView({
             )}
             {rosterLoaded && agents.length === 0 && (
               <p className="home__empty">
-                No agents are defined, so the supervisor would have nobody to
-                delegate to.{" "}
+                No agents are defined, so the supervisor would have nobody to delegate to.{" "}
                 {space !== null && (
-                  <button
-                    type="button"
-                    className="link"
-                    disabled={seeding}
-                    onClick={() => void seed()}
-                  >
+                  <button type="button" className="link" disabled={seeding} onClick={() => void seed()}>
                     Start from the starter roles
                   </button>
                 )}
@@ -610,14 +513,9 @@ export function HomeView({
                   className={`roster-card${agent.enabled === false ? " roster-card--off" : ""}`}
                   data-testid={`home-agent-${agent.name}`}
                 >
-                  <span
-                    className="roster-card__name"
-                    title={`${agent.name}: ${agent.role}`}
-                  >
+                  <span className="roster-card__name" title={`${agent.name}: ${agent.role}`}>
                     {agent.name}
-                    {agent.is_builtin === true && (
-                      <span className="tag">built-in</span>
-                    )}
+                    {agent.is_builtin === true && <span className="tag">built-in</span>}
                   </span>
                   <span className="roster-card__role">{agent.role}</span>
                   <label className="switch">
@@ -640,6 +538,7 @@ export function HomeView({
   );
 }
 
+
 /**
  * One line on what runs here on its own: how many automations are on and the
  * next one due, or an offer to automate a task when nothing does yet.
@@ -661,9 +560,7 @@ function AutomationsLine({
   const on = schedules.filter((row) => row.enabled !== false);
   const timed = on
     .filter((row) => row.next_run_at !== null && row.next_run_at !== undefined)
-    .sort((left, right) =>
-      (left.next_run_at ?? "").localeCompare(right.next_run_at ?? ""),
-    );
+    .sort((left, right) => (left.next_run_at ?? "").localeCompare(right.next_run_at ?? ""));
   const next = timed[0];
 
   return (
@@ -672,9 +569,7 @@ function AutomationsLine({
         {on.length === 0
           ? `Nothing in ${spaceName} runs on its own yet.`
           : `${String(on.length)} automation${on.length === 1 ? "" : "s"} on.${
-              next !== undefined
-                ? ` Next: ${next.name}, ${whenLabel(next.next_run_at ?? "")}.`
-                : ""
+              next !== undefined ? ` Next: ${next.name}, ${whenLabel(next.next_run_at ?? "")}.` : ""
             }`}
       </p>
       <div className="home__automations-actions">
@@ -690,11 +585,7 @@ function AutomationsLine({
           </button>
         )}
         {onOpenAutomations !== undefined && (
-          <button
-            type="button"
-            className="button button--small"
-            onClick={onOpenAutomations}
-          >
+          <button type="button" className="button button--small" onClick={onOpenAutomations}>
             Open Automations
           </button>
         )}
