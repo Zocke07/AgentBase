@@ -417,7 +417,7 @@ async def verify_provider(request: Request, space_id: str | None = None) -> Veri
         # A space's own model is what its runs use. The app-wide model only
         # backs a row naming none, so the app-wide check leaves it alone.
         if space_id is not None and included is not None and settings.model not in included:
-            closest = equivalent(settings.model, "openai", "openai", included)
+            closest = equivalent(settings.model, "openai", "openai", included, space=True)
             if closest is None:
                 return VerifyResponse(
                     ok=False,

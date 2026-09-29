@@ -105,6 +105,14 @@ _CATALOG: Final[dict[str, tuple[CatalogEntry, ...]]] = {
     ),
 }
 
+#: A space's model that stands in for a tier its own lineup lacks, sought at
+#: that tier where a ChatGPT plan does not include it. GPT-6 has no strong
+#: model, so new spaces and Opus 5.5 landed on Sol; a space there wants the
+#: plan's strong model, GPT-5.6 Sol, which OpenAI describes for complex work
+#: (maintainer's choice, 2026-09-29). An agent on Sol may have come from
+#: Sonnet 5, so agents keep Sol's own tier.
+_SPACE_STANDS_IN: Final[dict[tuple[str, str], Tier]] = {("openai", "gpt-6-sol"): "strong"}
+
 #: Anthropic's dated snapshots share their alias's place.
 _SNAPSHOT: Final[re.Pattern[str]] = re.compile(r"^(claude-[a-z0-9-]+?)-\d{8}$")
 
@@ -149,14 +157,17 @@ def equivalent(
     source: str,
     target: str,
     available: Collection[str] | None = None,
+    *,
+    space: bool = False,
 ) -> str | None:
     """``model`` on ``source``'s counterpart among ``target``'s models.
 
     Same provider: unchanged, unless ``available`` excludes it, when it maps
-    to the nearest listed tier. A model with no tier (typed, or unknown) maps
-    to the target's default tier. ``None`` where the target's models are
-    typed (Ollama), since nothing local can be guessed, or where nothing the
-    account lists is priced.
+    to the nearest listed tier; ``space`` marks a space's own model, which may
+    stand in for another tier there (`_SPACE_STANDS_IN`). A model with no tier
+    (typed, or unknown) maps to the target's default tier. ``None`` where the
+    target's models are typed (Ollama), since nothing local can be guessed, or
+    where nothing the account lists is priced.
     """
     if source == target and (available is None or model in available):
         return model
@@ -164,6 +175,8 @@ def equivalent(
     if not current:
         return None
     wanted = tier_of(source, model) or DEFAULT_TIER
+    if space and source == target and model is not None:
+        wanted = _SPACE_STANDS_IN.get((source, model), wanted)
     for tier in _nearest(wanted):
         for entry in current:
             if entry.tier == tier:

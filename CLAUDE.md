@@ -100,7 +100,9 @@ future changes do not relocate users' data or disconnect their stored keys.
   and follows the provider. `providers/catalog.py` gives every priced model
   a tier and a current flag: a provider switch maps the model to the
   target's current model at that tier or the nearest, a tie going cheaper
-  (Opus 5.5 to GPT-6 Sol, by the maintainer's choice), and
+  (Opus 5.5 to GPT-6 Sol, by the maintainer's choice; where a ChatGPT plan
+  lacks GPT-6 Sol, a space on it is offered GPT-5.6 Sol, agents on it
+  GPT-5.6 Terra), and
   `GET /spaces/{id}/provider-switch` previews the switch and the agents it
   would strand, which Space settings offers to move. New spaces start on
   Opus 5.5 or GPT-6 Sol; 016 moved Anthropic spaces on Opus 5 and never-edited

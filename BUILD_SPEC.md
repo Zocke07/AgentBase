@@ -335,7 +335,9 @@ a signed-in account's Codex `model/list` marks which priced models its plan
 includes. Pickers, new-space defaults and tier mappings keep to them, the
 space's pre-flight check names a model the plan lacks, and Space settings of
 an OpenAI space offers the closest included models for it and its OpenAI
-agents. The app-wide check leaves the backing model to each space's check. A
+agents. A space on GPT-6 Sol, which stood in for the strong tier GPT-6 lacks,
+is offered the plan's strong model, GPT-5.6 Sol; agents keep their own tier
+(maintainer's choice, 2026-09-29). The app-wide check leaves the backing model to each space's check. A
 run still never substitutes; an unknown, partial or unreadable list blocks
 nothing.)* Direct Claude
 subscription login is excluded because [Anthropic's authentication terms](https://code.claude.com/docs/en/legal-and-compliance#authentication-and-credential-use)

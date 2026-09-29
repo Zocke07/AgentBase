@@ -170,9 +170,15 @@ your ChatGPT plan**; a new space, or one switched to OpenAI, starts on a model
 the plan includes; Home says when a space's model is not one, and its button
 opens **Space settings**. There, a space on OpenAI offers **Use the closest
 models it includes** for its own model and for its agents that name one the
-plan lacks. An agent in a space on another provider that names an OpenAI model
-is changed in its own editor. AgentBase never swaps a model on its own: a run
-on a model the plan lacks stops with that reason, and an API key reaches every
+plan lacks. A space on GPT-6 Sol is offered GPT-5.6 Sol, the plan's model for
+complex work: a space lands on GPT-6 Sol when it was set up with an API key or
+before you signed in, or moved there from Opus, so it was meant for the top
+level. GPT-5.6 Sol counts at twice GPT-6 Sol's price against the per-run limit,
+so raise the limit if runs stop there. An agent on GPT-6 Sol is offered
+GPT-5.6 Terra, the model at its own level; its editor can choose GPT-5.6 Sol
+instead. An agent in a space on another provider that names an OpenAI model is
+changed in its own editor. AgentBase never swaps a model on its own: a run on
+a model the plan lacks stops with that reason, and an API key reaches every
 model.
 
 The first **Sign in with ChatGPT** downloads the OpenAI Codex App Server

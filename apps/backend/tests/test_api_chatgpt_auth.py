@@ -250,8 +250,9 @@ def test_the_check_names_a_model_the_plan_lacks_and_offers_the_closest(
 
     assert verdict["ok"] is False
     assert "does not include gpt-6-sol" in verdict["reason"]
-    # GPT-6 Sol is a balanced model; the plan's balanced one is GPT-5.6 Terra.
-    assert verdict["suggested_model"] == "gpt-5.6-terra"
+    # A space on GPT-6 Sol stands where GPT-6 has no strong model; the plan's
+    # strong one is GPT-5.6 Sol (maintainer's choice, 2026-09-29).
+    assert verdict["suggested_model"] == "gpt-5.6-sol"
 
 
 def test_staying_on_openai_plans_the_move_to_models_the_plan_includes(
@@ -265,6 +266,7 @@ def test_staying_on_openai_plans_the_move_to_models_the_plan_includes(
         ).json()
         for name, provider, model in (
             ("scanner", "openai", "gpt-6-luna"),
+            ("analyst", "openai", "gpt-6-sol"),
             ("drafter", "openai", "gpt-5.6-terra"),
             ("follower", None, None),
         ):
@@ -285,9 +287,11 @@ def test_staying_on_openai_plans_the_move_to_models_the_plan_includes(
             f"/spaces/{space['id']}/provider-switch", params={"provider": "openai"}
         ).json()
 
-    assert plan["model"] == "gpt-5.6-terra"
-    assert [(agent["name"], agent["to_model"]) for agent in plan["agents"]] == [
-        ("scanner", "gpt-5.6-luna")
+    assert plan["model"] == "gpt-5.6-sol"
+    # An agent on Sol keeps Sol's own tier: it may have been a Sonnet analyst.
+    assert sorted((agent["name"], agent["to_model"]) for agent in plan["agents"]) == [
+        ("analyst", "gpt-5.6-terra"),
+        ("scanner", "gpt-5.6-luna"),
     ]
 
 

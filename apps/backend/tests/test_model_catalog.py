@@ -97,6 +97,19 @@ def test_a_plan_limits_the_mapping_to_models_it_includes(
     assert equivalent(model, source, "openai", PLAN) == expected
 
 
+def test_a_space_on_gpt_6_sol_is_offered_the_plan_s_model_for_complex_work() -> None:
+    """GPT-6 has nothing at the strong tier, so new spaces and Opus 5.5 landed
+    on Sol: a space there wants a strong model, and the plan has GPT-5.6 Sol.
+    An agent on Sol may have come from Sonnet 5, so it keeps Sol's own tier."""
+    assert equivalent("gpt-6-sol", "openai", "openai", PLAN, space=True) == "gpt-5.6-sol"
+    assert equivalent("gpt-6-sol", "openai", "openai", PLAN) == "gpt-5.6-terra"
+    # Only the plan's repair: an API key keeps Sol, and a provider switch
+    # still maps by Sol's own tier.
+    assert equivalent("gpt-6-sol", "openai", "openai", space=True) == "gpt-6-sol"
+    assert equivalent("gpt-6-sol", "openai", "anthropic", space=True) == "claude-sonnet-5"
+    assert equivalent("gpt-6-luna", "openai", "openai", PLAN, space=True) == "gpt-5.6-luna"
+
+
 def test_without_a_plan_the_mapping_is_unchanged() -> None:
     assert equivalent("claude-opus-5-5", "anthropic", "openai") == "gpt-6-sol"
     assert equivalent("gpt-6-sol", "openai", "openai") == "gpt-6-sol"

@@ -27,8 +27,17 @@ followed are covered below.
   app-wide check leaving the backing model alone, a provider change and the
   catalogue default keeping to the plan, a plan with no priced model, and a
   model list the SDK cannot read.
-- **Not checked live.** No ChatGPT account was signed in during these checks,
-  so the plan paths ran against fakes of the runtime and the Codex client.
+- **GPT-6 Sol to GPT-5.6 Sol.** At the maintainer's choice a space on GPT-6
+  Sol is offered GPT-5.6 Sol, the plan's strong model; agents keep GPT-6 Sol's
+  own tier (GPT-5.6 Terra). Its tests failed first and then passed; the gate
+  above passed again with it (backend 1017 passed). Of its two reviewers, the
+  documentation one found the user guide giving a false reason, now reworded;
+  the call-site one did not finish, so the two call sites (the pre-flight
+  suggestion and the Space settings repair) were checked by hand.
+- **Live.** These checks ran against fakes of the runtime and the Codex
+  client. The maintainer's own Usage screen then showed a scheduled stage run
+  through a signed-in plan on GPT-5.6 Sol and GPT-5.6 Terra (7 calls,
+  $0.1374 at API-equivalent prices).
 
 ## Autonomy first (Phase 16), 2026-09-29, branch `autonomy-first`, not released
 

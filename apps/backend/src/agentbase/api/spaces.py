@@ -282,7 +282,7 @@ async def plan_provider_switch(
         ]
         return ProviderSwitchPlan(
             provider=provider,
-            model=equivalent(space.model, provider, provider, included),
+            model=equivalent(space.model, provider, provider, included, space=True),
             agents=[
                 AgentMove(
                     id=definition.id,
