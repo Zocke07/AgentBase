@@ -91,6 +91,7 @@ class UpdateSettingsRequest(BaseModel):
     max_agents_per_run: int | None = Field(default=None, ge=1)
     max_run_seconds: int | None = Field(default=None, ge=1)
     max_run_cost_micros: int | None = Field(default=None, ge=0)
+    unattended_question_seconds: int | None = Field(default=None, ge=0)
 
     # An empty list disables pre-authorization; `exclude_none` distinguishes
     # it from an omitted field.

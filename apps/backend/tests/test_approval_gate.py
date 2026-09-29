@@ -33,6 +33,7 @@ if TYPE_CHECKING:
 
     from agentbase.budget.ledger import BudgetLedger
     from agentbase.events.store import EventStore
+    from agentbase.events.types import RunOrigin
     from agentbase.providers.base import Completion
     from agentbase.secrets import SecretStore
     from agentbase.store.agents import AgentDefStore
@@ -1147,3 +1148,129 @@ async def test_a_wildcard_host_list_keeps_todays_behavior(
     )
 
     assert decision.allowed and decision.automatic
+
+
+# --- a question nobody is there to answer --------------------------------------
+#
+# A scheduled run has no one watching. Waiting out the whole run for an answer
+# would fail the run and skip its next firing, so the question expires after a
+# short wait, the call does not happen, and the agent carries on without it.
+
+
+async def _scheduled_writer_run(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+    runtime: ToolRuntime,
+    worker_calls: list[Completion],
+    *,
+    origin: RunOrigin = "schedule",
+) -> tuple[str, ReconstructedRun]:
+    await agents.create(
+        {
+            "name": "filewriter",
+            "role": "Writes files",
+            "system_prompt": ESCAPE_PROMPT,
+            "allowed_tools": ["write_file"],
+        }
+    )
+    script = [
+        says("Delegating.", call("spawn_agent", "s1", agent="filewriter", task="Save it")),
+        *worker_calls,
+        says("Done.", call("finish", "s2", result="Handled.")),
+    ]
+    run = await store.create_run(goal="Save the report", origin=origin)
+    await execute_run(
+        store,
+        settings,
+        agents,
+        ledger,
+        secrets,
+        run.id,
+        "Save the report",
+        provider=ScriptedProvider(script),
+        runtime=runtime,
+        origin=origin,
+    )
+    return run.id, reconstruct(await store.read(run.id))
+
+
+async def test_an_unanswered_question_in_a_scheduled_run_expires_and_the_run_goes_on(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+    db: Database,
+    workspace: Path,
+) -> None:
+    await settings.update({"unattended_question_seconds": 0})
+    runtime, service = tool_runtime(store, db, workspace)
+
+    run_id, rebuilt = await asyncio.wait_for(
+        _scheduled_writer_run(
+            store,
+            settings,
+            agents,
+            ledger,
+            secrets,
+            runtime,
+            [
+                says("Writing.", call("write_file", "w1", path="a.md", content="x")),
+                # The identical call again: refused from the record, not re-asked.
+                says("Again.", call("write_file", "w2", path="a.md", content="x")),
+                says("Giving up.", call("finish", "w3", result="Could not write a.md.")),
+            ],
+        ),
+        timeout=10,
+    )
+
+    assert rebuilt.status == "completed"
+    writer = rebuilt.agent("filewriter")
+    assert writer.denied_tools == ["write_file", "write_file"]
+    assert not (workspace / "a.md").exists()
+    events = await store.read(run_id)
+    denied = [e.payload for e in events if e.type is EventType.TOOL_DENIED]
+    assert "nobody was there to answer" in denied[0]["reason"].casefold()
+    assert "earlier in this run" in denied[1]["reason"]
+    requested = [e.payload for e in events if e.type is EventType.APPROVAL_REQUESTED]
+    assert requested[1]["automatic"] is True and "precedent" in requested[1]
+    assert await service.store.list_pending(run_id) == []
+
+
+async def test_a_run_someone_started_waits_for_them_as_before(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+    db: Database,
+    workspace: Path,
+) -> None:
+    """The short wait is for scheduled runs only; a person who started a run is there."""
+    await settings.update({"unattended_question_seconds": 0})
+    runtime, service = tool_runtime(store, db, workspace)
+
+    task = asyncio.create_task(
+        _scheduled_writer_run(
+            store,
+            settings,
+            agents,
+            ledger,
+            secrets,
+            runtime,
+            [
+                says("Writing.", call("write_file", "w1", path="a.md", content="x")),
+                says("Done.", call("finish", "w2", result="Wrote a.md.")),
+            ],
+            origin="ui",
+        )
+    )
+    pending = await _wait_for_approval(service)
+    await service.resolve(pending, approved=True)
+    _, rebuilt = await asyncio.wait_for(task, timeout=10)
+
+    assert rebuilt.status == "completed"
+    assert (workspace / "a.md").read_text(encoding="utf-8") == "x"

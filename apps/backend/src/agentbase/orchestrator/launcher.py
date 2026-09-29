@@ -100,7 +100,9 @@ class RunLauncher:
             await prologue(run)
 
         self.driving.add(run.id)
-        task = self.spawn(self._drive(run.id, goal, space, excluded_citations, max_run_seconds))
+        task = self.spawn(
+            self._drive(run.id, goal, space, excluded_citations, max_run_seconds, origin)
+        )
         run_id = run.id
 
         def finished(_task: asyncio.Task[None]) -> None:
@@ -169,6 +171,7 @@ class RunLauncher:
         space: Space | None,
         excluded_citations: tuple[str, ...],
         max_run_seconds: int | None,
+        origin: RunOrigin,
     ) -> None:
         """Hand a run to its orchestrator, which writes every terminal event."""
         await execute_run(
@@ -188,6 +191,7 @@ class RunLauncher:
             excluded_citations=frozenset(excluded_citations),
             on_registered=self._apply_pending_cancel,
             max_run_seconds=max_run_seconds,
+            origin=origin,
         )
 
     def _apply_pending_cancel(self, run: Run) -> None:

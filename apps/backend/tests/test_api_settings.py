@@ -560,6 +560,16 @@ def test_the_host_list_round_trips_normalized_and_refuses_a_url(client: TestClie
     assert bad.json()["detail"]["field"] == "auto_approve_hosts"
 
 
+def test_the_unattended_question_wait_round_trips(client: TestClient) -> None:
+    assert client.get("/settings").json()["settings"]["unattended_question_seconds"] == 120
+
+    saved = client.patch("/settings", json={"unattended_question_seconds": 0})
+    bad = client.patch("/settings", json={"unattended_question_seconds": -1})
+
+    assert saved.json()["settings"]["unattended_question_seconds"] == 0
+    assert bad.status_code == 422
+
+
 def test_high_risk_cannot_be_pre_approved(client: TestClient) -> None:
     """A person answers every high-risk call, whatever else runs on its own."""
     levels = client.patch("/settings", json={"auto_approve": ["low", "high"]})

@@ -145,8 +145,10 @@ class ApprovalStore:
     async def find_denied(
         self, run_id: str, tool: str, args: dict[str, Any]
     ) -> ApprovalRecord | None:
-        """Return the first denial of this exact call in the run, if any.
+        """Return the first refusal of this exact call in the run, if any.
 
+        A question that expired unanswered counts: in a live run that only
+        happens when nobody was there, and asking again would not change that.
         Compare parsed arguments so JSON key order does not matter.
         """
         return await asyncio.to_thread(self._find_denied_sync, run_id, tool, args)
@@ -156,9 +158,9 @@ class ApprovalStore:
     ) -> ApprovalRecord | None:
         with self._db.read() as connection:
             rows = connection.execute(
-                "SELECT * FROM approvals WHERE run_id = ? AND tool = ? AND status = ?"
+                "SELECT * FROM approvals WHERE run_id = ? AND tool = ? AND status IN (?, ?)"
                 " ORDER BY created_at, rowid",
-                (run_id, tool, str(ApprovalStatus.DENIED)),
+                (run_id, tool, str(ApprovalStatus.DENIED), str(ApprovalStatus.EXPIRED)),
             ).fetchall()
         for row in rows:
             record = _record(row)
@@ -312,12 +314,14 @@ class ApprovalService:
         deadline: float | None = None,
         policy: ToolPolicy = ToolPolicy.ASK,
         hosts: Iterable[str] = ("*",),
+        unattended: bool = False,
     ) -> ApprovalDecision:
         """Decide one prepared call, waiting for user input when required.
 
         ``auto_approve`` and ``policy`` are already narrowed; the tool policy
         takes precedence over risk. ``hosts`` bounds which network calls policy
-        may answer. ``deadline`` is the remaining run budget.
+        may answer. ``deadline`` is how long to wait for a person: the run's
+        remaining time, or a short wait when ``unattended``.
         """
         if policy is ToolPolicy.DENY:
             return await self._deny_by_policy(run_id, agent, prepared, risk)
@@ -405,19 +409,24 @@ class ApprovalService:
             )
 
         if status is ApprovalStatus.EXPIRED:
-            why = (
-                "this run was cancelled"
-                if run_id in self._released
-                else "this run ran out of time"
-            )
-            return ApprovalDecision(
-                allowed=False,
-                status=status,
-                reason=(
+            if unattended and run_id not in self._released:
+                reason = (
+                    f"Nobody was there to answer the request to {prepared.summary} "
+                    f"in this scheduled run, so it did not happen. Continue "
+                    f"without it, or finish and say what you could not do."
+                )
+            else:
+                why = (
+                    "this run was cancelled"
+                    if run_id in self._released
+                    else "this run ran out of time"
+                )
+                reason = (
                     f"The request to {prepared.summary} was not answered before "
                     f"{why}, so it did not happen."
-                ),
-                approval_id=record.id,
+                )
+            return ApprovalDecision(
+                allowed=False, status=status, reason=reason, approval_id=record.id
             )
 
         return ApprovalDecision(
@@ -597,6 +606,11 @@ class ApprovalService:
         precedent: ApprovalRecord,
     ) -> ApprovalDecision:
         """Record a denial inherited from an earlier call in this run."""
+        earlier = (
+            "Nobody was there to answer the request to"
+            if precedent.status is ApprovalStatus.EXPIRED
+            else "The user already denied permission to"
+        )
         record = await self._store.create(
             run_id, prepared.tool_name, prepared.raw_arguments, risk
         )
@@ -632,10 +646,9 @@ class ApprovalService:
             allowed=False,
             status=ApprovalStatus.DENIED,
             reason=(
-                f"The user already denied permission to {prepared.summary} "
-                f"earlier in this run, so it was not asked again. Do not try "
-                f"this call again: continue without it, or finish and say what "
-                f"you could not do."
+                f"{earlier} {prepared.summary} earlier in this run, so it was not "
+                f"asked again. Do not try this call again: continue without it, "
+                f"or finish and say what you could not do."
             ),
             approval_id=settled.id,
             automatic=True,

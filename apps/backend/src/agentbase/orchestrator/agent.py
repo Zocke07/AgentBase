@@ -457,9 +457,10 @@ class Agent:
             prepared=prepared,
             risk=tool.risk,
             auto_approve=runtime.auto_approve_for(self._spec.auto_approve),
-            deadline=self._run.remaining_seconds(),
+            deadline=self._run.question_deadline(),
             policy=runtime.policy_for(call.name, self._spec.auto_approve),
             hosts=runtime.workspace_auto_approve_hosts,
+            unattended=self._run.unattended,
         )
 
         if not decision.allowed:

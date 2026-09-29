@@ -19,11 +19,13 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
     from agentbase.events.store import EventStore
+    from agentbase.events.types import RunOrigin
     from agentbase.knowledge.store import SearchHit
     from agentbase.orchestrator.limits import RunLimits
     from agentbase.store.spaces import Space
 
 __all__ = [
+    "UNATTENDED_ORIGINS",
     "Mailbox",
     "Run",
     "RunCancelledError",
@@ -31,6 +33,10 @@ __all__ = [
     "RunDeadlineExceededError",
     "SpawnRefusedError",
 ]
+
+
+#: Origins with nobody watching: a question in such a run waits only briefly.
+UNATTENDED_ORIGINS: frozenset[RunOrigin] = frozenset({"schedule"})
 
 
 class RunCostExceededError(RuntimeError):
@@ -79,6 +85,10 @@ class Run:
     knowledge_exclusions: tuple[str, ...] = ()
     #: Run spend queried before model calls; ``None`` without a ledger means no ceiling.
     spent_so_far: Callable[[], Awaitable[int]] | None = None
+    #: Where the run came from; an unattended origin shortens question waits.
+    origin: RunOrigin = "ui"
+    #: How long a question waits in a run nobody watches; ``None`` waits out the run.
+    question_seconds: int | None = None
     started_at: float = field(default=0.0, init=False)
     _agents: list[str] = field(default_factory=list, init=False)
     #: Set by ``request_cancel`` and consumed by ``check_deadline`` between
@@ -147,6 +157,18 @@ class Run:
         The approval gate uses it so it cannot await a decision the run cannot act on.
         """
         return max(0.0, self.limits.max_run_seconds - self.elapsed_seconds())
+
+    @property
+    def unattended(self) -> bool:
+        """Whether nobody is watching this run to answer its questions."""
+        return self.question_seconds is not None
+
+    def question_deadline(self) -> float:
+        """How long the gate may wait for an answer to this run's next question."""
+        remaining = self.remaining_seconds()
+        if self.question_seconds is None:
+            return remaining
+        return min(remaining, float(self.question_seconds))
 
     def check_deadline(self) -> None:
         """Raise after cancellation or ``max_run_seconds`` expiry.

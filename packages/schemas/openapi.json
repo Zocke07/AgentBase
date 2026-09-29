@@ -3163,6 +3163,18 @@
               }
             ],
             "title": "Tool Policies"
+          },
+          "unattended_question_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unattended Question Seconds"
           }
         },
         "title": "UpdateSettingsRequest",
@@ -3811,6 +3823,12 @@
             },
             "title": "Tool Policies",
             "type": "object"
+          },
+          "unattended_question_seconds": {
+            "default": 120,
+            "minimum": 0.0,
+            "title": "Unattended Question Seconds",
+            "type": "integer"
           }
         },
         "title": "WorkspaceSettings",

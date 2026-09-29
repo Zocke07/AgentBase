@@ -18,6 +18,7 @@ from agentbase.orchestrator.agent import Agent, AgentSpec, StepOutcome
 from agentbase.orchestrator.limits import RunLimits
 from agentbase.orchestrator.registry import AgentRegistry, ProviderPool
 from agentbase.orchestrator.run import (
+    UNATTENDED_ORIGINS,
     Mailbox,
     Run,
     RunCancelledError,
@@ -36,6 +37,7 @@ if TYPE_CHECKING:
 
     from agentbase.budget.ledger import BudgetLedger
     from agentbase.events.store import EventStore
+    from agentbase.events.types import RunOrigin
     from agentbase.knowledge.store import KnowledgeStore, SearchHit
     from agentbase.providers.base import Provider
     from agentbase.providers.chatgpt import ChatGPTInferenceRuntime
@@ -82,6 +84,7 @@ async def execute_run(
     excluded_citations: frozenset[str] = frozenset(),
     on_registered: Callable[[Run], None] | None = None,
     max_run_seconds: int | None = None,
+    origin: RunOrigin = "ui",
 ) -> None:
     """Drive a run from ``run.started`` to a terminal event.
 
@@ -96,6 +99,8 @@ async def execute_run(
         app-wide rules and the default roster.
     :param max_run_seconds: schedule-specific limit over the space limit;
         other limits and policy remain unchanged.
+    :param origin: where the run came from; an unattended origin makes its
+        questions expire after ``unattended_question_seconds``.
     """
     workspace = await settings.get()
     if space is not None:
@@ -126,6 +131,10 @@ async def execute_run(
         knowledge=hits,
         knowledge_exclusions=tuple(sorted(excluded_citations)),
         spent_so_far=lambda: ledger.run_spent_micros(run_id),
+        origin=origin,
+        question_seconds=(
+            workspace.unattended_question_seconds if origin in UNATTENDED_ORIGINS else None
+        ),
     )
 
     if live is not None:

@@ -83,6 +83,9 @@ DEFAULT_MAX_RUN_SECONDS: Final[int] = 600
 #: Per-run $2.00 ceiling in micros; 0 disables it.
 DEFAULT_MAX_RUN_COST_MICROS: Final[int] = 2_000_000
 
+#: How long a scheduled run's question waits before it expires unanswered.
+DEFAULT_UNATTENDED_QUESTION_SECONDS: Final[int] = 120
+
 #: Chat-run approval responder. ``dashboard_only`` is strict by default;
 #: ``originator`` also permits the chat requester to answer.
 ChannelApprovalPolicy = Literal["dashboard_only", "originator"]
@@ -121,6 +124,10 @@ class WorkspaceSettings(BaseModel):
     max_run_seconds: int = Field(default=DEFAULT_MAX_RUN_SECONDS, ge=1)
     #: A ceiling on one run's spend, in micros; 0 means none beyond the monthly cap.
     max_run_cost_micros: int = Field(default=DEFAULT_MAX_RUN_COST_MICROS, ge=0)
+    #: A scheduled run has nobody watching, so a question it asks expires after
+    #: this many seconds, the call does not happen and the run carries on. 0
+    #: refuses at once. Runs a person started keep waiting for them.
+    unattended_question_seconds: int = Field(default=DEFAULT_UNATTENDED_QUESTION_SECONDS, ge=0)
 
     # --- channels ---------------------------------------------------------------
 
