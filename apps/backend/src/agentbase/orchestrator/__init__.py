@@ -253,6 +253,7 @@ def _with_workspace_policy(
         runtime,
         workspace_auto_approve=tuple(workspace.auto_approve),
         workspace_tool_policies=dict(workspace.tool_policies),
+        workspace_auto_approve_hosts=tuple(workspace.auto_approve_hosts),
     )
 
 

@@ -11,8 +11,11 @@ import ipaddress
 import socket
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
 from urllib.parse import urlsplit
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 __all__ = [
     "SHELL_TIMEOUT_SECONDS",
@@ -20,6 +23,8 @@ __all__ = [
     "Sandbox",
     "SandboxViolationError",
     "UrlNotAllowedError",
+    "host_matches",
+    "normalize_host_pattern",
 ]
 
 #: ``run_shell`` timeout; caps commands waiting on input.
@@ -222,3 +227,53 @@ class Sandbox:
             if sockaddr:
                 addresses.append(ipaddress.ip_address(str(sockaddr[0])))
         return addresses
+
+
+# --- hosts a policy may fetch from ----------------------------------------------
+
+
+def _canonical_host(host: str) -> str:
+    """Lower-case, drop a trailing dot and spell an international name as ASCII."""
+    text = host.strip().rstrip(".").casefold()
+    try:
+        return text.encode("idna").decode("ascii")
+    except UnicodeError:
+        # An address literal or a label IDNA refuses; compare it as written.
+        return text
+
+
+def normalize_host_pattern(entry: str) -> str:
+    """Validate one host-list entry and return its canonical spelling.
+
+    An entry is ``*`` (any public host), an exact host such as
+    ``news.google.com``, or a leading-dot suffix such as ``.stooq.com`` that
+    covers the domain and every name under it.
+
+    :raises ValueError: for anything that is not a bare host name.
+    """
+    text = entry.strip()
+    if text == "*":
+        return text
+    suffix = text.startswith(".")
+    name = text[1:] if suffix else text
+    if not name or any(character in "/:@*?#\\" or character.isspace() for character in name):
+        msg = (
+            f"{entry!r} is not a host: write a name such as news.google.com, "
+            f"or .stooq.com for a domain and every name under it."
+        )
+        raise ValueError(msg)
+    canonical = _canonical_host(name)
+    return f".{canonical}" if suffix else canonical
+
+
+def host_matches(host: str, patterns: Iterable[str]) -> bool:
+    """Whether ``host`` is covered by any normalized entry in ``patterns``."""
+    candidate = _canonical_host(host)
+    for pattern in patterns:
+        if pattern == "*" or pattern == candidate:
+            return True
+        if pattern.startswith(".") and (
+            candidate == pattern[1:] or candidate.endswith(pattern)
+        ):
+            return True
+    return False

@@ -97,6 +97,8 @@ class UpdateSettingsRequest(BaseModel):
     auto_approve: list[RiskLevel] | None = None
     #: Replace the stored map wholesale; ``{}`` clears all per-tool answers.
     tool_policies: dict[str, ToolPolicy] | None = None
+    #: Replace the list wholesale; ``[]`` makes every network call ask.
+    auto_approve_hosts: list[str] | None = None
 
     # ``channel_identities: []`` revokes everyone, not an omitted field.
     discord_enabled: bool | None = None

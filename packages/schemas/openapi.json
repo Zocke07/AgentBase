@@ -2964,6 +2964,20 @@
             ],
             "title": "Auto Approve"
           },
+          "auto_approve_hosts": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Approve Hosts"
+          },
           "channel_approvals": {
             "anyOf": [
               {
@@ -3691,6 +3705,13 @@
               "$ref": "#/components/schemas/RiskLevel"
             },
             "title": "Auto Approve",
+            "type": "array"
+          },
+          "auto_approve_hosts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Auto Approve Hosts",
             "type": "array"
           },
           "channel_approvals": {

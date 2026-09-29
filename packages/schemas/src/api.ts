@@ -629,6 +629,7 @@ export interface UpdateSettingsRequest {
   max_run_cost_micros?: number | null;
   auto_approve?: RiskLevel[] | null;
   tool_policies?: Record<string, ToolPolicy> | null;
+  auto_approve_hosts?: string[] | null;
   discord_enabled?: boolean | null;
   channel_identities?: ChannelIdentity[] | null;
   channel_approvals?: "dashboard_only" | "originator" | null;
@@ -735,6 +736,7 @@ export interface WorkspaceSettings {
   ollama_base_url?: string;
   auto_approve?: RiskLevel[];
   tool_policies?: Record<string, ToolPolicy>;
+  auto_approve_hosts?: string[];
   max_steps_per_agent?: number;
   max_agents_per_run?: number;
   max_run_seconds?: number;

@@ -18,6 +18,8 @@ from agentbase.tools.sandbox import (
     Sandbox,
     SandboxViolationError,
     UrlNotAllowedError,
+    host_matches,
+    normalize_host_pattern,
 )
 
 if TYPE_CHECKING:
@@ -451,3 +453,53 @@ def test_a_url_with_no_host_is_rejected(sandbox: Sandbox) -> None:
 def test_a_url_that_is_not_a_url_is_rejected(sandbox: Sandbox) -> None:
     with pytest.raises(UrlNotAllowedError):
         sandbox.check_url("not a url at all")
+
+
+# --- hosts a policy may fetch from without asking ----------------------------
+#
+# With medium risk answered by policy, a network call nobody reads could carry
+# workspace text to any host an injected page names. The host list keeps that
+# check without a person: only listed hosts are fetched on the policy's word.
+
+
+@pytest.mark.parametrize(
+    ("entry", "normalized"),
+    [
+        ("news.google.com", "news.google.com"),
+        ("  News.Google.COM. ", "news.google.com"),
+        (".stooq.com", ".stooq.com"),
+        ("*", "*"),
+        ("bücher.example", "xn--bcher-kva.example"),
+    ],
+)
+def test_host_patterns_are_normalized(entry: str, normalized: str) -> None:
+    assert normalize_host_pattern(entry) == normalized
+
+
+@pytest.mark.parametrize(
+    "entry",
+    ["", "https://news.google.com", "news.google.com/rss", "host:443", "*.example.com", "a b"],
+)
+def test_a_host_pattern_that_is_not_a_host_is_refused(entry: str) -> None:
+    with pytest.raises(ValueError, match="host"):
+        normalize_host_pattern(entry)
+
+
+@pytest.mark.parametrize(
+    ("host", "patterns", "allowed"),
+    [
+        ("news.google.com", ["news.google.com"], True),
+        ("NEWS.google.com.", ["news.google.com"], True),
+        ("evil.example", ["news.google.com"], False),
+        ("google.com", ["news.google.com"], False),
+        ("news.google.com.evil.example", ["news.google.com"], False),
+        ("stooq.com", [".stooq.com"], True),
+        ("data.stooq.com", [".stooq.com"], True),
+        ("notstooq.com", [".stooq.com"], False),
+        ("anything.example", ["*"], True),
+        ("anything.example", [], False),
+        ("bücher.example", ["xn--bcher-kva.example"], True),
+    ],
+)
+def test_host_matching(host: str, patterns: list[str], allowed: bool) -> None:
+    assert host_matches(host, patterns) is allowed

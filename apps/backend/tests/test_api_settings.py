@@ -545,6 +545,21 @@ def test_the_approval_policy_can_be_turned_back_off(client: TestClient) -> None:
     assert response.json()["settings"]["auto_approve"] == []
 
 
+def test_the_host_list_round_trips_normalized_and_refuses_a_url(client: TestClient) -> None:
+    assert client.get("/settings").json()["settings"]["auto_approve_hosts"] == ["*"]
+
+    saved = client.patch(
+        "/settings",
+        json={"auto_approve_hosts": ["News.Google.com.", ".stooq.com", ".stooq.com"]},
+    )
+    bad = client.patch("/settings", json={"auto_approve_hosts": ["https://example.com/feed"]})
+
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["settings"]["auto_approve_hosts"] == ["news.google.com", ".stooq.com"]
+    assert bad.status_code == 400
+    assert bad.json()["detail"]["field"] == "auto_approve_hosts"
+
+
 def test_high_risk_cannot_be_pre_approved(client: TestClient) -> None:
     """A person answers every high-risk call, whatever else runs on its own."""
     levels = client.patch("/settings", json={"auto_approve": ["low", "high"]})

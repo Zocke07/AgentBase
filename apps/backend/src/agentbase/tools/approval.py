@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 from agentbase.events.types import EventType
 from agentbase.tools.catalogue import POLICY_LEVELS, RiskLevel, ToolPolicy
+from agentbase.tools.sandbox import host_matches
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -310,19 +311,37 @@ class ApprovalService:
         auto_approve: Iterable[RiskLevel],
         deadline: float | None = None,
         policy: ToolPolicy = ToolPolicy.ASK,
+        hosts: Iterable[str] = ("*",),
     ) -> ApprovalDecision:
         """Decide one prepared call, waiting for user input when required.
 
         ``auto_approve`` and ``policy`` are already narrowed; the tool policy
-        takes precedence over risk. ``deadline`` is the remaining run budget.
+        takes precedence over risk. ``hosts`` bounds which network calls policy
+        may answer. ``deadline`` is the remaining run budget.
         """
         if policy is ToolPolicy.DENY:
             return await self._deny_by_policy(run_id, agent, prepared, risk)
         # Settings refuse to store a yes for high risk; this holds even if one
         # arrives some other way, because approval is not containment.
         answerable = risk in POLICY_LEVELS
-        if answerable and (policy is ToolPolicy.ALLOW or risk in frozenset(auto_approve)):
-            return await self._auto_approve(run_id, agent, prepared, risk)
+        by_tool = policy is ToolPolicy.ALLOW
+        if answerable and (by_tool or risk in frozenset(auto_approve)):
+            # A network tool names its host in the payload. Policy answers it
+            # only for a listed host; any other is a question for a person.
+            host = prepared.payload.get("host")
+            if not isinstance(host, str):
+                return await self._auto_approve(
+                    run_id, agent, prepared, risk, rule="tool" if by_tool else "level"
+                )
+            if host_matches(host, hosts):
+                return await self._auto_approve(
+                    run_id,
+                    agent,
+                    prepared,
+                    risk,
+                    rule="tool" if by_tool else "level",
+                    host=host,
+                )
 
         # Reuse a denial for the same call so users are not asked twice.
         precedent = await self._store.find_denied(
@@ -413,9 +432,21 @@ class ApprovalService:
         )
 
     async def _auto_approve(
-        self, run_id: str, agent: str, prepared: Prepared, risk: RiskLevel
+        self,
+        run_id: str,
+        agent: str,
+        prepared: Prepared,
+        risk: RiskLevel,
+        *,
+        rule: str,
+        host: str | None = None,
     ) -> ApprovalDecision:
-        """Record and allow a pre-authorized call."""
+        """Record and allow a pre-authorized call, naming the rule that answered.
+
+        ``rule`` is ``level`` (the risk level is pre-approved) or ``tool`` (the
+        tool is set to always allow); ``host`` is the listed host of a network
+        call. Replay reads both to explain why nobody was asked.
+        """
         record = await self._store.create(
             run_id, prepared.tool_name, prepared.raw_arguments, risk
         )
@@ -430,6 +461,8 @@ class ApprovalService:
                 "prompt": approval_prompt(agent, prepared),
                 "summary": prepared.summary,
                 "automatic": True,
+                "rule": rule,
+                **({"host": host} if host is not None else {}),
             },
             agent_id=agent,
         )
@@ -449,7 +482,9 @@ class ApprovalService:
             allowed=True,
             status=ApprovalStatus.APPROVED,
             reason=(
-                f"{risk} risk calls are pre-approved in this workspace, so this "
+                f"This workspace always allows {prepared.tool_name}, so this ran without asking."
+                if rule == "tool"
+                else f"{risk} risk calls are pre-approved in this workspace, so this "
                 f"ran without asking."
             ),
             approval_id=settled.id,

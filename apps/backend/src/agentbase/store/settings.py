@@ -21,6 +21,7 @@ from agentbase.tools.catalogue import (
     is_registered,
     policy_may_allow,
 )
+from agentbase.tools.sandbox import normalize_host_pattern
 
 if TYPE_CHECKING:
     from agentbase.store.db import Database
@@ -72,6 +73,9 @@ DEFAULT_OLLAMA_BASE_URL: Final[str] = "http://127.0.0.1:11434"
 #: Pre-authorized risk levels; empty means every tool call asks by default.
 DEFAULT_AUTO_APPROVE: Final[tuple[RiskLevel, ...]] = ()
 
+#: Hosts a network call may reach on the policy's word; ``*`` is any public host.
+DEFAULT_AUTO_APPROVE_HOSTS: Final[tuple[str, ...]] = ("*",)
+
 #: Configurable run limits.
 DEFAULT_MAX_STEPS_PER_AGENT: Final[int] = 20
 DEFAULT_MAX_AGENTS_PER_RUN: Final[int] = 5
@@ -103,6 +107,13 @@ class WorkspaceSettings(BaseModel):
     #: asking, and one absent (or ``ask``) is decided by `auto_approve`. A
     #: space can only make these stricter (`effective_tool_policies`).
     tool_policies: dict[str, ToolPolicy] = Field(default_factory=dict)
+
+    #: A network call that `auto_approve` or a tool answer would run without
+    #: asking still asks unless its host is listed here, so an injected page
+    #: cannot send workspace text to a host nobody chose.
+    auto_approve_hosts: list[str] = Field(
+        default_factory=lambda: list(DEFAULT_AUTO_APPROVE_HOSTS)
+    )
 
     # `ge=1`: a limit of zero is a run that cannot do anything, not a stricter setting.
     max_steps_per_agent: int = Field(default=DEFAULT_MAX_STEPS_PER_AGENT, ge=1)
@@ -144,6 +155,12 @@ class WorkspaceSettings(BaseModel):
             )
             raise ValueError(msg)
         return levels
+
+    @field_validator("auto_approve_hosts")
+    @classmethod
+    def _hosts_are_hosts(cls, entries: list[str]) -> list[str]:
+        normalized = [normalize_host_pattern(entry) for entry in entries]
+        return list(dict.fromkeys(normalized))
 
     @field_validator("tool_policies")
     @classmethod

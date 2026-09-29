@@ -1061,3 +1061,89 @@ async def test_a_yes_for_the_run_is_never_kept_for_high_risk(
     await service.resolve(second, approved=False)
     decision = await asyncio.wait_for(second_task, timeout=5)
     assert not decision.allowed
+
+
+# --- network calls answered by policy only for listed hosts --------------------
+
+
+def _fetch(host: str) -> Prepared:
+    return Prepared(
+        tool_name="http_get",
+        summary=f"fetch https://{host}/ over the internet",
+        payload={"url": f"https://{host}/", "host": host, "address": "93.184.216.34"},
+        raw_arguments={"url": f"https://{host}/"},
+    )
+
+
+@pytest.mark.parametrize("policy", [ToolPolicy.ASK, ToolPolicy.ALLOW])
+async def test_a_listed_host_is_fetched_on_the_policys_word(
+    store: EventStore, db: Database, workspace: Path, policy: ToolPolicy
+) -> None:
+    _, service = tool_runtime(store, db, workspace)
+    run = await store.create_run(goal="fetch", origin="schedule")
+
+    decision = await service.request(
+        run_id=run.id,
+        agent="collector",
+        prepared=_fetch("news.google.com"),
+        risk=RiskLevel.MEDIUM,
+        auto_approve=[RiskLevel.MEDIUM] if policy is ToolPolicy.ASK else [],
+        deadline=5,
+        policy=policy,
+        hosts=["news.google.com", ".stooq.com"],
+    )
+
+    assert decision.allowed and decision.automatic
+    requested = [
+        e.payload for e in await store.read(run.id) if e.type is EventType.APPROVAL_REQUESTED
+    ]
+    assert requested[0]["automatic"] is True
+    assert requested[0]["rule"] == ("level" if policy is ToolPolicy.ASK else "tool")
+    assert requested[0]["host"] == "news.google.com"
+
+
+@pytest.mark.parametrize("policy", [ToolPolicy.ASK, ToolPolicy.ALLOW])
+async def test_an_unlisted_host_is_asked_about_even_when_policy_would_allow(
+    store: EventStore, db: Database, workspace: Path, policy: ToolPolicy
+) -> None:
+    _, service = tool_runtime(store, db, workspace)
+    run = await store.create_run(goal="fetch", origin="ui")
+
+    task = asyncio.create_task(
+        service.request(
+            run_id=run.id,
+            agent="collector",
+            prepared=_fetch("attacker.example"),
+            risk=RiskLevel.MEDIUM,
+            auto_approve=[RiskLevel.MEDIUM],
+            deadline=5,
+            policy=policy,
+            hosts=["news.google.com"],
+        )
+    )
+    pending = await _wait_for_approval(service)
+    await service.resolve(pending, approved=False)
+    decision = await asyncio.wait_for(task, timeout=5)
+
+    assert not decision.allowed
+    record = await service.store.get(pending)
+    assert record is not None and record.tool == "http_get"
+
+
+async def test_a_wildcard_host_list_keeps_todays_behavior(
+    store: EventStore, db: Database, workspace: Path
+) -> None:
+    _, service = tool_runtime(store, db, workspace)
+    run = await store.create_run(goal="fetch", origin="ui")
+
+    decision = await service.request(
+        run_id=run.id,
+        agent="collector",
+        prepared=_fetch("anything.example"),
+        risk=RiskLevel.MEDIUM,
+        auto_approve=[RiskLevel.MEDIUM],
+        deadline=5,
+        hosts=["*"],
+    )
+
+    assert decision.allowed and decision.automatic

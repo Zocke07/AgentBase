@@ -33,6 +33,8 @@ class ToolRuntime:
     workspace_auto_approve: tuple[RiskLevel, ...] = ()
     #: Frozen workspace per-tool answers; absence means ``ToolPolicy.ASK``.
     workspace_tool_policies: Mapping[str, ToolPolicy] = field(default_factory=dict)
+    #: Frozen hosts a network call may reach without asking; ``*`` is any.
+    workspace_auto_approve_hosts: tuple[str, ...] = ("*",)
 
     @classmethod
     def build(
@@ -42,6 +44,7 @@ class ToolRuntime:
         workspace_auto_approve: Iterable[RiskLevel] = (),
         tools: Mapping[str, Tool] | None = None,
         workspace_tool_policies: Mapping[str, ToolPolicy] | None = None,
+        workspace_auto_approve_hosts: Iterable[str] = ("*",),
     ) -> ToolRuntime:
         """Assemble a runtime over the built-in tools. ``tools`` is injectable for tests."""
         return cls(
@@ -50,6 +53,7 @@ class ToolRuntime:
             approvals=approvals,
             workspace_auto_approve=tuple(workspace_auto_approve),
             workspace_tool_policies=dict(workspace_tool_policies or {}),
+            workspace_auto_approve_hosts=tuple(workspace_auto_approve_hosts),
         )
 
     def get(self, name: str) -> Tool | None:
