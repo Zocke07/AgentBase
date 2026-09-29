@@ -43,6 +43,10 @@ import { useStoredFlag } from "./state/useStoredFlag";
 /** Refresh interval while listed runs remain unfinished. */
 const BACKGROUND_REFRESH_MS = 5_000;
 
+/** Slower check while nothing listed is going: a scheduled run can start, or
+    ask a question, with nobody touching the window. */
+const IDLE_REFRESH_MS = 30_000;
+
 /** How long the start screen waits on the first settings and spaces reads
     once the engine answers; past it the window opens and they finish there. */
 const FIRST_LOAD_PATIENCE_MS = 10_000;
@@ -127,6 +131,16 @@ export function App() {
     [],
   );
 
+  // Include questions for runs outside the current view.
+  const refreshApprovals = useCallback(() => {
+    void api
+      .listApprovals()
+      .then((all) => {
+        setPendingApprovals(all.filter((approval) => approval.status === "pending"));
+      })
+      .catch(() => undefined);
+  }, []);
+
   const refreshWorkspace = useCallback(() => {
     // Meter and preflight follow the selected space.
     void api.getBudget(spaceId ?? undefined).then(setBudget).catch(() => undefined);
@@ -138,14 +152,8 @@ export function App() {
         setSettingsLoaded(true);
       });
     void api.verifySettings(spaceId ?? undefined).then(setVerified).catch(() => undefined);
-    // Include questions for runs outside the current view.
-    void api
-      .listApprovals()
-      .then((all) => {
-        setPendingApprovals(all.filter((approval) => approval.status === "pending"));
-      })
-      .catch(() => undefined);
-  }, [spaceId]);
+    refreshApprovals();
+  }, [spaceId, refreshApprovals]);
 
   useEffect(() => {
     if (status.kind === "ready") refreshWorkspace();
@@ -161,20 +169,32 @@ export function App() {
     setRosterSpace(spaceId);
   }, [spaceId, setRunListSpace, setRosterSpace]);
 
-  // Poll while listed runs are unfinished so background or Discord runs appear.
+  // Poll so background, scheduled or Discord runs appear: often while a listed
+  // run is going, and slowly otherwise, reading only runs and questions.
   const runs = useRunList((state) => state.runs);
   const reloadRuns = useRunList((state) => state.load);
   const anyUnfinished = runs.some(unfinished);
   useEffect(() => {
-    if (status.kind !== "ready" || !anyUnfinished) return;
-    const timer = setInterval(() => {
-      void reloadRuns();
-      refreshWorkspace();
-    }, BACKGROUND_REFRESH_MS);
+    if (status.kind !== "ready") return;
+    const timer = setInterval(
+      () => {
+        void reloadRuns();
+        if (anyUnfinished) refreshWorkspace();
+        else refreshApprovals();
+      },
+      anyUnfinished ? BACKGROUND_REFRESH_MS : IDLE_REFRESH_MS,
+    );
     return () => {
       clearInterval(timer);
     };
-  }, [status.kind, anyUnfinished, reloadRuns, refreshWorkspace]);
+  }, [status.kind, anyUnfinished, reloadRuns, refreshWorkspace, refreshApprovals]);
+
+  // A question waiting on someone is counted in the title, where a person
+  // glancing at the window, or at a browser tab in development, can see it.
+  const waitingCount = pendingApprovals.length;
+  useEffect(() => {
+    document.title = waitingCount > 0 ? `(${String(waitingCount)}) AgentBase` : "AgentBase";
+  }, [waitingCount]);
 
   // Refresh when the window regains visibility.
   useEffect(() => {

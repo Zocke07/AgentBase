@@ -352,19 +352,38 @@ describe("runs that happen elsewhere", () => {
     expect(mocked.getBudget.mock.calls.length).toBe(budgetReads + 1);
   });
 
-  it("stops polling once every listed run has ended", async () => {
+  it("slows to an idle check once every listed run has ended, so a scheduled run still appears", async () => {
     vi.useFakeTimers();
     mocked.listRuns.mockResolvedValue([row("completed"), row("failed", "run-2")]);
     render(<App />);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
+    const budgetReads = mocked.getBudget.mock.calls.length;
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(30_000);
+      await vi.advanceTimersByTimeAsync(5_000);
     });
-
     expect(mocked.listRuns).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(25_000);
+    });
+    expect(mocked.listRuns).toHaveBeenCalledTimes(2);
+    // Idle checks read runs and questions only, not the meter or the preflight.
+    expect(mocked.getBudget.mock.calls.length).toBe(budgetReads);
+  });
+
+  it("counts the questions waiting on someone in the title", async () => {
+    mocked.listRuns.mockResolvedValue([row("running", "run-1")]);
+    mocked.listApprovals.mockResolvedValue([
+      { id: "ap-1", run_id: "run-1", tool: "run_shell", args: {}, risk: "high", status: "pending", created_at: "2026-09-29T00:00:00Z" },
+    ]);
+    render(<App />);
+
+    await waitFor(() => {
+      expect(document.title).toBe("(1) AgentBase");
+    });
   });
 
   it("re-reads everything when the window becomes visible again", async () => {

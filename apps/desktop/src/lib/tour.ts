@@ -18,8 +18,9 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     title: "Welcome to AgentBase",
     body:
-      "A place on your own computer where a few AI agents work on a task together while you watch. " +
-      "This takes about a minute. Esc skips it; you can replay it from Settings.",
+      "A place on your own computer where a few AI agents work on their own, on a schedule or a task " +
+      "you give them, and you can watch every step. This takes about a minute. Esc skips it; you can " +
+      "replay it from Settings.",
     target: null,
     section: null,
   },
@@ -32,10 +33,19 @@ export const TOUR_STEPS: readonly TourStep[] = [
     section: null,
   },
   {
-    title: "Start a task on Home",
+    title: "Automations",
     body:
-      "Describe what you want done. The supervisor plans it, hands parts to workers and reports back. " +
-      "Notes from the space that match the task are shown before you start, and you can leave any out.",
+      "What a space does on its own: a goal at set times, or right after another schedule's run " +
+      "completes. The Main space ships an investment pipeline switched off; one click on Home turns it on. " +
+      "Each run stops at its time and spending limits, and the monthly cap always holds.",
+    target: "rail-automations",
+    section: "automations",
+  },
+  {
+    title: "Run a task once",
+    body:
+      "Describe what you want done and the supervisor plans it, hands parts to workers and reports back. " +
+      "Tick Step through to be asked before every call, or make the task recurring.",
     target: "goal",
     section: "home",
   },
@@ -51,7 +61,8 @@ export const TOUR_STEPS: readonly TourStep[] = [
     title: "Watch the run",
     body:
       "A run is drawn left to right: goal, supervisor, workers, outcome. Click a card for what that agent " +
-      "said and did. Anything that needs your permission docks at the top of the run until you answer.",
+      "said and did. Calls your approval policy allows run on their own, and the log says which rule let " +
+      "them; a shell command, or anything else the policy does not answer, docks at the top until you do.",
     target: "rail-runs",
     section: "runs",
   },
