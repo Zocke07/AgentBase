@@ -138,6 +138,19 @@ describe("Schedules", () => {
     expect(note.textContent).toContain("stops at 20 steps per agent, 5 agents, 900 seconds");
   });
 
+  it("says a fetch reaches any site when the list allows any, and says nothing of asking about a refused shell", async () => {
+    const settings = settingsWith(["low", "medium"]);
+    settings.settings.auto_approve_hosts = ["*"];
+    settings.settings.tool_policies = { run_shell: "deny" };
+    render(<Schedules space={lab} settings={settings} />);
+    await screen.findByTestId("schedule-sched-1");
+
+    const note = screen.getByTestId("schedules-policy").textContent;
+    expect(note).toContain("fetches from any public site without asking");
+    expect(note).toContain("is refused run_shell");
+    expect(note).not.toContain("always asks before run_shell");
+  });
+
   it("names the hosts an unattended fetch may reach when medium risk runs on its own", async () => {
     render(<Schedules space={lab} settings={settingsWith(["low", "medium"])} />);
     await screen.findByTestId("schedule-sched-1");

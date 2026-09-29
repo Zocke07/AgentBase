@@ -219,8 +219,9 @@ export function sentenceFor(event: Event): string {
             : `Policy allowed ${who}'s ${tool} call.`;
         case "denied":
           if (!automatic) return `You denied ${who}'s ${tool} call.`;
-          return read("policy") === "deny"
-            ? `Policy refused ${who}'s ${tool} call.`
+          if (read("policy") === "deny") return `Policy refused ${who}'s ${tool} call.`;
+          return read("rule") === "unanswered"
+            ? `${who}'s ${tool} call was refused again: nobody answered it earlier in this run.`
             : `Your earlier answer denied ${who}'s ${tool} call again.`;
         case "expired":
           return `${who}'s ${tool} call went unanswered and expired.`;
@@ -339,7 +340,7 @@ export function policySentence(policy: RunApprovalPolicy): string {
           : "every fetch asked"
       : "",
     policy.denyTools.length > 0 ? `${list(policy.denyTools)} never allowed` : "",
-    "run_shell always asked",
+    policy.denyTools.includes("run_shell") ? "" : "run_shell always asked",
   ].filter((part) => part !== "");
   const unattended =
     policy.questionSeconds === null

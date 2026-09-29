@@ -245,15 +245,17 @@ export function Schedules({ space, settings, onOpenRun, draftRequest, reloadNonc
             ? `${[
                 allowed.length > 0 ? `calls ${allowed.join("- and ")}-risk tools without asking` : "",
                 always.length > 0 ? `runs ${names(always)} without asking whatever the level` : "",
-                fetchesByPolicy && !anyHost
-                  ? hosts.length > 0
-                    ? `fetches from ${names([...hosts])} without asking and asks before any other site`
-                    : "asks before fetching from any site"
+                fetchesByPolicy
+                  ? anyHost
+                    ? "fetches from any public site without asking"
+                    : hosts.length > 0
+                      ? `fetches from ${names([...hosts])} without asking and asks before any other site`
+                      : "asks before fetching from any site"
                   : "",
                 never.length > 0 ? `is refused ${names(never)}` : "",
               ]
                 .filter((part) => part !== "")
-                .join(", ")}. It always asks before run_shell, and a question nobody answers ${expiryWords(questionSeconds)}, so the run carries on without that call.`
+                .join(", ")}. ${never.includes("run_shell") ? "A" : "It always asks before run_shell, and a"} question nobody answers ${expiryWords(questionSeconds)}, so the run carries on without that call.`
             : `asks before every tool call${never.length > 0 ? ` (and is refused ${names(never)})` : ""}, and a question nobody answers ${expiryWords(questionSeconds)}, so the run does little on its own.`}
           {steps !== null && agentsPerRun !== null && runSeconds !== null && (
             <>

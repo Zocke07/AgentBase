@@ -552,6 +552,7 @@ function SpaceForm({
             />
             <span className="editor__tool-description">
               This space&apos;s own policy: nothing ticked makes it Supervised, asking before every call
+              except a tool the app always allows, which you can make ask under Answers by tool
             </span>
           </label>
           {form.auto_approve !== null && (

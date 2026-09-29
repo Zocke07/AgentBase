@@ -76,9 +76,14 @@ const RISK_LEVELS: readonly RiskLevel[] = ["low", "medium"];
 /** The two named approval policies; anything else reads as Custom. */
 type Preset = "autonomous" | "supervised" | "custom";
 
+/** The sites Autonomous fetches from, as a fresh install ships them. */
+const DEFAULT_HOSTS = "news.google.com, stooq.com";
+
 function presetOf(form: Form): Preset {
   const allows = Object.values(form.tool_policies).some((answer) => answer === "allow");
-  if (form.auto_approve.join() === "low,medium") return "autonomous";
+  const anySite = hostList(form.auto_approve_hosts).includes("*");
+  // Any site is not what Autonomous promises, so it reads as Custom.
+  if (form.auto_approve.join() === "low,medium" && !anySite) return "autonomous";
   if (form.auto_approve.length === 0 && !allows) return "supervised";
   return "custom";
 }
@@ -294,6 +299,12 @@ function SettingsForm({
     setErrors({});
     if (dollarsToMicros(form.cap) === null) {
       setErrors({ monthly_cap_micros: "Enter the cap in dollars, zero or more." });
+      return;
+    }
+    // A blank would save as 0, refusing every question at once without saying so.
+    const changedWait = form.unattended_question_seconds !== opened.unattended_question_seconds;
+    if (changedWait && !/^\d+$/.test(form.unattended_question_seconds.trim())) {
+      setErrors({ unattended_question_seconds: "A whole number of seconds, 0 or more." });
       return;
     }
     if (!dirty) return;
@@ -578,7 +589,13 @@ function SettingsForm({
                   name="approval-preset"
                   checked={presetOf(form) === value}
                   onChange={() => {
-                    if (value === "autonomous") set("auto_approve", ["low", "medium"]);
+                    if (value === "autonomous") {
+                      set("auto_approve", ["low", "medium"]);
+                      // An upgraded install keeps "*" (any site) until it
+                      // chooses; Autonomous means the listed sites only.
+                      const hosts = hostList(form.auto_approve_hosts);
+                      if (hosts.length === 0 || hosts.includes("*")) set("auto_approve_hosts", DEFAULT_HOSTS);
+                    }
                     if (value === "supervised") {
                       set("auto_approve", []);
                       // A "never allow" stays: supervising only narrows.
@@ -661,7 +678,8 @@ function SettingsForm({
             />
             <span className="editor__hint">
               Nobody watches a scheduled run, so its question expires after this long and the run carries
-              on without that call. 0 refuses at once. A run you start keeps waiting for you.
+              on without that call. 0 refuses at once. A run you start from Home keeps waiting for you; one a
+              schedule starts, even with Run now, does not.
             </span>
             <FieldError field="unattended_question_seconds" message={errorFor("unattended_question_seconds")} />
           </label>

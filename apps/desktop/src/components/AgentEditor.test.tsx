@@ -254,7 +254,7 @@ describe("the model field follows the provider", () => {
 });
 
 describe("the approval policy", () => {
-  it("offers the three risk levels, badged, and sends the ticked ones", async () => {
+  it("offers the two levels a policy may answer, badged, and sends the ticked ones", async () => {
     /* §4 gives every definition an `auto_approve` column and the reducer
        reads it; no editor field ever reached it. It narrows the workspace
        policy (it can never widen it), and an empty list means inherit. */
@@ -268,6 +268,34 @@ describe("the approval policy", () => {
 
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ auto_approve: ["low"] }));
     expect(screen.getByTestId("agent-editor").textContent).toContain("never widen");
+  });
+
+  it("shows, and keeps, a high level an older definition names", async () => {
+    /* Hiding it would show a high-only agent as inheriting, when in fact it
+       asks before every call; dropping it on save would change what it does. */
+    const user = userEvent.setup();
+    const agent: AgentDef = {
+      id: "def-9",
+      space_id: "space-main",
+      name: "cautious",
+      role: "r",
+      system_prompt: "p",
+      provider: null,
+      model: null,
+      allowed_tools: [],
+      auto_approve: ["high"],
+      is_builtin: false,
+      enabled: true,
+      created_at: "2026-09-10T00:00:00Z",
+      updated_at: "2026-09-10T00:00:00Z",
+    };
+    const { onSave } = editor({ agent });
+
+    expect(screen.getByTestId("auto-high-note").textContent).toContain("every shell command asks");
+    await user.click(screen.getByTestId("auto-low"));
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    expect(onSave).toHaveBeenCalledWith({ auto_approve: ["low", "high"] });
   });
 });
 

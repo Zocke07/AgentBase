@@ -179,7 +179,45 @@ describe("saving", () => {
     expect(mocked.updateSettings).toHaveBeenLastCalledWith({
       auto_approve: ["low", "medium"],
       tool_policies: { run_shell: "deny" },
+      // No list at all is not "the listed sites", so Autonomous supplies them.
+      auto_approve_hosts: ["news.google.com", "stooq.com"],
     });
+  });
+
+  it("moves an upgraded install's any-site list to the listed sites when it chooses Autonomous", async () => {
+    /* Migration 018 pins "*" on an upgraded install, where it does nothing
+       while medium asks. Autonomous promises the listed sites only. */
+    const user = userEvent.setup();
+    mocked.getSettings.mockResolvedValue({
+      ...settings,
+      settings: { ...settings.settings, auto_approve: [], auto_approve_hosts: ["*"] },
+    });
+    view();
+    await loaded();
+
+    await user.click(screen.getByTestId("setting-preset-autonomous"));
+    expect(screen.getByTestId<HTMLInputElement>("setting-hosts").value).toBe("news.google.com, stooq.com");
+    await user.click(screen.getByRole("button", { name: "Save settings" }));
+    expect(mocked.updateSettings).toHaveBeenLastCalledWith({
+      auto_approve: ["low", "medium"],
+      auto_approve_hosts: ["news.google.com", "stooq.com"],
+    });
+  });
+
+  it("refuses a blank unattended wait rather than saving it as 0", async () => {
+    const user = userEvent.setup();
+    mocked.getSettings.mockResolvedValue({
+      ...settings,
+      settings: { ...settings.settings, unattended_question_seconds: 120 },
+    });
+    view();
+    await loaded();
+
+    await user.clear(screen.getByTestId("setting-question-seconds"));
+    await user.click(screen.getByRole("button", { name: "Save settings" }));
+
+    expect(mocked.updateSettings).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toContain("0 or more");
   });
 
   it("never offers a high-risk tick, nor Always allow for run_shell", async () => {

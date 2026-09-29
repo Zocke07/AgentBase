@@ -54,8 +54,10 @@ interface FormState {
     a definition naming it would narrow nothing and is not offered. */
 const RISK_LEVELS: readonly RiskLevel[] = ["low", "medium"];
 
+/** Every stored level is kept and shown, so an older definition naming high is
+    neither hidden nor changed by saving something else. */
 const isRiskLevel = (value: string): value is RiskLevel =>
-  (RISK_LEVELS as readonly string[]).includes(value);
+  value === "low" || value === "medium" || value === "high";
 
 const INHERIT = "";
 /** The key for a message the server did not attribute to a field. */
@@ -153,7 +155,10 @@ export function AgentEditor({
       ...current,
       auto_approve: current.auto_approve.includes(level)
         ? current.auto_approve.filter((item) => item !== level)
-        : RISK_LEVELS.filter((item) => item === level || current.auto_approve.includes(item)),
+        : [
+            ...RISK_LEVELS.filter((item) => item === level || current.auto_approve.includes(item)),
+            ...current.auto_approve.filter((item) => !RISK_LEVELS.includes(item)),
+          ],
     }));
   };
 
@@ -439,6 +444,13 @@ export function AgentEditor({
               </span>
             </label>
           ))}
+          {form.auto_approve.includes("high") && (
+            <p className="editor__hint" data-testid="auto-high-note">
+              This agent also names <span className="risk risk--high">high</span>, from before shell
+              commands always asked. It only narrows: this agent asks before any call outside the levels
+              it names, and every shell command asks.
+            </p>
+          )}
         </div>
         {errorFor("auto_approve") !== null && (
           <span className="editor__error" role="alert" data-testid="error-auto_approve">

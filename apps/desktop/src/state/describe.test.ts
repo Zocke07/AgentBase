@@ -170,6 +170,14 @@ describe("a sentence for every event", () => {
       "writer",
     );
     expect(sentenceFor(unanswered)).toContain("went unanswered earlier in this run");
+    const unansweredSettled = log.add(
+      "approval.resolved",
+      { tool: "write_file", status: "denied", automatic: true, precedent: "ap-2", rule: "unanswered" },
+      "writer",
+    );
+    expect(sentenceFor(unansweredSettled)).toBe(
+      "writer's write_file call was refused again: nobody answered it earlier in this run.",
+    );
   });
 
   it("truncates what a model wrote so a row stays a row", () => {
@@ -301,5 +309,7 @@ describe("the approval policy a run acted under", () => {
     );
     expect(policySentence({ ...base, supervised: true })).toBe("Stepped through: every call asked first.");
     expect(policySentence({ ...base, levels: [] })).toBe("Every call asked first; run_shell always asked.");
+    // A shell the policy refuses was never asked about.
+    expect(policySentence({ ...base, denyTools: ["run_shell"] })).not.toContain("always asked");
   });
 });
