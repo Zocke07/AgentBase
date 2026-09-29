@@ -61,13 +61,17 @@ class FakeReply:
     def __init__(self) -> None:
         self.updates: list[str] = []
         self.asked: list[tuple[str, str, str]] = []
+        self.windows: list[float | None] = []
         self.closed = False
 
     async def update(self, text: str) -> None:
         self.updates.append(text)
 
-    async def ask(self, approval_id: str, prompt: str, risk: str) -> None:
+    async def ask(
+        self, approval_id: str, prompt: str, risk: str, window: float | None = None
+    ) -> None:
         self.asked.append((approval_id, prompt, risk))
+        self.windows.append(window)
 
     async def close(self) -> None:
         self.closed = True
@@ -492,6 +496,11 @@ async def test_the_question_is_surfaced_in_chat_while_the_run_waits(
     approval_id = await _wait_for_approval(approvals)
 
     await _until(lambda: any("Waiting for approval" in text for text in reply.updates))
+    # A requester answers their own run's questions in chat by default now, and
+    # the controls last as long as the run can use the answer.
+    await _until(lambda: bool(reply.asked))
+    (window,) = reply.windows
+    assert window is not None and 0 < window <= 600
 
     await approvals.resolve(approval_id, approved=True)
     await asyncio.wait_for(conversation, timeout=15)

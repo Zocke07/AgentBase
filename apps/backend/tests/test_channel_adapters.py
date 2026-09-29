@@ -8,10 +8,13 @@ the handler discards messages that do not name the bot.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import discord
 import pytest
 
-from agentbase.channels.discord_adapter import INTENTS
+from agentbase.channels.discord_adapter import INTENTS, _ApprovalView
+from agentbase.tools.approval import ApprovalScope
 
 pytestmark = pytest.mark.anyio
 
@@ -201,3 +204,58 @@ async def test_a_bare_mention_gets_usage_and_starts_nothing() -> None:
     assert started == []
     message.reply.assert_awaited_once()  # type: ignore[attr-defined]
     assert "Tell me what to do" in message.reply.await_args.args[0]  # type: ignore[attr-defined]
+
+
+# --- the approval buttons -------------------------------------------------------
+
+
+class _Approvals:
+    def __init__(self) -> None:
+        self.resolved: list[dict[str, object]] = []
+
+    async def resolve(self, approval_id: str, **kwargs: object) -> None:
+        self.resolved.append({"approval_id": approval_id, **kwargs})
+
+
+class _Response:
+    def __init__(self) -> None:
+        self.edited: list[str] = []
+
+    async def edit_message(self, *, content: str, view: object) -> None:
+        self.edited.append(content)
+
+
+class _Interaction:
+    def __init__(self) -> None:
+        self.response = _Response()
+
+
+def _labels(view: discord.ui.View) -> list[str]:
+    return [str(getattr(child, "label", "")) for child in view.children]
+
+
+async def test_a_low_or_medium_question_offers_a_yes_for_the_run() -> None:
+    approvals = _Approvals()
+    deps = SimpleNamespace(approvals=approvals)
+    view = _ApprovalView(deps, "ap-1", 7, risk="medium", window=120)  # type: ignore[arg-type]
+
+    assert _labels(view) == ["Allow", "Deny", "Allow for this run"]
+    # The buttons outlive the run's window only by a moment.
+    assert view.timeout == 125
+
+    for_run = next(c for c in view.children if getattr(c, "label", "") == "Allow for this run")
+    interaction = _Interaction()
+    await for_run.callback(interaction)  # type: ignore[arg-type]
+
+    assert approvals.resolved == [
+        {"approval_id": "ap-1", "approved": True, "scope": ApprovalScope.RUN}
+    ]
+    assert interaction.response.edited == ["Allowed for the rest of this run."]
+
+
+async def test_a_high_risk_question_offers_only_a_one_call_answer() -> None:
+    view = _ApprovalView(SimpleNamespace(approvals=_Approvals()), "ap-2", 7, risk="high")  # type: ignore[arg-type]
+
+    assert _labels(view) == ["Allow", "Deny"]
+    # Without a known window, the platform default applies.
+    assert view.timeout == 900

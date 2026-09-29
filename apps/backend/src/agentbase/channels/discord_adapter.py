@@ -22,7 +22,7 @@ from discord import app_commands
 from agentbase.channels.base import ChannelName, InboundMessage
 from agentbase.channels.render import DISCORD_MESSAGE_LIMIT
 from agentbase.channels.service import converse
-from agentbase.tools.approval import ApprovalNotPendingError
+from agentbase.tools.approval import ApprovalNotPendingError, ApprovalScope
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -39,9 +39,17 @@ INTENTS: Final[discord.Intents] = discord.Intents.none()
 INTENTS.guilds = True
 INTENTS.guild_messages = True
 
-#: How long an Allow/Deny button stays live; the approval itself is bounded by
-#: the run's own deadline.
+#: How long an Allow/Deny button stays live when the run's window is unknown;
+#: the approval itself is bounded by the run's own deadline.
 _BUTTON_TIMEOUT_SECONDS: Final[float] = 900.0
+
+#: Buttons outlive the run's window by this much, so a last-second press is
+#: answered by the gate ("already answered") rather than by a dead button.
+_BUTTON_GRACE_SECONDS: Final[float] = 5.0
+
+#: Risks a yes may cover for the rest of a run. High risk is never answered
+#: unseen, so its question offers only a one-call yes.
+_RUN_SCOPE_RISKS: Final[frozenset[str]] = frozenset({"low", "medium"})
 
 _MENTION = re.compile(r"<@!?(\d+)>")
 
@@ -197,7 +205,9 @@ class _InteractionReply:
     async def update(self, text: str) -> None:
         await self._interaction.edit_original_response(content=text[:DISCORD_MESSAGE_LIMIT])
 
-    async def ask(self, approval_id: str, prompt: str, risk: str) -> None:
+    async def ask(
+        self, approval_id: str, prompt: str, risk: str, window: float | None = None
+    ) -> None:
         await _send_approval(
             self._deps,
             approval_id,
@@ -205,6 +215,7 @@ class _InteractionReply:
             risk,
             self._interaction.user.id,
             self._interaction.followup.send,
+            window,
         )
 
     async def close(self) -> None:
@@ -226,9 +237,17 @@ class _MessageReply:
     async def update(self, text: str) -> None:
         await self._message.edit(content=text[:DISCORD_MESSAGE_LIMIT])
 
-    async def ask(self, approval_id: str, prompt: str, risk: str) -> None:
+    async def ask(
+        self, approval_id: str, prompt: str, risk: str, window: float | None = None
+    ) -> None:
         await _send_approval(
-            self._deps, approval_id, prompt, risk, self._owner_id, self._message.channel.send
+            self._deps,
+            approval_id,
+            prompt,
+            risk,
+            self._owner_id,
+            self._message.channel.send,
+            window,
         )
 
     async def close(self) -> None:
@@ -242,8 +261,9 @@ async def _send_approval(
     risk: str,
     owner_id: int,
     send: Any,
+    window: float | None = None,
 ) -> None:
-    view = _ApprovalView(deps, approval_id, owner_id)
+    view = _ApprovalView(deps, approval_id, owner_id, risk=risk, window=window)
     await send(content=f"Approval needed [{risk}]\n{prompt}", view=view)
 
 
@@ -257,11 +277,38 @@ class _ApprovalView(discord.ui.View):
     buttons render for everyone who can see the message.
     """
 
-    def __init__(self, deps: ChannelDeps, approval_id: str, owner_id: int) -> None:
-        super().__init__(timeout=_BUTTON_TIMEOUT_SECONDS)
+    def __init__(
+        self,
+        deps: ChannelDeps,
+        approval_id: str,
+        owner_id: int,
+        *,
+        risk: str = "high",
+        window: float | None = None,
+    ) -> None:
+        super().__init__(
+            timeout=(
+                window + _BUTTON_GRACE_SECONDS
+                if window is not None
+                else _BUTTON_TIMEOUT_SECONDS
+            )
+        )
         self._deps = deps
         self._approval_id = approval_id
         self._owner_id = owner_id
+        if risk in _RUN_SCOPE_RISKS:
+            # The desktop's "Allow for this run": later calls to this tool in
+            # this run are answered by the same yes. The gate refuses to keep
+            # one for high risk even if it were pressed.
+            for_run: discord.ui.Button[Any] = discord.ui.Button(
+                label="Allow for this run", style=discord.ButtonStyle.primary
+            )
+
+            async def allow_for_run(interaction: discord.Interaction) -> None:
+                await self._resolve(interaction, approved=True, scope=ApprovalScope.RUN)
+
+            for_run.callback = allow_for_run  # type: ignore[method-assign]
+            self.add_item(for_run)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id == self._owner_id:
@@ -283,9 +330,17 @@ class _ApprovalView(discord.ui.View):
     ) -> None:
         await self._resolve(interaction, approved=False)
 
-    async def _resolve(self, interaction: discord.Interaction, *, approved: bool) -> None:
+    async def _resolve(
+        self,
+        interaction: discord.Interaction,
+        *,
+        approved: bool,
+        scope: ApprovalScope = ApprovalScope.CALL,
+    ) -> None:
         try:
-            await self._deps.approvals.resolve(self._approval_id, approved=approved)
+            await self._deps.approvals.resolve(
+                self._approval_id, approved=approved, scope=scope
+            )
         except ApprovalNotPendingError:
             # Answered from the dashboard first, or expired by the run's deadline.
             await interaction.response.edit_message(
@@ -293,7 +348,11 @@ class _ApprovalView(discord.ui.View):
             )
             return
 
-        await interaction.response.edit_message(
-            content=("Allowed." if approved else "Denied."), view=None
-        )
+        if not approved:
+            answer = "Denied."
+        elif scope is ApprovalScope.RUN:
+            answer = "Allowed for the rest of this run."
+        else:
+            answer = "Allowed."
+        await interaction.response.edit_message(content=answer, view=None)
         self.stop()

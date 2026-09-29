@@ -252,7 +252,10 @@ async def _offer_approvals(
         if pending.approval_id in asked:
             continue
         asked.add(pending.approval_id)
-        await reply.ask(pending.approval_id, pending.prompt, pending.risk)
+        # Controls live as long as the run can use an answer, and no longer.
+        live = deps.launcher.live.get(run_id)
+        window = live.question_deadline() if live is not None else None
+        await reply.ask(pending.approval_id, pending.prompt, pending.risk, window)
         await _record_outbound(deps, run_id, inbound, "approval")
 
 

@@ -74,8 +74,14 @@ class ChannelReply(Protocol):
         """Replace the run message with ``text``."""
         ...
 
-    async def ask(self, approval_id: str, prompt: str, risk: str) -> None:
-        """Offer an Allow/Deny affordance for one pending approval."""
+    async def ask(
+        self, approval_id: str, prompt: str, risk: str, window: float | None = None
+    ) -> None:
+        """Offer an Allow/Deny affordance for one pending approval.
+
+        ``window`` is how many seconds the run can still use an answer;
+        ``None`` leaves it to the platform's default.
+        """
         ...
 
     async def close(self) -> None:
