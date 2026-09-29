@@ -875,8 +875,11 @@ and seeds the pipeline as five disabled schedules in the default space.
 
 Not built, by the constraints: skipping the gate, auto-approving `run_shell`,
 triggers from ambient chat or webhooks, agent-authored schedules or runs, and
-automatic memory approval. An outbound Discord notice channel for scheduled
-outcomes was left for later.
+automatic memory approval. Left for later: an outbound Discord notice channel
+for scheduled outcomes; a cap on scheduled runs going at once (each schedule
+still never overlaps itself, each run has its time and cost ceilings, and the
+monthly cap holds; deferring a due run safely needs a queue the scheduler does
+not have); forwarding the waiting-question count to the native window title.
 
 **Accept when:**
 

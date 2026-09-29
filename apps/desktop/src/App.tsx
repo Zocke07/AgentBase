@@ -223,8 +223,9 @@ export function App() {
     schedulesChanged,
   ]);
 
-  // A question waiting on someone is counted in the title, where a person
-  // glancing at the window, or at a browser tab in development, can see it.
+  // A question waiting on someone is counted in the document title. That
+  // shows in a browser tab; the packaged Tauri window keeps its configured
+  // title unless the shell forwards title changes, which it does not yet.
   const waitingCount = pendingApprovals.length;
   useEffect(() => {
     document.title =

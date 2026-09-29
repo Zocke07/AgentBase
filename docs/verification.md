@@ -1,8 +1,66 @@
 # Verification and remaining work
 
-Updated 2026-09-28. This is the current record; [history](history/README.md)
+Updated 2026-09-29. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
+
+## Autonomy first (Phase 16), 2026-09-29, branch `autonomy-first`, not released
+
+Built on a separate worktree branched from `main` at `b718844`, so the
+maintainer's checkout and other sessions were untouched. Nothing was pushed,
+tagged or version-bumped.
+
+- **Gate.** On the branch head: `just lint typecheck` passed (ruff, format,
+  mypy on the host and `--platform win32`, eslint, tsc); backend **986 passed,
+  26 skipped**; desktop **49 files, 510 tests**; the hygiene test passed.
+- **Test-first units.** The sandbox guard on app-owned paths, the host list and
+  the projected cost ceiling had failing tests before their code. New backend
+  tests cover the high-risk invariant at the gate, settings, spaces and 017;
+  018 against used and fresh databases (a run, a saved setting, a schedule, a
+  space of its own; an answer already saved is kept); 019's guards (an edited
+  agent and a deleted agent); the unattended expiry and its precedent; the
+  supervised run; `run.started`'s policy record; Run now; the interrupted
+  re-run; chains (loops, depth, other spaces, deletion, a failed or cancelled
+  stage, closing) including one chain through the real launcher and hook; and
+  the Discord approval view.
+- **Browser.** A scratch sidecar (fresh data directory, port 8790) and Vite in
+  headless Chrome over CDP, at 1280 by 900: the rail order; the fresh install's
+  defaults (Autonomous, `news.google.com, stooq.com`, 120 seconds, originator,
+  no high tick, `run_shell` offering only ask or deny); the five seeded
+  schedules off; **Turn on the daily pipeline** writing the three templates
+  and enabling all five; Automations showing each stage and the next time;
+  the unattended readout; the demo run's policy line and "allowed by policy
+  (low risk runs on its own)" in its log; no console errors. The first pass
+  found Automations still showing the stages off after Home turned them on
+  (sections stay mounted); fixed and checked again, and the whole check ran
+  once more on a fresh data directory after the review's fixes.
+- **Adversarial review.** A workflow of three read-only reviewers (safety
+  and constraints, backend correctness, frontend) and one verifier that tried
+  to refute each finding reported 21 findings; the verifier judged 19 real
+  (two pairs were duplicates). The first attempt returned nothing because every
+  reviewer hit the session limit; it was run again. Fixed with tests: on
+  Windows a trailing dot or space in a write name (`notes/lesson.md.`,
+  `memory./x.md`) got past the memory guard, since Windows drops it as it
+  creates the file (refused now, whatever the platform); an upgraded install
+  choosing Autonomous kept the pinned `*` host list; an interrupted chain
+  stage re-ran beside its head at launch (reproduced by the verifier); an
+  expired question outranked a later yes for the run; a stale repeat-this-goal
+  draft reopened on a space switch; a pipeline turn-on stopped at a refusing
+  stage; `hidden` did not hide the missed-time choice (the class sets
+  `display`); a case-variant data file could be overwritten; Home could act on
+  a list still loading from another space; schedule times went stale while
+  idle; a blank unattended wait saved as 0; the agent editor hid an older
+  `high` level; and several sentences were false in edge cases (a refused
+  shell "always asks", an unanswered call "denied by your answer", a
+  Supervised space with an always-allowed tool). Two findings were rejected as
+  the design's intent (a yes for the run covers any host of that tool; Run
+  now gets the scheduled wait). Recorded as not built: a cap on concurrent
+  scheduled runs, and the native window title.
+- **Not verified.** A real model running a scheduled chain end to end in the
+  packaged app; a live Discord question answered with **Allow for this run**;
+  the Windows build, including the trailing-dot refusal on NTFS itself (the
+  check is on the name, so it is platform independent, but no Windows host
+  ran it); a screen reader.
 
 ## 0.4.8: steady canvas, folding log, start-up stages, spend breakdown, space providers
 
@@ -704,6 +762,8 @@ cover the behavior. They are not all release blockers.
   Spotlight lists the app afterwards.
 - A schedule firing in the packaged app against a real model with a
   pre-authorized policy, and its catch-up after the app was closed overnight.
+  Since Phase 16: the seeded pipeline's chain running stage after stage on a
+  real model, and a scheduled question expiring while the run carries on.
 
 The first Mac session already closed automatic browser SSE reconnect,
 two simultaneous browser streams, clicking run deletion, both-theme replay

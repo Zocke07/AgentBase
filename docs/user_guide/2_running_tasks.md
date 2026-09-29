@@ -191,9 +191,9 @@ in a scheduled run it expires after the unattended wait (see
 again in that run. Cancelling ends waiting approvals. Pending requests at app
 close expire on next start. Waiting, expiry and restart never approve them.
 
-The header's all-space approvals indicator opens waiting runs, and the window
-title counts them. The window checks for new runs and questions every 30
-seconds while nothing is going. While replaying, use **Jump to end** to
+The header's all-space approvals indicator opens waiting runs. The window
+checks for new runs, questions and schedule times every 30 seconds while
+nothing is going. While replaying, use **Jump to end** to
 answer a current request. Finished-run questions are read-only.
 
 ## Replay, cancel or delete
