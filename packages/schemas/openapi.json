@@ -652,6 +652,11 @@
               }
             ],
             "title": "Space Id"
+          },
+          "supervised": {
+            "default": false,
+            "title": "Supervised",
+            "type": "boolean"
           }
         },
         "required": [

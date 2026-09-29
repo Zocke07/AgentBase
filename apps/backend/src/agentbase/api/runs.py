@@ -146,6 +146,9 @@ class CreateRunRequest(BaseModel):
     origin: RunOrigin = "ui"
     origin_ref: str | None = None
     excluded_citations: list[str] = Field(default_factory=list, max_length=20)
+    #: Step through the run: every call asks, whatever the policy would answer.
+    #: The manual fallback and debug mode; refusals the app gives stay.
+    supervised: bool = False
 
 
 def _store(request: Request) -> EventStore:
@@ -182,6 +185,7 @@ async def create_run(request: Request, body: CreateRunRequest) -> Run:
             origin=body.origin,
             origin_ref=body.origin_ref,
             excluded_citations=tuple(body.excluded_citations),
+            supervised=body.supervised,
         )
     except SpaceNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

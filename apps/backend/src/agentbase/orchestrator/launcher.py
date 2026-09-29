@@ -78,6 +78,7 @@ class RunLauncher:
         excluded_citations: tuple[str, ...] = (),
         prologue: Callable[[RunRow], Awaitable[None]] | None = None,
         max_run_seconds: int | None = None,
+        supervised: bool = False,
     ) -> RunRow:
         """Create a run, append ``prologue``, then start it.
 
@@ -85,6 +86,7 @@ class RunLauncher:
         :param prologue: append before any orchestrator event.
         :param max_run_seconds: schedule-specific limit over the space limit;
             ``None`` retains the space limit.
+        :param supervised: ask before every call; only a person starts one.
         :raises SpaceNotFoundError: if ID is not a space.
         :raises SpaceArchivedError: archived spaces cannot start runs.
         """
@@ -101,7 +103,9 @@ class RunLauncher:
 
         self.driving.add(run.id)
         task = self.spawn(
-            self._drive(run.id, goal, space, excluded_citations, max_run_seconds, origin)
+            self._drive(
+                run.id, goal, space, excluded_citations, max_run_seconds, origin, supervised
+            )
         )
         run_id = run.id
 
@@ -172,6 +176,7 @@ class RunLauncher:
         excluded_citations: tuple[str, ...],
         max_run_seconds: int | None,
         origin: RunOrigin,
+        supervised: bool,
     ) -> None:
         """Hand a run to its orchestrator, which writes every terminal event."""
         await execute_run(
@@ -192,6 +197,7 @@ class RunLauncher:
             on_registered=self._apply_pending_cancel,
             max_run_seconds=max_run_seconds,
             origin=origin,
+            supervised=supervised,
         )
 
     def _apply_pending_cancel(self, run: Run) -> None:

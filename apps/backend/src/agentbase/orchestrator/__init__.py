@@ -29,6 +29,7 @@ from agentbase.orchestrator.supervisor import SUPERVISOR_NAME, Supervisor
 from agentbase.providers.base import ProviderError
 from agentbase.providers.factory import UnknownProviderError
 from agentbase.store.spaces import DEFAULT_SPACE_ID
+from agentbase.tools.catalogue import ToolPolicy
 
 if TYPE_CHECKING:
     from collections.abc import Callable, MutableMapping
@@ -85,6 +86,7 @@ async def execute_run(
     on_registered: Callable[[Run], None] | None = None,
     max_run_seconds: int | None = None,
     origin: RunOrigin = "ui",
+    supervised: bool = False,
 ) -> None:
     """Drive a run from ``run.started`` to a terminal event.
 
@@ -101,12 +103,26 @@ async def execute_run(
         other limits and policy remain unchanged.
     :param origin: where the run came from; an unattended origin makes its
         questions expire after ``unattended_question_seconds``.
+    :param supervised: step through: every call asks a person, who is there
+        to answer, and only the app's own refusals still answer by policy.
     """
     workspace = await settings.get()
     if space is not None:
         workspace = space.apply_to(workspace)
     if max_run_seconds is not None:
         workspace = workspace.model_copy(update={"max_run_seconds": max_run_seconds})
+    if supervised:
+        # Narrowing only: every yes becomes a question, every no stays.
+        workspace = workspace.model_copy(
+            update={
+                "auto_approve": [],
+                "tool_policies": {
+                    tool: policy
+                    for tool, policy in workspace.tool_policies.items()
+                    if policy is ToolPolicy.DENY
+                },
+            }
+        )
     limits = RunLimits.from_settings(workspace)
 
     hits: tuple[SearchHit, ...] = ()
@@ -133,7 +149,9 @@ async def execute_run(
         spent_so_far=lambda: ledger.run_spent_micros(run_id),
         origin=origin,
         question_seconds=(
-            workspace.unattended_question_seconds if origin in UNATTENDED_ORIGINS else None
+            workspace.unattended_question_seconds
+            if origin in UNATTENDED_ORIGINS and not supervised
+            else None
         ),
     )
 

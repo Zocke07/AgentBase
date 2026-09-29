@@ -94,6 +94,14 @@ def test_the_list_carries_what_a_picker_renders(client: TestClient) -> None:
     assert "finished_at" in run
 
 
+def test_a_run_can_be_started_to_step_through(client: TestClient) -> None:
+    """The manual fallback is one field on the same endpoint, not another path."""
+    created = client.post("/runs", json={"goal": "look around", "supervised": True})
+
+    assert created.status_code == 201, created.text
+    assert client.post("/runs", json={"goal": "x", "supervised": "maybe"}).status_code == 422
+
+
 def test_the_limit_bounds_the_list(client: TestClient) -> None:
     """A workspace with months of history must not hand the UI all of it."""
     for _ in range(4):

@@ -1274,3 +1274,67 @@ async def test_a_run_someone_started_waits_for_them_as_before(
 
     assert rebuilt.status == "completed"
     assert (workspace / "a.md").read_text(encoding="utf-8") == "x"
+
+
+# --- stepping through a run: the manual fallback -------------------------------
+
+
+async def test_a_supervised_run_asks_before_every_call_but_keeps_refusals(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+    db: Database,
+    workspace: Path,
+) -> None:
+    """Step-through only narrows: policy yeses become questions, its noes stay."""
+    await settings.update(
+        {
+            "auto_approve": [RiskLevel.LOW, RiskLevel.MEDIUM],
+            "tool_policies": {"write_file": "allow", "read_file": "deny"},
+        }
+    )
+    runtime, service = tool_runtime(store, db, workspace)
+    await agents.create(
+        {
+            "name": "filewriter",
+            "role": "Writes files",
+            "system_prompt": ESCAPE_PROMPT,
+            "allowed_tools": ["write_file", "read_file"],
+        }
+    )
+    script = [
+        says("Delegating.", call("spawn_agent", "s1", agent="filewriter", task="Save it")),
+        says("Reading.", call("read_file", "w0", path="a.md")),
+        says("Writing.", call("write_file", "w1", path="a.md", content="x")),
+        says("Done.", call("finish", "w2", result="Wrote a.md.")),
+        says("Done.", call("finish", "s2", result="Handled.")),
+    ]
+    run = await store.create_run(goal="Save the report", origin="ui")
+    task = asyncio.create_task(
+        execute_run(
+            store,
+            settings,
+            agents,
+            ledger,
+            secrets,
+            run.id,
+            "Save the report",
+            provider=ScriptedProvider(script),
+            runtime=runtime,
+            supervised=True,
+        )
+    )
+
+    pending = await _wait_for_approval(service)
+    record = await service.store.get(pending)
+    assert record is not None and record.tool == "write_file"
+    await service.resolve(pending, approved=True)
+    await asyncio.wait_for(task, timeout=10)
+
+    rebuilt = reconstruct(await store.read(run.id))
+    writer = rebuilt.agent("filewriter")
+    # The app-wide "never allow" for read_file still answered without asking.
+    assert writer.denied_tools == ["read_file"]
+    assert (workspace / "a.md").read_text(encoding="utf-8") == "x"

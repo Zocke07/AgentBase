@@ -128,6 +128,7 @@ export interface CreateRunRequest {
   origin?: "ui" | "discord" | "schedule";
   origin_ref?: string | null;
   excluded_citations?: string[];
+  supervised?: boolean;
 }
 
 export interface CreateScheduleRequest {
