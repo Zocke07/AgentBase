@@ -733,3 +733,32 @@ async def test_only_scheduled_runs_start_stages_and_nothing_starts_after_close(
     await scheduler.aclose()
     assert await scheduler.on_run_finished(run.id) == []
     assert len(launcher.launched) == 1
+
+
+async def test_an_interrupted_stage_waits_for_its_chain_when_the_head_runs_at_launch(
+    schedules: ScheduleStore, launcher: FakeLauncher, clock: Clock, store: EventStore
+) -> None:
+    """The head runs at launch for its missed time, so the chain will reach the
+    stage; re-running the stage too would run it twice, or skip its run on the
+    head's fresh data because its re-run was still going."""
+    head = await schedules.create(_fields(name="Collect"))
+    stage = await schedules.create(_after(head.id, name="Analyse"))
+    clock.now = _utc(2026, 9, 18, 7, 0, 5)
+    first = Scheduler(schedules, launcher)  # type: ignore[arg-type]
+    (started,) = await first.tick()
+    await _finish(store, started.run_id or "", "completed")
+    (stage_run,) = await first.on_run_finished(started.run_id or "")
+
+    # The app closes while the stage runs, and opens the next day after 07:00.
+    clock.now = _utc(2026, 9, 19, 8, 0)
+    interrupted = frozenset({stage_run.run_id or ""})
+    relaunched = Scheduler(schedules, launcher, interrupted=interrupted)  # type: ignore[arg-type]
+    fired = {entry.schedule_id: entry for entry in await relaunched.catch_up()}
+
+    assert fired[head.id].run_id is not None
+    assert fired[stage.id].run_id is None
+    assert fired[stage.id].outcome == "Will run after Collect completes."
+    # And it does, on the head's completion, with nothing still going.
+    await _finish(store, fired[head.id].run_id or "", "completed")
+    (follow,) = await relaunched.on_run_finished(fired[head.id].run_id or "")
+    assert follow.schedule_id == stage.id and follow.run_id is not None

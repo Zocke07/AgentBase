@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Final
 
+from agentbase.store.schedules import AfterCadence
 from agentbase.store.spaces import SpaceArchivedError, SpaceNotFoundError
 
 if TYPE_CHECKING:
@@ -134,20 +135,38 @@ class Scheduler:
                     schedule, now, note=f"the app was closed at {when}, so it ran at launch"
                 )
             )
-        fired.extend(await self._rerun_interrupted(now, {entry.schedule_id for entry in fired}))
+        fired.extend(await self._rerun_interrupted(now, fired))
         return fired
 
-    async def _rerun_interrupted(self, now: datetime, settled: set[str]) -> list[Fired]:
-        """Settle schedules whose last run the app closed on, once each."""
+    async def _rerun_interrupted(self, now: datetime, earlier: list[Fired]) -> list[Fired]:
+        """Settle schedules whose last run the app closed on, once each.
+
+        A stage whose chain will reach it anyway (something above it started in
+        this pass, or is being run again now) waits for it rather than running
+        beside it, which would run it twice or skip its run on fresh inputs.
+        """
         if not self.interrupted:
             return []
+        every = await self.schedules.list_all()
+        by_id = {schedule.id: schedule for schedule in every}
+        settled = {entry.schedule_id for entry in earlier}
+        candidates = [
+            schedule
+            for schedule in every
+            if schedule.enabled
+            and schedule.id not in settled
+            and schedule.last_run_id in self.interrupted
+        ]
+        will_run = {entry.schedule_id for entry in earlier if entry.run_id is not None} | {
+            schedule.id for schedule in candidates if schedule.missed == "run_on_launch"
+        }
         fired: list[Fired] = []
-        for schedule in await self.schedules.list_all():
-            if (
-                not schedule.enabled
-                or schedule.id in settled
-                or schedule.last_run_id not in self.interrupted
-            ):
+        for schedule in candidates:
+            ahead = _ahead_in_chain(schedule, by_id, will_run)
+            if ahead is not None:
+                outcome = f"Will run after {ahead.name} completes."
+                await self.schedules.note_outcome(schedule.id, now=now, outcome=outcome)
+                fired.append(Fired(schedule.id, None, outcome))
                 continue
             if schedule.missed == "skip":
                 outcome = "Not run again: the app closed during its last run."
@@ -264,6 +283,23 @@ class Scheduler:
         return last is not None and (
             last in self.launcher.live or last in self.launcher.driving
         )
+
+
+def _ahead_in_chain(
+    schedule: Schedule, by_id: dict[str, Schedule], will_run: set[str]
+) -> Schedule | None:
+    """The nearest schedule above ``schedule`` in its chain that will run."""
+    seen = {schedule.id}
+    current = schedule
+    while isinstance(current.cadence, AfterCadence):
+        above = by_id.get(current.cadence.schedule_id)
+        if above is None or above.id in seen:
+            return None
+        if above.id in will_run:
+            return above
+        seen.add(above.id)
+        current = above
+    return None
 
 
 def _local_words(when: datetime, schedules: ScheduleStore) -> str:
