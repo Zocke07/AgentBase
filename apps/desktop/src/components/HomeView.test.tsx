@@ -414,6 +414,50 @@ describe("working on its own", () => {
     });
   });
 
+  it("rereads the strip when schedules change in Automations, and says when it changed them", async () => {
+    /* Every section stays mounted, so a list read once goes stale: turning the
+       pipeline on from Home once left Automations showing every stage off. */
+    const onSchedulesChanged = vi.fn();
+    const { rerender } = render(
+      <HomeView
+        space={main}
+        blocker={null}
+        pendingApprovals={[]}
+        liveStatus={null}
+        modelLabel={null}
+        onOpenRun={vi.fn()}
+        onOpenRuns={vi.fn()}
+        onOpenAgents={vi.fn()}
+        onOpenSettings={vi.fn()}
+        onWorkspaceChanged={vi.fn()}
+        schedulesNonce={0}
+        onSchedulesChanged={onSchedulesChanged}
+      />,
+    );
+    await screen.findByTestId("home-automations-line");
+    const reads = mocked.listSchedules.mock.calls.length;
+
+    rerender(
+      <HomeView
+        space={main}
+        blocker={null}
+        pendingApprovals={[]}
+        liveStatus={null}
+        modelLabel={null}
+        onOpenRun={vi.fn()}
+        onOpenRuns={vi.fn()}
+        onOpenAgents={vi.fn()}
+        onOpenSettings={vi.fn()}
+        onWorkspaceChanged={vi.fn()}
+        schedulesNonce={1}
+        onSchedulesChanged={onSchedulesChanged}
+      />,
+    );
+    await waitFor(() => {
+      expect(mocked.listSchedules.mock.calls.length).toBe(reads + 1);
+    });
+  });
+
   it("turns the shipped pipeline on in one click, writing only the files that are missing", async () => {
     const user = userEvent.setup();
     const pipeline = PIPELINE_SCHEDULE_IDS.map((id, index) => stage(id, `Stage ${String(index)}`));
@@ -439,5 +483,21 @@ describe("working on its own", () => {
       "config/limits.json",
     ]);
     expect((await screen.findByRole("status")).textContent).toContain("The pipeline is on");
+  });
+
+  it("tells the shell it changed the schedules, so Automations rereads them", async () => {
+    const user = userEvent.setup();
+    const pipeline = PIPELINE_SCHEDULE_IDS.map((id, index) => stage(id, `Stage ${String(index)}`));
+    mocked.listSchedules.mockResolvedValue(pipeline);
+    mocked.listFiles.mockResolvedValue({ files: [] });
+    mocked.writeFile.mockResolvedValue({ path: "x", size: 1, updated_at: "", content: "" });
+    mocked.updateSchedule.mockImplementation((id) => Promise.resolve({ ...stage(id, "x", true) }));
+    const onSchedulesChanged = vi.fn();
+    home({ space: main, onSchedulesChanged });
+
+    await user.click(await screen.findByTestId("pipeline-turn-on"));
+    await waitFor(() => {
+      expect(onSchedulesChanged).toHaveBeenCalled();
+    });
   });
 });

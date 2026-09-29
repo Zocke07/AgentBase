@@ -27,6 +27,10 @@ export interface SchedulesProps {
   onOpenRun?: ((runId: string) => void) | undefined;
   /** Open the editor for a new schedule with this goal; a new nonce reopens it. */
   draftRequest?: { goal: string; nonce: number } | null | undefined;
+  /** Moves when schedules change elsewhere; the list rereads without losing an open editor. */
+  reloadNonce?: number | undefined;
+  /** Called after this list changes a schedule, so other views can reread theirs. */
+  onChanged?: (() => void) | undefined;
 }
 
 type Cadence = CreateScheduleRequest["cadence"];
@@ -134,14 +138,19 @@ function names(tools: string[]): string {
 
 /** What happens to a question nobody is there to answer, in the sidecar's terms. */
 function expiryWords(seconds: number | null): string {
-  if (seconds === null) return "with nobody to answer, it expires after a short wait";
-  if (seconds === 0) return "with nobody to answer, it is refused at once";
-  return `with nobody to answer, it expires after ${String(seconds)} seconds`;
+  if (seconds === null) return "expires after a short wait";
+  if (seconds === 0) return "is refused at once";
+  return `expires after ${String(seconds)} seconds`;
 }
 
-export function Schedules({ space, settings, onOpenRun, draftRequest }: SchedulesProps) {
+export function Schedules({ space, settings, onOpenRun, draftRequest, reloadNonce = 0, onChanged }: SchedulesProps) {
   const load = useCallback(() => api.listSchedules(space.id), [space.id]);
   const schedules = useFetched(load, NO_SCHEDULES);
+  const { reload } = schedules;
+  // A change made in another view rereads the list without closing an editor.
+  useEffect(() => {
+    if (reloadNonce > 0) reload();
+  }, [reloadNonce, reload]);
   // Editor target: none, new schedule, or row ID.
   const [editing, setEditing] = useState<{ kind: "none" } | { kind: "new" } | { kind: "row"; id: string }>({ kind: "none" });
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -190,6 +199,7 @@ export function Schedules({ space, settings, onOpenRun, draftRequest }: Schedule
       const said = await work();
       if (said !== null) setNotice(said);
       schedules.reload();
+      onChanged?.();
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : String(failure));
     } finally {
@@ -243,8 +253,8 @@ export function Schedules({ space, settings, onOpenRun, draftRequest }: Schedule
                 never.length > 0 ? `is refused ${names(never)}` : "",
               ]
                 .filter((part) => part !== "")
-                .join(", ")}. It always asks before run_shell; any question ${expiryWords(questionSeconds)} and the run carries on without that call.`
-            : `asks before every tool call${never.length > 0 ? ` (and is refused ${names(never)})` : ""}, and each question ${expiryWords(questionSeconds)}, so the run does little on its own.`}
+                .join(", ")}. It always asks before run_shell, and a question nobody answers ${expiryWords(questionSeconds)}, so the run carries on without that call.`
+            : `asks before every tool call${never.length > 0 ? ` (and is refused ${names(never)})` : ""}, and a question nobody answers ${expiryWords(questionSeconds)}, so the run does little on its own.`}
           {steps !== null && agentsPerRun !== null && runSeconds !== null && (
             <>
               {" "}
@@ -434,6 +444,7 @@ export function Schedules({ space, settings, onOpenRun, draftRequest }: Schedule
                 : `Saved ${saved.name}.`,
             );
             schedules.reload();
+            onChanged?.();
           }}
         />
       )}

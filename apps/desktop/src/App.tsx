@@ -73,6 +73,12 @@ export function App() {
   const [memoryNonce, setMemoryNonce] = useState(0);
   // A goal Home asked Automations to repeat; the nonce reopens the editor.
   const [scheduleDraft, setScheduleDraft] = useState<{ goal: string; nonce: number } | null>(null);
+  // Schedules changed in Home or Automations. Every section stays mounted, so
+  // both reread their lists when it moves rather than showing a stale one.
+  const [schedulesNonce, setSchedulesNonce] = useState(0);
+  const schedulesChanged = useCallback(() => {
+    setSchedulesNonce((current) => current + 1);
+  }, []);
   // First-run tour follows the sidecar flag only when settings provides it.
   const [tourOpen, setTourOpen] = useState<boolean | null>(null);
   // Vault-reported inbox count for the rail badge.
@@ -528,6 +534,8 @@ export function App() {
                   setSection("automations");
                 }}
                 onAutomate={automate}
+                schedulesNonce={schedulesNonce}
+                onSchedulesChanged={schedulesChanged}
               />
             </ErrorBoundary>
           </div>
@@ -542,6 +550,8 @@ export function App() {
                   settings={settings}
                   onOpenRun={openRun}
                   draftRequest={scheduleDraft}
+                  schedulesNonce={schedulesNonce}
+                  onSchedulesChanged={schedulesChanged}
                 />
               )}
             </ErrorBoundary>

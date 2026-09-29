@@ -1,5 +1,5 @@
 import type { SettingsResponse, SpaceResponse } from "@agentbase/schemas";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import * as api from "../lib/api";
 import { useFetched } from "../state/useFetched";
@@ -20,15 +20,28 @@ export interface AutomationsViewProps {
   onOpenRun?: ((runId: string) => void) | undefined;
   /** A goal to open a new schedule with, from Home's "Make this recurring". */
   draftRequest?: { goal: string; nonce: number } | null | undefined;
+  /** Moves when schedules change elsewhere, so this page rereads them. */
+  schedulesNonce?: number | undefined;
+  /** This page changed the schedules; Home rereads its strip. */
+  onSchedulesChanged?: (() => void) | undefined;
 }
 
 const NONE: never[] = [];
 
-export function AutomationsView({ space, settings, onOpenRun, draftRequest }: AutomationsViewProps) {
+export function AutomationsView({
+  space,
+  settings,
+  onOpenRun,
+  draftRequest,
+  schedulesNonce = 0,
+  onSchedulesChanged,
+}: AutomationsViewProps) {
   const load = useCallback(() => api.listSchedules(space.id), [space.id]);
   const schedules = useFetched(load, NONE);
-  // Remount the list after the pipeline turns on, so it rereads its rows.
-  const [generation, setGeneration] = useState(0);
+  const { reload } = schedules;
+  useEffect(() => {
+    if (schedulesNonce > 0) reload();
+  }, [schedulesNonce, reload]);
   const [notice, setNotice] = useState<string | null>(null);
   const runCap = space.max_run_cost_micros ?? settings?.settings.max_run_cost_micros ?? null;
 
@@ -56,15 +69,17 @@ export function AutomationsView({ space, settings, onOpenRun, draftRequest }: Au
                 : "The pipeline is on.",
             );
             schedules.reload();
-            setGeneration((current) => current + 1);
+            onSchedulesChanged?.();
           }}
         />
         <Schedules
-          key={`${space.id}:${String(generation)}`}
+          key={space.id}
           space={space}
           settings={settings}
           onOpenRun={onOpenRun}
           draftRequest={draftRequest}
+          reloadNonce={schedulesNonce}
+          onChanged={onSchedulesChanged}
         />
       </div>
     </div>

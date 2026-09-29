@@ -43,6 +43,10 @@ export interface HomeViewProps {
   onOpenAutomations?: (() => void) | undefined;
   /** Open Automations with a new schedule for this goal ("" for a blank one). */
   onAutomate?: ((goal: string) => void) | undefined;
+  /** Moves when schedules change elsewhere, so the strip rereads them. */
+  schedulesNonce?: number | undefined;
+  /** Home changed the schedules (the pipeline turned on). */
+  onSchedulesChanged?: (() => void) | undefined;
 }
 
 const NO_SCHEDULES: ScheduleResponse[] = [];
@@ -74,6 +78,8 @@ export function HomeView({
   runCapMicros = null,
   onOpenAutomations,
   onAutomate,
+  schedulesNonce = 0,
+  onSchedulesChanged,
 }: HomeViewProps) {
   const [goal, setGoal] = useState("");
   const [stepThrough, setStepThrough] = useState(false);
@@ -84,6 +90,11 @@ export function HomeView({
     [spaceId],
   );
   const schedules = useFetched(loadSchedules, NO_SCHEDULES);
+  const { reload: reloadSchedules } = schedules;
+  // Schedules changed in Automations: reread the strip.
+  useEffect(() => {
+    if (schedulesNonce > 0) reloadSchedules();
+  }, [schedulesNonce, reloadSchedules]);
   const [starting, setStarting] = useState(false);
   const [retrieving, setRetrieving] = useState(false);
   const [retrieval, setRetrieval] = useState<SearchHit[] | null>(null);
@@ -243,6 +254,7 @@ export function HomeView({
                     : "The pipeline is on.",
                 );
                 schedules.reload();
+                onSchedulesChanged?.();
               }}
             />
           )}

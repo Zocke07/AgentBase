@@ -132,7 +132,9 @@ describe("Schedules", () => {
     const note = screen.getByTestId("schedules-policy");
     expect(note.textContent).toContain("calls low-risk tools without asking");
     expect(note.textContent).toContain("always asks before run_shell");
-    expect(note.textContent).toContain("expires after 120 seconds and the run carries on without that call");
+    expect(note.textContent).toContain(
+      "a question nobody answers expires after 120 seconds, so the run carries on without that call",
+    );
     expect(note.textContent).toContain("stops at 20 steps per agent, 5 agents, 900 seconds");
   });
 
@@ -229,6 +231,25 @@ describe("Schedules", () => {
     expect(mocked.createSchedule).toHaveBeenCalledWith(
       expect.objectContaining({ cadence: { kind: "after", schedule_id: "sched-1" } }),
     );
+  });
+
+  it("rereads the list when schedules change elsewhere, and says when it changed one", async () => {
+    const onChanged = vi.fn();
+    const { rerender } = render(
+      <Schedules space={lab} settings={settingsWith(["low"])} reloadNonce={0} onChanged={onChanged} />,
+    );
+    const row = await screen.findByTestId("schedule-sched-1");
+    const reads = mocked.listSchedules.mock.calls.length;
+
+    rerender(<Schedules space={lab} settings={settingsWith(["low"])} reloadNonce={1} onChanged={onChanged} />);
+    await waitFor(() => {
+      expect(mocked.listSchedules.mock.calls.length).toBe(reads + 1);
+    });
+
+    await userEvent.click(within(row).getByRole("checkbox", { name: "Morning digest enabled" }));
+    await waitFor(() => {
+      expect(onChanged).toHaveBeenCalled();
+    });
   });
 
   it("opens a new schedule with the goal it was asked to repeat", async () => {

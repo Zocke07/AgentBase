@@ -39,9 +39,9 @@ export const PIPELINE_SCHEDULE_IDS: readonly string[] = [
   "ebc6a514-9f7d-4a0e-9c25-4d8b6fb0de55",
 ];
 
-/** The seeded pipeline schedules still present in a space's list. */
+/** The seeded pipeline schedules still present in a space's list, in stage order. */
 export function pipelineOf(schedules: readonly ScheduleResponse[]): ScheduleResponse[] {
-  return schedules.filter((row) => PIPELINE_SCHEDULE_IDS.includes(row.id));
+  return PIPELINE_SCHEDULE_IDS.flatMap((id) => schedules.filter((row) => row.id === id));
 }
 
 /** Whether a space holds the seeded pipeline with none of it switched on yet. */
