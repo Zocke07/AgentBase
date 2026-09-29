@@ -91,6 +91,7 @@ function home(props: Partial<HomeViewProps> = {}) {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   useRunList.getState().reset();
   useRoster.getState().reset();
   useRunList.setState({ spaceId: "space-main" });
@@ -483,6 +484,36 @@ describe("working on its own", () => {
       "config/limits.json",
     ]);
     expect((await screen.findByRole("status")).textContent).toContain("The pipeline is on");
+  });
+
+  it("turns on what it can when one stage refuses, and names that stage", async () => {
+    const user = userEvent.setup();
+    const pipeline = PIPELINE_SCHEDULE_IDS.map((id, index) => stage(id, `Stage ${String(index)}`));
+    mocked.listSchedules.mockResolvedValue(pipeline);
+    // A case-variant of a template's file is the same file on Windows and macOS.
+    mocked.listFiles.mockResolvedValue({
+      files: [
+        { path: "Config/Watchlist.json", size: 10, updated_at: "" },
+        { path: "config/sources.json", size: 10, updated_at: "" },
+        { path: "config/limits.json", size: 10, updated_at: "" },
+      ],
+    });
+    mocked.updateSchedule.mockImplementation((id) =>
+      id === PIPELINE_SCHEDULE_IDS[1]
+        ? Promise.reject(new Error("there is no schedule with that id to follow"))
+        : Promise.resolve({ ...stage(id, "x", true) }),
+    );
+    home({ space: main });
+
+    await user.click(await screen.findByTestId("pipeline-turn-on"));
+
+    await waitFor(() => {
+      expect(mocked.updateSchedule).toHaveBeenCalledTimes(5);
+    });
+    expect(mocked.writeFile).not.toHaveBeenCalled();
+    const notice = (await screen.findByRole("status")).textContent;
+    expect(notice).toContain("Part of the pipeline is on");
+    expect(notice).toContain("Stage 1 (there is no schedule with that id to follow)");
   });
 
   it("tells the shell it changed the schedules, so Automations rereads them", async () => {

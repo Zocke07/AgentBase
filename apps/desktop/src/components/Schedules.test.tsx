@@ -265,6 +265,27 @@ describe("Schedules", () => {
     });
   });
 
+  it("starts New schedule blank after a repeated goal was handled", async () => {
+    render(
+      <Schedules space={lab} settings={settingsWith(["low"])} draftRequest={{ goal: "Old goal.", nonce: 1 }} />,
+    );
+    await screen.findByTestId("schedule-editor");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "New schedule" }));
+    expect(screen.getByTestId<HTMLTextAreaElement>("schedule-goal").value).toBe("");
+  });
+
+  it("offers no missed-time choice for a stage, which has no time of its own", async () => {
+    render(<Schedules space={lab} settings={settingsWith(["low"])} />);
+    await screen.findByTestId("schedule-sched-1");
+
+    await userEvent.click(screen.getByRole("button", { name: "New schedule" }));
+    expect(screen.getByTestId("schedule-missed-run")).toBeDefined();
+    await userEvent.click(screen.getByTestId("schedule-kind-after"));
+    expect(screen.queryByTestId("schedule-missed-run")).toBeNull();
+  });
+
   it("opens a new schedule with the goal it was asked to repeat", async () => {
     render(
       <Schedules

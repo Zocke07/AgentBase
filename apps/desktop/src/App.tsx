@@ -52,14 +52,19 @@ const IDLE_REFRESH_MS = 30_000;
 const FIRST_LOAD_PATIENCE_MS = 10_000;
 
 export function App() {
-  const [status, setStatus] = useState<SidecarStatus>({ kind: "connecting", attempt: 0 });
+  const [status, setStatus] = useState<SidecarStatus>({
+    kind: "connecting",
+    attempt: 0,
+  });
   const [section, setSection] = useState<Section>("home");
   const [budget, setBudget] = useState<BudgetResponse | null>(null);
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
   // The start screen's middle stage: the first settings read has settled.
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [verified, setVerified] = useState<VerifyResponse | null>(null);
-  const [pendingApprovals, setPendingApprovals] = useState<ApprovalResponse[]>([]);
+  const [pendingApprovals, setPendingApprovals] = useState<ApprovalResponse[]>(
+    [],
+  );
   // Retain open run across section changes and external open requests.
   const [runId, setRunId] = useState<string | null>(null);
   // Vault-open request; nonce distinguishes repeated paths.
@@ -72,7 +77,10 @@ export function App() {
   // Bump after a run changes memory status to reload vault inbox.
   const [memoryNonce, setMemoryNonce] = useState(0);
   // A goal Home asked Automations to repeat; the nonce reopens the editor.
-  const [scheduleDraft, setScheduleDraft] = useState<{ goal: string; nonce: number } | null>(null);
+  const [scheduleDraft, setScheduleDraft] = useState<{
+    goal: string;
+    nonce: number;
+  } | null>(null);
   // Schedules changed in Home or Automations. Every section stays mounted, so
   // both reread their lists when it moves rather than showing a stale one.
   const [schedulesNonce, setSchedulesNonce] = useState(0);
@@ -84,7 +92,10 @@ export function App() {
   // Vault-reported inbox count for the rail badge.
   const [inboxCount, setInboxCount] = useState(0);
   // Post-startup transport failure leaves current window content underneath.
-  const [lost, setLost] = useState<Exclude<SidecarStatus, { kind: "ready" }> | null>(null);
+  const [lost, setLost] = useState<Exclude<
+    SidecarStatus,
+    { kind: "ready" }
+  > | null>(null);
   const inFlight = useRef<AbortController | null>(null);
 
   // Per-window, browser-persisted theme applied to the document root.
@@ -142,14 +153,19 @@ export function App() {
     void api
       .listApprovals()
       .then((all) => {
-        setPendingApprovals(all.filter((approval) => approval.status === "pending"));
+        setPendingApprovals(
+          all.filter((approval) => approval.status === "pending"),
+        );
       })
       .catch(() => undefined);
   }, []);
 
   const refreshWorkspace = useCallback(() => {
     // Meter and preflight follow the selected space.
-    void api.getBudget(spaceId ?? undefined).then(setBudget).catch(() => undefined);
+    void api
+      .getBudget(spaceId ?? undefined)
+      .then(setBudget)
+      .catch(() => undefined);
     void api
       .getSettings()
       .then(setSettings)
@@ -157,7 +173,10 @@ export function App() {
       .finally(() => {
         setSettingsLoaded(true);
       });
-    void api.verifySettings(spaceId ?? undefined).then(setVerified).catch(() => undefined);
+    void api
+      .verifySettings(spaceId ?? undefined)
+      .then(setVerified)
+      .catch(() => undefined);
     refreshApprovals();
   }, [spaceId, refreshApprovals]);
 
@@ -187,19 +206,29 @@ export function App() {
         void reloadRuns();
         if (anyUnfinished) refreshWorkspace();
         else refreshApprovals();
+        // A scheduled stage may have fired: its next time and outcome moved.
+        schedulesChanged();
       },
       anyUnfinished ? BACKGROUND_REFRESH_MS : IDLE_REFRESH_MS,
     );
     return () => {
       clearInterval(timer);
     };
-  }, [status.kind, anyUnfinished, reloadRuns, refreshWorkspace, refreshApprovals]);
+  }, [
+    status.kind,
+    anyUnfinished,
+    reloadRuns,
+    refreshWorkspace,
+    refreshApprovals,
+    schedulesChanged,
+  ]);
 
   // A question waiting on someone is counted in the title, where a person
   // glancing at the window, or at a browser tab in development, can see it.
   const waitingCount = pendingApprovals.length;
   useEffect(() => {
-    document.title = waitingCount > 0 ? `(${String(waitingCount)}) AgentBase` : "AgentBase";
+    document.title =
+      waitingCount > 0 ? `(${String(waitingCount)}) AgentBase` : "AgentBase";
   }, [waitingCount]);
 
   // Refresh when the window regains visibility.
@@ -209,13 +238,14 @@ export function App() {
       if (!document.hidden) {
         void reloadRuns();
         refreshWorkspace();
+        schedulesChanged();
       }
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [status.kind, reloadRuns, refreshWorkspace]);
+  }, [status.kind, reloadRuns, refreshWorkspace, schedulesChanged]);
 
   // Prefer open-run log status over lagging table row.
   const loadedRunId = useRunStore((state) => state.runId);
@@ -255,20 +285,30 @@ export function App() {
     (id: string) => {
       if (id === spaceId) return;
       selectSpace(id);
-      // Open run belongs to its start space.
+      // Open run belongs to its start space, and so does a goal to repeat.
       setRunId(null);
       setInboxCount(0);
+      setScheduleDraft(null);
     },
     [spaceId, selectSpace],
   );
 
   const openNote = useCallback((path: string, heading: string | null) => {
-    setNoteRequest((current) => ({ path, heading, nonce: (current?.nonce ?? 0) + 1 }));
+    setNoteRequest((current) => ({
+      path,
+      heading,
+      nonce: (current?.nonce ?? 0) + 1,
+    }));
     setSection("knowledge");
   }, []);
 
   const openMemory = useCallback((path: string) => {
-    setNoteRequest((current) => ({ path, heading: null, nonce: (current?.nonce ?? 0) + 1, inbox: true }));
+    setNoteRequest((current) => ({
+      path,
+      heading: null,
+      nonce: (current?.nonce ?? 0) + 1,
+      inbox: true,
+    }));
     setSection("knowledge");
   }, []);
 
@@ -281,7 +321,8 @@ export function App() {
     setSection("automations");
   }, []);
 
-  const tourShowing = tourOpen ?? settings?.settings.onboarding_completed === false;
+  const tourShowing =
+    tourOpen ?? settings?.settings.onboarding_completed === false;
 
   const closeTour = useCallback(() => {
     setTourOpen(false);
@@ -320,7 +361,8 @@ export function App() {
         setDrawerOpen(false);
         return;
       }
-      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey)
+        return;
       if (event.key === "b" || event.key === "B") {
         event.preventDefault();
         toggleRail();
@@ -340,7 +382,8 @@ export function App() {
   }, [status.kind, drawer, toggleRail]);
 
   // Selected space's effective provider and model.
-  const effectiveProvider = space?.provider ?? settings?.settings.provider ?? null;
+  const effectiveProvider =
+    space?.provider ?? settings?.settings.provider ?? null;
   const effectiveModel = space?.model ?? settings?.settings.model ?? null;
 
   // Current start refusal or null; Home displays it and disables Start.
@@ -364,18 +407,29 @@ export function App() {
       window.clearTimeout(timer);
     };
   }, [status.kind]);
-  if (!opened && status.kind === "ready" && ((settingsLoaded && spacesLoaded) || impatient)) {
+  if (
+    !opened &&
+    status.kind === "ready" &&
+    ((settingsLoaded && spacesLoaded) || impatient)
+  ) {
     setOpened(true);
   }
 
   if (status.kind !== "ready" || !opened) {
     return (
-      <StartupScreen status={status} settingsLoaded={settingsLoaded} spacesLoaded={spacesLoaded} onRetry={connect} />
+      <StartupScreen
+        status={status}
+        settingsLoaded={settingsLoaded}
+        spacesLoaded={spacesLoaded}
+        onRetry={connect}
+      />
     );
   }
 
   return (
-    <div className={`app${railCollapsed || drawer ? " app--rail-collapsed" : ""}${drawer ? " app--drawer" : ""}`}>
+    <div
+      className={`app${railCollapsed || drawer ? " app--rail-collapsed" : ""}${drawer ? " app--drawer" : ""}`}
+    >
       {/* The first stop for Tab: past the sidebar, straight to the section. */}
       <a className="skip-link" href="#main-content">
         Skip to content
@@ -410,10 +464,15 @@ export function App() {
       <div className="app__main">
         {lost !== null && (
           <div className="app__lost" role="alert" data-testid="sidecar-lost">
-            {lost.kind === "connecting" ? <span className="spinner" aria-hidden="true" /> : <span className="dot dot--bad" />}
+            {lost.kind === "connecting" ? (
+              <span className="spinner" aria-hidden="true" />
+            ) : (
+              <span className="dot dot--bad" />
+            )}
             {lost.kind === "connecting" &&
               "Lost touch with AgentBase's engine. Reconnecting…"}
-            {lost.kind === "failed" && `AgentBase's engine stopped answering (${lost.message}).`}
+            {lost.kind === "failed" &&
+              `AgentBase's engine stopped answering (${lost.message}).`}
             {lost.kind === "failed" && (
               <button
                 type="button"
@@ -455,7 +514,8 @@ export function App() {
                   openRunWherever(first.run_id);
                 }}
               >
-                {pendingApprovals.length} approval{pendingApprovals.length === 1 ? "" : "s"} waiting
+                {pendingApprovals.length} approval
+                {pendingApprovals.length === 1 ? "" : "s"} waiting
               </button>
             )}
             {verified !== null && !verified.ok && (
@@ -463,7 +523,10 @@ export function App() {
               <button
                 type="button"
                 className="app__setup"
-                title={verified.reason ?? "Tasks cannot start until setup is finished."}
+                title={
+                  verified.reason ??
+                  "Tasks cannot start until setup is finished."
+                }
                 onClick={() => {
                   setSection("settings");
                 }}
@@ -478,13 +541,19 @@ export function App() {
                 data-testid="header-model"
               >
                 <span className="app__provider-dot" aria-hidden="true" />
-                {effectiveModel === null ? providerLabel(effectiveProvider) : modelLabel(effectiveModel)}
+                {effectiveModel === null
+                  ? providerLabel(effectiveProvider)
+                  : modelLabel(effectiveModel)}
               </span>
             )}
             <BudgetMeter
               budget={budget}
               spaceName={space?.name ?? null}
-              runLimitMicros={space?.max_run_cost_micros ?? settings?.settings.max_run_cost_micros ?? null}
+              runLimitMicros={
+                space?.max_run_cost_micros ??
+                settings?.settings.max_run_cost_micros ??
+                null
+              }
               onOpenUsage={() => {
                 setSection("usage");
               }}
@@ -492,7 +561,9 @@ export function App() {
                 setSection("settings");
                 // The section is shown on the next frame; then go to its limits.
                 requestAnimationFrame(() => {
-                  document.getElementById("settings-budget")?.scrollIntoView({ block: "start" });
+                  document
+                    .getElementById("settings-budget")
+                    ?.scrollIntoView({ block: "start" });
                 });
               }}
             />
@@ -529,7 +600,11 @@ export function App() {
                 }}
                 onOpenNote={openNote}
                 onWorkspaceChanged={refreshWorkspace}
-                runCapMicros={space?.max_run_cost_micros ?? settings?.settings.max_run_cost_micros ?? null}
+                runCapMicros={
+                  space?.max_run_cost_micros ??
+                  settings?.settings.max_run_cost_micros ??
+                  null
+                }
                 onOpenAutomations={() => {
                   setSection("automations");
                 }}
@@ -599,7 +674,11 @@ export function App() {
           </div>
           <div className="app__view" hidden={section !== "visualize"}>
             <ErrorBoundary label="the visualization workspace">
-              <VisualizationView key={space?.id ?? "loading"} space={space} active={section === "visualize"} />
+              <VisualizationView
+                key={space?.id ?? "loading"}
+                space={space}
+                active={section === "visualize"}
+              />
             </ErrorBoundary>
           </div>
           <div className="app__view" hidden={section !== "usage"}>
@@ -652,7 +731,13 @@ export function App() {
           </div>
         </main>
       </div>
-      <Tour open={tourShowing} section={section} onSection={setSection} onClose={closeTour} onDemo={demoRun} />
+      <Tour
+        open={tourShowing}
+        section={section}
+        onSection={setSection}
+        onClose={closeTour}
+        onDemo={demoRun}
+      />
     </div>
   );
 }

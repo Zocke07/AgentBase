@@ -74,33 +74,58 @@ function fromSchedule(schedule: ScheduleResponse): Draft {
     name: schedule.name,
     goal: schedule.goal,
     kind: cadence.kind,
-    at: cadence.kind === "daily" || cadence.kind === "weekly" ? cadence.at : BLANK.at,
-    weekdays: cadence.kind === "weekly" ? [...cadence.weekdays] : BLANK.weekdays,
-    everyHours: cadence.kind === "interval" ? String(cadence.every_hours) : BLANK.everyHours,
+    at:
+      cadence.kind === "daily" || cadence.kind === "weekly"
+        ? cadence.at
+        : BLANK.at,
+    weekdays:
+      cadence.kind === "weekly" ? [...cadence.weekdays] : BLANK.weekdays,
+    everyHours:
+      cadence.kind === "interval"
+        ? String(cadence.every_hours)
+        : BLANK.everyHours,
     after: cadence.kind === "after" ? cadence.schedule_id : BLANK.after,
     missed: schedule.missed ?? "run_on_launch",
     enabled: schedule.enabled ?? true,
-    seconds: schedule.max_run_seconds === null || schedule.max_run_seconds === undefined ? "" : String(schedule.max_run_seconds),
+    seconds:
+      schedule.max_run_seconds === null ||
+      schedule.max_run_seconds === undefined
+        ? ""
+        : String(schedule.max_run_seconds),
   };
 }
 
 /** Draft cadence or reason it is not yet valid. */
-function cadenceOf(draft: Draft): { cadence: Cadence } | { error: string; field: string } {
+function cadenceOf(
+  draft: Draft,
+): { cadence: Cadence } | { error: string; field: string } {
   if (draft.kind === "after") {
-    if (draft.after === "") return { error: "Pick the schedule this one follows.", field: "after" };
+    if (draft.after === "")
+      return { error: "Pick the schedule this one follows.", field: "after" };
     return { cadence: { kind: "after", schedule_id: draft.after } };
   }
   if (draft.kind === "interval") {
     const hours = Number(draft.everyHours);
     if (!/^\d+$/.test(draft.everyHours.trim()) || hours < 1 || hours > 168) {
-      return { error: "A whole number of hours from 1 to 168.", field: "everyHours" };
+      return {
+        error: "A whole number of hours from 1 to 168.",
+        field: "everyHours",
+      };
     }
     return { cadence: { kind: "interval", every_hours: hours } };
   }
-  if (!/^\d{2}:\d{2}$/.test(draft.at)) return { error: "A time of day, like 09:30.", field: "at" };
+  if (!/^\d{2}:\d{2}$/.test(draft.at))
+    return { error: "A time of day, like 09:30.", field: "at" };
   if (draft.kind === "weekly") {
-    if (draft.weekdays.length === 0) return { error: "Pick at least one day.", field: "weekdays" };
-    return { cadence: { kind: "weekly", at: draft.at, weekdays: [...draft.weekdays].sort((a, b) => a - b) } };
+    if (draft.weekdays.length === 0)
+      return { error: "Pick at least one day.", field: "weekdays" };
+    return {
+      cadence: {
+        kind: "weekly",
+        at: draft.at,
+        weekdays: [...draft.weekdays].sort((a, b) => a - b),
+      },
+    };
   }
   return { cadence: { kind: "daily", at: draft.at } };
 }
@@ -109,10 +134,15 @@ function cadenceOf(draft: Draft): { cadence: Cadence } | { error: string; field:
  * Risk levels that run without prompting, resolved as space policy narrowed by
  * app-wide policy.
  */
-function effectiveAutoApprove(space: SpaceResponse, settings: SettingsResponse | null): RiskLevel[] {
+function effectiveAutoApprove(
+  space: SpaceResponse,
+  settings: SettingsResponse | null,
+): RiskLevel[] {
   const appWide = settings?.settings.auto_approve ?? [];
   const own = space.auto_approve ?? null;
-  return own === null ? [...appWide] : own.filter((level) => appWide.includes(level));
+  return own === null
+    ? [...appWide]
+    : own.filter((level) => appWide.includes(level));
 }
 
 /** Strictness order; spaces may only move tools forward. */
@@ -122,8 +152,13 @@ const STRICTNESS: Record<ToolPolicy, number> = { allow: 0, ask: 1, deny: 2 };
  * Per-tool answers resolved by overlaying space answers and retaining stricter
  * app-wide policy.
  */
-function effectiveToolPolicies(space: SpaceResponse, settings: SettingsResponse | null): Record<string, ToolPolicy> {
-  const merged: Record<string, ToolPolicy> = { ...(settings?.settings.tool_policies ?? {}) };
+function effectiveToolPolicies(
+  space: SpaceResponse,
+  settings: SettingsResponse | null,
+): Record<string, ToolPolicy> {
+  const merged: Record<string, ToolPolicy> = {
+    ...(settings?.settings.tool_policies ?? {}),
+  };
   for (const [tool, wanted] of Object.entries(space.tool_policies ?? {})) {
     const above = merged[tool] ?? "ask";
     merged[tool] = STRICTNESS[wanted] >= STRICTNESS[above] ? wanted : above;
@@ -133,7 +168,9 @@ function effectiveToolPolicies(space: SpaceResponse, settings: SettingsResponse 
 
 /** "write_file and http_get" from a list of names. */
 function names(tools: string[]): string {
-  return tools.length <= 1 ? tools.join("") : `${tools.slice(0, -1).join(", ")} and ${tools[tools.length - 1] ?? ""}`;
+  return tools.length <= 1
+    ? tools.join("")
+    : `${tools.slice(0, -1).join(", ")} and ${tools[tools.length - 1] ?? ""}`;
 }
 
 /** What happens to a question nobody is there to answer, in the sidecar's terms. */
@@ -143,7 +180,14 @@ function expiryWords(seconds: number | null): string {
   return `expires after ${String(seconds)} seconds`;
 }
 
-export function Schedules({ space, settings, onOpenRun, draftRequest, reloadNonce = 0, onChanged }: SchedulesProps) {
+export function Schedules({
+  space,
+  settings,
+  onOpenRun,
+  draftRequest,
+  reloadNonce = 0,
+  onChanged,
+}: SchedulesProps) {
   const load = useCallback(() => api.listSchedules(space.id), [space.id]);
   const schedules = useFetched(load, NO_SCHEDULES);
   const { reload } = schedules;
@@ -152,7 +196,13 @@ export function Schedules({ space, settings, onOpenRun, draftRequest, reloadNonc
     if (reloadNonce > 0) reload();
   }, [reloadNonce, reload]);
   // Editor target: none, new schedule, or row ID.
-  const [editing, setEditing] = useState<{ kind: "none" } | { kind: "new" } | { kind: "row"; id: string }>({ kind: "none" });
+  // A new schedule carries its own starting goal: blank from the button, the
+  // repeated goal from a request, so an old request never fills a later form.
+  const [editing, setEditing] = useState<
+    | { kind: "none" }
+    | { kind: "new"; goal: string }
+    | { kind: "row"; id: string }
+  >({ kind: "none" });
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -161,20 +211,32 @@ export function Schedules({ space, settings, onOpenRun, draftRequest, reloadNonc
   const allowed = effectiveAutoApprove(space, settings);
   const policies = effectiveToolPolicies(space, settings);
   // High risk is never answered by policy, whatever an older setting says.
-  const always = Object.keys(policies).filter((tool) => policies[tool] === "allow" && tool !== "run_shell");
-  const never = Object.keys(policies).filter((tool) => policies[tool] === "deny");
+  const always = Object.keys(policies).filter(
+    (tool) => policies[tool] === "allow" && tool !== "run_shell",
+  );
+  const never = Object.keys(policies).filter(
+    (tool) => policies[tool] === "deny",
+  );
   const hosts = settings?.settings.auto_approve_hosts ?? [];
   const anyHost = hosts.includes("*");
   const fetchesByPolicy =
-    allowed.includes("medium") || always.includes("http_get") || always.includes("read_feed");
-  const questionSeconds = settings?.settings.unattended_question_seconds ?? null;
-  const runSeconds = space.max_run_seconds ?? settings?.settings.max_run_seconds ?? null;
-  const steps = space.max_steps_per_agent ?? settings?.settings.max_steps_per_agent ?? null;
-  const agentsPerRun = space.max_agents_per_run ?? settings?.settings.max_agents_per_run ?? null;
-  const runCap = space.max_run_cost_micros ?? settings?.settings.max_run_cost_micros ?? null;
+    allowed.includes("medium") ||
+    always.includes("http_get") ||
+    always.includes("read_feed");
+  const questionSeconds =
+    settings?.settings.unattended_question_seconds ?? null;
+  const runSeconds =
+    space.max_run_seconds ?? settings?.settings.max_run_seconds ?? null;
+  const steps =
+    space.max_steps_per_agent ?? settings?.settings.max_steps_per_agent ?? null;
+  const agentsPerRun =
+    space.max_agents_per_run ?? settings?.settings.max_agents_per_run ?? null;
+  const runCap =
+    space.max_run_cost_micros ?? settings?.settings.max_run_cost_micros ?? null;
   const unattended = allowed.length > 0 || always.length > 0;
   // A space set to answer nothing itself is the reason, not the app-wide choice.
-  const supervisedSpace = Array.isArray(space.auto_approve) && space.auto_approve.length === 0;
+  const supervisedSpace =
+    Array.isArray(space.auto_approve) && space.auto_approve.length === 0;
 
   // Run now opens the run it started; the list shows its outcome either way.
   const runNow = async (row: ScheduleResponse): Promise<string> => {
@@ -186,9 +248,13 @@ export function Schedules({ space, settings, onOpenRun, draftRequest, reloadNonc
   // A request to repeat a goal opens a new editor once per request, adjusted
   // while rendering rather than in an effect so it never shows a stale frame.
   const [handledDraft, setHandledDraft] = useState<number | null>(null);
-  if (draftRequest !== null && draftRequest !== undefined && draftRequest.nonce !== handledDraft) {
+  if (
+    draftRequest !== null &&
+    draftRequest !== undefined &&
+    draftRequest.nonce !== handledDraft
+  ) {
     setHandledDraft(draftRequest.nonce);
-    setEditing({ kind: "new" });
+    setEditing({ kind: "new", goal: draftRequest.goal });
     setNotice(null);
   }
 
@@ -207,7 +273,10 @@ export function Schedules({ space, settings, onOpenRun, draftRequest, reloadNonc
     }
   };
 
-  const editingRow = editing.kind === "row" ? (schedules.data.find((row) => row.id === editing.id) ?? null) : null;
+  const editingRow =
+    editing.kind === "row"
+      ? (schedules.data.find((row) => row.id === editing.id) ?? null)
+      : null;
 
   return (
     <section className="settings__section" data-testid="schedules">
@@ -218,7 +287,7 @@ export function Schedules({ space, settings, onOpenRun, draftRequest, reloadNonc
             type="button"
             className="button button--small"
             onClick={() => {
-              setEditing({ kind: "new" });
+              setEditing({ kind: "new", goal: "" });
               setNotice(null);
             }}
           >
@@ -227,9 +296,10 @@ export function Schedules({ space, settings, onOpenRun, draftRequest, reloadNonc
         )}
       </div>
       <p className="settings__hint">
-        A goal this space runs on its own at set times, or right after another schedule&apos;s run
-        completes, while AgentBase is open. A time that passes while the app is closed is run once at
-        the next launch or skipped, as each schedule says.
+        A goal this space runs on its own at set times, or right after another
+        schedule&apos;s run completes, while AgentBase is open. A time that
+        passes while the app is closed is run once at the next launch or
+        skipped, as each schedule says.
       </p>
       {space.archived === true && (
         <p className="settings__hint schedules__warning" role="status">
@@ -238,13 +308,24 @@ export function Schedules({ space, settings, onOpenRun, draftRequest, reloadNonc
       )}
       {/* What a run with nobody at the window will do here, read the way the
           sidecar reads it: levels, then answers by tool, hosts, then the limits. */}
-      <div className={unattended ? "schedules__readout" : "schedules__readout schedules__readout--warn"} data-testid="schedules-policy">
+      <div
+        className={
+          unattended
+            ? "schedules__readout"
+            : "schedules__readout schedules__readout--warn"
+        }
+        data-testid="schedules-policy"
+      >
         <p>
           <b>Unattended, a run here</b>{" "}
           {unattended
             ? `${[
-                allowed.length > 0 ? `calls ${allowed.join("- and ")}-risk tools without asking` : "",
-                always.length > 0 ? `runs ${names(always)} without asking whatever the level` : "",
+                allowed.length > 0
+                  ? `calls ${allowed.join("- and ")}-risk tools without asking`
+                  : "",
+                always.length > 0
+                  ? `runs ${names(always)} without asking whatever the level`
+                  : "",
                 fetchesByPolicy
                   ? anyHost
                     ? "fetches from any public site without asking"
@@ -255,14 +336,19 @@ export function Schedules({ space, settings, onOpenRun, draftRequest, reloadNonc
                 never.length > 0 ? `is refused ${names(never)}` : "",
               ]
                 .filter((part) => part !== "")
-                .join(", ")}. ${never.includes("run_shell") ? "A" : "It always asks before run_shell, and a"} question nobody answers ${expiryWords(questionSeconds)}, so the run carries on without that call.`
+                .join(
+                  ", ",
+                )}. ${never.includes("run_shell") ? "A" : "It always asks before run_shell, and a"} question nobody answers ${expiryWords(questionSeconds)}, so the run carries on without that call.`
             : `asks before every tool call${never.length > 0 ? ` (and is refused ${names(never)})` : ""}, and a question nobody answers ${expiryWords(questionSeconds)}, so the run does little on its own.`}
           {steps !== null && agentsPerRun !== null && runSeconds !== null && (
             <>
               {" "}
-              It stops at {String(steps)} steps per agent, {String(agentsPerRun)} agents,{" "}
-              {String(runSeconds)} seconds{runCap !== null && runCap > 0 && ` or before spending $${(runCap / 1_000_000).toFixed(2)}`},
-              unless a schedule sets its own time limit below.
+              It stops at {String(steps)} steps per agent,{" "}
+              {String(agentsPerRun)} agents, {String(runSeconds)} seconds
+              {runCap !== null &&
+                runCap > 0 &&
+                ` or before spending $${(runCap / 1_000_000).toFixed(2)}`}
+              , unless a schedule sets its own time limit below.
             </>
           )}
         </p>
@@ -291,16 +377,22 @@ export function Schedules({ space, settings, onOpenRun, draftRequest, reloadNonc
         </p>
       )}
 
-      {schedules.data.length === 0 && editing.kind === "none" && !schedules.loading && (
-        <p className="schedules__empty">No schedules yet.</p>
-      )}
+      {schedules.data.length === 0 &&
+        editing.kind === "none" &&
+        !schedules.loading && (
+          <p className="schedules__empty">No schedules yet.</p>
+        )}
 
       {schedules.data.length > 0 && (
         <ul className="schedules__list">
           {schedules.data.map((row) => {
             const busy = busyId === row.id;
             return (
-              <li key={row.id} className={`schedule${row.enabled === false ? " schedule--off" : ""}`} data-testid={`schedule-${row.id}`}>
+              <li
+                key={row.id}
+                className={`schedule${row.enabled === false ? " schedule--off" : ""}`}
+                data-testid={`schedule-${row.id}`}
+              >
                 <div className="schedule__main">
                   <div className="schedule__title">
                     <label className="schedule__switch">
@@ -327,37 +419,49 @@ export function Schedules({ space, settings, onOpenRun, draftRequest, reloadNonc
                       "Off"
                     ) : row.cadence.kind === "after" ? (
                       "Starts when the stage before it completes"
-                    ) : row.next_run_at !== null && row.next_run_at !== undefined ? (
+                    ) : row.next_run_at !== null &&
+                      row.next_run_at !== undefined ? (
                       <>Next: {whenLabel(row.next_run_at)}</>
                     ) : (
                       "No next time"
                     )}
-                    {row.last_run_at !== null && row.last_run_at !== undefined && (
-                      <>
-                        {" · Last: "}
-                        {whenLabel(row.last_run_at)}
-                        {row.last_run_id !== null && row.last_run_id !== undefined && onOpenRun !== undefined && (
-                          <>
-                            {" "}
-                            <button
-                              type="button"
-                              className="link-button"
-                              onClick={() => {
-                                onOpenRun(row.last_run_id ?? "");
-                              }}
-                            >
-                              open the run
-                            </button>
-                          </>
-                        )}
-                      </>
-                    )}
-                    {row.last_outcome !== null && row.last_outcome !== undefined && (
-                      <span className="schedule__outcome"> · {row.last_outcome}</span>
-                    )}
-                    {row.max_run_seconds !== null && row.max_run_seconds !== undefined && (
-                      <span className="schedule__limit"> · its runs get {String(row.max_run_seconds)} seconds</span>
-                    )}
+                    {row.last_run_at !== null &&
+                      row.last_run_at !== undefined && (
+                        <>
+                          {" · Last: "}
+                          {whenLabel(row.last_run_at)}
+                          {row.last_run_id !== null &&
+                            row.last_run_id !== undefined &&
+                            onOpenRun !== undefined && (
+                              <>
+                                {" "}
+                                <button
+                                  type="button"
+                                  className="link-button"
+                                  onClick={() => {
+                                    onOpenRun(row.last_run_id ?? "");
+                                  }}
+                                >
+                                  open the run
+                                </button>
+                              </>
+                            )}
+                        </>
+                      )}
+                    {row.last_outcome !== null &&
+                      row.last_outcome !== undefined && (
+                        <span className="schedule__outcome">
+                          {" "}
+                          · {row.last_outcome}
+                        </span>
+                      )}
+                    {row.max_run_seconds !== null &&
+                      row.max_run_seconds !== undefined && (
+                        <span className="schedule__limit">
+                          {" "}
+                          · its runs get {String(row.max_run_seconds)} seconds
+                        </span>
+                      )}
                   </p>
                 </div>
                 <div className="schedule__actions">
@@ -392,7 +496,8 @@ export function Schedules({ space, settings, onOpenRun, draftRequest, reloadNonc
                           setConfirming(null);
                           void act(row.id, async () => {
                             await api.deleteSchedule(row.id);
-                            if (editing.kind === "row" && editing.id === row.id) setEditing({ kind: "none" });
+                            if (editing.kind === "row" && editing.id === row.id)
+                              setEditing({ kind: "none" });
                             return `Deleted ${row.name}.`;
                           });
                         }}
@@ -430,11 +535,17 @@ export function Schedules({ space, settings, onOpenRun, draftRequest, reloadNonc
 
       {editing.kind !== "none" && (
         <ScheduleEditor
-          key={editing.kind === "row" ? editing.id : `new-${String(draftRequest?.nonce ?? 0)}`}
+          key={
+            editing.kind === "row"
+              ? editing.id
+              : `new-${String(handledDraft ?? 0)}`
+          }
           spaceId={space.id}
           existing={editingRow}
-          others={schedules.data.filter((row) => editing.kind !== "row" || row.id !== editing.id)}
-          initialGoal={editing.kind === "new" ? (draftRequest?.goal ?? "") : ""}
+          others={schedules.data.filter(
+            (row) => editing.kind !== "row" || row.id !== editing.id,
+          )}
+          initialGoal={editing.kind === "new" ? editing.goal : ""}
           onCancel={() => {
             setEditing({ kind: "none" });
           }}
@@ -471,11 +582,16 @@ function ScheduleEditor({
   onSaved: (saved: ScheduleResponse, created: boolean) => void;
 }) {
   const [draft, setDraft] = useState<Draft>(() =>
-    existing === null ? { ...BLANK, goal: initialGoal } : fromSchedule(existing),
+    existing === null
+      ? { ...BLANK, goal: initialGoal }
+      : fromSchedule(existing),
   );
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
   const [saving, setSaving] = useState(false);
-  const [preview, setPreview] = useState<{ summary: string; next: string[] } | null>(null);
+  const [preview, setPreview] = useState<{
+    summary: string;
+    next: string[];
+  } | null>(null);
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => {
     setDraft((prior) => ({ ...prior, [key]: value }));
@@ -485,7 +601,8 @@ function ScheduleEditor({
 
   // Request sidecar local-zone cadence preview after each change.
   const shaped = cadenceOf(draft);
-  const previewKey = "cadence" in shaped ? JSON.stringify(shaped.cadence) : null;
+  const previewKey =
+    "cadence" in shaped ? JSON.stringify(shaped.cadence) : null;
   useEffect(() => {
     if (previewKey === null) return undefined;
     let live = true;
@@ -519,7 +636,10 @@ function ScheduleEditor({
     }
     const seconds = draft.seconds.trim();
     if (seconds !== "" && (!/^\d+$/.test(seconds) || Number(seconds) < 1)) {
-      setErrors({ max_run_seconds: "A whole number of seconds, 1 or more, or blank to use the space's limit." });
+      setErrors({
+        max_run_seconds:
+          "A whole number of seconds, 1 or more, or blank to use the space's limit.",
+      });
       return;
     }
     setSaving(true);
@@ -538,8 +658,12 @@ function ScheduleEditor({
           : await api.updateSchedule(existing.id, body);
       onSaved(saved, existing === null);
     } catch (failure) {
-      if (failure instanceof ApiError) setErrors({ [failure.field ?? FORM]: failure.message });
-      else setErrors({ [FORM]: failure instanceof Error ? failure.message : String(failure) });
+      if (failure instanceof ApiError)
+        setErrors({ [failure.field ?? FORM]: failure.message });
+      else
+        setErrors({
+          [FORM]: failure instanceof Error ? failure.message : String(failure),
+        });
     } finally {
       setSaving(false);
     }
@@ -582,7 +706,11 @@ function ScheduleEditor({
 
       <fieldset className="editor__tools schedule-editor__cadence">
         <legend>When</legend>
-        <div className="schedule-editor__kinds" role="radiogroup" aria-label="Cadence">
+        <div
+          className="schedule-editor__kinds"
+          role="radiogroup"
+          aria-label="Cadence"
+        >
           {(
             [
               ["daily", "Every day"],
@@ -624,7 +752,8 @@ function ScheduleEditor({
               ))}
             </select>
             <span className="editor__hint">
-              A failed or stopped run ends the chain there, and says so on the next stage.
+              A failed or stopped run ends the chain there, and says so on the
+              next stage.
             </span>
             <FieldError message={errorFor("after")} />
           </label>
@@ -649,14 +778,19 @@ function ScheduleEditor({
             {WEEKDAYS.map((name, day) => {
               const on = draft.weekdays.includes(day);
               return (
-                <label key={name} className={`schedule-editor__day${on ? " schedule-editor__day--on" : ""}`}>
+                <label
+                  key={name}
+                  className={`schedule-editor__day${on ? " schedule-editor__day--on" : ""}`}
+                >
                   <input
                     type="checkbox"
                     checked={on}
                     onChange={() => {
                       set(
                         "weekdays",
-                        on ? draft.weekdays.filter((item) => item !== day) : [...draft.weekdays, day],
+                        on
+                          ? draft.weekdays.filter((item) => item !== day)
+                          : [...draft.weekdays, day],
                       );
                     }}
                     data-testid={`schedule-day-${String(day)}`}
@@ -693,33 +827,37 @@ function ScheduleEditor({
         <FieldError message={errorFor("cadence")} />
       </fieldset>
 
-      <fieldset className="editor__tools" hidden={draft.kind === "after"}>
-        <legend>If the app is closed at that time</legend>
-        <label className="editor__tool">
-          <input
-            type="radio"
-            name="missed"
-            checked={draft.missed === "run_on_launch"}
-            onChange={() => {
-              set("missed", "run_on_launch");
-            }}
-            data-testid="schedule-missed-run"
-          />
-          <span>Run it once when AgentBase next opens</span>
-        </label>
-        <label className="editor__tool">
-          <input
-            type="radio"
-            name="missed"
-            checked={draft.missed === "skip"}
-            onChange={() => {
-              set("missed", "skip");
-            }}
-            data-testid="schedule-missed-skip"
-          />
-          <span>Skip it and wait for the next time</span>
-        </label>
-      </fieldset>
+      {/* A stage has no time of its own to miss. Not `hidden`: the class sets
+          `display`, which would win over it. */}
+      {draft.kind !== "after" && (
+        <fieldset className="editor__tools">
+          <legend>If the app is closed at that time</legend>
+          <label className="editor__tool">
+            <input
+              type="radio"
+              name="missed"
+              checked={draft.missed === "run_on_launch"}
+              onChange={() => {
+                set("missed", "run_on_launch");
+              }}
+              data-testid="schedule-missed-run"
+            />
+            <span>Run it once when AgentBase next opens</span>
+          </label>
+          <label className="editor__tool">
+            <input
+              type="radio"
+              name="missed"
+              checked={draft.missed === "skip"}
+              onChange={() => {
+                set("missed", "skip");
+              }}
+              data-testid="schedule-missed-skip"
+            />
+            <span>Skip it and wait for the next time</span>
+          </label>
+        </fieldset>
+      )}
 
       <label className="editor__field schedule-editor__limit">
         <span>Time limit for its runs (seconds)</span>
@@ -735,7 +873,8 @@ function ScheduleEditor({
           data-testid="schedule-seconds"
         />
         <span className="editor__hint">
-          Only this schedule's runs get this long; runs you start here keep the space's limit.
+          Only this schedule's runs get this long; runs you start here keep the
+          space's limit.
         </span>
         <FieldError message={errorFor("max_run_seconds")} />
       </label>
@@ -759,11 +898,25 @@ function ScheduleEditor({
       )}
 
       <div className="editor__actions">
-        <button type="button" className="button" onClick={onCancel} disabled={saving}>
+        <button
+          type="button"
+          className="button"
+          onClick={onCancel}
+          disabled={saving}
+        >
           Cancel
         </button>
-        <button type="button" className="button button--primary" disabled={saving} onClick={() => void save()}>
-          {saving ? "Saving…" : existing === null ? "Create schedule" : "Save schedule"}
+        <button
+          type="button"
+          className="button button--primary"
+          disabled={saving}
+          onClick={() => void save()}
+        >
+          {saving
+            ? "Saving…"
+            : existing === null
+              ? "Create schedule"
+              : "Save schedule"}
         </button>
       </div>
     </div>
