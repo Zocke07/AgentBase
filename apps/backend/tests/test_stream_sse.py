@@ -418,6 +418,8 @@ def test_the_fake_run_speaks_the_reducers_dialect(client: TestClient) -> None:
     requested = next(e for e in events if e["type"] == "approval.requested")
     assert requested["payload"]["automatic"] is True
     assert resolved["payload"]["automatic"] is True
+    approved = next(e for e in events if e["type"] == "tool.approved")
+    assert approved["payload"]["summary"] == "read the file q3.md"
     started = next(e for e in events if e["type"] == "run.started")
     assert started["payload"]["approval"]["levels"] == ["low", "medium"]
     result = next(e for e in events if e["type"] == "tool.result")

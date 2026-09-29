@@ -123,6 +123,7 @@ _FAKE_RUN_SCRIPT: Final[tuple[tuple[EventType, str | None, dict[str, Any]], ...]
             "call_id": "demo-1",
             "approval_id": "demo-approval-1",
             "automatic": True,
+            "summary": "read the file q3.md",
         },
     ),
     (
