@@ -7,16 +7,20 @@
 Choose a space and open **Agents**. Its enabled definitions are workers the
 supervisor can delegate to; the orchestrator's supervisor is not editable here.
 
-Fresh-install **Main** contains a ten-agent investment-research pipeline.
-Built-ins are editable, disableable, and movable but not deletable. They
-exchange files in `config/`, `raw/`, `knowledge/`, `portfolio/`, `theses/`,
-`risk/`, `decisions/`, and `scores/`; read their prompts and create
-`config/watchlist.json`, `config/sources.json`, and `config/limits.json`
-before the first collector run.
+### The investment roster
+
+Fresh-install **Main** contains a ten-agent investment-research pipeline, and
+five schedules that run it on its own once you turn them on (see
+[Automations](2_running_tasks.md#automations-work-on-its-own)). Built-ins are
+editable, disableable, and movable but not deletable. They exchange files in
+`config/`, `raw/`, `knowledge/`, `portfolio/`, `theses/`, `risk/`,
+`decisions/`, and `scores/`; **Turn on the daily pipeline** creates any of
+`config/watchlist.json`, `config/sources.json`, and `config/limits.json` that
+is missing from its template before the first collector run.
 
 | Agent | Model | What it does | Tools |
 |---|---|---|---|
-| `news-scanner` | Haiku | Collects news and social discussion about watchlist tickers into `raw/news-*.json`. No analysis. | `read_feed`, `read_file`, `write_file` |
+| `news-scanner` | Haiku | Collects news about watchlist tickers into `raw/news-*.json`. No analysis. | `read_feed`, `read_file`, `write_file` |
 | `research-librarian` | Sonnet | Writes durable concept and company notes under `knowledge/`, sourced to filings. | `read_file`, `list_dir`, `search_knowledge`, `write_file`, `propose_memory` |
 | `market-movers` | Haiku | Collects prices, volume and gainers/losers into `raw/movers-*.json`. Numbers only. | `http_get`, `read_file`, `write_file` |
 | `event-calendar` | Haiku | Builds a 30-day calendar of earnings, macro releases, corporate events and personnel changes. | `http_get`, `read_file`, `write_file` |
@@ -34,9 +38,13 @@ in an update unless you had edited it. To run the roster on OpenAI, switch the
 space's provider in Space settings and keep its agents ticked: collectors move
 to GPT-6 Luna, analysts and the decision agent to GPT-6 Sol.
 Prompts treat fetched pages and `raw/` files as untrusted; no built-in uses
-shell. Their **Calls this agent may make without asking** narrows, never
-widens, app policy (collectors: low/medium; analysts: low), so no work runs
-unattended until Settings enables a level.
+shell. Each built-in's **Calls this agent may make without asking** names low
+and medium, so under the default **Autonomous** policy every stage reads,
+writes its own output and fetches from the listed sites by itself. It narrows,
+never widens, the app policy: on an install that still asks about everything,
+nothing runs unattended until Settings enables a level. (An update moved the
+analysts, risk manager, decision and review agents from low to low and medium,
+unless you had changed their levels or tools.)
 
 Before the first collector run, create its configuration under **Knowledge →
 Data files**. An empty list offers JSON-validated templates for

@@ -3,15 +3,16 @@
 **Version covered: 0.4.8.** For installation from source and development, use the
 [Developer Guide](../developer_guide/README.md).
 
-AgentBase runs a team of AI agents on your computer. You give a task to a
-supervisor, which delegates it to enabled agents. The graph and event log show
-their work live and let you replay it.
+AgentBase runs a team of AI agents on your computer that work on their own. A
+space's automations run goals at set times or one after another while the app
+is open; a task you want done once goes to a supervisor, which delegates it to
+enabled agents. The graph and event log show every step, live or replayed.
 
 A **space** groups agents, a folder for their files, and run settings. Its
 folder is also a Markdown knowledge vault shared by people and agents. The
-left rail shows **Home**, **Runs**, **Agents**, **Knowledge**, **Visualize**,
-**Usage**, and **Space settings** for the selected space; Ctrl/Cmd+1 to 8 jump
-to those sections in order. Badges on **Runs** or **Knowledge** show waiting
+left rail shows **Home**, **Automations**, **Runs**, **Agents**, **Knowledge**,
+**Visualize**, **Usage**, and **Space settings** for the selected space;
+Ctrl/Cmd+1 to 9 jump to those sections and Settings in order. Badges on **Runs** or **Knowledge** show waiting
 approvals or memories. **Settings** at the bottom controls
 defaults, model access, API keys, the shared budget, Discord, appearance, and
 the version. The first launch opens a short tour that you can replay from
@@ -20,9 +21,11 @@ Settings.
 Orchestration, tool execution, and the run database stay on your machine. Cloud
 models receive the prompts and tool results used in a run. Network tools can
 contact public sites, shell commands can use the network, and Discord can send
-run updates. Every file, shell, and network tool passes the approval gate; a
-fresh install asks before each call. You can automatically allow selected risk
-levels.
+run updates. Every file, shell, and network tool passes the approval gate. On a
+fresh install the gate answers reads, writes inside the space and fetches from
+listed sites itself and records why; a shell command always asks, and so does
+anything else the policy does not answer. An upgraded install keeps asking
+before each call until you choose **Autonomous**.
 
 ## Contents
 

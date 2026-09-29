@@ -21,6 +21,19 @@ future changes do not relocate users' data or disconnect their stored keys.
   transition; current AgentBase values take precedence.
 - Phases 0 through 9 and the spaces redesign are implemented. Do not restart
   Phase 0 or replace completed work from an earlier phase.
+- **Autonomy first** (BUILD_SPEC Phase 16, 2026-09-29, on branch
+  `autonomy-first`, not yet released): autonomous workflows are the primary
+  way a space runs. Fresh installs answer low and medium risk by policy;
+  migration 018 pins upgraded installs to the answers they had. High risk
+  (`run_shell`) is never answered by policy nor kept as a yes for the run
+  (017). Agent writes to `memory/`, hidden folders and memory-typed notes are
+  refused by the sandbox; a policy fetch reaches listed hosts only
+  (`auto_approve_hosts`); the per-run cost ceiling is projected; a scheduled
+  run's unanswered question expires after `unattended_question_seconds` and
+  the run carries on; `run.started` records the policy and each automatic
+  answer names its `rule`. Manual execution is **Run once** with **Step
+  through** (`supervised`). Memories keep the inbox, the seeded pipeline ships
+  switched off (019), and there is still no tray or service mode.
 - The current release line is **0.4.8**: a steady run canvas, a folding event
   log, named start-up stages, a spending breakdown in the header, and spaces
   that own their provider with tier-mapped model switches and Opus 5.5 and
@@ -44,8 +57,8 @@ future changes do not relocate users' data or disconnect their stored keys.
   archive made Gatekeeper report that the app was damaged; the corrected
   bundle has a complete code seal. Check the release page and tag workflow
   for publication status and cross-platform CI evidence.
-- The UI has a left rail, spaces, Home, Runs, Agents, Knowledge, Visualize, Usage, Space
-  settings, and app-wide Settings. Approvals are docked. The run canvas is a
+- The UI has a left rail, spaces, Home, Automations, Runs, Agents, Knowledge,
+  Visualize, Usage, Space settings, and app-wide Settings. Approvals are docked. The run canvas is a
   left-to-right workflow (goal, supervisor, workers, outcome) with an
   inspector; the Knowledge section is laid out as an Obsidian vault and one
   Markdown renderer (`components/Markdown.tsx`, over `lib/markdown.ts`)
@@ -62,10 +75,13 @@ future changes do not relocate users' data or disconnect their stored keys.
   text meets WCAG AA in both themes; below 1,100 px the rail becomes a drawer
   (developer guide, "Motion, contrast and accessibility").
   Discord is the only chat adapter; Telegram was removed on 2026-09-11.
-- A space can schedule runs (Space settings): daily or weekly at a local time,
-  or every N hours, started through `RunLauncher` by one scheduler task in the
-  sidecar. The app must be open; a missed time is run once at the next launch
-  or skipped, per the schedule. There is no tray or service mode.
+- A space can schedule runs (Automations): daily or weekly at a local time,
+  every N hours, or after another schedule's run completes (a chain of at most
+  four stages in one space), started through `RunLauncher` by one scheduler
+  task in the sidecar; `RunLauncher.on_finished` tells it when a run ends. The
+  app must be open; a missed time, or a run the app closed on, is run once at
+  the next launch or skipped, per the schedule. There is no tray or service
+  mode.
 - The default space ships the ten-definition investment research roster
   (migration 010, 2026-09-19): four Haiku collectors, Sonnet analysts and a
   risk manager, an Opus decision agent, a Sonnet reviewer, each with an
@@ -107,8 +123,10 @@ future changes do not relocate users' data or disconnect their stored keys.
   `.mermaid` holds a diagram. Mermaid uses strict mode and its SVG is sanitized
   again before insertion. These are ordinary space files written through the
   existing gate; there is no visualization database or service.
-- The latest recorded database migration is 016 (spaces own their provider;
-  untouched Opus 5 becomes Opus 5.5). Existing workspace files are
+- The latest recorded database migration is 019 (017 strips policy yeses for
+  high risk, 018 pins upgraded installs to their old approval answers, 019
+  ships the investment pipeline as disabled schedules). 016 made spaces own
+  their provider and moved untouched Opus 5 to Opus 5.5. Existing workspace files are
   adopted into the default space once; new spaces get their own folders. Each
   space folder is also an Obsidian-compatible Markdown vault. The Knowledge
   section provides notes, properties, tags, links, backlinks, unresolved links,
@@ -168,7 +186,13 @@ second chronological log here.
   after a rebuild or upgrade.
 - Tools validate and resolve in `prepare`, pass the approval gate, then run
   `execute`. Enforce the definition's allowlist independently of the tool list
-  offered to the model. Filesystem tools use the run's space folder.
+  offered to the model. Filesystem tools use the run's space folder; writes
+  resolve through `Sandbox.resolve_write_path`, and a network tool names its
+  `host` in the prepared payload so the host list can bound it.
+- Autonomy is the gate answering by policy, never the gate skipped. Only
+  `POLICY_LEVELS` (low, medium) can be answered without a person. The
+  scheduler never answers an approval. Changing a `DEFAULT_*` setting needs a
+  migration that pins used databases, because unsaved keys read the constant.
 - `run_shell` has a timeout and process-tree termination, but no OS filesystem
   or network isolation. Do not describe approval as a containment guarantee.
   `http_get` and `read_feed` check public addresses and connect to the checked
@@ -184,7 +208,8 @@ second chronological log here.
   can only make one stricter, and a definition that names levels turns an
   allow outside them back into a question. A yes given "for this run"
   (`approvals.scope = 'run'`) answers every later call to that tool in the
-  run; a no is never for a run.
+  run, except for high risk, whose yes is always for one call; a no is never
+  for a run.
 - Budget arithmetic uses integer micros. Check before a call; persist spend
   before yielding its streamed completion. Deleting a finished run keeps its
   spend with `run_id` cleared, preserving the app-wide budget total.

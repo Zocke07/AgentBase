@@ -104,6 +104,43 @@ found by `find_denied`; a no is stored for the one call. Model credentials,
 OpenAI's access mode, the monthly cap, and the Discord connection are
 app-wide. `channel_space_id` selects the space receiving Discord commands.
 
+### Autonomy is a policy answer, never a bypass
+
+Since 2026-09-29 (BUILD_SPEC Phase 16) a fresh install's `DEFAULT_AUTO_APPROVE`
+is low and medium, so most calls are answered by the gate itself. Every call
+still goes through `ApprovalService.request`, which writes the
+`approval.requested`/`approval.resolved` pair with `automatic: true` and a
+`rule` (`level`, `tool`, `run` for an earlier yes for the run, `denied` or
+`unanswered` for a precedent) and, for a network call, the `host`. The bounds
+that make that safe live below the gate or inside it:
+
+- `POLICY_LEVELS` in `tools/catalogue.py` excludes high: settings, spaces,
+  migration 017 and the gate itself refuse a policy yes or a run-scoped yes
+  for `run_shell`, so a shell command always asks.
+- `Sandbox.resolve_write_path` refuses agent writes into `memory/`, any hidden
+  segment and memory-typed Markdown, so a policy-approved write cannot plant
+  an approved memory (`knowledge.store.is_memory_markdown` shares retrieval's
+  own test for "memory").
+- `auto_approve_hosts` (normalized by `normalize_host_pattern`, matched by
+  `host_matches` beside `resolve_url`) turns an automatic yes for a call whose
+  payload names a `host` back into a question unless the host is listed.
+- `Run.check_cost` adds the next call's pessimistic cost (the ledger's own
+  `estimate_usage` at `MAX_OUTPUT_TOKENS`), so a run stops before crossing
+  `max_run_cost_micros`.
+- Origins in `UNATTENDED_ORIGINS` (`schedule`) wait
+  `unattended_question_seconds` for an answer (`Run.question_deadline`); the
+  expiry reason says nobody was there, and `find_denied` treats an expired
+  call as settled, so it is not asked again in that run.
+- `POST /runs {supervised: true}` snapshots an empty level list and drops every
+  `allow`, keeping `deny`: the step-through fallback only narrows.
+
+`run.started` records the snapshot as `approval` (levels, tool answers, hosts,
+question wait, supervised, origin), and the reducer projects it as
+`approvalPolicy`, null for older runs. `SettingsStore` stores only saved keys
+and reads the rest from code, so a default change silently moves every
+upgraded install: migration 018 pins the previous answers into any database
+that has been used (a run, a saved setting, a schedule or a space of its own).
+
 ### Schedules
 
 A schedule (`store/schedules.py`, migration 009) is a goal, a cadence and a
@@ -113,7 +150,21 @@ the API after a write) and launches what is due through the same `RunLauncher`
 as the window and Discord, with `origin="schedule"` and the schedule id as
 `origin_ref`. So a scheduled run is an ordinary run: the space's roster, rules,
 folder, approval gate and the shared cap all apply, and a call the policy does
-not pre-authorize waits for the user up to the run's time limit.
+not answer waits `unattended_question_seconds`, then expires and the run
+carries on without it. The scheduler never answers an approval.
+
+An `after` cadence (`AfterCadence`, validated by `_check_chain`: same space,
+no loop, at most `MAX_CHAIN_STAGES`) has no time: `next_occurrence` returns
+`None`, so the stage is never clock-due. `RunLauncher.on_finished` is set to
+`Scheduler.follow` in `main.py`; when a scheduled run's orchestrator task ends,
+`on_run_finished` fires every enabled follower through `_fire` (the same
+overlap guard and limit) if the run completed, and records why not otherwise.
+It does nothing once the scheduler is closing. Deleting a followed schedule
+switches its followers off with a reason. `POST /schedules/{id}/run` goes
+through `Scheduler.run_now`, with the schedule's own limit and the overlap
+guard. Runs the previous process left unfinished are passed to the scheduler
+as `interrupted`, and the catch-up pass runs such a schedule again once or
+notes it, per `missed`.
 
 `next_run_at` is stored in UTC and always recomputed from the cadence and the
 clock after a firing, never added to the previous time. Daily and weekly
@@ -132,7 +183,12 @@ whose last run is still in `launcher.live` or `launcher.driving` is skipped;
 one whose space is archived turns itself off. Deleting a space deletes its
 schedules; deleting a run clears `last_run_id` through `ON DELETE SET NULL`.
 The sidecar still has no OS-level service or tray mode; that would be new
-shell infrastructure and is not built.
+shell infrastructure and is not built (the maintainer kept it out on
+2026-09-29: automation happens while the app is open).
+
+Migration 019 seeds the investment pipeline as five disabled schedules with
+fixed ids (`lib/pipeline.ts` names them); `turnOnPipeline` writes any missing
+`config/` template through the file API and enables them.
 
 ### Usage and the first-run tour
 

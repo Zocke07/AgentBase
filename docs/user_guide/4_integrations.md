@@ -60,12 +60,17 @@ Discord verification; mentions have automated coverage.
 
 ### Answer approvals from Discord
 
-By default, **Who may answer an approval** is **Only this window**. Discord
-shows the wait; answer in AgentBase's approval panel.
+The bot works like a mention-driven assistant: addressed with `/agent` or a
+mention, it runs the task on its own under the approval policy and comes back
+only with a question or the result. On a fresh install, **Who may answer an
+approval** is **The person who started the run in chat**: pending requests
+get **Allow / Deny** buttons, and **Allow for this run** for low and medium
+risk, usable only by that run's originator. A shell command is always asked
+about one call at a time. The buttons last as long as the run can use the
+answer. Requests answered elsewhere cannot be repeated.
 
-To allow Discord answers, choose **Also the chat user who started the run** and
-**Save settings**. Pending requests receive **Allow / Deny** buttons usable
-only by that run's originator. Requests answered elsewhere cannot be repeated.
+Choose **Only this window** (the setting an upgraded install keeps) to show
+the wait in Discord and answer in AgentBase's approval panel.
 
 Chat and desktop runs share tool permissions, folder checks, and approval
 policies. Chat approval changes who can answer, not which calls auto-run.

@@ -83,7 +83,19 @@ have new IDs, are deletable, and now exist only in Python.
 3. `tools/builtin/__init__.py`: add to `BUILTIN_TOOLS`. `GET /tools` then
    reports it `available: true`.
 
-Every tool passes the gate; no bypass flag may exist (§1 constraint 5).
+Every tool passes the gate; no bypass flag may exist (§1 constraint 5). A
+policy answer is a gate decision, recorded like any other, and is the only
+way a call runs without a person. A network tool must put the host it will
+reach in `Prepared.payload["host"]`, or the host list cannot bound it; a tool
+that writes must resolve through `Sandbox.resolve_write_path`. A new high-risk
+tool is never answerable by policy (`POLICY_LEVELS`).
+
+### A default setting
+
+`SettingsStore` persists only saved keys, so changing a `DEFAULT_*` constant
+changes every install that never saved that key. Ship a migration that writes
+the old value into databases that have been used, as 018 does, and test both
+a fresh and an upgraded database.
 
 ### A model or a provider
 

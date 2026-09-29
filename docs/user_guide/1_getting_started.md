@@ -73,13 +73,14 @@ brings it back.
 | Control | What it opens |
 |---|---|
 | Space name at the top of the left rail | Switch spaces, find archived spaces, or choose **New space…**. |
-| **Home** | Enter a task, see runs under **Now** and **Recent runs**, and enable or disable agents. |
+| **Home** | What runs on its own (and, in Main, **Turn on the daily pipeline**), runs under **Now**, **Run once** for a single task, **Recent runs**, and enabling or disabling agents. |
+| **Automations** | What this space runs on its own: schedules at set times or one after another, and what an unattended run may do. |
 | **Runs** | Open a current run or replay a past one in this space. |
 | **Agents** | Create and edit this space's agent definitions. |
 | **Knowledge** | The space folder as a Markdown vault, and the memory inbox. |
 | **Visualize** | Charts from data files, saved dashboards and Mermaid diagrams. |
 | **Usage** | This month's model-call costs, tokens, and carried context by day, model, space, and run. |
-| **Space settings** | Name, description, folder, model, limits, approval answers and schedules for this space. |
+| **Space settings** | Name, description, folder, model, limits and approval answers for this space. |
 | **Settings**, at the bottom | App defaults, keys, shared budget, Discord, theme and the About box. |
 | **Hide the sidebar**, beneath Settings | Folds the rail to icons (Ctrl/Cmd+B does the same); names remain in tooltips and the space initial replaces its name. |
 
@@ -243,7 +244,7 @@ There is one important difference between limits and approval policy:
 - A space can raise or lower a run limit relative to the app default.
 - A space's automatic approvals can only narrow what the app permits. Under
   **Calls that run without asking**, choose **Inherit the app-wide policy**
-  or this space's own policy. An own policy with nothing ticked asks for
+  or this space's own policy. An own policy with nothing ticked (Supervised) asks for
   every tool call, even if the app permits automatic calls.
 
 Under **Archive or delete**, archiving keeps the history accessible through

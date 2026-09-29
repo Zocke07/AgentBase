@@ -18,6 +18,10 @@ It ships as a single installer. The end user is not a developer.
 A user double-clicks, types a task, and watches every spawn, tool call, handoff,
 and completion, with no terminal, Docker, or config files.
 
+*(2026-09-29, at the maintainer's request: autonomous workflows are the primary
+way a space runs, and typing a task is **Run once**. The criterion still holds
+through Run once; Phase 16 records the change.)*
+
 ---
 
 ## 1. Hard constraints: do not violate these
@@ -399,6 +403,10 @@ blocked even if its prompt demands it.
   names levels narrows an allow outside them. The dialog gained **Allow for this run**, a yes
   recorded with scope `run` that answers every later call to that tool in the run. A no is
   never for a run: "never allow" is a Settings decision. Default is still ask-everything.)*
+  *(2026-09-29, an agreed deviation, Phase 16: the default is **Autonomous**,
+  low and medium answered by policy on fresh installs, and migration 018 keeps
+  upgraded installs on the answers they had. High risk is never answered by
+  policy nor kept as a yes for the run.)*
 
 **Accept when:** an agent instructed to write outside the workspace root is
 blocked at the sandbox layer, with `tool.denied` visible in the event log.
@@ -449,6 +457,11 @@ app can create, edit, and run an agent.
   regardless of origin.
 - A run started from Discord must appear live in the dashboard, and vice versa. Same event
   log, no special-casing.
+
+*(2026-09-29, Phase 16: a fresh install lets the chat user who started a run
+answer its questions (`originator`); migration 018 keeps `dashboard_only` for
+upgraded installs. Chat offers a yes for the run for low and medium risk only.
+Triggers are unchanged: explicit commands and mentions only.)*
 
 **Accept when:** dashboard and originating chat observe the same run
 simultaneously, and channel-originated calls hit the approval gate.
@@ -625,6 +638,9 @@ graph, log, and summary remain one pure `run-projection` fold, protected by
   agents that name the old provider's models.
 - **Windowed log.** Long runs render visible rows only; deferred until >291
   event measurement, but redesign touches rows and Home no longer opens log.
+- *(2026-09-29, Phase 16: an **Automations** section follows Home in the rail
+  and holds the schedules; Home leads with what runs on its own, then Now,
+  then **Run once**. Space settings no longer holds schedules.)*
 
 **Order:** (1) test-first migration 006/store; (2) `space_id` through launcher,
 per-run sandbox/roster, verified in two real-model spaces; (3) API/types;
@@ -718,6 +734,12 @@ evaluation. Defer local embeddings, attachments, PDFs, and web clipping.
 - **Memory near run.** Summary shows memory status, approves in place, opens
   beside inbox, and folds long text to keep canvas/log visible.
 
+*(2026-09-29, Phase 16: a schedule may start **after** another schedule's run
+completes, forming a chain in one space of at most four stages; a run the app
+closed on is run again once or noted, by `missed`; Run now goes through the
+scheduler. The scheduler still never answers an approval; a question in a
+scheduled run expires after `unattended_question_seconds`.)*
+
 **Accept when:**
 
 1. A daily schedule created the evening before a DST switch fires at the
@@ -806,6 +828,71 @@ handled locally instead.
    an edited prompt or allowlist is preserved.
 4. The approval UI and run graph identify a `read_feed` call as a feed read,
    with the same medium-risk approval semantics as other network access.
+
+### Phase 16: Autonomy first
+
+*Added 2026-09-29 at the maintainer's request: "autonomous agent workflows are
+the primary architecture, with manual execution an optional fallback or debug
+mode", with the shipped examples showing automated execution, after the
+patterns of Hermes Agent and Grok's mention-driven bot. Deviations from Phase 6
+and Phase 11 agreed the same day.*
+
+Autonomy here means the gate answers by policy; it never means the gate is
+skipped (§1 constraint 5). The maintainer chose (asked 2026-09-29):
+
+1. **Fresh installs start Autonomous**: low and medium risk are answered by
+   policy. Upgraded installs keep their answers (migration 018 pins them).
+2. **Memories keep the inbox**: one is retrieved only once approved or pinned,
+   including from unattended runs.
+3. **The seeded pipeline ships switched off**; Home turns it on in one click.
+4. **Automation runs only while the app is open**; §7's headless/service
+   non-goal stands.
+
+What makes a policy answer safe, all below or inside the gate:
+
+- **High risk is never answered by policy.** Settings, spaces, migration 017
+  and the gate refuse a policy yes or a run-scoped yes for `run_shell`.
+- **App-owned paths are refused to agent writes**: `memory/`, hidden folders
+  and memory-typed notes, before the gate (sandbox).
+- **Fetches by policy reach listed hosts only** (`auto_approve_hosts`; `*` for
+  any public host, pinned for upgraded installs); any other host asks.
+- **The per-run cost ceiling is projected** with the next call's pessimistic
+  cost, as the monthly cap is.
+- **A question nobody is there to answer expires**: in a scheduled run after
+  `unattended_question_seconds` (120), and the run carries on without the call;
+  the identical call is not asked again in that run.
+- **`run.started` records the policy** the run acted under, and every
+  automatic answer names its rule, so the log explains what no person saw.
+
+Manual execution remains as **Run once** with **Step through**
+(`POST /runs {supervised: true}`: every call asks, refusals stay), and a
+space's own empty policy (**Supervised**). Schedules gain the `after` cadence,
+Run now through the scheduler and the interrupted re-run (Phase 13 note);
+Discord answers default to the originator (Phase 8 note); an Automations
+section leads the window (Phase 11 note). Migration 019 widens five untouched
+roster agents from low to low and medium, corrects the news scanner's role,
+and seeds the pipeline as five disabled schedules in the default space.
+
+Not built, by the constraints: skipping the gate, auto-approving `run_shell`,
+triggers from ambient chat or webhooks, agent-authored schedules or runs, and
+automatic memory approval. An outbound Discord notice channel for scheduled
+outcomes was left for later.
+
+**Accept when:**
+
+1. A fresh install runs a scheduled chain of stages that read, write and fetch
+   from listed hosts with no person answering, and every automatic answer is
+   in the log with its rule; an upgraded install still asks before each call.
+2. No setting, space, definition, migration or button can make `run_shell`
+   run without a person's yes for that call.
+3. A policy-approved write to `memory/`, a hidden folder or a memory-typed note
+   is `tool.denied` with `blocked_by: "sandbox"`, and a fetch to an unlisted
+   host asks.
+4. A scheduled run's unanswered question expires after the configured wait,
+   the run continues, and the same call is not asked again.
+5. A run stops before a model call that could cross its cost ceiling.
+6. Run once with Step through asks before every call, and a replay of a run
+   recorded before this phase is unchanged.
 
 ---
 
