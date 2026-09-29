@@ -289,8 +289,72 @@ function SettingsForm({
   };
   const errorFor = (field: string): string | null => errors[field] ?? null;
 
-  const providerEntry = catalogue.providers.find((entry) => entry.name === form.provider);
-  const freeText = providerEntry?.free_text_model ?? false;
+  // Providers with a connection setting of their own: Ollama's address and
+  // OpenAI's access. Those in use show; the rest fold into "Other providers".
+  const configurable = catalogue.providers
+    .filter((entry) => entry.free_text_model || entry.name === "openai")
+    .map((entry) => entry.name);
+  const used = new Set([
+    form.provider,
+    ...spaces.filter((space) => space.archived !== true).map((space) => space.provider ?? ""),
+  ]);
+  const inUse = configurable.filter((name) => used.has(name));
+  const spare = configurable.filter((name) => !used.has(name));
+  const connectionFor = (name: string) =>
+    name === "openai" ? (
+      <fieldset className="editor__tools" data-testid="openai-access">
+        <legend>OpenAI access</legend>
+        <label className="editor__tool">
+          <input
+            type="radio"
+            name="openai_access"
+            checked={form.openai_access === "api_key"}
+            onChange={() => {
+              set("openai_access", "api_key");
+            }}
+            data-testid="setting-openai-api-key"
+          />
+          <span>API key</span>
+          <span className="editor__tool-description">Usage-based API billing</span>
+        </label>
+        <label className="editor__tool">
+          <input
+            type="radio"
+            name="openai_access"
+            checked={form.openai_access === "chatgpt"}
+            onChange={() => {
+              set("openai_access", "chatgpt");
+            }}
+            data-testid="setting-openai-chatgpt"
+          />
+          <span>ChatGPT subscription</span>
+          <span className="editor__tool-description">Your personal monthly plan</span>
+        </label>
+        <p className="settings__hint">
+          For every space on OpenAI. Both modes use the same OpenAI provider, the spaces&apos; model choices, agent loop, tool approvals,
+          event log, and limits. Subscription calls count at the model&apos;s API-equivalent price
+          only for AgentBase&apos;s safety cap; they are not API charges.
+        </p>
+        {form.openai_access === "chatgpt" && <ChatGPTAccount />}
+        <FieldError field="openai_access" message={errorFor("openai_access")} />
+      </fieldset>
+    ) : (
+      <label className="editor__field">
+        <span>Ollama address</span>
+        <input
+          value={form.ollama_base_url}
+          onChange={(changed) => {
+            set("ollama_base_url", changed.target.value);
+          }}
+          aria-invalid={errorFor("ollama_base_url") !== null}
+          data-testid="setting-ollama-url"
+        />
+        <span className="editor__hint editor__hint--field">
+          Only for spaces that run models on this computer with Ollama.
+        </span>
+        <FieldError field="ollama_base_url" message={errorFor("ollama_base_url")} />
+      </label>
+    );
 
   const patch = diff(opened, form);
   const dirty = Object.keys(patch).length > 0;
@@ -383,63 +447,17 @@ function SettingsForm({
           </label>
         </div>
 
-        {/* Every provider's connection, whatever new spaces use: a space may
-            be on any of them. */}
-        {(freeText || catalogue.providers.some((entry) => entry.free_text_model)) && (
-          <label className="editor__field">
-            <span>Ollama address</span>
-            <input
-              value={form.ollama_base_url}
-              onChange={(changed) => {
-                set("ollama_base_url", changed.target.value);
-              }}
-              aria-invalid={errorFor("ollama_base_url") !== null}
-              data-testid="setting-ollama-url"
-            />
-            <span className="editor__hint editor__hint--field">
-              Only for spaces that run models on this computer with Ollama.
-            </span>
-            <FieldError field="ollama_base_url" message={errorFor("ollama_base_url")} />
-          </label>
-        )}
-
-        {catalogue.providers.some((entry) => entry.name === "openai") && (
-          <fieldset className="editor__tools" data-testid="openai-access">
-            <legend>OpenAI access</legend>
-            <label className="editor__tool">
-              <input
-                type="radio"
-                name="openai_access"
-                checked={form.openai_access === "api_key"}
-                onChange={() => {
-                  set("openai_access", "api_key");
-                }}
-                data-testid="setting-openai-api-key"
-              />
-              <span>API key</span>
-              <span className="editor__tool-description">Usage-based API billing</span>
-            </label>
-            <label className="editor__tool">
-              <input
-                type="radio"
-                name="openai_access"
-                checked={form.openai_access === "chatgpt"}
-                onChange={() => {
-                  set("openai_access", "chatgpt");
-                }}
-                data-testid="setting-openai-chatgpt"
-              />
-              <span>ChatGPT subscription</span>
-              <span className="editor__tool-description">Your personal monthly plan</span>
-            </label>
-            <p className="settings__hint">
-              For every space on OpenAI. Both modes use the same OpenAI provider, the spaces&apos; model choices, agent loop, tool approvals,
-              event log, and limits. Subscription calls count at the model&apos;s API-equivalent price
-              only for AgentBase&apos;s safety cap; they are not API charges.
-            </p>
-            {form.openai_access === "chatgpt" && <ChatGPTAccount />}
-            <FieldError field="openai_access" message={errorFor("openai_access")} />
-          </fieldset>
+        {/* A provider's connection shows where it is in use: the provider new
+            spaces start on, or one a space runs on. The rest fold away rather
+            than vanish, since an agent may pick a provider of its own. */}
+        {inUse.map((name) => <div key={name}>{connectionFor(name)}</div>)}
+        {spare.length > 0 && (
+          <details className="settings__other-providers" data-testid="other-providers">
+            <summary>Other providers: {spare.map((name) => providerLabel(name)).join(", ")}</summary>
+            {spare.map((name) => (
+              <div key={name}>{connectionFor(name)}</div>
+            ))}
+          </details>
         )}
 
         <div className="settings__verify">
@@ -554,7 +572,7 @@ function SettingsForm({
               data-testid="setting-run-cap"
             />
             <span className="editor__hint">
-              A run that has spent this stops where it stands; 0 leaves only the monthly cap.
+              A run stops before a call that could take it past this; 0 leaves only the monthly cap.
             </span>
             <FieldError field="max_run_cost_micros" message={errorFor("max_run_cost_micros")} />
           </label>
@@ -583,7 +601,7 @@ function SettingsForm({
                 ["custom", "Custom", "Choose levels and answers by tool below."],
               ] as const
             ).map(([value, label, description]) => (
-              <label key={value} className="editor__tool">
+              <label key={value} className="editor__tool editor__tool--wrap">
                 <input
                   type="radio"
                   name="approval-preset"
@@ -609,7 +627,7 @@ function SettingsForm({
                   }}
                   data-testid={`setting-preset-${value}`}
                 />
-                <span className="editor__tool-description">
+                <span className="editor__tool-description editor__tool-description--wrap">
                   <b>{label}</b>: {description}
                 </span>
               </label>
@@ -664,9 +682,10 @@ function SettingsForm({
             </span>
             <FieldError field="auto_approve_hosts" message={errorFor("auto_approve_hosts")} />
           </label>
-          <label className="editor__field editor__field--narrow">
+          <label className="editor__field">
             <span>Seconds a scheduled run waits for an answer</span>
             <input
+              className="editor__input--narrow"
               type="number"
               min={0}
               value={form.unattended_question_seconds}
@@ -1074,9 +1093,9 @@ function ChatGPTAccount() {
       </div>
       {runtime !== null && runtime.state !== "ready" && auth.data.state !== "connected" && (
         <p className="settings__hint" data-testid="chatgpt-runtime">
-          The first sign-in downloads the Codex App Server runtime {runtime.version} (about{" "}
-          {megabytes(runtime.total_bytes ?? 112_000_000)}) from PyPI into AgentBase's data folder,
-          verified against its pinned checksum. API-key access never needs it.
+          The first sign-in downloads the Codex App Server runtime {runtime.version}
+          {(runtime.total_bytes ?? 0) > 0 && ` (about ${megabytes(runtime.total_bytes ?? 0)})`} from PyPI into
+          AgentBase's data folder, verified against its pinned checksum. API-key access never needs it.
         </p>
       )}
       {(failure ?? auth.error ?? auth.data.error) !== null && (

@@ -360,6 +360,20 @@ export function HomeView({
               ))}
             </fieldset>
           )}
+          <label
+            className="new-run__step"
+            title="The manual and debug path: every tool call waits for your answer, whatever the approval policy would do."
+          >
+            <input
+              type="checkbox"
+              checked={stepThrough}
+              onChange={(changed) => {
+                setStepThrough(changed.target.checked);
+              }}
+              data-testid="step-through"
+            />
+            <span>Step through: ask me before every call</span>
+          </label>
           <div className="new-run__row">
             {startError !== null ? (
               <p className="field-error" role="alert">
@@ -391,20 +405,6 @@ export function HomeView({
               </p>
             )}
             <div className="new-run__actions">
-              <label
-                className="new-run__step"
-                title="The manual and debug path: every tool call waits for your answer, whatever the approval policy would do."
-              >
-                <input
-                  type="checkbox"
-                  checked={stepThrough}
-                  onChange={(changed) => {
-                    setStepThrough(changed.target.checked);
-                  }}
-                  data-testid="step-through"
-                />
-                <span>Step through: ask me before every call</span>
-              </label>
               {onAutomate !== undefined && (
                 <button
                   type="button"

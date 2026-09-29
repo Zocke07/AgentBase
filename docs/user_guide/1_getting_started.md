@@ -151,7 +151,7 @@ only display which keys the sidecar received at startup.
 
 1. In **Settings → Provider**, choose **openai** and select **ChatGPT
    subscription** under **OpenAI access**; the model stays each space's own.
-2. Click **Connect ChatGPT**. AgentBase opens an OpenAI sign-in page in your
+2. Click **Sign in with ChatGPT**. AgentBase opens an OpenAI sign-in page in your
    browser. Complete sign-in with the ChatGPT account whose monthly plan you
    want to use, then return to AgentBase.
 3. Wait for the account status to show **connected**, then click **Save
@@ -259,7 +259,7 @@ The default space cannot be archived or deleted.
 
 | Section | Controls |
 |---|---|
-| **Provider** | The provider new spaces start on, OpenAI API-key or ChatGPT access, and the local Ollama address. |
+| **Provider** | The provider new spaces start on, OpenAI API-key or ChatGPT access, and the local Ollama address. A provider's connection shows once new spaces or a space use it; the rest fold under **Other providers**. |
 | **Limits and approvals** | Default **Steps per agent** (20), **Agents per run** (5), **Seconds per run** (600), and calls that may run automatically. |
 | **Keys** | Store or clear cloud API keys and the Discord bot token; restart to apply. |
 | **Monthly budget** | **Monthly cap (USD)**, $20.00 by default, shared across spaces. Enter dollars directly. |

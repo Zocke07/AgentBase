@@ -224,7 +224,12 @@ class CodexRuntimeInstaller:
             )
         if self._error is not None:
             return CodexRuntimeStatus(state="error", version=version, error=self._error)
-        return CodexRuntimeStatus(state="missing", version=version)
+        # The size this computer's download will be, so the offer can say it.
+        try:
+            size = self.manifest.wheel_for(self.tag).size
+        except CodexRuntimeError:
+            size = 0
+        return CodexRuntimeStatus(state="missing", version=version, total_bytes=size)
 
     def start(self) -> asyncio.Task[Path]:
         """Start one shared installation task."""

@@ -133,6 +133,8 @@ async def test_the_runtime_is_fetched_verified_unpacked_and_reused(tmp_path: Pat
     payload = _wheel()
     installer = _installer(tmp_path, payload)
     assert installer.status().state == "missing"
+    # Before any download, the offer can already say how large it will be.
+    assert installer.status().total_bytes == len(payload)
     assert installer.installed_codex() is None
 
     codex = await installer.ensure()

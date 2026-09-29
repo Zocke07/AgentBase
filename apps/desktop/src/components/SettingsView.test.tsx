@@ -1,4 +1,4 @@
-import type { SettingsResponse } from "@agentbase/schemas";
+import type { SettingsResponse, SpaceResponse } from "@agentbase/schemas";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -124,6 +124,46 @@ async function loaded() {
     expect(screen.getByTestId<HTMLSelectElement>("setting-provider").value).toBe("anthropic");
   });
 }
+
+describe("provider connections", () => {
+  const space = (id: string, provider: string): SpaceResponse => ({
+    id,
+    name: id,
+    description: "",
+    provider,
+    model: null,
+    auto_approve: null,
+    max_steps_per_agent: null,
+    max_agents_per_run: null,
+    max_run_seconds: null,
+    archived: false,
+    created_at: "2026-09-12T00:00:00Z",
+    updated_at: "2026-09-12T00:00:00Z",
+    folder: `/data/spaces/${id}`,
+    is_default: false,
+  });
+
+  it("folds away the connections no space uses, without removing them", async () => {
+    render(<SettingsView onSaved={vi.fn()} spaces={[space("main", "anthropic")]} />);
+    await loaded();
+
+    const other = screen.getByTestId("other-providers");
+    expect(other.tagName).toBe("DETAILS");
+    expect(other.textContent).toContain("Other providers: Ollama, OpenAI");
+    expect(other.contains(screen.getByTestId("setting-ollama-url"))).toBe(true);
+    expect(other.contains(screen.getByTestId("openai-access"))).toBe(true);
+  });
+
+  it("shows a connection a space runs on, even when new spaces start elsewhere", async () => {
+    render(
+      <SettingsView onSaved={vi.fn()} spaces={[space("main", "anthropic"), space("lab", "openai")]} />,
+    );
+    await loaded();
+
+    expect(screen.getByTestId("other-providers").contains(screen.getByTestId("openai-access"))).toBe(false);
+    expect(screen.getByTestId("other-providers").textContent).toContain("Ollama");
+  });
+});
 
 describe("loading", () => {
   it("shows the workspace's settings", async () => {
