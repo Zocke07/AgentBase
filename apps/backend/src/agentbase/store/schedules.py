@@ -10,7 +10,10 @@ according to the schedule's ``missed`` policy.
 
 Cadences are wall-clock times in the machine's local zone (daily and weekly)
 or a plain interval; ``next_run_at`` is stored in UTC and always recomputed
-from the cadence and the clock, never added to the previous time.
+from the cadence and the clock, never added to the previous time. An
+``after`` cadence has no time at all: the schedule is a stage that starts
+when the run of the schedule it follows completes, so its ``next_run_at``
+stays empty while it is enabled.
 """
 
 from __future__ import annotations
@@ -31,6 +34,8 @@ if TYPE_CHECKING:
     from agentbase.store.db import Database
 
 __all__ = [
+    "MAX_CHAIN_STAGES",
+    "AfterCadence",
     "Cadence",
     "DailyCadence",
     "IntervalCadence",
@@ -53,6 +58,10 @@ MissedPolicy = Literal["run_on_launch", "skip"]
 MAX_NAME_LENGTH: Final[int] = 60
 MAX_GOAL_LENGTH: Final[int] = 10_000
 MAX_INTERVAL_HOURS: Final[int] = 24 * 7
+
+#: Stages in one chain, counting the first. Each stage is a whole run with its
+#: own limits, so a longer chain is a pipeline nobody can follow in the window.
+MAX_CHAIN_STAGES: Final[int] = 4
 
 _WEEKDAY_NAMES: Final[tuple[str, ...]] = (
     "Monday",
@@ -142,17 +151,39 @@ class IntervalCadence(BaseModel):
     every_hours: int = Field(ge=1, le=MAX_INTERVAL_HOURS)
 
 
+class AfterCadence(BaseModel):
+    """When the run of another schedule in the same space completes.
+
+    A stage in a chain: the collection runs at its time, the analysis after it.
+    A failed or cancelled run stops the chain there.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    kind: Literal["after"]
+    #: The schedule this one follows.
+    schedule_id: str = Field(min_length=1)
+
+
 #: A plain union rather than a discriminated one: the TypeScript emitter reads
 #: `anyOf`, and `kind` is a literal on each member, so validation still picks
 #: the right shape.
-Cadence = DailyCadence | WeeklyCadence | IntervalCadence
+Cadence = DailyCadence | WeeklyCadence | IntervalCadence | AfterCadence
 
+_CADENCE_TYPES: Final = (DailyCadence, WeeklyCadence, IntervalCadence, AfterCadence)
 
-_CADENCE_KINDS: Final[dict[str, type[DailyCadence | WeeklyCadence | IntervalCadence]]] = {
+_CADENCE_KINDS: Final[
+    dict[str, type[DailyCadence | WeeklyCadence | IntervalCadence | AfterCadence]]
+] = {
     "daily": DailyCadence,
     "weekly": WeeklyCadence,
     "interval": IntervalCadence,
+    "after": AfterCadence,
 }
+
+_CADENCE_KINDS_WORDS: Final[str] = (
+    "a cadence is daily, weekly, an interval or after another schedule"
+)
 
 
 def parse_cadence(raw: Any) -> Cadence:
@@ -161,13 +192,13 @@ def parse_cadence(raw: Any) -> Cadence:
     Dispatches on ``kind`` first: validating against the union would report
     every member's complaints, most of them about a shape the user never chose.
     """
-    if isinstance(raw, DailyCadence | WeeklyCadence | IntervalCadence):
+    if isinstance(raw, _CADENCE_TYPES):
         return raw
     if not isinstance(raw, dict):
-        raise ScheduleValidationError("a cadence is daily, weekly or an interval", "cadence")
+        raise ScheduleValidationError(_CADENCE_KINDS_WORDS, "cadence")
     model = _CADENCE_KINDS.get(str(raw.get("kind")))
     if model is None:
-        raise ScheduleValidationError("a cadence is daily, weekly or an interval", "cadence")
+        raise ScheduleValidationError(_CADENCE_KINDS_WORDS, "cadence")
     try:
         return model.model_validate(raw)
     except ValidationError as exc:
@@ -176,8 +207,13 @@ def parse_cadence(raw: Any) -> Cadence:
         raise ScheduleValidationError(message, "cadence") from exc
 
 
-def describe(cadence: Cadence) -> str:
-    """The cadence as one plain sentence, the same one wherever it is shown."""
+def describe(cadence: Cadence, followed: str | None = None) -> str:
+    """The cadence as one plain sentence, the same one wherever it is shown.
+
+    ``followed`` names the schedule an ``after`` cadence follows.
+    """
+    if isinstance(cadence, AfterCadence):
+        return f"After {followed} completes" if followed else "After another schedule completes"
     if isinstance(cadence, DailyCadence):
         return f"Every day at {cadence.at}"
     if isinstance(cadence, WeeklyCadence):
@@ -246,11 +282,14 @@ def _parse_clock(value: str) -> tuple[int, int]:
     return int(hour), int(minute)
 
 
-def next_occurrence(cadence: Cadence, after: datetime, zone: tzinfo) -> datetime:
+def next_occurrence(cadence: Cadence, after: datetime, zone: tzinfo) -> datetime | None:
     """The first time strictly after ``after`` that the cadence names, in UTC.
 
     ``after`` is any aware instant; wall-clock cadences are read in ``zone``.
+    An ``after`` cadence names no time: another run's completion starts it.
     """
+    if isinstance(cadence, AfterCadence):
+        return None
     if isinstance(cadence, IntervalCadence):
         return (after + timedelta(hours=cadence.every_hours)).astimezone(UTC)
 
@@ -308,6 +347,66 @@ def _when(value: str | None) -> datetime | None:
     return datetime.fromisoformat(value) if value is not None else None
 
 
+def _next_time(cadence: Cadence, now: datetime, zone: tzinfo, *, enabled: bool) -> str | None:
+    """The stored ``next_run_at``: empty while disabled, and always for a stage."""
+    if not enabled:
+        return None
+    upcoming = next_occurrence(cadence, now, zone)
+    return upcoming.isoformat() if upcoming is not None else None
+
+
+def _check_chain(
+    connection: sqlite3.Connection,
+    schedule_id: str | None,
+    space_id: str,
+    cadence: Cadence,
+) -> None:
+    """Refuse an ``after`` cadence that follows nothing usable, loops or runs too deep.
+
+    Checked against every schedule in the space as it would be after the
+    write, so a change that lengthens the chain below this one is caught too.
+    """
+    if not isinstance(cadence, AfterCadence):
+        return
+    target = cadence.schedule_id
+    if target == schedule_id:
+        raise ScheduleValidationError("a schedule cannot follow itself", "cadence")
+    row = connection.execute(
+        "SELECT space_id FROM schedules WHERE id = ?", (target,)
+    ).fetchone()
+    if row is None:
+        raise ScheduleValidationError("there is no schedule with that id to follow", "cadence")
+    if row["space_id"] != space_id:
+        raise ScheduleValidationError(
+            "a schedule can only follow another schedule in the same space", "cadence"
+        )
+
+    follows: dict[str, str | None] = {}
+    for other in connection.execute(
+        "SELECT id, cadence FROM schedules WHERE space_id = ?", (space_id,)
+    ).fetchall():
+        parsed = json.loads(other["cadence"])
+        follows[other["id"]] = (
+            parsed.get("schedule_id") if parsed.get("kind") == "after" else None
+        )
+    follows[schedule_id or ""] = target
+
+    for start in follows:
+        seen: set[str] = set()
+        current: str | None = start
+        while current is not None:
+            if current in seen:
+                raise ScheduleValidationError(
+                    "that would make a loop of schedules each waiting for another", "cadence"
+                )
+            seen.add(current)
+            if len(seen) > MAX_CHAIN_STAGES:
+                raise ScheduleValidationError(
+                    f"a chain can have at most {MAX_CHAIN_STAGES} stages", "cadence"
+                )
+            current = follows.get(current)
+
+
 def _row_to_schedule(row: sqlite3.Row) -> Schedule:
     return Schedule(
         id=row["id"],
@@ -359,11 +458,7 @@ def _validated_columns(fields: dict[str, Any], *, creating: bool) -> dict[str, A
         raw = fields.get("cadence")
         if raw is None:
             raise ScheduleValidationError("a schedule needs a cadence", "cadence")
-        cadence = (
-            raw
-            if isinstance(raw, DailyCadence | WeeklyCadence | IntervalCadence)
-            else parse_cadence(raw)
-        )
+        cadence = raw if isinstance(raw, _CADENCE_TYPES) else parse_cadence(raw)
         columns["cadence"] = json.dumps(cadence.model_dump(mode="json"), sort_keys=True)
 
     if "missed" in fields:
@@ -480,7 +575,7 @@ class ScheduleStore:
         enabled = columns.get("enabled", 1)
         now = self.now()
         cadence = parse_cadence(json.loads(columns["cadence"]))
-        next_run = next_occurrence(cadence, now, self.zone).isoformat() if enabled else None
+        next_run = _next_time(cadence, now, self.zone, enabled=bool(enabled))
         schedule_id = str(uuid.uuid4())
         stamp = now.isoformat()
 
@@ -490,6 +585,7 @@ class ScheduleStore:
             ).fetchone()
             if space is None:
                 raise ScheduleValidationError(f"no space with id {space_id!r}", "space_id")
+            _check_chain(connection, schedule_id, space_id, cadence)
             keys = ["id", "space_id", *columns, "next_run_at", "created_at", "updated_at"]
             placeholders = ", ".join("?" for _ in keys)
             connection.execute(
@@ -519,10 +615,10 @@ class ScheduleStore:
                 if "cadence" in columns
                 else existing.cadence
             )
+            if "cadence" in columns or ("enabled" in columns and enabled):
+                _check_chain(connection, schedule_id, existing.space_id, cadence)
             if "cadence" in columns or "enabled" in columns:
-                columns["next_run_at"] = (
-                    next_occurrence(cadence, now, self.zone).isoformat() if enabled else None
-                )
+                columns["next_run_at"] = _next_time(cadence, now, self.zone, enabled=enabled)
 
             if columns:
                 columns["updated_at"] = now.isoformat()
@@ -561,11 +657,7 @@ class ScheduleStore:
             if row is None:
                 raise ScheduleNotFoundError(schedule_id)
             existing = _row_to_schedule(row)
-            next_run = (
-                next_occurrence(existing.cadence, now, self.zone).isoformat()
-                if enabled
-                else None
-            )
+            next_run = _next_time(existing.cadence, now, self.zone, enabled=enabled)
             fired = now.astimezone(UTC).isoformat()
             connection.execute(
                 "UPDATE schedules SET next_run_at = ?, last_outcome = ?, enabled = ?,"
@@ -629,5 +721,30 @@ class ScheduleStore:
             deleted = connection.execute(
                 "DELETE FROM schedules WHERE id = ?", (schedule_id,)
             ).rowcount
+            if deleted:
+                # A stage whose predecessor is gone would wait forever; say so.
+                connection.execute(
+                    "UPDATE schedules SET enabled = 0, next_run_at = NULL, last_outcome = ?,"
+                    " updated_at = ? WHERE json_extract(cadence, '$.kind') = 'after'"
+                    " AND json_extract(cadence, '$.schedule_id') = ?",
+                    (
+                        "Turned off: the schedule it followed was deleted.",
+                        self.now().astimezone(UTC).isoformat(),
+                        schedule_id,
+                    ),
+                )
         if not deleted:
             raise ScheduleNotFoundError(schedule_id)
+
+    async def followers(self, schedule_id: str) -> list[Schedule]:
+        """The enabled stages that start when this schedule's run completes."""
+        return await asyncio.to_thread(self._followers_sync, schedule_id)
+
+    def _followers_sync(self, schedule_id: str) -> list[Schedule]:
+        with self._db.read() as connection:
+            rows = connection.execute(
+                f"{_SELECT} WHERE enabled = 1 AND json_extract(cadence, '$.kind') = 'after'"
+                " AND json_extract(cadence, '$.schedule_id') = ? ORDER BY name COLLATE NOCASE",
+                (schedule_id,),
+            ).fetchall()
+        return [_row_to_schedule(row) for row in rows]

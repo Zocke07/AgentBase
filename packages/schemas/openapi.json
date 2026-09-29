@@ -1,6 +1,27 @@
 {
   "components": {
     "schemas": {
+      "AfterCadence": {
+        "description": "When the run of another schedule in the same space completes.\n\nA stage in a chain: the collection runs at its time, the analysis after it.\nA failed or cancelled run stops the chain there.",
+        "properties": {
+          "kind": {
+            "const": "after",
+            "title": "Kind",
+            "type": "string"
+          },
+          "schedule_id": {
+            "minLength": 1,
+            "title": "Schedule Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "schedule_id"
+        ],
+        "title": "AfterCadence",
+        "type": "object"
+      },
       "AgentDef": {
         "description": "One row of `agent_defs` (\u00a74). Frozen: a run holds a snapshot of it.",
         "properties": {
@@ -677,6 +698,9 @@
               },
               {
                 "$ref": "#/components/schemas/IntervalCadence"
+              },
+              {
+                "$ref": "#/components/schemas/AfterCadence"
               }
             ],
             "title": "Cadence"
@@ -1849,6 +1873,9 @@
               },
               {
                 "$ref": "#/components/schemas/IntervalCadence"
+              },
+              {
+                "$ref": "#/components/schemas/AfterCadence"
               }
             ],
             "title": "Cadence"
@@ -2114,6 +2141,9 @@
               },
               {
                 "$ref": "#/components/schemas/IntervalCadence"
+              },
+              {
+                "$ref": "#/components/schemas/AfterCadence"
               }
             ],
             "title": "Cadence"
@@ -2876,6 +2906,9 @@
               },
               {
                 "$ref": "#/components/schemas/IntervalCadence"
+              },
+              {
+                "$ref": "#/components/schemas/AfterCadence"
               },
               {
                 "type": "null"
@@ -4910,7 +4943,7 @@
     },
     "/schedules/preview": {
       "post": {
-        "description": "Preview a cadence's wording and upcoming times before saving.",
+        "description": "Preview a cadence's wording and upcoming times before saving.\n\nA stage that follows another schedule has no times of its own to show.",
         "operationId": "preview_schedule_schedules_preview_post",
         "requestBody": {
           "content": {

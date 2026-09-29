@@ -3,6 +3,7 @@ About box and the first-run tour read."""
 
 from __future__ import annotations
 
+import time
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -12,6 +13,7 @@ from fastapi.testclient import TestClient
 from agentbase import __version__
 from agentbase.main import create_app
 from agentbase.store.spaces import DEFAULT_SPACE_ID
+from support import ScriptedProvider, call, says
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -172,3 +174,54 @@ def test_the_tour_flag_starts_false_and_is_patched_like_any_setting(client: Test
     assert updated.status_code == 200, updated.text
     assert updated.json()["settings"]["onboarding_completed"] is True
     assert client.get("/settings").json()["settings"]["onboarding_completed"] is True
+
+
+def test_a_completed_stage_starts_the_next_through_the_real_launcher(
+    app_paths: AppPaths, secrets: SecretStore
+) -> None:
+    """The whole path: a run started by the real launcher finishes, its hook
+    tells the scheduler, and the stage that follows starts as a scheduled run."""
+    app = create_app(app_paths, secrets=secrets)
+    with TestClient(app) as client:
+        app.state.launcher.provider = ScriptedProvider(
+            [
+                says("Collected.", call("finish", "a1", result="Collected the news.")),
+                says("Analysed.", call("finish", "b1", result="Wrote the theses.")),
+            ]
+        )
+        first = client.post("/schedules", json=_body(name="Morning collection")).json()
+        stage = client.post(
+            "/schedules",
+            json=_body(
+                name="Theses and risk", cadence={"kind": "after", "schedule_id": first["id"]}
+            ),
+        ).json()
+        assert stage["summary"] == "After Morning collection completes"
+        assert stage["next_run_at"] is None
+
+        run = client.post(f"/schedules/{first['id']}/run").json()
+        client.get(f"/runs/{run['id']}/events")  # drains to the terminal event
+
+        followed = stage
+        for _ in range(200):
+            followed = client.get(f"/schedules/{stage['id']}").json()
+            if followed["last_run_id"] is not None:
+                break
+            time.sleep(0.01)
+        assert followed["last_outcome"] == "Started a run: it follows Morning collection."
+        client.get(f"/runs/{followed['last_run_id']}/events")
+        runs = {entry["id"]: entry for entry in client.get("/runs").json()}
+        assert runs[followed["last_run_id"]]["origin_ref"] == stage["id"]
+        assert runs[followed["last_run_id"]]["status"] == "completed"
+
+
+def test_the_preview_of_a_stage_names_what_it_follows_and_has_no_times(
+    client: TestClient,
+) -> None:
+    first = client.post("/schedules", json=_body(name="Morning collection")).json()
+
+    preview = client.post(
+        "/schedules/preview", json={"cadence": {"kind": "after", "schedule_id": first["id"]}}
+    ).json()
+
+    assert preview == {"summary": "After Morning collection completes", "next": []}

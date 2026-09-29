@@ -17,6 +17,7 @@ from agentbase.orchestrator.scheduler import ScheduleBusyError
 from agentbase.store.schedules import (
     MAX_GOAL_LENGTH,
     MAX_NAME_LENGTH,
+    AfterCadence,
     Cadence,
     MissedPolicy,
     Schedule,
@@ -95,8 +96,25 @@ def _reject(message: str, field: str | None) -> HTTPException:
     return HTTPException(status_code=400, detail={"message": message, "field": field})
 
 
-def _respond(schedule: Schedule) -> ScheduleResponse:
-    return ScheduleResponse(**schedule.model_dump(), summary=describe(schedule.cadence))
+def _respond(schedule: Schedule, names: dict[str, str]) -> ScheduleResponse:
+    followed = (
+        names.get(schedule.cadence.schedule_id)
+        if isinstance(schedule.cadence, AfterCadence)
+        else None
+    )
+    return ScheduleResponse(
+        **schedule.model_dump(), summary=describe(schedule.cadence, followed)
+    )
+
+
+async def _named(request: Request, schedule: Schedule) -> ScheduleResponse:
+    """One schedule's response, naming the schedule a stage follows."""
+    names: dict[str, str] = {}
+    if isinstance(schedule.cadence, AfterCadence):
+        followed = await _schedules(request).get(schedule.cadence.schedule_id)
+        if followed is not None:
+            names[followed.id] = followed.name
+    return _respond(schedule, names)
 
 
 @router.get("/schedules")
@@ -104,13 +122,16 @@ async def list_schedules(
     request: Request, space_id: str | None = None
 ) -> list[ScheduleResponse]:
     """List every schedule or one space's schedules."""
-    return [_respond(schedule) for schedule in await _schedules(request).list_all(space_id)]
+    listed = await _schedules(request).list_all(space_id)
+    # A stage follows a schedule in its own space, so the list names it.
+    names = {schedule.id: schedule.name for schedule in listed}
+    return [_respond(schedule, names) for schedule in listed]
 
 
 @router.get("/schedules/{schedule_id}")
 async def get_schedule(request: Request, schedule_id: str) -> ScheduleResponse:
     try:
-        return _respond(await _schedules(request).require(schedule_id))
+        return await _named(request, await _schedules(request).require(schedule_id))
     except ScheduleNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -122,7 +143,7 @@ async def create_schedule(request: Request, body: CreateScheduleRequest) -> Sche
     except ScheduleValidationError as exc:
         raise _reject(str(exc), exc.field) from exc
     _scheduler(request).wake()
-    return _respond(schedule)
+    return await _named(request, schedule)
 
 
 @router.patch("/schedules/{schedule_id}")
@@ -139,7 +160,7 @@ async def update_schedule(
     except ScheduleValidationError as exc:
         raise _reject(str(exc), exc.field) from exc
     _scheduler(request).wake()
-    return _respond(schedule)
+    return await _named(request, schedule)
 
 
 @router.delete("/schedules/{schedule_id}", status_code=204)
@@ -173,11 +194,20 @@ async def run_schedule_now(request: Request, schedule_id: str) -> Run:
 
 @router.post("/schedules/preview")
 async def preview_schedule(request: Request, body: PreviewRequest) -> SchedulePreview:
-    """Preview a cadence's wording and upcoming times before saving."""
+    """Preview a cadence's wording and upcoming times before saving.
+
+    A stage that follows another schedule has no times of its own to show.
+    """
     store = _schedules(request)
+    followed: str | None = None
+    if isinstance(body.cadence, AfterCadence):
+        target = await store.get(body.cadence.schedule_id)
+        followed = target.name if target is not None else None
     upcoming: list[datetime] = []
-    after = store.now()
+    after: datetime | None = store.now()
     for _ in range(PREVIEW_COUNT):
-        after = next_occurrence(body.cadence, after, store.zone)
+        after = next_occurrence(body.cadence, after, store.zone) if after is not None else None
+        if after is None:
+            break
         upcoming.append(after)
-    return SchedulePreview(summary=describe(body.cadence), next=upcoming)
+    return SchedulePreview(summary=describe(body.cadence, followed), next=upcoming)

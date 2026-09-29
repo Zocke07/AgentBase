@@ -10,6 +10,10 @@ run once or advance according to ``missed``. Compute the next time from now,
 not missed time, so a week-closed laptop does not fire seven runs. A
 schedule whose run the app closed on is treated the same way: run again once
 at launch, or noted and left, by the same policy.
+
+A stage with an ``after`` cadence has no time of its own. When a scheduled
+run finishes, :meth:`Scheduler.follow` starts the stages that follow its
+schedule if it completed, and records why not if it failed or was cancelled.
 """
 
 from __future__ import annotations
@@ -61,6 +65,8 @@ class Scheduler:
     interrupted: frozenset[str] = frozenset()
     _task: asyncio.Task[None] | None = field(default=None, init=False)
     _wake: asyncio.Event = field(default_factory=asyncio.Event, init=False)
+    #: Set on close, so a run finishing during shutdown starts no stage.
+    _closed: bool = field(default=False, init=False)
 
     # --- lifecycle ---------------------------------------------------------
 
@@ -68,6 +74,7 @@ class Scheduler:
         self._task = asyncio.create_task(self._loop(), name="scheduler")
 
     async def aclose(self) -> None:
+        self._closed = True
         if self._task is None:
             return
         self._task.cancel()
@@ -193,6 +200,38 @@ class Scheduler:
         await self.schedules.advance(schedule.id, now=now, outcome=outcome, run_id=run.id)
         logger.info("schedule %s started run %s", schedule.name, run.id)
         return Fired(schedule.id, run.id, outcome)
+
+    async def follow(self, run_id: str) -> None:
+        """Launcher hook for every finished run; never raises into the launcher."""
+        try:
+            await self.on_run_finished(run_id)
+        except Exception:
+            logger.exception("could not start the stages after run %s", run_id)
+
+    async def on_run_finished(self, run_id: str) -> list[Fired]:
+        """Start, or record why not, the stages that follow a finished scheduled run."""
+        if self._closed:
+            return []
+        run = await self.launcher.store.get_run(run_id)
+        if run is None or run.origin != "schedule" or run.origin_ref is None:
+            return []
+        followers = await self.schedules.followers(run.origin_ref)
+        if not followers:
+            return []
+        parent = await self.schedules.get(run.origin_ref)
+        name = parent.name if parent is not None else "the schedule before it"
+        now = self.schedules.now()
+        fired: list[Fired] = []
+        for follower in followers:
+            if run.status == "completed":
+                fired.append(await self._fire(follower, now, note=f"it follows {name}"))
+                continue
+            ended = "was cancelled" if run.status == "cancelled" else "did not finish"
+            outcome = f"Not started: {name}'s run {ended}."
+            await self.schedules.note_outcome(follower.id, now=now, outcome=outcome)
+            logger.info("schedule %s: %s", follower.name, outcome)
+            fired.append(Fired(follower.id, None, outcome))
+        return fired
 
     async def run_now(self, schedule: Schedule) -> RunRow:
         """Start a schedule by hand, bounded exactly as a timed start is.

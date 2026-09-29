@@ -193,6 +193,7 @@ def create_app(
         app.state.scheduler = Scheduler(
             app.state.schedules, app.state.launcher, interrupted=frozenset(interrupted)
         )
+        app.state.launcher.on_finished = app.state.scheduler.follow
         await app.state.scheduler.start()
 
         try:

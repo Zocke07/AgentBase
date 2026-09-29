@@ -7,6 +7,17 @@
  */
 
 
+/**
+ * When the run of another schedule in the same space completes.
+ *
+ * A stage in a chain: the collection runs at its time, the analysis after it.
+ * A failed or cancelled run stops the chain there.
+ */
+export interface AfterCadence {
+  kind: "after";
+  schedule_id: string;
+}
+
 /** One row of `agent_defs` (§4). Frozen: a run holds a snapshot of it. */
 export interface AgentDef {
   id: string;
@@ -135,7 +146,7 @@ export interface CreateScheduleRequest {
   space_id: string;
   name: string;
   goal: string;
-  cadence: DailyCadence | WeeklyCadence | IntervalCadence;
+  cadence: DailyCadence | WeeklyCadence | IntervalCadence | AfterCadence;
   missed?: "run_on_launch" | "skip";
   enabled?: boolean;
   max_run_seconds?: number | null;
@@ -410,7 +421,7 @@ export interface PinNoteRequest {
 }
 
 export interface PreviewRequest {
-  cadence: DailyCadence | WeeklyCadence | IntervalCadence;
+  cadence: DailyCadence | WeeklyCadence | IntervalCadence | AfterCadence;
 }
 
 /** Selectable and priced models by provider. */
@@ -468,7 +479,7 @@ export interface ScheduleResponse {
   space_id: string;
   name: string;
   goal: string;
-  cadence: DailyCadence | WeeklyCadence | IntervalCadence;
+  cadence: DailyCadence | WeeklyCadence | IntervalCadence | AfterCadence;
   missed?: "run_on_launch" | "skip";
   enabled?: boolean;
   next_run_at?: string | null;
@@ -605,7 +616,7 @@ export interface UpdateMemoryRequest {
 export interface UpdateScheduleRequest {
   name?: string | null;
   goal?: string | null;
-  cadence?: DailyCadence | WeeklyCadence | IntervalCadence | null;
+  cadence?: DailyCadence | WeeklyCadence | IntervalCadence | AfterCadence | null;
   missed?: "run_on_launch" | "skip" | null;
   enabled?: boolean | null;
   max_run_seconds?: number | null;

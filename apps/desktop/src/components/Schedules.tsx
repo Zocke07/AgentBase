@@ -37,6 +37,8 @@ interface Draft {
   at: string;
   weekdays: number[];
   everyHours: string;
+  /** The schedule a stage follows, for an `after` cadence. */
+  after: string;
   missed: Missed;
   enabled: boolean;
   /** Typed schedule time limit; blank inherits space limit. */
@@ -54,6 +56,7 @@ const BLANK: Draft = {
   at: "09:00",
   weekdays: [0, 1, 2, 3, 4],
   everyHours: "6",
+  after: "",
   missed: "run_on_launch",
   enabled: true,
   seconds: "",
@@ -65,9 +68,10 @@ function fromSchedule(schedule: ScheduleResponse): Draft {
     name: schedule.name,
     goal: schedule.goal,
     kind: cadence.kind,
-    at: cadence.kind === "interval" ? BLANK.at : cadence.at,
+    at: cadence.kind === "daily" || cadence.kind === "weekly" ? cadence.at : BLANK.at,
     weekdays: cadence.kind === "weekly" ? [...cadence.weekdays] : BLANK.weekdays,
     everyHours: cadence.kind === "interval" ? String(cadence.every_hours) : BLANK.everyHours,
+    after: cadence.kind === "after" ? cadence.schedule_id : BLANK.after,
     missed: schedule.missed ?? "run_on_launch",
     enabled: schedule.enabled ?? true,
     seconds: schedule.max_run_seconds === null || schedule.max_run_seconds === undefined ? "" : String(schedule.max_run_seconds),
@@ -76,6 +80,10 @@ function fromSchedule(schedule: ScheduleResponse): Draft {
 
 /** Draft cadence or reason it is not yet valid. */
 function cadenceOf(draft: Draft): { cadence: Cadence } | { error: string; field: string } {
+  if (draft.kind === "after") {
+    if (draft.after === "") return { error: "Pick the schedule this one follows.", field: "after" };
+    return { cadence: { kind: "after", schedule_id: draft.after } };
+  }
   if (draft.kind === "interval") {
     const hours = Number(draft.everyHours);
     if (!/^\d+$/.test(draft.everyHours.trim()) || hours < 1 || hours > 168) {

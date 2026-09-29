@@ -103,6 +103,7 @@ def test_the_result_is_in_utc_and_the_wall_time_survives_a_dst_change() -> None:
     # 07:00 UTC, not the 08:00 UTC that today's offset would give.
     before = _local(2026, 3, 28, 22, 0)
     following = next_occurrence(cadence, before, ZONE)
+    assert following is not None
     assert following.tzinfo is UTC
     assert following == _utc(2026, 3, 29, 7, 0)
     assert following.astimezone(ZONE).hour == 9
@@ -146,9 +147,13 @@ def test_cadences_are_validated_with_a_message_for_the_user() -> None:
         parse_cadence({"kind": "daily", "at": "25:00"})
     with pytest.raises(ScheduleValidationError, match="Monday"):
         parse_cadence({"kind": "weekly", "at": "07:00", "weekdays": [7]})
-    with pytest.raises(ScheduleValidationError, match="daily, weekly or an interval"):
+    with pytest.raises(
+        ScheduleValidationError, match="daily, weekly, an interval or after another schedule"
+    ):
         parse_cadence({"kind": "monthly"})
-    with pytest.raises(ScheduleValidationError, match="daily, weekly or an interval"):
+    with pytest.raises(
+        ScheduleValidationError, match="daily, weekly, an interval or after another schedule"
+    ):
         parse_cadence("daily")
     with pytest.raises(ScheduleValidationError):
         parse_cadence({"kind": "interval", "every_hours": 0})
@@ -359,6 +364,7 @@ class FakeLauncher:
 
     def __init__(self, store: EventStore, spaces: SpaceStore) -> None:
         self._store = store
+        self.store = store
         self._spaces = spaces
         self.launched: list[dict[str, Any]] = []
         self.live: dict[str, object] = {}
@@ -580,3 +586,149 @@ async def test_a_scheduled_run_the_app_closed_on_runs_again_once_at_launch(
     # Once only: a second pass in the same process starts nothing more.
     await relaunched.catch_up()
     assert len(launcher.launched) == 4
+
+
+# --- chains: a stage that starts when another schedule's run completes -------------
+
+
+def _after(schedule_id: str, **overrides: Any) -> dict[str, Any]:
+    return _fields(cadence={"kind": "after", "schedule_id": schedule_id}, **overrides)
+
+
+async def test_a_stage_has_no_time_of_its_own_and_says_what_it_follows(
+    schedules: ScheduleStore,
+) -> None:
+    first = await schedules.create(_fields(name="Morning collection"))
+    stage = await schedules.create(_after(first.id, name="Theses and risk"))
+
+    assert stage.enabled is True
+    assert stage.next_run_at is None
+    assert describe(stage.cadence, "Morning collection") == "After Morning collection completes"
+    assert [s.id for s in await schedules.followers(first.id)] == [stage.id]
+    # A stage is never due by the clock.
+    assert stage.id not in {s.id for s in await schedules.due(_utc(2030, 1, 1))}
+
+
+async def test_a_chain_refuses_itself_a_stranger_another_space_a_loop_and_depth(
+    schedules: ScheduleStore, spaces: SpaceStore
+) -> None:
+    lab = await spaces.create({"name": "Lab"})
+    elsewhere = await schedules.create(_fields(name="Elsewhere", space_id=lab.id))
+    one = await schedules.create(_fields(name="One"))
+    two = await schedules.create(_after(one.id, name="Two"))
+    three = await schedules.create(_after(two.id, name="Three"))
+    four = await schedules.create(_after(three.id, name="Four"))
+
+    refusals = {
+        "a stranger": _after("ghost", name="Ghost"),
+        "another space": _after(elsewhere.id, name="Across"),
+        "too deep": _after(four.id, name="Five"),
+    }
+    for fields in refusals.values():
+        with pytest.raises(ScheduleValidationError) as caught:
+            await schedules.create(fields)
+        assert caught.value.field == "cadence"
+
+    with pytest.raises(ScheduleValidationError, match="follow itself"):
+        await schedules.update(two.id, {"cadence": {"kind": "after", "schedule_id": two.id}})
+    with pytest.raises(ScheduleValidationError, match="loop"):
+        await schedules.update(one.id, {"cadence": {"kind": "after", "schedule_id": three.id}})
+    # Lengthening the chain from above counts the stages below.
+    extra = await schedules.create(_fields(name="Extra"))
+    with pytest.raises(ScheduleValidationError, match="at most 4 stages"):
+        await schedules.update(one.id, {"cadence": {"kind": "after", "schedule_id": extra.id}})
+
+
+async def test_deleting_a_followed_schedule_turns_its_stage_off_and_says_why(
+    schedules: ScheduleStore,
+) -> None:
+    first = await schedules.create(_fields(name="First"))
+    stage = await schedules.create(_after(first.id, name="Stage"))
+
+    await schedules.delete(first.id)
+
+    stopped = await schedules.require(stage.id)
+    assert stopped.enabled is False
+    assert stopped.last_outcome == "Turned off: the schedule it followed was deleted."
+    with pytest.raises(ScheduleValidationError):
+        await schedules.update(stage.id, {"enabled": True})
+
+
+async def _finish(store: EventStore, run_id: str, status: str) -> None:
+    await store.set_run_status(run_id, status)  # type: ignore[arg-type]
+
+
+async def test_a_completed_run_starts_the_stages_that_follow_it_down_a_chain_of_three(
+    schedules: ScheduleStore,
+    scheduler: Scheduler,
+    launcher: FakeLauncher,
+    clock: Clock,
+    store: EventStore,
+) -> None:
+    first = await schedules.create(_fields(name="Morning collection"))
+    second = await schedules.create(_after(first.id, name="Theses and risk"))
+    third = await schedules.create(_after(second.id, name="Daily decision"))
+    off = await schedules.create(_after(first.id, name="Switched off", enabled=False))
+
+    clock.now = _utc(2026, 9, 18, 7, 0, 5)
+    (started,) = await scheduler.tick()
+    assert started.schedule_id == first.id and started.run_id is not None
+
+    await _finish(store, started.run_id, "completed")
+    (next_stage,) = await scheduler.on_run_finished(started.run_id)
+    assert next_stage.schedule_id == second.id
+    assert next_stage.outcome == "Started a run: it follows Morning collection."
+    assert next_stage.run_id is not None
+
+    await _finish(store, next_stage.run_id, "completed")
+    (last,) = await scheduler.on_run_finished(next_stage.run_id)
+    assert last.schedule_id == third.id
+
+    await _finish(store, last.run_id or "", "completed")
+    assert await scheduler.on_run_finished(last.run_id or "") == []
+    assert [entry["origin_ref"] for entry in launcher.launched] == [
+        first.id,
+        second.id,
+        third.id,
+    ]
+    assert (await schedules.require(off.id)).last_run_id is None
+    # A stage stays a stage: no clock time appears after it fires.
+    assert (await schedules.require(second.id)).next_run_at is None
+
+
+@pytest.mark.parametrize(
+    ("status", "words"), [("failed", "did not finish"), ("cancelled", "was cancelled")]
+)
+async def test_a_run_that_did_not_complete_stops_the_chain_and_says_so(
+    schedules: ScheduleStore,
+    scheduler: Scheduler,
+    launcher: FakeLauncher,
+    store: EventStore,
+    status: str,
+    words: str,
+) -> None:
+    first = await schedules.create(_fields(name="Morning collection"))
+    stage = await schedules.create(_after(first.id, name="Theses and risk"))
+    run = await scheduler.run_now(first)
+
+    await _finish(store, run.id, status)
+    fired = await scheduler.on_run_finished(run.id)
+
+    assert fired == [Fired(stage.id, None, f"Not started: Morning collection's run {words}.")]
+    assert len(launcher.launched) == 1
+
+
+async def test_only_scheduled_runs_start_stages_and_nothing_starts_after_close(
+    schedules: ScheduleStore, scheduler: Scheduler, launcher: FakeLauncher, store: EventStore
+) -> None:
+    first = await schedules.create(_fields(name="First"))
+    await schedules.create(_after(first.id, name="Stage"))
+    by_hand = await store.create_run("g", origin="ui", origin_ref=first.id)
+    await _finish(store, by_hand.id, "completed")
+    assert await scheduler.on_run_finished(by_hand.id) == []
+
+    run = await scheduler.run_now(first)
+    await _finish(store, run.id, "completed")
+    await scheduler.aclose()
+    assert await scheduler.on_run_finished(run.id) == []
+    assert len(launcher.launched) == 1

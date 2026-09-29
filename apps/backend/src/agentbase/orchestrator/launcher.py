@@ -67,6 +67,9 @@ class RunLauncher:
     driving: set[str] = field(default_factory=set)
     #: Cancellations that arrive before ``execute_run`` constructs live ``Run``.
     pending_cancellations: dict[str, str] = field(default_factory=dict)
+    #: Told each run id once its orchestrator has written a terminal event;
+    #: the scheduler uses it to start the stages that follow a scheduled run.
+    on_finished: Callable[[str], Coroutine[Any, Any, None]] | None = None
 
     async def launch(
         self,
@@ -112,6 +115,8 @@ class RunLauncher:
         def finished(_task: asyncio.Task[None]) -> None:
             self.driving.discard(run_id)
             self.pending_cancellations.pop(run_id, None)
+            if self.on_finished is not None:
+                self.spawn(self.on_finished(run_id))
 
         task.add_done_callback(finished)
         return run
