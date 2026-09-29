@@ -27,6 +27,8 @@ const pending: ApprovalRecord = {
   automatic: false,
   precedent: false,
   policy: false,
+  rule: null,
+  host: null,
   scope: "call",
   seq: 12,
 };

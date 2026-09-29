@@ -527,6 +527,56 @@ describe("run identity", () => {
     expect(state.limits).toMatchObject({ max_agents_per_run: 4 });
   });
 
+  it("keeps the approval policy the run acted under, and null for older runs", () => {
+    const log = new LogBuilder();
+    const state = reduceAll([
+      log.add("run.started", {
+        goal: "scan",
+        approval: {
+          levels: ["low", "medium"],
+          tool_policies: { write_file: "allow", run_shell: "deny" },
+          hosts: ["news.google.com"],
+          question_seconds: 120,
+          supervised: false,
+          origin: "schedule",
+        },
+      }),
+    ]);
+
+    expect(state.approvalPolicy).toEqual({
+      levels: ["low", "medium"],
+      allowTools: ["write_file"],
+      denyTools: ["run_shell"],
+      hosts: ["news.google.com"],
+      questionSeconds: 120,
+      supervised: false,
+      origin: "schedule",
+    });
+    expect(reduceAll(twoAgentRun()).approvalPolicy).toBeNull();
+  });
+
+  it("records which rule answered an automatic yes, and the listed host", () => {
+    const log = new LogBuilder();
+    const state = reduceAll([
+      log.add("run.started", { goal: "scan" }),
+      log.add(
+        "approval.requested",
+        {
+          approval_id: "a1",
+          tool: "read_feed",
+          risk: "medium",
+          prompt: "Agent wants to read a feed",
+          automatic: true,
+          rule: "level",
+          host: "news.google.com",
+        },
+        "news-scanner",
+      ),
+    ]);
+
+    expect(state.approvals[0]).toMatchObject({ rule: "level", host: "news.google.com" });
+  });
+
   it("keeps the retrieved excerpts, the user's exclusions and the memory note from the log", () => {
     /* The inspector shows what the supervisor was given; a replay must show
        the same excerpts, so they come from `run.started`, never from a fresh search. */

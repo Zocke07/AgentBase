@@ -73,6 +73,13 @@ export interface ApprovalRecord {
   readonly precedent: boolean;
   /** Automatic answer from app-wide or space policy for this named tool. */
   readonly policy: boolean;
+  /**
+   * Which rule answered an automatic yes: `"level"` (the risk level is
+   * pre-approved) or `"tool"` (the tool is always allowed); null otherwise.
+   */
+  readonly rule: "level" | "tool" | null;
+  /** The listed host a network call reached on the policy's word. */
+  readonly host: string | null;
   /** Person's yes scope: this call or remaining run tool calls. */
   readonly scope: "call" | "run";
   readonly seq: number;
@@ -104,6 +111,26 @@ export interface RunError {
   readonly kind: "llm" | "tool";
   readonly message: string;
   readonly seq: number;
+}
+
+/**
+ * The approval policy a run acted under, as `run.started` recorded it. With
+ * nobody answering calls one by one, this is why a call ran without asking.
+ * Older runs recorded none, so it is null for them.
+ */
+export interface RunApprovalPolicy {
+  /** Risk levels answered yes by policy. */
+  readonly levels: readonly string[];
+  /** Tools always allowed, and tools never allowed. */
+  readonly allowTools: readonly string[];
+  readonly denyTools: readonly string[];
+  /** Hosts a network call may reach without asking; `*` is any. */
+  readonly hosts: readonly string[];
+  /** How long a question waited before expiring; null waits out the run. */
+  readonly questionSeconds: number | null;
+  /** Stepped through: every call asked. */
+  readonly supervised: boolean;
+  readonly origin: string | null;
 }
 
 /** One vault excerpt the supervisor received, as `run.started` recorded it. */
@@ -149,6 +176,7 @@ export interface RunView {
   /** Present only for chat-channel runs. */
   readonly origin: RunOrigin | null;
   readonly limits: Payload | null;
+  readonly approvalPolicy: RunApprovalPolicy | null;
   /** Goal excerpts and user-removed citations. */
   readonly knowledge: readonly RetrievedExcerpt[];
   readonly knowledgeExclusions: readonly string[];
@@ -184,6 +212,7 @@ export const EMPTY_RUN: RunView = {
   goal: null,
   origin: null,
   limits: null,
+  approvalPolicy: null,
   knowledge: [],
   knowledgeExclusions: [],
   memoryPath: null,
@@ -296,6 +325,7 @@ export function reduce(state: RunView, event: Event): RunView {
         ...next,
         goal: text(payload, "goal"),
         limits: record(payload, "limits"),
+        approvalPolicy: approvalPolicyOf(payload),
         knowledge: records(payload, "knowledge").map(excerptOf),
         knowledgeExclusions: strings(payload, "knowledge_exclusions"),
         status: "running",
@@ -487,6 +517,8 @@ export function reduce(state: RunView, event: Event): RunView {
         automatic: flag(payload, "automatic"),
         precedent: text(payload, "precedent") !== null,
         policy: text(payload, "policy") !== null,
+        rule: ruleOf(text(payload, "rule")),
+        host: text(payload, "host"),
         scope: "call",
         seq,
       };
@@ -549,6 +581,27 @@ export function reduceAll(events: readonly Event[], from: RunView = EMPTY_RUN): 
 function thinkingAgain(node: AgentNode): AgentNode {
   if (node.activity === "completed") return node;
   return { ...node, activity: "thinking", currentTool: null };
+}
+
+function approvalPolicyOf(payload: Payload): RunApprovalPolicy | null {
+  if (!("approval" in payload)) return null;
+  const approval = record(payload, "approval");
+  const policies = record(approval, "tool_policies");
+  const answered = (answer: string): string[] =>
+    Object.keys(policies).filter((tool) => policies[tool] === answer);
+  return {
+    levels: strings(approval, "levels"),
+    allowTools: answered("allow"),
+    denyTools: answered("deny"),
+    hosts: strings(approval, "hosts"),
+    questionSeconds: int(approval, "question_seconds"),
+    supervised: flag(approval, "supervised"),
+    origin: text(approval, "origin"),
+  };
+}
+
+function ruleOf(value: string | null): "level" | "tool" | null {
+  return value === "level" || value === "tool" ? value : null;
 }
 
 function excerptOf(hit: Payload): RetrievedExcerpt {

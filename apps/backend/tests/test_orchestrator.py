@@ -575,6 +575,47 @@ async def test_a_run_stops_before_a_call_that_could_cross_its_cost_limit(
     assert await ledger.run_spent_micros(run_id) < 1_000_000
 
 
+async def test_run_started_records_the_approval_policy_the_run_acts_under(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+) -> None:
+    """With nobody answering calls one by one, the log must say what could run."""
+    await settings.update(
+        {
+            "auto_approve": ["low", "medium"],
+            "tool_policies": {"http_get": "deny", "write_file": "allow"},
+            "auto_approve_hosts": ["news.google.com"],
+            "unattended_question_seconds": 90,
+        }
+    )
+    run = await store.create_run(goal="scan", origin="schedule")
+
+    await execute_run(
+        store,
+        settings,
+        agents,
+        ledger,
+        secrets,
+        run.id,
+        "scan",
+        provider=ScriptedProvider([says("Done.", call("finish", "s1", result="ok"))]),
+        origin="schedule",
+    )
+
+    started = next(e for e in await store.read(run.id) if e.type is EventType.RUN_STARTED)
+    assert started.payload["approval"] == {
+        "levels": ["low", "medium"],
+        "tool_policies": {"http_get": "deny", "write_file": "allow"},
+        "hosts": ["news.google.com"],
+        "question_seconds": 90,
+        "supervised": False,
+        "origin": "schedule",
+    }
+
+
 async def test_a_cost_limit_of_zero_is_no_ceiling(
     store: EventStore,
     settings: SettingsStore,

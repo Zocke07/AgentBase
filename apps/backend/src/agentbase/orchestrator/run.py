@@ -89,6 +89,9 @@ class Run:
     origin: RunOrigin = "ui"
     #: How long a question waits in a run nobody watches; ``None`` waits out the run.
     question_seconds: int | None = None
+    #: The approval policy this run acts under, recorded in ``run.started``.
+    #: With nobody answering calls one by one, it is why each call ran.
+    approval: dict[str, Any] | None = None
     started_at: float = field(default=0.0, init=False)
     _agents: list[str] = field(default_factory=list, init=False)
     #: Set by ``request_cancel`` and consumed by ``check_deadline`` between
@@ -107,6 +110,8 @@ class Run:
             payload["knowledge"] = [hit.model_dump(mode="json") for hit in self.knowledge]
         if self.knowledge_exclusions:
             payload["knowledge_exclusions"] = list(self.knowledge_exclusions)
+        if self.approval is not None:
+            payload["approval"] = self.approval
         await self.emit(EventType.RUN_STARTED, payload)
         await self.store.set_run_status(self.id, "running")
 

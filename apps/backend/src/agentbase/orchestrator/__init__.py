@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import replace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from agentbase.budget.ledger import BudgetedProvider, BudgetExceededError
 from agentbase.events.types import EventType
@@ -137,6 +137,11 @@ async def execute_run(
             logger.exception("knowledge retrieval failed for run %s", run_id)
     knowledge_context = knowledge.format_context(hits) if knowledge is not None else ""
 
+    question_seconds = (
+        workspace.unattended_question_seconds
+        if origin in UNATTENDED_ORIGINS and not supervised
+        else None
+    )
     run = Run(
         store=store,
         id=run_id,
@@ -148,11 +153,8 @@ async def execute_run(
         knowledge_exclusions=tuple(sorted(excluded_citations)),
         spent_so_far=lambda: ledger.run_spent_micros(run_id),
         origin=origin,
-        question_seconds=(
-            workspace.unattended_question_seconds
-            if origin in UNATTENDED_ORIGINS and not supervised
-            else None
-        ),
+        question_seconds=question_seconds,
+        approval=_approval_record(workspace, origin, question_seconds, supervised=supervised),
     )
 
     if live is not None:
@@ -265,6 +267,30 @@ async def _execute(
         await run.fail(f"The run stopped unexpectedly: {exc}")
     else:
         await _finish(run, outcome, knowledge)
+
+
+def _approval_record(
+    workspace: WorkspaceSettings,
+    origin: RunOrigin,
+    question_seconds: int | None,
+    *,
+    supervised: bool,
+) -> dict[str, Any]:
+    """The app-wide and space policy this run acts under, for ``run.started``.
+
+    It is the same snapshot the gate is given, so replay can say why a call
+    ran without asking. A definition may narrow it further per agent.
+    """
+    return {
+        "levels": [str(level) for level in workspace.auto_approve],
+        "tool_policies": {
+            tool: str(policy) for tool, policy in sorted(workspace.tool_policies.items())
+        },
+        "hosts": list(workspace.auto_approve_hosts),
+        "question_seconds": question_seconds,
+        "supervised": supervised,
+        "origin": origin,
+    }
 
 
 def _with_workspace_policy(
