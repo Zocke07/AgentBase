@@ -67,10 +67,10 @@ export const TOUR_STEPS: readonly TourStep[] = [
     section: "runs",
   },
   {
-    title: "Knowledge and memory",
+    title: "Knowledge and saved context",
     body:
-      "The space folder as a vault: notes, tags, links and a graph. A finished run proposes a memory; " +
-      "nothing is remembered until you approve it in the inbox here.",
+      "The space folder is a vault with notes, tags, links and a graph. Finished runs can leave useful summaries. " +
+      "Keep one to make it available to future runs, or dismiss it.",
     target: "rail-knowledge",
     section: "knowledge",
   },

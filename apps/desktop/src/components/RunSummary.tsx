@@ -301,9 +301,15 @@ function FoldedClaim({ text, unfolded }: { text: string; unfolded: boolean }) {
 }
 
 const MEMORY_WORD: Record<MemoryItem["status"], string> = {
-  proposed: "proposed: not retrieved until you approve it",
-  approved: "approved: later runs can retrieve it",
-  archived: "archived: kept, not retrieved",
+  proposed: "needs review before future runs can use it",
+  approved: "kept for future runs",
+  archived: "dismissed; future runs will not use it",
+};
+
+const MEMORY_STATUS: Record<MemoryItem["status"], string> = {
+  proposed: "needs review",
+  approved: "kept",
+  archived: "dismissed",
 };
 
 /**
@@ -360,20 +366,20 @@ function RunMemory({
   return (
     <div className="claim__memory" data-testid="run-memory">
       <span className="claim__memory-text">
-        Saved as a memory at <code>{path}</code>
+        Saved a run summary at <code>{path}</code>
         {status !== null && (
           <>
             {" "}
-            <span className={`memory-status memory-status--${status}`}>{item?.pinned === true ? "pinned" : status}</span>{" "}
-            <span className="claim__memory-word">{item?.pinned === true ? "pinned: always retrieved" : MEMORY_WORD[status]}</span>
+            <span className={`memory-status memory-status--${status}`}>{item?.pinned === true ? "always included" : MEMORY_STATUS[status]}</span>{" "}
+            <span className="claim__memory-word">{item?.pinned === true ? "included in every future run" : MEMORY_WORD[status]}</span>
           </>
         )}
-        {status === null && spaceId === null && ". Approve it in the Knowledge inbox before later runs can retrieve it."}
+        {status === null && spaceId === null && ". Keep it in Saved context before later runs can retrieve it."}
       </span>
       <span className="claim__memory-actions">
         {status === "proposed" && (
           <button type="button" className="button button--small button--primary" disabled={busy} onClick={() => void approve()}>
-            {busy ? "Approving…" : "Approve"}
+            {busy ? "Keeping…" : "Keep for future runs"}
           </button>
         )}
         {onOpen !== undefined && (
@@ -384,7 +390,7 @@ function RunMemory({
               onOpen(path);
             }}
           >
-            Open in the inbox
+            Review saved context
           </button>
         )}
       </span>

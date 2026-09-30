@@ -679,7 +679,7 @@ export function KnowledgeView({
               setHits(null);
             }}
           >
-            Memory review
+            Saved context
             {memories !== null && memories.proposed > 0 && (
               <span className="knowledge__badge">{memories.proposed}</span>
             )}
@@ -691,7 +691,7 @@ export function KnowledgeView({
             ? "Markdown knowledge that you and agents write."
             : browserMode === "files"
               ? "Structured inputs and generated files used by agents."
-              : "Proposed memories waiting for your review."}
+              : "Useful run summaries you can keep available to future agents."}
         </p>
 
         {browserMode === "notes" && (
@@ -1190,8 +1190,8 @@ export function KnowledgeView({
             <h2>Shared knowledge for people and agents</h2>
             <p>
               Notes are ordinary Markdown files in this space's folder, and the folder is an Obsidian vault.
-              AgentBase retrieves cited excerpts from them for every run; completed runs propose memories back
-              into Memory review.
+              AgentBase retrieves cited excerpts from them for every run; completed runs put useful summaries in
+              Saved context for you to keep or dismiss.
             </p>
             <div className="knowledge__welcome-actions">
               <button

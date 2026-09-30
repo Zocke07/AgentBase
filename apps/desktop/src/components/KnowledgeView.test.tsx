@@ -173,8 +173,8 @@ describe("knowledge vault", () => {
     expect(screen.queryByRole("group", { name: "Knowledge view" })).toBeNull();
     expect(screen.queryByRole("button", { name: "New note" })).toBeNull();
 
-    await user.click(screen.getByRole("tab", { name: "Memory review" }));
-    expect(screen.getByText("Proposed memories waiting for your review.")).toBeTruthy();
+    await user.click(screen.getByRole("tab", { name: "Saved context" }));
+    expect(screen.getByText("Useful run summaries you can keep available to future agents.")).toBeTruthy();
 
     await user.click(screen.getByRole("tab", { name: "Notes" }));
     expect(screen.getByRole("group", { name: "Knowledge view" })).toBeTruthy();
@@ -366,17 +366,20 @@ describe("knowledge vault", () => {
     });
     render(<KnowledgeView space={space} onOpenRun={onOpenRun} />);
 
-    await user.click(await screen.findByRole("tab", { name: /Memory review/ }));
-    expect(await screen.findByText(/from a run · created/)).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: "Open run" }));
+    await user.click(await screen.findByRole("tab", { name: /Saved context/ }));
+    expect(await screen.findByText(/From a run/)).toBeTruthy();
+    await user.click(screen.getByText("More actions"));
+    await user.click(screen.getByRole("button", { name: "Open source run" }));
     expect(onOpenRun).toHaveBeenCalledWith("run-1");
     await user.click(screen.getByRole("button", { name: "[[decisions/storage#Storage decision]]" }));
     expect(mocked.getKnowledgeNote).toHaveBeenCalledWith("space-lab", "decisions/storage.md");
 
+    await user.click(screen.getByText("Organize"));
+    await user.click(screen.getByRole("button", { name: "Combine memories" }));
     await user.click(screen.getByRole("checkbox", { name: /Select Run memory/ }));
     await user.click(screen.getByRole("checkbox", { name: /Select Cache is unnecessary/ }));
     await user.type(screen.getByLabelText("Merged memory title"), "Storage");
-    await user.click(screen.getByRole("button", { name: "Merge 2 selected" }));
+    await user.click(screen.getByRole("button", { name: "Combine 2 selected" }));
 
     expect(mocked.mergeMemories).toHaveBeenCalledWith(
       "space-lab",
