@@ -1145,7 +1145,7 @@ export function KnowledgeView({
             <div className={`knowledge__document knowledge__document--${mode}`}>
               {mode !== "preview" && <NoteEditor value={content} notes={allNotes} onChange={setContent} />}
               {mode !== "write" && (
-                <article className="knowledge__preview" aria-label="Markdown preview" ref={preview}>
+                <article className="knowledge__preview knowledge__preview--fluid" aria-label="Markdown preview" ref={preview}>
                   <Markdown
                     source={content}
                     onLink={followLink}

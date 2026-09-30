@@ -182,6 +182,7 @@ describe("knowledge vault", () => {
     await user.click(await screen.findByRole("button", { name: /Storage decision/ }));
 
     expect(await screen.findByLabelText("Markdown source")).toHaveProperty("value", note.content);
+    expect(screen.getByLabelText("Markdown preview").className).toContain("knowledge__preview--fluid");
     expect(screen.getByText("#architecture", { selector: ".knowledge__tag" })).toBeTruthy();
     expect(screen.getByText("status").parentElement?.textContent).toContain("accepted");
     expect(screen.getByRole("button", { name: /index\.md/ })).toBeTruthy();

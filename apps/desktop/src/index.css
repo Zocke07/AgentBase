@@ -1748,9 +1748,10 @@ pre {
   line-height: 1.6;
 }
 
-.knowledge__preview>.md {
-  max-width: 46rem;
-  margin: 0 auto;
+.knowledge__preview--fluid>.md {
+  width: 100%;
+  max-width: none;
+  margin: 0;
 }
 
 .knowledge__preview .md__task-box input:not(:disabled) {
