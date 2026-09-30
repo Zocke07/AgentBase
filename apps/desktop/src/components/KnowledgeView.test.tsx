@@ -39,6 +39,7 @@ vi.mock("../lib/api", async (importOriginal) => ({
   mergeMemories: vi.fn(),
   pinKnowledgeNote: vi.fn(),
   evaluateKnowledge: vi.fn(),
+  listFiles: vi.fn(),
 }));
 
 const mocked = vi.mocked(api);
@@ -156,9 +157,24 @@ beforeEach(() => {
     mean_recall_at_k: 1,
     limit: 5,
   });
+  mocked.listFiles.mockResolvedValue({ files: [] });
 });
 
 describe("knowledge vault", () => {
+  it("names and explains the three kinds of workspace knowledge", async () => {
+    const user = userEvent.setup();
+    render(<KnowledgeView space={space} />);
+
+    expect(await screen.findByRole("tab", { name: "Notes" })).toBeTruthy();
+    expect(screen.getByText("Markdown knowledge that you and agents write.")).toBeTruthy();
+
+    await user.click(screen.getByRole("tab", { name: "Agent data" }));
+    expect(screen.getByText("Structured inputs and generated files used by agents.")).toBeTruthy();
+
+    await user.click(screen.getByRole("tab", { name: "Memory review" }));
+    expect(screen.getByText("Proposed memories waiting for your review.")).toBeTruthy();
+  });
+
   it("opens a Markdown note with properties, links and backlinks", async () => {
     const user = userEvent.setup();
     render(<KnowledgeView space={space} />);
@@ -343,7 +359,7 @@ describe("knowledge vault", () => {
     });
     render(<KnowledgeView space={space} onOpenRun={onOpenRun} />);
 
-    await user.click(await screen.findByRole("tab", { name: /Memory inbox/ }));
+    await user.click(await screen.findByRole("tab", { name: /Memory review/ }));
     expect(await screen.findByText(/from a run · created/)).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Open run" }));
     expect(onOpenRun).toHaveBeenCalledWith("run-1");

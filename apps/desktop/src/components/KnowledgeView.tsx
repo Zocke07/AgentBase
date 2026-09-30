@@ -655,7 +655,7 @@ export function KnowledgeView({
               setBrowserMode("notes");
             }}
           >
-            Files
+            Notes
           </button>
           <button
             type="button"
@@ -666,7 +666,7 @@ export function KnowledgeView({
               setHits(null);
             }}
           >
-            Data files
+            Agent data
           </button>
           <button
             type="button"
@@ -677,12 +677,20 @@ export function KnowledgeView({
               setHits(null);
             }}
           >
-            Memory inbox
+            Memory review
             {memories !== null && memories.proposed > 0 && (
               <span className="knowledge__badge">{memories.proposed}</span>
             )}
           </button>
         </div>
+
+        <p className="knowledge__browser-kind">
+          {browserMode === "notes"
+            ? "Markdown knowledge that you and agents write."
+            : browserMode === "files"
+              ? "Structured inputs and generated files used by agents."
+              : "Proposed memories waiting for your review."}
+        </p>
 
         {browserMode === "notes" && (
           <form
@@ -1179,7 +1187,7 @@ export function KnowledgeView({
             <p>
               Notes are ordinary Markdown files in this space's folder, and the folder is an Obsidian vault.
               AgentBase retrieves cited excerpts from them for every run; completed runs propose memories back
-              into the inbox.
+              into Memory review.
             </p>
             <div className="knowledge__welcome-actions">
               <button

@@ -115,7 +115,7 @@ export function VisualizationView({ space, active }: { space: SpaceResponse | nu
   const newChart = async () => {
     const first = dataFiles[0];
     if (first === undefined) {
-      setError("Add a CSV, TSV, JSON or JSON-lines file under Knowledge → Data files first.");
+      setError("Add a CSV, TSV, JSON or JSON-lines file under Knowledge → Agent data first.");
       return;
     }
     await open(first.path);

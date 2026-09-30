@@ -46,8 +46,10 @@ export function RunCard({
     >
       <span className="run-card__head">
         <span className={`status status--${status}`}>{STATUS_LABEL[status]}</span>
-        {run.origin !== "ui" && <span className="run-card__origin">from {run.origin}</span>}
-        <span className="run-card__time">{clockDate(run.created_at)}</span>
+        <span className="run-card__meta">
+          {run.origin !== "ui" && <span className="run-card__origin">from {run.origin}</span>}
+          <span className="run-card__time">{clockDate(run.created_at)}</span>
+        </span>
       </span>
       <span className="run-card__goal">{run.goal}</span>
       <span className="run-card__facts">

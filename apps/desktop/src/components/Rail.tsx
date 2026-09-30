@@ -82,8 +82,9 @@ const SECTIONS: readonly { id: Section; label: string; icon: ReactNode }[] = [
     id: "visualize",
     label: "Visualize",
     icon: (
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <path d="M3 16.5V3h1.5v12h12v1.5zM6 13V9h2v4zm3.5 0V5h2v8zm3.5 0V7.5h2V13z" />
+      <svg viewBox="0 0 20 20" aria-hidden="true" data-icon="visualization">
+        <path d="M3 3.5v13h14V15H4.5V3.5z" />
+        <path d="m5.5 12.8 3.2-3.4 2.5 2.1 4.2-5.1 1.2 1-5.2 6.2-2.6-2.1-2.2 2.3z" />
       </svg>
     ),
   },
@@ -91,8 +92,9 @@ const SECTIONS: readonly { id: Section; label: string; icon: ReactNode }[] = [
     id: "usage",
     label: "Usage",
     icon: (
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <path d="M3 16.5V3h1.5v12h12v1.5zm3.5-3v-5H8v5zm3-9v9H11v-9zm3 3.5v5.5H14V8z" />
+      <svg viewBox="0 0 20 20" aria-hidden="true" data-icon="usage">
+        <path d="M10 2.5a7.5 7.5 0 1 0 7.5 7.5A7.5 7.5 0 0 0 10 2.5zm0 1.6A5.9 5.9 0 1 1 4.1 10 5.9 5.9 0 0 1 10 4.1z" />
+        <path d="M10.7 5.6H9.3v1c-1.2.2-2.1 1-2.1 2.1 0 1.5 1.3 2 2.7 2.3 1.2.3 1.5.5 1.5 1s-.5.8-1.4.8c-1 0-1.8-.4-2.5-1l-.8 1.2c.7.6 1.6 1 2.6 1.2v1h1.4v-1c1.4-.2 2.3-1.1 2.3-2.3 0-1.5-1.2-2-2.8-2.4-1.1-.3-1.4-.5-1.4-.9 0-.4.4-.7 1.2-.7.8 0 1.5.3 2.1.8l.8-1.2a5.2 5.2 0 0 0-2.2-.9z" />
       </svg>
     ),
   },

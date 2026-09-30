@@ -995,8 +995,8 @@ pre {
 
 .knowledge__browser-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  margin: 0 0.85rem 0.6rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 0.85rem 0.3rem;
   padding: 0.2rem;
   border-radius: var(--radius-sm);
   background: var(--surface);
@@ -1014,12 +1014,22 @@ pre {
   color: var(--muted);
   font: inherit;
   font-size: 0.7333rem;
+  line-height: 1.2;
+  overflow-wrap: break-word;
   cursor: pointer;
 }
 
 .knowledge__browser-tabs button[aria-selected="true"] {
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+.knowledge__browser-kind {
+  margin: 0 0.85rem 0.6rem;
+  color: var(--muted);
+  font-size: 0.6667rem;
+  line-height: 1.35;
+  overflow-wrap: break-word;
 }
 
 .knowledge__badge {
@@ -2380,7 +2390,8 @@ pre {
 
 .md {
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .md>*:first-child {
@@ -2541,11 +2552,14 @@ pre {
 }
 
 .md .md__table-wrap {
+  max-width: 100%;
   margin: 0 0 1em;
   overflow: auto;
+  overscroll-behavior-inline: contain;
 }
 
 .md .md__table {
+  width: 100%;
   min-width: 20rem;
   border-collapse: collapse;
   font-size: 0.9333rem;
@@ -2557,6 +2571,8 @@ pre {
   border: 1px solid var(--border);
   text-align: left;
   vertical-align: top;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .md .md__table th {
@@ -3055,7 +3071,7 @@ button.md__tag:hover {
 
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(17rem, 100%), 1fr));
   gap: 0.75rem;
 }
 
@@ -3378,13 +3394,28 @@ button.md__tag:hover {
 
 .run-card__head {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.6rem;
   align-items: center;
   min-width: 0;
 }
 
+.run-card__head>.status {
+  flex: none;
+}
+
+.run-card__meta {
+  display: flex;
+  flex: 1 1 12rem;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.6rem;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
 .run-card__time {
-  margin-left: auto;
+  flex: none;
   color: var(--faint);
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
@@ -3392,25 +3423,22 @@ button.md__tag:hover {
 }
 
 .run-card__origin {
+  flex: none;
   color: var(--muted);
   font-size: 0.8rem;
+  white-space: nowrap;
 }
 
 .run-card__goal {
-  display: -webkit-box;
-  overflow: hidden;
   font-size: 0.9333rem;
   font-weight: 500;
   line-height: 1.4;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .run-card--compact .run-card__goal {
-  display: block;
   font-size: 0.8667rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .run-card__facts {

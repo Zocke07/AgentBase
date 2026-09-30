@@ -156,7 +156,7 @@ function renderBlock(block: Block, context: Context): ReactNode {
     }
     case "table":
       return (
-        <div key={key} className="md__table-wrap">
+        <div key={key} className="md__table-wrap" role="region" aria-label="Scrollable table" tabIndex={0}>
           <table className="md__table">
             <thead>
               <tr>

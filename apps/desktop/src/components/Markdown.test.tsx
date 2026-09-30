@@ -71,4 +71,12 @@ describe("Markdown", () => {
     expect(screen.getByRole("link", { name: "ok" })).toHaveProperty("href", "https://example.test/");
     expect(screen.queryByRole("link", { name: "bad" })).toBeNull();
   });
+
+  it("makes wide tables a named, keyboard-scrollable region", () => {
+    render(<Markdown source={"| ticker | action | invalidation |\n| --- | --- | --- |\n| AAPL | hold | Recheck after earnings |"} />);
+
+    const tableRegion = screen.getByRole("region", { name: "Scrollable table" });
+    expect(tableRegion).toHaveProperty("tabIndex", 0);
+    expect(tableRegion.querySelector("table")).not.toBeNull();
+  });
 });

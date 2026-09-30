@@ -101,6 +101,6 @@ describe("data files", () => {
     await waitFor(() => {
       expect(mocked.deleteFile).toHaveBeenCalledWith("space-lab", "config/sources.json");
     });
-    expect(await screen.findByText(/Pick a file on the left/)).toBeDefined();
+    expect(await screen.findByText(/Pick an agent data file on the left/)).toBeDefined();
   });
 });

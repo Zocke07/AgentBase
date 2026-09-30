@@ -74,7 +74,7 @@ export function FilesPanel({ spaceId, part, open, onOpen, onChanged, reloadNonce
         )}
         {list.length === 0 && files.data !== null && (
           <div className="files__empty">
-            <p>No data files yet. The investment agents read these; each starts from a template:</p>
+            <p>No agent data yet. These structured files are inputs and outputs for agents; each starter input begins from a template:</p>
             <ul>
               {STARTERS.map((starter) => (
                 <li key={starter.path}>
@@ -118,7 +118,7 @@ export function FilesPanel({ spaceId, part, open, onOpen, onChanged, reloadNonce
   if (open === null) {
     return (
       <div className="files__placeholder" data-testid="files-editor">
-        <p>Pick a file on the left, or create one. Files are plain text in the space folder; the agents read them with read_file.</p>
+        <p>Pick an agent data file on the left, or create one. These are plain-text inputs and outputs in the space folder; agents read them with read_file.</p>
       </div>
     );
   }
