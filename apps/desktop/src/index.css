@@ -5871,8 +5871,30 @@ button.md__tag:hover {
 
 /* Every day of the month has a slot, so one day of spend is one narrow bar
    in its place, not a slab across the whole chart. */
+.usage__chart-frame {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.usage__y-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 6.75rem;
+  margin-top: 0.5rem;
+  color: var(--muted);
+  font-size: 0.6667rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .usage__chart {
   display: flex;
+  min-width: 0;
   height: 8rem;
   padding-top: 0.5rem;
 }

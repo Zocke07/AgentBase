@@ -160,6 +160,10 @@ describe("UsageView", () => {
 
     const chart = screen.getByRole("img", { name: /Spend by day/ });
     expect(chart.children).toHaveLength(30);
+    expect(chart.getAttribute("aria-label")).toContain("Y axis $0.0000 to $0.0091");
+    const axis = screen.getByTestId("usage-y-axis");
+    expect(axis.textContent).toBe("$0.0091$0.0046$0.0000");
+    expect(axis.getAttribute("aria-hidden")).toBe("true");
     expect(screen.getByTestId("usage-day-2026-09-19").className).toContain("usage__bar--spent");
     expect(screen.getByTestId("usage-day-2026-09-20").className).not.toContain("usage__bar--spent");
     expect(screen.getByTestId("usage-day-2026-09-20").getAttribute("title")).toContain("nothing spent");

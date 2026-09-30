@@ -2,7 +2,7 @@ import type { SpaceResponse, UsageBucket, UsageReport, UsageRun } from "@agentba
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import * as api from "../lib/api";
-import { clockDate, ellipsise, formatCount, modelLabel, moneyShort, periodLabel, providerLabel } from "../lib/format";
+import { clockDate, ellipsise, formatCount, formatMicros, modelLabel, moneyShort, periodLabel, providerLabel } from "../lib/format";
 import { useFetched } from "../state/useFetched";
 
 import { Skeleton } from "./Skeleton";
@@ -206,28 +206,40 @@ function Card({ label, value, note, testId }: { label: string; value: string; no
  */
 function DayChart({ period, days }: { period: string; days: readonly UsageBucket[] }) {
   const most = Math.max(1, ...days.map((day) => day.cost_micros));
+  const midpoint = Math.round(most / 2);
   const byDay = new Map(days.map((day) => [day.key, day]));
   const peak = days.reduce<UsageBucket | null>((best, day) => (best === null || day.cost_micros > best.cost_micros ? day : best), null);
   return (
     <>
-      <div className="usage__chart" role="img" aria-label={`Spend by day: ${days.map((day) => `${day.label} ${day.cost_display}`).join(", ")}`}>
-        {daysOf(period, days).map((key, index) => {
-          const day = byDay.get(key);
-          const date = index + 1;
-          return (
-            <div
-              key={key}
-              className={`usage__bar${day === undefined ? "" : " usage__bar--spent"}`}
-              title={day === undefined ? `${key}: nothing spent` : `${day.label}: ${day.cost_display}, ${String(day.calls)} call${day.calls === 1 ? "" : "s"}, ${formatCount(day.input_tokens)} in, ${formatCount(day.output_tokens)} out`}
-              data-testid={`usage-day-${key}`}
-            >
-              <span className="usage__bar-track">
-                {day !== undefined && <span className="usage__bar-fill" style={{ height: `${String(Math.max(2, Math.round((day.cost_micros * 100) / most)))}%` }} />}
-              </span>
-              <span className="usage__bar-label">{day !== undefined || date === 1 || date % 5 === 0 ? date : ""}</span>
-            </div>
-          );
-        })}
+      <div className="usage__chart-frame">
+        <div className="usage__y-axis" aria-hidden="true" data-testid="usage-y-axis">
+          <span>{formatMicros(most)}</span>
+          <span>{formatMicros(midpoint)}</span>
+          <span>{formatMicros(0)}</span>
+        </div>
+        <div
+          className="usage__chart"
+          role="img"
+          aria-label={`Spend by day. Y axis ${formatMicros(0)} to ${formatMicros(most)}: ${days.map((day) => `${day.label} ${day.cost_display}`).join(", ")}`}
+        >
+          {daysOf(period, days).map((key, index) => {
+            const day = byDay.get(key);
+            const date = index + 1;
+            return (
+              <div
+                key={key}
+                className={`usage__bar${day === undefined ? "" : " usage__bar--spent"}`}
+                title={day === undefined ? `${key}: nothing spent` : `${day.label}: ${day.cost_display}, ${String(day.calls)} call${day.calls === 1 ? "" : "s"}, ${formatCount(day.input_tokens)} in, ${formatCount(day.output_tokens)} out`}
+                data-testid={`usage-day-${key}`}
+              >
+                <span className="usage__bar-track">
+                  {day !== undefined && <span className="usage__bar-fill" style={{ height: `${String(Math.max(2, Math.round((day.cost_micros * 100) / most)))}%` }} />}
+                </span>
+                <span className="usage__bar-label">{day !== undefined || date === 1 || date % 5 === 0 ? date : ""}</span>
+              </div>
+            );
+          })}
+        </div>
       </div>
       {peak !== null && (
         <p className="usage__chart-note">
