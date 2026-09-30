@@ -173,6 +173,17 @@ describe("Schedules", () => {
     expect(note).not.toContain("http_get");
   });
 
+  it("treats an always-allowed price read as a host-bounded fetch", async () => {
+    const settings = settingsWith([]);
+    settings.settings.tool_policies = { read_prices: "allow" };
+    render(<Schedules space={lab} settings={settings} />);
+    await screen.findByTestId("schedule-sched-1");
+
+    const note = screen.getByTestId("schedules-policy").textContent;
+    expect(note).toContain("runs read_prices without asking whatever the level");
+    expect(note).toContain("fetches from news.google.com and stooq.com without asking");
+  });
+
   it("turns a schedule off and on, and runs it now", async () => {
     mocked.runScheduleNow.mockResolvedValue({
       id: "run-abcdef12-3456",

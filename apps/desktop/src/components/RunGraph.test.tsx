@@ -157,6 +157,20 @@ describe("RunGraph", () => {
     expect(chips[0]?.className).toContain("agent-node__tool--denied");
   });
 
+  it("labels the price reader as prices rather than its raw tool name", () => {
+    const log = new LogBuilder();
+    const prices = reduceAll([
+      log.add("agent.spawned", { role: "collector" }, "market-movers"),
+      log.add("tool.called", { tool: "read_prices", args: { symbols: ["AAPL"] } }, "market-movers"),
+      log.add("tool.result", { tool: "read_prices", result: "{}" }, "market-movers"),
+    ]);
+    const { getByTestId } = render(
+      <RunGraph view={prices} selectedAgent={null} onSelectAgent={vi.fn()} />,
+    );
+
+    expect(getByTestId("agent-node-market-movers").querySelector(".agent-node__tool")?.textContent).toBe("prices1");
+  });
+
   it("keeps the whole of every cut-short text in a tooltip", () => {
     /* A card shows what fits; hovering shows the rest. */
     const { getByTestId } = graph();

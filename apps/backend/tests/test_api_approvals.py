@@ -77,6 +77,7 @@ def test_the_application_builds_a_tool_runtime(client: TestClient) -> None:
         "write_file",
         "http_get",
         "read_feed",
+        "read_prices",
         "run_shell",
     }
 

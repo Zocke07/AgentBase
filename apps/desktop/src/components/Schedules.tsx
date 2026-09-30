@@ -170,7 +170,10 @@ export function Schedules({ space, settings, onOpenRun, draftRequest, reloadNonc
   const hosts = settings?.settings.auto_approve_hosts ?? [];
   const anyHost = hosts.includes("*");
   const fetchesByPolicy =
-    allowed.includes("medium") || always.includes("http_get") || always.includes("read_feed");
+    allowed.includes("medium") ||
+    always.includes("http_get") ||
+    always.includes("read_feed") ||
+    always.includes("read_prices");
   const questionSeconds = settings?.settings.unattended_question_seconds ?? null;
   const runSeconds = space.max_run_seconds ?? settings?.settings.max_run_seconds ?? null;
   const steps = space.max_steps_per_agent ?? settings?.settings.max_steps_per_agent ?? null;

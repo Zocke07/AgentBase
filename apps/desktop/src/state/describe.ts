@@ -1,7 +1,7 @@
 import type { Event } from "@agentbase/schemas";
 
 import { ellipsise, summariseArgs } from "../lib/format";
-import { display, flag, int, record, text, type Payload } from "../lib/payload";
+import { display, flag, int, record, strings, text, type Payload } from "../lib/payload";
 
 import {
   pendingApprovals,
@@ -53,6 +53,14 @@ export function callPhrase(tool: string, args: Payload): CallPhrase {
       return { infinitive: `fetch ${arg("url")}`, progressive: `fetching ${arg("url")}`, past: `fetched ${arg("url")}` };
     case "read_feed":
       return { infinitive: `read feed ${arg("url")}`, progressive: `reading feed ${arg("url")}`, past: `read feed ${arg("url")}` };
+    case "read_prices": {
+      const symbols = strings(args, "symbols").join(", ") || "?";
+      return {
+        infinitive: `read prices for ${symbols}`,
+        progressive: `reading prices for ${symbols}`,
+        past: `read prices for ${symbols}`,
+      };
+    }
     case "spawn_agent":
       return { infinitive: `spawn ${arg("agent")}`, progressive: `spawning ${arg("agent")}`, past: `spawned ${arg("agent")}` };
     case "handoff":
@@ -324,7 +332,8 @@ export function policySentence(policy: RunApprovalPolicy): string {
   const fetches =
     policy.levels.includes("medium") ||
     policy.allowTools.includes("http_get") ||
-    policy.allowTools.includes("read_feed");
+    policy.allowTools.includes("read_feed") ||
+    policy.allowTools.includes("read_prices");
   const parts = [
     policy.levels.length > 0
       ? `${list(policy.levels)} risk ran on its own`

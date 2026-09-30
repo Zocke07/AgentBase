@@ -121,6 +121,14 @@ CATALOGUE: Final[tuple[ToolDeclaration, ...]] = (
         risk=RiskLevel.MEDIUM,
     ),
     ToolDeclaration(
+        name="read_prices",
+        description=(
+            "Fetch one year of daily prices for watchlist symbols, compute "
+            "watchlist movers, and write stable price files."
+        ),
+        risk=RiskLevel.MEDIUM,
+    ),
+    ToolDeclaration(
         name="run_shell",
         description=(
             "Run a shell command as your user, starting in the space folder, "

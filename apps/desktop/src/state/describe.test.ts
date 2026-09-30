@@ -234,6 +234,14 @@ describe("a sentence for every event", () => {
     expect(phrase.past).toBe("read feed https://news.example.test/rss");
   });
 
+  it("describes a deterministic watchlist price read", () => {
+    const phrase = callPhrase("read_prices", { symbols: ["AAPL", "2330.TW"] });
+
+    expect(phrase.infinitive).toBe("read prices for AAPL, 2330.TW");
+    expect(phrase.progressive).toBe("reading prices for AAPL, 2330.TW");
+    expect(phrase.past).toBe("read prices for AAPL, 2330.TW");
+  });
+
   it("falls back to the raw call for a tool it has no verb for", () => {
     expect(callPhrase("summon_dragon", { name: "Smaug" }).infinitive).toBe("call summon_dragon(name=Smaug)");
   });
@@ -311,5 +319,11 @@ describe("the approval policy a run acted under", () => {
     expect(policySentence({ ...base, levels: [] })).toBe("Every call asked first; run_shell always asked.");
     // A shell the policy refuses was never asked about.
     expect(policySentence({ ...base, denyTools: ["run_shell"] })).not.toContain("always asked");
+  });
+
+  it("recognises read_prices as a network call when its tool answer allows it", () => {
+    expect(policySentence({ ...base, levels: [], allowTools: ["read_prices"] })).toContain(
+      "fetches from news.google.com and stooq.com only",
+    );
   });
 });
