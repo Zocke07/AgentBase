@@ -3439,7 +3439,11 @@ button.md__tag:hover {
 }
 
 .run-card--compact .run-card__goal {
+  display: -webkit-box;
+  overflow: hidden;
   font-size: 0.8667rem;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .run-card__facts {
@@ -3631,22 +3635,38 @@ button.md__tag:hover {
 }
 
 .run-summary__head {
-  display: flex;
-  gap: 0.75rem;
-  align-items: baseline;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 0.35rem 0.65rem;
+  align-items: center;
 }
 
 .run-summary__goal {
+  grid-column: 1 / -1;
+  margin: 0.15rem 0 0;
   font-size: 1.0625rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.run-summary__issue-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bad) 10%, var(--surface));
+  color: var(--bad);
+  font-size: 0.7333rem;
+  font-weight: 650;
 }
 
 /* Where a channel-originated run came from. Reads as a caption, because the
    goal is the headline and this is the provenance under it. */
 .run-summary__origin,
 .run-summary__policy {
+  grid-column: 1 / -1;
   margin: 0;
-  flex-basis: 100%;
   color: var(--muted);
   font-size: 0.8667rem;
 }
@@ -3679,23 +3699,103 @@ button.md__tag:hover {
   color: var(--bad);
 }
 
+.run-summary__fact--bad dt,
+.run-summary__fact--bad dd {
+  color: var(--bad);
+  font-weight: 600;
+}
+
 .run-summary__cap {
   margin: 0.5rem 0 0;
   color: var(--bad);
   font-size: 0.8667rem;
 }
 
+.run-summary__problems {
+  margin-top: 0.65rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--bad) 30%, var(--border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bad) 3%, var(--surface));
+}
+
+.run-summary__problems>summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.55rem 0.7rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.run-summary__problems>summary::-webkit-details-marker {
+  display: none;
+}
+
+.run-summary__problem-mark {
+  display: grid;
+  width: 1.35rem;
+  height: 1.35rem;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--bad) 12%, var(--surface));
+  color: var(--bad);
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
+.run-summary__problem-copy {
+  min-width: 0;
+}
+
+.run-summary__problem-copy strong,
+.run-summary__problem-copy small {
+  display: block;
+}
+
+.run-summary__problem-copy strong {
+  color: var(--bad);
+  font-size: 0.8667rem;
+}
+
+.run-summary__problem-copy small {
+  margin-top: 0.1rem;
+  color: var(--muted);
+  font-size: 0.7333rem;
+}
+
+.run-summary__problem-action {
+  color: var(--muted);
+  font-size: 0.7333rem;
+  font-weight: 600;
+}
+
+.run-summary__problem-action::after {
+  display: inline-block;
+  margin-left: 0.35rem;
+  transform: rotate(0deg);
+  transition: transform 120ms ease-out;
+  content: "\203a";
+}
+
+.run-summary__problems[open] .run-summary__problem-action::after {
+  transform: rotate(90deg);
+}
+
 .run-summary__errors {
-  margin: 0.5rem 0 0;
-  padding: 0;
+  margin: 0;
+  padding: 0 0.7rem 0.55rem 2.7rem;
   list-style: none;
   font-size: 0.8rem;
 }
 
 .run-summary__error {
-  display: flex;
-  gap: 0.6rem;
-  padding: 0.1rem 0;
+  display: grid;
+  grid-template-columns: minmax(7.5rem, auto) minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.35rem 0;
+  border-top: 1px solid var(--border);
 }
 
 .run-summary__error-who {
@@ -3821,7 +3921,37 @@ button.md__tag:hover {
 
 .scrubber__control input {
   flex: 1;
-  accent-color: var(--accent);
+  height: 1rem;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.scrubber__control input::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border-strong);
+}
+
+.scrubber__control input::-webkit-slider-thumb {
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-top: -5px;
+  appearance: none;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.scrubber__control input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.scrubber__control input:disabled {
+  cursor: wait;
+  opacity: 0.6;
 }
 
 .scrubber__label {

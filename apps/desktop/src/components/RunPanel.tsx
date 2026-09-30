@@ -124,6 +124,7 @@ export function RunPanel({
             value={cursor}
             disabled={loading}
             aria-label="Position in the event log"
+            aria-valuetext={`Event ${String(cursor)} of ${String(events.length)}. ${scrubbed ? "Earlier point in this run." : "Latest event."}`}
             onChange={(changed) => {
               onCursorChange(Number(changed.target.value));
             }}

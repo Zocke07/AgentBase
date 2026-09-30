@@ -59,11 +59,17 @@ describe("the scrubber", () => {
     const { rerender } = render(<RunPanel {...props} view={reduceAll(events)} cursor={events.length} />);
     const atHead = screen.getByTestId("scrub-state");
     expect(atHead.textContent).toContain("latest");
+    expect(screen.getByRole("slider").getAttribute("aria-valuetext")).toBe(
+      "Event 28 of 28. Latest event.",
+    );
     expect(screen.queryByRole("button", { name: "Jump to end" })).toBeNull();
 
     rerender(<RunPanel {...props} view={reduceAll(events.slice(0, 5))} cursor={5} />);
     const scrubbed = screen.getByTestId("scrub-state");
     expect(scrubbed.textContent).toContain("earlier point");
+    expect(screen.getByRole("slider").getAttribute("aria-valuetext")).toBe(
+      "Event 5 of 28. Earlier point in this run.",
+    );
     expect(screen.getByRole("button", { name: "Jump to end" })).toBeDefined();
 
     // The counter reserves room for the widest reading it will show, so

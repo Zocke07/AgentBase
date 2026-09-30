@@ -51,7 +51,9 @@ export function RunCard({
           <span className="run-card__time">{clockDate(run.created_at)}</span>
         </span>
       </span>
-      <span className="run-card__goal">{run.goal}</span>
+      <span className="run-card__goal" title={compact ? run.goal : undefined}>
+        {run.goal}
+      </span>
       <span className="run-card__facts">
         {duration !== null && <span className="run-card__duration">{duration}</span>}
         {needsApproval && (

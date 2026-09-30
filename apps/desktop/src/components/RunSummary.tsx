@@ -41,6 +41,14 @@ export function RunSummary({
 }: RunSummaryProps) {
   const denied = view.denials.length;
   const sandboxed = view.denials.filter((denial) => denial.blockedBy === "sandbox").length;
+  const modelErrors = view.errors.filter((error) => error.kind === "llm").length;
+  const toolErrors = view.errors.length - modelErrors;
+  const failureKinds = [
+    modelErrors > 0
+      ? `${String(modelErrors)} model failure${modelErrors === 1 ? "" : "s"}`
+      : null,
+    toolErrors > 0 ? `${String(toolErrors)} tool failure${toolErrors === 1 ? "" : "s"}` : null,
+  ].filter((label): label is string => label !== null);
   // Use log timestamps so replay matches live; live duration grows with events.
   const duration =
     view.startedTs !== null && view.latestTs !== null
@@ -53,6 +61,11 @@ export function RunSummary({
         <span className={`status status--${view.status}`} data-testid="run-status">
           {STATUS_LABEL[view.status]}
         </span>
+        {view.errors.length > 0 && (
+          <span className="run-summary__issue-badge" data-testid="run-issue-badge">
+            {view.errors.length} {view.errors.length === 1 ? "error" : "errors"}
+          </span>
+        )}
         <h2 className="run-summary__goal">{view.goal ?? "No goal recorded yet"}</h2>
         {view.origin !== null && (
           // Same fold for Discord runs; show origin identity.
@@ -104,7 +117,7 @@ export function RunSummary({
               integer the budget meter is built from, never a float here. */}
           <dd data-testid="fact-cost">{formatMicros(view.costMicros)}</dd>
         </div>
-        <div>
+        <div className={view.errors.length > 0 ? "run-summary__fact--bad" : undefined}>
           <dt>Errors</dt>
           {/* `llm.error` and `tool.error`. Folded from the start, rendered
               nowhere until now: an agent that hit five provider errors in
@@ -120,16 +133,34 @@ export function RunSummary({
       )}
 
       {view.errors.length > 0 && (
-        <ul className="run-summary__errors" data-testid="run-errors">
-          {view.errors.map((error) => (
-            <li key={error.seq} className={`run-summary__error run-summary__error--${error.kind}`}>
-              <span className="run-summary__error-who">
-                {error.agent ?? "run"} · {error.kind === "llm" ? "model" : "tool"}
-              </span>
-              <span className="run-summary__error-text">{ellipsise(error.message, 160)}</span>
-            </li>
-          ))}
-        </ul>
+        <details className="run-summary__problems" data-testid="run-errors">
+          <summary>
+            <span className="run-summary__problem-mark" aria-hidden="true">
+              !
+            </span>
+            <span className="run-summary__problem-copy">
+              <strong>
+                {view.errors.length} {view.errors.length === 1 ? "error" : "errors"} during this run
+              </strong>
+              <small>
+                {failureKinds.join(" and ")}. Review these before trusting the outcome.
+              </small>
+            </span>
+            <span className="run-summary__problem-action" aria-hidden="true">
+              Details
+            </span>
+          </summary>
+          <ul className="run-summary__errors">
+            {view.errors.map((error) => (
+              <li key={error.seq} className={`run-summary__error run-summary__error--${error.kind}`}>
+                <span className="run-summary__error-who">
+                  {error.agent ?? "run"} · {error.kind === "llm" ? "model" : "tool"}
+                </span>
+                <span className="run-summary__error-text">{ellipsise(error.message, 160)}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
 
       {(view.knowledge.length > 0 || view.knowledgeExclusions.length > 0) && (

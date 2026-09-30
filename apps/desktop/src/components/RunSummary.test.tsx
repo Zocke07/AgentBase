@@ -35,7 +35,7 @@ const proposed = {
  */
 
 describe("RunSummary", () => {
-  it("counts model and tool errors, and names them", () => {
+  it("summarises model and tool errors before revealing their details", () => {
     /* `view.errors` was folded from `llm.error` and `tool.error` and rendered
        nowhere; an agent that hit five provider errors in a row looked like an
        agent that was thinking. */
@@ -49,9 +49,16 @@ describe("RunSummary", () => {
     render(<RunSummary view={view} />);
 
     expect(screen.getByTestId("fact-errors").textContent).toBe("2");
-    const list = screen.getByTestId("run-errors");
-    expect(list.textContent).toContain("rate limited (429)");
-    expect(list.textContent).toContain("timed out after 30s");
+    expect(screen.getByTestId("fact-errors").parentElement?.className).toBe("run-summary__fact--bad");
+    expect(screen.getByTestId("fact-agents").parentElement?.className).toBe("");
+    expect(screen.getByTestId("run-issue-badge").textContent).toBe("2 errors");
+    const disclosure = screen.getByTestId("run-errors");
+    expect(disclosure.tagName).toBe("DETAILS");
+    expect(disclosure.hasAttribute("open")).toBe(false);
+    expect(disclosure.querySelector("summary")?.textContent).toContain("2 errors during this run");
+    expect(disclosure.textContent).toContain("1 model failure and 1 tool failure");
+    expect(disclosure.textContent).toContain("rate limited (429)");
+    expect(disclosure.textContent).toContain("timed out after 30s");
   });
 
   it("says so when the run was stopped by the monthly cap", () => {

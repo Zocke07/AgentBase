@@ -23,4 +23,23 @@ describe("RunCard", () => {
     expect(card.querySelector(".run-card__meta")?.textContent).toContain("from schedule");
     expect(card.querySelector(".run-card__goal")?.textContent).toBe(run.goal);
   });
+
+  it("keeps a compact navigation card short without discarding its full goal", () => {
+    const run: Run = {
+      id: "run-picker",
+      space_id: "space-main",
+      goal: "Using today's files, ask every specialist for a complete review and finish with the files written",
+      status: "completed",
+      origin: "schedule",
+      origin_ref: "schedule-review",
+      created_at: "2026-09-30T03:07:00Z",
+      finished_at: "2026-09-30T03:09:26Z",
+    };
+
+    render(<RunCard run={run} compact onOpen={vi.fn()} />);
+
+    const goal = screen.getByTestId("run-row-run-picker").querySelector(".run-card__goal");
+    expect(goal?.textContent).toBe(run.goal);
+    expect(goal?.getAttribute("title")).toBe(run.goal);
+  });
 });
