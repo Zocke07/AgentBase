@@ -22,10 +22,16 @@ future changes do not relocate users' data or disconnect their stored keys.
 - Phases 0 through 9 and the spaces redesign are implemented. Do not restart
   Phase 0 or replace completed work from an earlier phase.
 - **Next: Phase 17** (BUILD_SPEC; designed 2026-09-30, not started). Its aim
-  is to make the shipped investment pipeline run end to end. It adds four
-  built-in tools that do the pipeline's arithmetic: prices, the portfolio,
-  limit checks and prediction scoring. It also carries migration 020, safer
-  starter files and a pipeline dashboard.
+  is to make the shipped investment pipeline run end to end.
+  - It starts with a models unit, migration 020. Claude Sonnet 5.5, released
+    2026-09-28 at Sonnet 5's price, joins the catalog, and never-edited
+    shipped Sonnet agents move to it. New spaces start on the best model for
+    result and cost: Sonnet 5.5, GPT-6 Sol, or GPT-5.6 Sol on a ChatGPT
+    plan.
+  - It then adds four built-in tools that do the pipeline's arithmetic:
+    prices, the portfolio, limit checks and prediction scoring.
+  - It also carries migration 021, safer starter files and a pipeline
+    dashboard.
   - Before coding, settle the phase's six **decisions** with the maintainer
     (§6, ask before deviating).
   - Then build in the phase's **Order**, test-first, meeting its **Accept

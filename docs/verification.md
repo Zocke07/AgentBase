@@ -28,6 +28,14 @@ The maintainer's own install showed three gaps:
 - A lone decision stage writing a correct "pass" for want of inputs.
 - A space folder with no `raw/`, `theses/`, `portfolio/` or `scores/` files.
 
+Anthropic's models overview and deprecations pages were read on the same day:
+- Claude Sonnet 5.5 (`claude-sonnet-5-5`, released 2026-09-28) at $2 and $10
+  per million tokens, the same as Sonnet 5, which became legacy.
+- Opus 5.5 at $4 and $20, matching the price list.
+- Claude Haiku 4.5 active, with no deprecation announced.
+
+Phase 17's models unit uses these figures.
+
 Nothing was built or run beyond these reads.
 
 ## Visualize and Usage refinements, 2026-09-29, on `main`, not released

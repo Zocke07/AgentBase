@@ -914,7 +914,9 @@ replaces the maintainer's standalone roster design (`agentspace-investment-agent
 the source of migration 010's prompts), which was removed from the repository
 root once its content lived here and in the user guide. It adds built-in tools
 to Phase 6's list: settle the decisions below with the maintainer before
-coding (§6, "ask before deviating").*
+coding (§6, "ask before deviating"). Its first unit, added the same day,
+brings in Claude Sonnet 5.5 and changes the model a new space starts on
+(**Models**, migration 020).*
 
 **The plan.** The maintainer's pipeline: collect news and trends (1a, also
 Reddit and past events), study concepts and companies (1b), read stock
@@ -1036,9 +1038,9 @@ is rounded only when written.
   - Calibration buckets from 0.50 in steps of 0.10, stated against observed.
   - The count still unresolved.
 
-**Migration 020** gives the roster its tools and updates the schedules and
+**Migration 021** gives the roster its tools and updates the schedules and
 starters. It is guarded like 015: an edited prompt, allowlist or goal stays
-byte for byte.
+byte for byte. (Migration 020 is the models unit below.)
 
 - **Tools on the roster.** `market-movers` gets `read_prices`,
   `portfolio-review` gets `compute_portfolio`, `risk-manager` gets
@@ -1064,7 +1066,7 @@ byte for byte.
   watchlist and positions) and what the pipeline does not cover.
 
 **Hosts.** A fresh install lists `news.google.com`, the price endpoint's host
-and `api.fiscaldata.treasury.gov`; Stooq leaves the list. 020 writes the old
+and `api.fiscaldata.treasury.gov`; Stooq leaves the list. 021 writes the old
 list into used databases that never saved one ("A default setting" in the
 developer guide's checklists).
 
@@ -1073,23 +1075,63 @@ database, so every install created since would count as used. Count only
 runs, saved settings, spaces other than the default, and schedules other than
 019's five.
 
-**Models.** The shipped roster keeps its intended level, keyed by the agents'
-fixed IDs:
+**Models (migration 020, built first).** This unit is independent of the
+pipeline tools.
 
-| Agents | Level |
-|---|---|
-| The collectors, `portfolio-review` | fast |
-| The analysts, `risk-manager`, `review-analyst` | balanced |
-| `decision` | strong |
+- **Claude Sonnet 5.5 joins the catalog.**
+  - The facts: released 2026-09-28 as `claude-sonnet-5-5`, at $2 in and $10
+    out per million tokens, the same as Sonnet 5. It has a 1M-token context,
+    128K output, and retirement not before 2027-09-28. Checked against
+    platform.claude.com on 2026-09-30.
+  - Add its price row in `providers/pricing.py`.
+  - In `providers/catalog.py`, make it Anthropic's current balanced model.
+    `claude-sonnet-5` moves to the older models; it stays sold and
+    selectable, active until at least 2027-06-30.
+  - A switch from OpenAI then lands on Sonnet 5.5.
+  - No provider change is needed. The app sends no sampling parameters, which
+    Claude 4.7 and later refuse, and no thinking settings. `modelLabel`
+    already reads "Claude Sonnet 5.5".
+- **The shipped Sonnet agents move.** 020 moves `research-librarian`,
+  `bull-architect`, `bear-architect`, `risk-manager` and `review-analyst`
+  from Sonnet 5 to Sonnet 5.5, but only while never edited
+  (`updated_at = created_at`, as 016 did for Opus). It leaves `updated_at`
+  alone, so the guards of later migrations still read them as never edited.
+- **Where spaces start.** The maintainer's answer (2026-09-30): "the best
+  model for overall result and efficiency".
+  - Where tokens are billed, that means the balanced level: Claude Sonnet
+    5.5, or GPT-6 Sol.
+  - On a ChatGPT plan it means the plan's strong model, GPT-5.6 Sol. Plan
+    calls are not billed per token, and OpenAI describes GPT-5.6 Terra as for
+    straightforward work.
+  - This replaces `DEFAULT_TIER`'s single strong level for new spaces
+    (`api/settings.py` `_new_space_model`, `api/spaces.py` `_with_model`).
+    Decide separately where a model with no tier maps, which `DEFAULT_TIER`
+    also governs today.
+  - `DEFAULT_MODEL` and `DEFAULT_MODELS` (`store/settings.py`) follow, and a
+    test holds them to the catalog. Used databases get the old value pinned
+    ("A default setting").
+  - 020 moves the default space from Opus 5.5 to Sonnet 5.5 only on an unused
+    database, with the corrected check under **Hosts**. Existing spaces keep
+    their models.
+- **The shipped roster keeps its intended level**, keyed by the agents'
+  fixed IDs:
 
-GPT-6 Sol is the one model that stands in for two levels. Where a shipped
-agent is on it, the provider-switch preview and the plan repair map that
-agent by its intended level. Any model a person chose maps by its own level,
-as it does today.
+  | Agents | Level |
+  |---|---|
+  | The collectors, `portfolio-review` | fast |
+  | The analysts, `risk-manager`, `review-analyst` | balanced |
+  | `decision` | strong |
 
-The design also advised a balanced space model, so that a misconfigured agent
-falls to the middle level. New spaces instead start at the strong level
-(`DEFAULT_TIER`), and every run's supervisor uses the space's model.
+  GPT-6 Sol is the one model that stands in for two levels. Where a shipped
+  agent is on it, the provider-switch preview and the plan repair map that
+  agent by its intended level. Any model a person chose maps by its own
+  level, as it does today.
+- **`decision` stays on Opus 5.5.** Whether Sonnet 5.5 is close enough for the
+  one daily arbitration is a later, measured question.
+- **Watch Claude Haiku 4.5.** The fast shipped agents use it. It is active and
+  no deprecation has been announced: retirement is not before 2026-10-15,
+  with at least 60 days' notice, and no newer Haiku exists. Watch the
+  deprecations page; nothing moves until one is announced.
 
 **Visualize.** The starters add `visualizations/pipeline.dashboard.json` and
 four charts over the stable files the tools write, so no chart names a dated
@@ -1119,8 +1161,8 @@ source and Phase 14's contract is unchanged:
    can change or refuse. The alternative is waiting for keyed sources.
 2. **Hosts.** The fresh-install host list above.
 3. **Tools.** The four tools' names, and medium risk for all four.
-4. **Models.** The shipped-level rule for `decision`, and whether the default
-   space should start at the balanced level.
+4. **Models.** The shipped-level rule for `decision`. (Where spaces start was
+   answered on 2026-09-30, above.)
 5. **Charts.** Stable chart files, rather than a dated-source pattern in
    Phase 14's contract.
 6. **Weekly knowledge.** The weekly knowledge stage without filings.
@@ -1128,19 +1170,25 @@ source and Phase 14's contract is unchanged:
 **Order:**
 
 1. Settle the six decisions.
-2. Build `read_prices` test-first, against recorded responses; no test may
+2. Build the models unit and migration 020, test-first:
+   - Sonnet 5.5's price and catalog place;
+   - the starting model per provider, with its settings pin;
+   - the shipped Sonnet agents moving, and the default space moving on an
+     unused database;
+   - the shipped-level rule in `providers/catalog.py` and `api/spaces.py`.
+   The upgrade tests cover four databases: fresh, used, created since 019
+   but unused, and with edited rows.
+3. Build `read_prices` test-first, against recorded responses; no test may
    use the network. Then add its sentence in `state/describe.ts`, its label
    in `RunGraph.tsx`, and its place in the fetch detection in `describe.ts`
    and `Schedules.tsx`.
-3. Build `compute_portfolio`, then `check_limits`, then `score_predictions`,
+4. Build `compute_portfolio`, then `check_limits`, then `score_predictions`,
    each test-first.
-4. Write migration 020, with upgrade tests for four databases: fresh, used,
-   created since 019 but unused, and with edited rows.
-5. Add the shipped-level rule in `providers/catalog.py` and `api/spaces.py`.
+5. Write migration 021, with upgrade tests for the same four databases.
 6. Add the starters, dashboard and Home copy in `lib/pipeline.ts` and
    `PipelineOffer.tsx`, then check them in a browser.
-7. Update the user guide (`3_agents.md`, `7_visualizations.md`),
-   `CLAUDE.md` and `docs/verification.md`.
+7. Update the user guide (`1_getting_started.md` for models, `3_agents.md`,
+   `7_visualizations.md`), `CLAUDE.md` and `docs/verification.md`.
 8. The maintainer runs the chain live on a real model.
 
 Follow the developer guide's "A tool", "A migration" and "A default setting"
@@ -1160,10 +1208,19 @@ checklists, and commit each unit.
 4. A fresh install fetches prices and Treasury data by policy, a used install
    keeps its old host list, and an install created after 019 but never used
    gets the new list.
-5. An edited roster agent and an edited goal are unchanged by 020.
+5. An edited roster agent and an edited goal are unchanged by 020 and 021.
 6. Moving the default space from Anthropic to OpenAI, then onto a ChatGPT plan
    without GPT-6 Sol, leaves `decision` on GPT-5.6 Sol.
-7. The event contract, gate, sandbox, cost ceiling and replay are unchanged.
+7. Claude Sonnet 5.5 is priced and offered as Anthropic's balanced model.
+   After 020:
+   - a never-edited shipped Sonnet 5 agent is on Sonnet 5.5, and an edited
+     one is not;
+   - a fresh install's default space, and a new Anthropic space, start on
+     Sonnet 5.5;
+   - a new OpenAI space starts on GPT-6 Sol, and on a ChatGPT plan on
+     GPT-5.6 Sol;
+   - a used install's spaces keep their models.
+8. The event contract, gate, sandbox, cost ceiling and replay are unchanged.
    Each new tool is medium risk and passes the gate, and a supervised run asks
    before each call.
 
