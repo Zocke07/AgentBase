@@ -168,11 +168,17 @@ describe("knowledge vault", () => {
     expect(await screen.findByRole("tab", { name: "Notes" })).toBeTruthy();
     expect(screen.getByText("Markdown knowledge that you and agents write.")).toBeTruthy();
 
-    await user.click(screen.getByRole("tab", { name: "Agent data" }));
+    await user.click(screen.getByRole("tab", { name: "Agent files" }));
     expect(screen.getByText("Structured inputs and generated files used by agents.")).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "Knowledge view" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "New note" })).toBeNull();
 
     await user.click(screen.getByRole("tab", { name: "Memory review" }));
     expect(screen.getByText("Proposed memories waiting for your review.")).toBeTruthy();
+
+    await user.click(screen.getByRole("tab", { name: "Notes" }));
+    expect(screen.getByRole("group", { name: "Knowledge view" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "New note" })).toBeTruthy();
   });
 
   it("opens a Markdown note with properties, links and backlinks", async () => {

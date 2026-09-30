@@ -587,63 +587,65 @@ export function KnowledgeView({
               </small>
             )}
           </div>
-          <div className="knowledge__new">
-            <button
-              type="button"
-              className="knowledge__icon-button"
-              title="Open a note (Ctrl/Cmd+O)"
-              aria-label="Open a note"
-              onClick={() => {
-                setSwitcher(true);
-              }}
-            >
-              <svg viewBox="0 0 20 20" aria-hidden="true">
-                <path d="M8.5 3a5.5 5.5 0 0 1 4.4 8.8l4 4-1.1 1.1-4-4A5.5 5.5 0 1 1 8.5 3zm0 1.6a3.9 3.9 0 1 0 0 7.8 3.9 3.9 0 0 0 0-7.8z" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              className="knowledge__icon-button"
-              title="New note"
-              aria-label="New note"
-              onClick={() => {
-                startNote("knowledge/untitled.md", NEW_NOTE);
-              }}
-            >
-              <svg viewBox="0 0 20 20" aria-hidden="true">
-                <path d="M5 2.5h6.5L15.5 6.5V17.5h-10.5zm1.5 1.5v12h7.5V7.5h-3V4zM9.2 9h1.6v2.2H13v1.6h-2.2V15H9.2v-2.2H7v-1.6h2.2z" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              className="knowledge__icon-button"
-              title="Today's daily note"
-              aria-label="Daily note"
-              disabled={busy}
-              onClick={() => void dailyNote()}
-            >
-              <svg viewBox="0 0 20 20" aria-hidden="true">
-                <path d="M4 4h12v13H4zm1.5 4.5v7h9v-7zM6 2.5h1.8V5H6zm6.2 0H14V5h-1.8zM7 10h2v2H7zm4 0h2v2h-2zm-4 3h2v2H7z" />
-              </svg>
-            </button>
-            {templates.length > 0 && (
-              <select
-                aria-label="New note from template"
-                value=""
-                disabled={busy}
-                onChange={(event) => {
-                  if (event.target.value !== "") void newFromTemplate(event.target.value);
+          {browserMode === "notes" && (
+            <div className="knowledge__new">
+              <button
+                type="button"
+                className="knowledge__icon-button"
+                title="Open a note (Ctrl/Cmd+O)"
+                aria-label="Open a note"
+                onClick={() => {
+                  setSwitcher(true);
                 }}
               >
-                <option value="">Template…</option>
-                {templates.map((template) => (
-                  <option key={template.path} value={template.path}>
-                    {template.title}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M8.5 3a5.5 5.5 0 0 1 4.4 8.8l4 4-1.1 1.1-4-4A5.5 5.5 0 1 1 8.5 3zm0 1.6a3.9 3.9 0 1 0 0 7.8 3.9 3.9 0 0 0 0-7.8z" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className="knowledge__icon-button"
+                title="New note"
+                aria-label="New note"
+                onClick={() => {
+                  startNote("knowledge/untitled.md", NEW_NOTE);
+                }}
+              >
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M5 2.5h6.5L15.5 6.5V17.5h-10.5zm1.5 1.5v12h7.5V7.5h-3V4zM9.2 9h1.6v2.2H13v1.6h-2.2V15H9.2v-2.2H7v-1.6h2.2z" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className="knowledge__icon-button"
+                title="Today's daily note"
+                aria-label="Daily note"
+                disabled={busy}
+                onClick={() => void dailyNote()}
+              >
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M4 4h12v13H4zm1.5 4.5v7h9v-7zM6 2.5h1.8V5H6zm6.2 0H14V5h-1.8zM7 10h2v2H7zm4 0h2v2h-2zm-4 3h2v2H7z" />
+                </svg>
+              </button>
+              {templates.length > 0 && (
+                <select
+                  aria-label="New note from template"
+                  value=""
+                  disabled={busy}
+                  onChange={(event) => {
+                    if (event.target.value !== "") void newFromTemplate(event.target.value);
+                  }}
+                >
+                  <option value="">Template…</option>
+                  {templates.map((template) => (
+                    <option key={template.path} value={template.path}>
+                      {template.title}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="knowledge__browser-tabs" role="tablist" aria-label="Vault browser">
@@ -666,7 +668,7 @@ export function KnowledgeView({
               setHits(null);
             }}
           >
-            Agent data
+            Agent files
           </button>
           <button
             type="button"
@@ -906,7 +908,8 @@ export function KnowledgeView({
       </aside>
 
       <section className="knowledge__workspace">
-        <div className="knowledge__toolbar">
+        {browserMode !== "files" && (
+          <div className="knowledge__toolbar">
           <div className="knowledge__modes" role="group" aria-label="Knowledge view">
             {(["write", "preview", "split"] as const).map((choice) => (
               <button
@@ -1020,7 +1023,8 @@ export function KnowledgeView({
               </>
             )}
           </div>
-        </div>
+          </div>
+        )}
 
         {error !== null && (
           <p className="form-error knowledge__notice" role="alert">

@@ -45,6 +45,31 @@ function Both({ onChanged }: { onChanged?: () => void }) {
 }
 
 describe("data files", () => {
+  it("groups and filters files while keeping starter templates available", async () => {
+    const user = userEvent.setup();
+    mocked.listFiles.mockResolvedValue({
+      files: [
+        { path: "config/watchlist.json", size: 120, updated_at: "2026-09-19T00:00:00Z" },
+        { path: "raw/market/prices.json", size: 2048, updated_at: "2026-09-20T00:00:00Z" },
+        { path: "README.txt", size: 42, updated_at: "2026-09-18T00:00:00Z" },
+      ],
+    });
+    render(<Both />);
+
+    expect(await screen.findByRole("heading", { name: "config" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "raw" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Space root" })).toBeTruthy();
+    expect(screen.getByText("prices.json")).toBeTruthy();
+    expect(screen.getByText("market/ · JSON · 2.0 KB")).toBeTruthy();
+
+    await user.type(screen.getByRole("searchbox", { name: "Filter agent files" }), "prices");
+    expect(screen.queryByText("watchlist.json")).toBeNull();
+    expect(screen.getByText("prices.json")).toBeTruthy();
+
+    await user.selectOptions(screen.getByLabelText("Create from template"), "config/sources.json");
+    expect(screen.getByLabelText<HTMLInputElement>("File path").value).toBe("config/sources.json");
+  });
+
   it("lists the files, opens one, and saves an edit", async () => {
     const user = userEvent.setup();
     const onChanged = vi.fn();
@@ -81,12 +106,29 @@ describe("data files", () => {
     expect(mocked.writeFile).not.toHaveBeenCalled();
   });
 
+  it("identifies the open file and makes unsaved state visible", async () => {
+    const user = userEvent.setup();
+    render(<Both />);
+    await user.click(await screen.findByRole("button", { name: /config\/watchlist\.json/ }));
+    const text = await screen.findByLabelText("File contents");
+    await waitFor(() => {
+      expect((text as HTMLTextAreaElement).value).toBe('{"watchlist": []}');
+    });
+
+    expect(screen.getByRole("heading", { name: "watchlist.json" })).toBeTruthy();
+    expect(screen.getByText("config/ · JSON")).toBeTruthy();
+    expect(screen.queryByText("Unsaved changes")).toBeNull();
+
+    fireEvent.change(text, { target: { value: '{"watchlist": ["AAPL"]}' } });
+    expect(screen.getByText("Unsaved changes")).toBeTruthy();
+  });
+
   it("starts a new file from a template, and deletes one after a second click", async () => {
     const user = userEvent.setup();
     mocked.listFiles.mockResolvedValue({ files: [] });
     render(<Both />);
 
-    await user.click(await screen.findByRole("button", { name: "config/sources.json" }));
+    await user.selectOptions(await screen.findByLabelText("Create from template"), "config/sources.json");
     expect(screen.getByLabelText<HTMLInputElement>("File path").value).toBe("config/sources.json");
     expect(screen.getByLabelText<HTMLTextAreaElement>("File contents").value).toContain("google_news_rss");
     await user.click(screen.getByRole("button", { name: "Save file" }));
@@ -101,6 +143,6 @@ describe("data files", () => {
     await waitFor(() => {
       expect(mocked.deleteFile).toHaveBeenCalledWith("space-lab", "config/sources.json");
     });
-    expect(await screen.findByText(/Pick an agent data file on the left/)).toBeDefined();
+    expect(await screen.findByText(/Pick an agent file on the left/)).toBeDefined();
   });
 });

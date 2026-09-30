@@ -40,32 +40,104 @@ function sizeLabel(size: number): string {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function pathParts(path: string): { directory: string; name: string } {
+  const separator = path.lastIndexOf("/");
+  return separator < 0
+    ? { directory: "", name: path }
+    : { directory: path.slice(0, separator), name: path.slice(separator + 1) };
+}
+
+function fileType(path: string): string {
+  const name = pathParts(path).name;
+  const separator = name.lastIndexOf(".");
+  return separator < 0 ? "FILE" : name.slice(separator + 1).toUpperCase();
+}
+
+function fileGroup(path: string): string {
+  return path.includes("/") ? path.slice(0, path.indexOf("/")) : "";
+}
+
+function nestedDirectory(path: string): string {
+  const { directory } = pathParts(path);
+  if (!directory.includes("/")) return "";
+  return `${directory.slice(directory.indexOf("/") + 1)}/`;
+}
+
+function groupLabel(group: string): string {
+  return group === "" ? "Space root" : group;
+}
 
 export function FilesPanel({ spaceId, part, open, onOpen, onChanged, reloadNonce = 0 }: FilesPanelProps) {
   const load = useCallback(() => api.listFiles(spaceId), [spaceId]);
   const files = useFetched(load, null);
   const list = files.data?.files ?? NO_FILES;
+  const [query, setQuery] = useState("");
   const { reload } = files;
   useEffect(() => {
     if (reloadNonce > 0) reload();
   }, [reloadNonce, reload]);
 
   if (part === "list") {
+    const matching = list.filter((file) => file.path.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
+    const groups = new Map<string, TextFileSummary[]>();
+    for (const file of matching) {
+      const group = fileGroup(file.path);
+      groups.set(group, [...(groups.get(group) ?? []), file]);
+    }
+    const orderedGroups = [...groups.entries()].sort(([left], [right]) => {
+      if (left === "") return -1;
+      if (right === "") return 1;
+      return left.localeCompare(right);
+    });
+
     return (
       <div className="files" data-testid="files-list">
         <div className="files__head">
-          <span className="files__count">
-            {list.length} file{list.length === 1 ? "" : "s"}
-          </span>
+          <div>
+            <strong>Agent files</strong>
+            <span className="files__count">
+              {list.length} file{list.length === 1 ? "" : "s"}
+            </span>
+          </div>
           <button
             type="button"
-            className="button button--small"
+            className="button button--small button--primary"
             onClick={() => {
               onOpen({ path: "", fresh: true });
             }}
           >
             New file
           </button>
+        </div>
+        <div className="files__tools">
+          <label>
+            <span className="sr-only">Filter agent files</span>
+            <input
+              type="search"
+              value={query}
+              placeholder="Filter by name or folder"
+              onChange={(event) => {
+                setQuery(event.target.value);
+              }}
+            />
+          </label>
+          <label>
+            <span className="sr-only">Create from template</span>
+            <select
+              aria-label="Create from template"
+              value=""
+              onChange={(event) => {
+                if (event.target.value !== "") onOpen({ path: event.target.value, fresh: true });
+              }}
+            >
+              <option value="">From template…</option>
+              {STARTERS.map((starter) => (
+                <option key={starter.path} value={starter.path}>
+                  {starter.path}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
         {files.error !== null && (
           <p className="field-error" role="alert">
@@ -74,43 +146,51 @@ export function FilesPanel({ spaceId, part, open, onOpen, onChanged, reloadNonce
         )}
         {list.length === 0 && files.data !== null && (
           <div className="files__empty">
-            <p>No agent data yet. These structured files are inputs and outputs for agents; each starter input begins from a template:</p>
-            <ul>
-              {STARTERS.map((starter) => (
-                <li key={starter.path}>
-                  <button
-                    type="button"
-                    className="link-button"
-                    onClick={() => {
-                      onOpen({ path: starter.path, fresh: true });
-                    }}
-                  >
-                    {starter.path}
-                  </button>{" "}
-                  <span className="files__why">{starter.why}</span>
-                </li>
-              ))}
-            </ul>
+            <p>No agent files yet.</p>
+            <p>Create a blank file or choose a starter template above. Agent files hold structured inputs and generated outputs.</p>
           </div>
         )}
-        <ul className="files__list">
-          {list.map((file) => (
-            <li key={file.path}>
-              <button
-                type="button"
-                className={`files__item${open?.path === file.path ? " files__item--active" : ""}`}
-                aria-current={open?.path === file.path ? "true" : undefined}
-                title={`${file.path} · ${sizeLabel(file.size)}`}
-                onClick={() => {
-                  onOpen({ path: file.path, fresh: false });
-                }}
-              >
-                <span className="files__path">{file.path}</span>
-                <span className="files__size">{sizeLabel(file.size)}</span>
-              </button>
-            </li>
+        {list.length > 0 && matching.length === 0 && (
+          <p className="files__no-match">No files match “{query.trim()}”.</p>
+        )}
+        <div className="files__groups">
+          {orderedGroups.map(([group, groupedFiles], position) => (
+            <section className="files__group" key={group || "root"} aria-labelledby={`file-group-${String(position)}`}>
+              <div className="files__group-head">
+                <h3 id={`file-group-${String(position)}`}>{groupLabel(group)}</h3>
+                <span>{groupedFiles.length}</span>
+              </div>
+              <ul className="files__list">
+                {groupedFiles.map((file) => {
+                  const parts = pathParts(file.path);
+                  const nested = nestedDirectory(file.path);
+                  return (
+                    <li key={file.path}>
+                      <button
+                        type="button"
+                        className={`files__item${open?.path === file.path ? " files__item--active" : ""}`}
+                        aria-current={open?.path === file.path ? "true" : undefined}
+                        aria-label={`${file.path}, ${fileType(file.path)}, ${sizeLabel(file.size)}`}
+                        title={`${file.path} · ${sizeLabel(file.size)}`}
+                        onClick={() => {
+                          onOpen({ path: file.path, fresh: false });
+                        }}
+                      >
+                        <span className="files__file-icon" aria-hidden="true">{fileType(file.path).slice(0, 1)}</span>
+                        <span className="files__identity">
+                          <span className="files__name">{parts.name}</span>
+                          <span className="files__meta">
+                            {nested !== "" && `${nested} · `}{fileType(file.path)} · {sizeLabel(file.size)}
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
           ))}
-        </ul>
+        </div>
       </div>
     );
   }
@@ -118,7 +198,7 @@ export function FilesPanel({ spaceId, part, open, onOpen, onChanged, reloadNonce
   if (open === null) {
     return (
       <div className="files__placeholder" data-testid="files-editor">
-        <p>Pick an agent data file on the left, or create one. These are plain-text inputs and outputs in the space folder; agents read them with read_file.</p>
+        <p>Pick an agent file on the left, or create one. These are plain-text inputs and outputs in the space folder; agents read them with read_file.</p>
       </div>
     );
   }
@@ -190,6 +270,8 @@ function FileEditor({
 
   const dirty = baseline === null ? true : content !== baseline;
   const isJson = path.trim().toLowerCase().endsWith(".json");
+  const identity = pathParts(path);
+  const kind = fileType(path);
 
   const save = async () => {
     setError(null);
@@ -234,22 +316,15 @@ function FileEditor({
   return (
     <div className="file-editor" data-testid="files-editor">
       <div className="file-editor__head">
-        {open.fresh ? (
-          <label className="knowledge__path">
-            <span>Path</span>
-            <input
-              value={path}
-              placeholder="config/watchlist.json"
-              aria-label="File path"
-              onChange={(changed) => {
-                setPath(changed.target.value);
-              }}
-            />
-          </label>
-        ) : (
-          <code className="file-editor__path">{open.path}</code>
-        )}
+        <div className="file-editor__identity">
+          <span className="file-editor__eyebrow">Agent file</span>
+          <h2>{identity.name || "New agent file"}</h2>
+          {path !== "" && (
+            <p>{identity.directory === "" ? "Space root" : `${identity.directory}/`} · {kind}</p>
+          )}
+        </div>
         <div className="file-editor__actions">
+          {!loading && dirty && <span className="file-editor__dirty">Unsaved changes</span>}
           {!open.fresh &&
             (deleteAsked ? (
               <span className="roster__confirm">
@@ -288,6 +363,20 @@ function FileEditor({
           </button>
         </div>
       </div>
+      {open.fresh && (
+        <label className="file-editor__path-field">
+          <span>File path</span>
+          <input
+            value={path}
+            placeholder="config/watchlist.json"
+            aria-label="File path"
+            onChange={(changed) => {
+              setPath(changed.target.value);
+            }}
+          />
+          <small>Use folders to keep inputs, research, and generated outputs organized.</small>
+        </label>
+      )}
       {error !== null && (
         <p className="field-error" role="alert">
           {error}
