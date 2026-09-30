@@ -67,6 +67,12 @@ export function callPhrase(tool: string, args: Payload): CallPhrase {
         progressive: "computing the portfolio",
         past: "computed the portfolio",
       };
+    case "check_limits":
+      return {
+        infinitive: `check limits for ${arg("date")}`,
+        progressive: `checking limits for ${arg("date")}`,
+        past: `checked limits for ${arg("date")}`,
+      };
     case "spawn_agent":
       return { infinitive: `spawn ${arg("agent")}`, progressive: `spawning ${arg("agent")}`, past: `spawned ${arg("agent")}` };
     case "handoff":

@@ -185,6 +185,20 @@ describe("RunGraph", () => {
     expect(getByTestId("agent-node-portfolio-review").querySelector(".agent-node__tool")?.textContent).toBe("portfolio1");
   });
 
+  it("labels deterministic risk checks without crowding the agent card", () => {
+    const log = new LogBuilder();
+    const checks = reduceAll([
+      log.add("agent.spawned", { role: "risk" }, "risk-manager"),
+      log.add("tool.called", { tool: "check_limits", args: { date: "2026-09-30" } }, "risk-manager"),
+      log.add("tool.result", { tool: "check_limits", result: "{}" }, "risk-manager"),
+    ]);
+    const { getByTestId } = render(
+      <RunGraph view={checks} selectedAgent={null} onSelectAgent={vi.fn()} />,
+    );
+
+    expect(getByTestId("agent-node-risk-manager").querySelector(".agent-node__tool")?.textContent).toBe("limits1");
+  });
+
   it("keeps the whole of every cut-short text in a tooltip", () => {
     /* A card shows what fits; hovering shows the rest. */
     const { getByTestId } = graph();

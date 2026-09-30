@@ -1175,6 +1175,13 @@ the `currency` column described in the file contract. The starter uses `USD`,
 and missing or invalid values fail with actionable validation; the tool never
 assumes a currency.*
 
+*Additional maintainer choice, 2026-09-30: every entry in
+`config/watchlist.json` requires a non-empty `sector`. `check_limits` fails
+with actionable validation when a thesis ticker has no configured sector. An
+unheld thesis ticker has a current position weight of 0%; the tool reports its
+remaining position headroom and the remaining headroom in its configured
+sector.*
+
 1. **Price source.** Yahoo's chart endpoint is keyless and unofficial, and it
    can change or refuse. The alternative is waiting for keyed sources.
 2. **Hosts.** The fresh-install host list above.

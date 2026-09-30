@@ -76,6 +76,7 @@ const CHIP_LABEL: Readonly<Record<string, string>> = {
   read_feed: "feed",
   read_prices: "prices",
   compute_portfolio: "portfolio",
+  check_limits: "limits",
   run_shell: "shell",
 };
 

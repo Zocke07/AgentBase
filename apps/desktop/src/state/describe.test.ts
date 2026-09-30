@@ -250,6 +250,14 @@ describe("a sentence for every event", () => {
     expect(phrase.past).toBe("computed the portfolio");
   });
 
+  it("describes deterministic limit checks for their date", () => {
+    const phrase = callPhrase("check_limits", { date: "2026-09-30" });
+
+    expect(phrase.infinitive).toBe("check limits for 2026-09-30");
+    expect(phrase.progressive).toBe("checking limits for 2026-09-30");
+    expect(phrase.past).toBe("checked limits for 2026-09-30");
+  });
+
   it("falls back to the raw call for a tool it has no verb for", () => {
     expect(callPhrase("summon_dragon", { name: "Smaug" }).infinitive).toBe("call summon_dragon(name=Smaug)");
   });
