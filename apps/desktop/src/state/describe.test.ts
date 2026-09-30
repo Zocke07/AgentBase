@@ -242,6 +242,14 @@ describe("a sentence for every event", () => {
     expect(phrase.past).toBe("read prices for AAPL, 2330.TW");
   });
 
+  it("describes a deterministic portfolio calculation", () => {
+    const phrase = callPhrase("compute_portfolio", {});
+
+    expect(phrase.infinitive).toBe("compute the portfolio");
+    expect(phrase.progressive).toBe("computing the portfolio");
+    expect(phrase.past).toBe("computed the portfolio");
+  });
+
   it("falls back to the raw call for a tool it has no verb for", () => {
     expect(callPhrase("summon_dragon", { name: "Smaug" }).infinitive).toBe("call summon_dragon(name=Smaug)");
   });

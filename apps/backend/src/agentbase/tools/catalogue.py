@@ -129,6 +129,14 @@ CATALOGUE: Final[tuple[ToolDeclaration, ...]] = (
         risk=RiskLevel.MEDIUM,
     ),
     ToolDeclaration(
+        name="compute_portfolio",
+        description=(
+            "Compute portfolio value, P&L, weights, concentration, and limit "
+            "crossings from the saved positions and prices."
+        ),
+        risk=RiskLevel.MEDIUM,
+    ),
+    ToolDeclaration(
         name="run_shell",
         description=(
             "Run a shell command as your user, starting in the space folder, "

@@ -1001,11 +1001,14 @@ answer it; each writes through `Sandbox.resolve_write_path`; none has a shell.
 is rounded only when written.
 
 - `portfolio/positions.csv`:
-  - Columns: `ticker,shares,cost_per_share,opened,sector`.
+  - Required columns: `ticker,shares,cost_per_share,opened,sector,currency`;
+    `currency` is an uppercase ISO 4217 code such as `USD`.
   - Cash: a `CASH` row holds it, in `shares`.
   - Currency: one per book; a mix is refused, and the refusal names the
     currencies.
-  - Template: the header and a `CASH` row, never an invented holding.
+  - Template: the header and a `CASH` row denominated in `USD`, never an
+    invented holding. A missing or invalid `currency` value is refused with
+    actionable validation rather than silently defaulted.
 - `portfolio/computed.json`:
   - Freshness: `as_of`; the positions file's date, with `stale` after 3
     days; each ticker's price date; `currency`.
@@ -1166,6 +1169,11 @@ chart files and the Phase 14 visualization contract; and run weekly knowledge
 without filings as described above. Where spaces start remains Claude Sonnet
 5.5, GPT-6 Sol, or GPT-5.6 Sol on a ChatGPT plan. An untiered model maps to
 the target provider's space default rather than to one shared tier.*
+
+*Additional maintainer choice, 2026-09-30: `portfolio/positions.csv` requires
+the `currency` column described in the file contract. The starter uses `USD`,
+and missing or invalid values fail with actionable validation; the tool never
+assumes a currency.*
 
 1. **Price source.** Yahoo's chart endpoint is keyless and unofficial, and it
    can change or refuse. The alternative is waiting for keyed sources.

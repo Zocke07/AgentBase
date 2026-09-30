@@ -171,6 +171,20 @@ describe("RunGraph", () => {
     expect(getByTestId("agent-node-market-movers").querySelector(".agent-node__tool")?.textContent).toBe("prices1");
   });
 
+  it("labels the portfolio calculator without crowding its agent card", () => {
+    const log = new LogBuilder();
+    const portfolio = reduceAll([
+      log.add("agent.spawned", { role: "accountant" }, "portfolio-review"),
+      log.add("tool.called", { tool: "compute_portfolio", args: {} }, "portfolio-review"),
+      log.add("tool.result", { tool: "compute_portfolio", result: "{}" }, "portfolio-review"),
+    ]);
+    const { getByTestId } = render(
+      <RunGraph view={portfolio} selectedAgent={null} onSelectAgent={vi.fn()} />,
+    );
+
+    expect(getByTestId("agent-node-portfolio-review").querySelector(".agent-node__tool")?.textContent).toBe("portfolio1");
+  });
+
   it("keeps the whole of every cut-short text in a tooltip", () => {
     /* A card shows what fits; hovering shows the rest. */
     const { getByTestId } = graph();

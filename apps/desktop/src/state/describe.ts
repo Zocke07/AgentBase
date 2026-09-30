@@ -61,6 +61,12 @@ export function callPhrase(tool: string, args: Payload): CallPhrase {
         past: `read prices for ${symbols}`,
       };
     }
+    case "compute_portfolio":
+      return {
+        infinitive: "compute the portfolio",
+        progressive: "computing the portfolio",
+        past: "computed the portfolio",
+      };
     case "spawn_agent":
       return { infinitive: `spawn ${arg("agent")}`, progressive: `spawning ${arg("agent")}`, past: `spawned ${arg("agent")}` };
     case "handoff":

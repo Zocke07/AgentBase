@@ -12,6 +12,7 @@ from agentbase.tools.builtin.filesystem import ListDirTool, ReadFileTool, WriteF
 from agentbase.tools.builtin.knowledge import SearchKnowledgeTool
 from agentbase.tools.builtin.memory import ProposeMemoryTool
 from agentbase.tools.builtin.network import HttpGetTool, ReadFeedTool
+from agentbase.tools.builtin.portfolio import ComputePortfolioTool
 from agentbase.tools.builtin.prices import ReadPricesTool
 from agentbase.tools.builtin.shell import RunShellTool
 
@@ -20,6 +21,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "BUILTIN_TOOLS",
+    "ComputePortfolioTool",
     "HttpGetTool",
     "ListDirTool",
     "ProposeMemoryTool",
@@ -42,6 +44,7 @@ BUILTIN_TOOLS: Final[tuple[type[Tool], ...]] = (
     HttpGetTool,
     ReadFeedTool,
     ReadPricesTool,
+    ComputePortfolioTool,
     RunShellTool,
 )
 
