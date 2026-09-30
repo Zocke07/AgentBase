@@ -906,6 +906,267 @@ not have); forwarding the waiting-question count to the native window title.
 6. Run once with Step through asks before every call, and a replay of a run
    recorded before this phase is unchanged.
 
+### Phase 17: The investment pipeline runs end to end
+
+*Designed 2026-09-30 at the maintainer's request, after an audit of the
+shipped roster against the maintainer's plan; **not built**. It adapts and
+replaces the maintainer's standalone roster design (`agentspace-investment-agents.md`,
+the source of migration 010's prompts), which was removed from the repository
+root once its content lived here and in the user guide. It adds built-in tools
+to Phase 6's list: settle the decisions below with the maintainer before
+coding (§6, "ask before deviating").*
+
+**The plan.** The maintainer's pipeline: collect news and trends (1a, also
+Reddit and past events), study concepts and companies (1b), read stock
+movement and the top gainers and losers (1c), and upcoming events, earnings
+and government releases (1d); review the portfolio (2a), argue bull and bear
+cases over 1, 3, 5 and 7 days with measured accuracy (2b), and manage risk for
+the book and the recommendations (2c); give a decision with a table (3a) and
+review the analysts for performance and learning (3b). Migration 010 ships one
+agent per step (2b as `bull-architect` and `bear-architect`), and 019 chains
+them as five schedules, switched off.
+
+**Why it does not run end to end yet** (audit and source probes, 2026-09-30):
+
+- The prompts depend on five scripts that are neither shipped nor runnable:
+  no seeded agent has a shell, and nothing runs outside a run. So nothing
+  writes `portfolio/computed.json` (2a), `risk/rule-checks-{date}.json` (2c),
+  `scores/predictions.jsonl` or a scorecard (2b's accuracy, 3b), or the
+  movers' derived figures (1c). There is no `portfolio/positions.csv` template.
+- The template's only price source stopped answering programs: `stooq.com`
+  returned HTTP 200 with a JavaScript browser check instead of CSV, so
+  `market-movers` gets no prices.
+- `http_get` shows a model at most 20,000 characters, so the Fed's 165 KB
+  FOMC calendar page never reaches its dates, and `bls.gov` refused a program
+  that sent no identifying header (403). Hosts off the list ask, and in a
+  scheduled run the question expires after 120 s, so 1d stays mostly empty.
+- Reddit (1a) needs a registered OAuth app, per the design (not probed); SEC
+  filings (1b) need an identifying `User-Agent` that `http_get` cannot send.
+  Market-wide gainers and losers, and earnings dates, have no verified
+  keyless source.
+- The design's route for keyed sources (Finnhub, Alpha Vantage, FRED and
+  others), a key in the URL's query string, would put a secret in a space
+  file, the model's context and the event log (§1 constraint 4).
+- A shipped agent moved between providers loses its level: `decision` (Opus)
+  became GPT-6 Sol, then GPT-5.6 Terra on a ChatGPT plan, because GPT-6 Sol
+  stands in for both Opus and Sonnet and agents keep its own tier.
+- Home says any missing data file is created from its template; only the
+  three config files are.
+
+**Principles kept from the design**, for every stage:
+
+1. Models never do arithmetic. Every figure a stage states comes from a
+   deterministic tool's output; a figure not in that output is not stated.
+2. Fetched text is untrusted. Collectors flatten it to fixed schemas and
+   ignore instructions inside it; nothing that reads `raw/` has a shell.
+3. Confidence is stated before the outcome and scored after it by a tool,
+   never self-reported. `scores/predictions.jsonl` is an append-only ledger.
+4. Every output ends at a person: a decision is a recommendation, nothing
+   executes, and no broker is connected (positions are a CSV the person keeps).
+5. One- and three-day calls from news are close to a coin flip; a clearly
+   measured negative result is a successful output.
+
+**Built-in tools.** Each is medium risk (it fetches or writes), so a policy may
+answer it; each writes through `Sandbox.resolve_write_path`; none has a shell.
+
+- `read_prices` (network): for up to 50 watchlist symbols, fetch a year of
+  daily history from one fixed endpoint, recommended
+  `https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=1y&interval=1d`,
+  keyless, which answered for `AAPL` and `2330.TW` (251 sessions, about 28 KB).
+  Use `http_get`'s public-address check, pinned address, TLS name and
+  no-redirect rule, with at most 1 MB read per symbol, and put the endpoint's
+  host in `Prepared.payload["host"]`. It writes:
+  - `raw/prices/{SYMBOL}.csv` (`date,open,high,low,close,volume`,
+    exchange-local dates, oldest first);
+  - `raw/movers-{session date}.json` in the roster prompt's schema, plus
+    `change_pct`, `rel_volume`, `microcap` and a rank among the watchlist
+    (1c's gainers and losers among the tickers followed);
+  - `raw/prices/summary.csv`, the latest session per symbol, for charts.
+  It returns that summary, any failure per symbol, and whether the session is
+  newer than the last movers file.
+- `compute_portfolio` (local): reads `portfolio/positions.csv` and the price
+  files; writes `portfolio/computed.json` and `portfolio/weights.csv`.
+- `check_limits` (local): reads `computed.json`, `config/limits.json` and the
+  day's theses; writes `risk/rule-checks-{date}.json`, the file the risk
+  manager's prompt already names.
+- `score_predictions` (local): reads every `theses/bull-*.jsonl` and
+  `theses/bear-*.jsonl` and the price files. It appends each newly resolved
+  prediction once to `scores/predictions.jsonl`, and writes
+  `scores/scorecard-{YYYY-MM}.json`, `scores/accuracy.csv` and
+  `scores/calibration.csv`.
+
+**File contracts.** The prompts' paths are kept. Arithmetic is `Decimal` and
+is rounded only when written.
+
+- `portfolio/positions.csv`:
+  - Columns: `ticker,shares,cost_per_share,opened,sector`.
+  - Cash: a `CASH` row holds it, in `shares`.
+  - Currency: one per book; a mix is refused, and the refusal names the
+    currencies.
+  - Template: the header and a `CASH` row, never an invented holding.
+- `portfolio/computed.json`:
+  - Freshness: `as_of`; the positions file's date, with `stale` after 3
+    days; each ticker's price date; `currency`.
+  - Book totals: `total_value`, `cash`, `invested`, `day_change` and
+    `day_change_pct` (from the previous close), `unrealised` and
+    `unrealised_pct`.
+  - Positions: `weight_pct`, `cost_per_share`, `close`, `value`,
+    `unrealised_pct`, `days_held`, `sector`.
+  - Concentration: `largest_weight_pct`, `top3_weight_pct`, sector weights,
+    and `limit_crossings` against `config/limits.json`.
+  - Realised and period P&L are `null`, with the reason: a snapshot cannot
+    give them.
+- `risk/rule-checks-{date}.json`: for each held position and each thesis
+  ticker, `max_position_pct`, `max_sector_pct` and `max_daily_loss_pct` as
+  `PASS` or `FAIL` with value and threshold, and the headroom a new position
+  has under each.
+- `scores/predictions.jsonl`: one line per resolved prediction, never
+  rewritten. Each line holds:
+  - the thesis fields;
+  - `entry_date` and `entry_close`: the last session on or before the
+    prediction's UTC date;
+  - `exit_date` and `exit_close`: `horizon_days` sessions later, so weekends
+    and holidays do not count;
+  - `return_pct`; `hit` (an unchanged close is a miss); `band_hit`;
+  - `brier`: (confidence minus hit) squared; `scored_at`.
+  A malformed thesis line is counted and reported, never guessed.
+- Scorecard and chart files:
+  - Hit rate and mean Brier by agent and horizon, against a constant 0.5
+    (Brier 0.25) and against the share of windows that rose.
+  - Calibration buckets from 0.50 in steps of 0.10, stated against observed.
+  - The count still unresolved.
+
+**Migration 020** gives the roster its tools and updates the schedules and
+starters. It is guarded like 015: an edited prompt, allowlist or goal stays
+byte for byte.
+
+- **Tools on the roster.** `market-movers` gets `read_prices`,
+  `portfolio-review` gets `compute_portfolio`, `risk-manager` gets
+  `check_limits` and `review-analyst` gets `score_predictions`. Each untouched
+  prompt calls its tool first, states only its output, and reports and stops
+  when an input is missing. `market-movers` stops fetching prices through
+  `http_get`.
+- **The 019 goals, where untouched.**
+  - The morning collection stops, and says so, when `read_prices` reports no
+    new session (a holiday).
+  - The theses stage writes nothing without that session's movers file.
+  - The weekly knowledge stage writes concept notes from the space's own
+    knowledge, and company notes only where `raw/filings/{TICKER}/` holds
+    filing text a person put there.
+- **Starter files.** **Turn on the daily pipeline** also creates, where
+  missing:
+  - `portfolio/positions.csv`;
+  - a `config/sources.json` naming the price endpoint and the Treasury's
+    keyless auctions API (`api.fiscaldata.treasury.gov`, which answered on
+    2026-09-30), not Stooq;
+  - the dashboard below.
+- **Home's copy** says what it creates, what the person supplies (the
+  watchlist and positions) and what the pipeline does not cover.
+
+**Hosts.** A fresh install lists `news.google.com`, the price endpoint's host
+and `api.fiscaldata.treasury.gov`; Stooq leaves the list. 020 writes the old
+list into used databases that never saved one ("A default setting" in the
+developer guide's checklists).
+
+**Trap:** 018 counts any schedule row as use, but 019 seeds five into every
+database, so every install created since would count as used. Count only
+runs, saved settings, spaces other than the default, and schedules other than
+019's five.
+
+**Models.** The shipped roster keeps its intended level, keyed by the agents'
+fixed IDs:
+
+| Agents | Level |
+|---|---|
+| The collectors, `portfolio-review` | fast |
+| The analysts, `risk-manager`, `review-analyst` | balanced |
+| `decision` | strong |
+
+GPT-6 Sol is the one model that stands in for two levels. Where a shipped
+agent is on it, the provider-switch preview and the plan repair map that
+agent by its intended level. Any model a person chose maps by its own level,
+as it does today.
+
+The design also advised a balanced space model, so that a misconfigured agent
+falls to the middle level. New spaces instead start at the strong level
+(`DEFAULT_TIER`), and every run's supervisor uses the space's model.
+
+**Visualize.** The starters add `visualizations/pipeline.dashboard.json` and
+four charts over the stable files the tools write, so no chart names a dated
+source and Phase 14's contract is unchanged:
+
+- the day's `change_pct` by ticker, from `raw/prices/summary.csv`;
+- portfolio weights, from `portfolio/weights.csv`;
+- hit rate by horizon and agent, from `scores/accuracy.csv`;
+- calibration, from `scores/calibration.csv`.
+
+**Out of scope:**
+
+- Reddit and other social sources: OAuth, and their terms.
+- SEC filings: they need an identifying header.
+- Keyed data APIs. These wait for a keychain-held data-source key that the
+  tool adds at execute time, outside the model's context and the log.
+- Market-wide screeners and earnings dates: no keyless source was verified.
+- FOMC and BLS calendars. A person may keep such dates in a
+  `config/calendar.json` that the calendar agent reads.
+- A Taiwan chain, and per-schedule time zones: schedules keep local
+  wall-clock time (Phase 13).
+- A market-holiday calendar beyond the new-session check.
+
+**Decisions to confirm with the maintainer before coding:**
+
+1. **Price source.** Yahoo's chart endpoint is keyless and unofficial, and it
+   can change or refuse. The alternative is waiting for keyed sources.
+2. **Hosts.** The fresh-install host list above.
+3. **Tools.** The four tools' names, and medium risk for all four.
+4. **Models.** The shipped-level rule for `decision`, and whether the default
+   space should start at the balanced level.
+5. **Charts.** Stable chart files, rather than a dated-source pattern in
+   Phase 14's contract.
+6. **Weekly knowledge.** The weekly knowledge stage without filings.
+
+**Order:**
+
+1. Settle the six decisions.
+2. Build `read_prices` test-first, against recorded responses; no test may
+   use the network. Then add its sentence in `state/describe.ts`, its label
+   in `RunGraph.tsx`, and its place in the fetch detection in `describe.ts`
+   and `Schedules.tsx`.
+3. Build `compute_portfolio`, then `check_limits`, then `score_predictions`,
+   each test-first.
+4. Write migration 020, with upgrade tests for four databases: fresh, used,
+   created since 019 but unused, and with edited rows.
+5. Add the shipped-level rule in `providers/catalog.py` and `api/spaces.py`.
+6. Add the starters, dashboard and Home copy in `lib/pipeline.ts` and
+   `PipelineOffer.tsx`, then check them in a browser.
+7. Update the user guide (`3_agents.md`, `7_visualizations.md`),
+   `CLAUDE.md` and `docs/verification.md`.
+8. The maintainer runs the chain live on a real model.
+
+Follow the developer guide's "A tool", "A migration" and "A default setting"
+checklists, and commit each unit.
+
+**Accept when:**
+
+1. On a fresh data directory, with the pipeline on and a watchlist and
+   positions filled in, **Run now** on the morning collection runs the chain
+   unattended to `decisions/{date}.md`, writing the movers, price, portfolio
+   and rule-check files. Every figure in them traces to a `tool.result`, none
+   to a model's text.
+2. Given recorded prices, `score_predictions` appends each resolvable
+   prediction exactly once, a second run adds nothing, and its scorecard,
+   accuracy and calibration files match values computed by hand.
+3. The pipeline dashboard opens in Visualize with its four charts.
+4. A fresh install fetches prices and Treasury data by policy, a used install
+   keeps its old host list, and an install created after 019 but never used
+   gets the new list.
+5. An edited roster agent and an edited goal are unchanged by 020.
+6. Moving the default space from Anthropic to OpenAI, then onto a ChatGPT plan
+   without GPT-6 Sol, leaves `decision` on GPT-5.6 Sol.
+7. The event contract, gate, sandbox, cost ceiling and replay are unchanged.
+   Each new tool is medium risk and passes the gate, and a supervised run asks
+   before each call.
+
 ---
 
 ## 6. How you should work

@@ -4,6 +4,32 @@ Updated 2026-09-29. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
+## Investment pipeline audit, 2026-09-30, design only
+
+The shipped roster was compared with the maintainer's plan and standalone
+roster design, and that design was folded into BUILD_SPEC Phase 17 (not
+built) and the user guide. What the audit found is in Phase 17.
+
+The data sources were probed once with `curl` from the maintainer's Mac:
+- `news.google.com` RSS answered with 112 KB of XML.
+- `stooq.com` returned HTTP 200 with a JavaScript browser check instead of
+  its CSV, both with and without a date range.
+- Yahoo's chart endpoint returned JSON for `AAPL` (a year of daily history:
+  251 sessions, 28 KB) and for `2330.TW`.
+- Nasdaq's history API returned JSON when sent a browser user agent.
+- TWSE's open data returned the day's listing as JSON.
+- The Treasury's auctions API returned JSON.
+- `bls.gov` returned 403 to a program with no identifying header.
+- The Fed's FOMC calendar page was 165 KB of HTML.
+
+The maintainer's own install showed three gaps:
+- `decision` on GPT-5.6 Terra, by way of GPT-6 Sol, after a provider switch
+  and a plan repair.
+- A lone decision stage writing a correct "pass" for want of inputs.
+- A space folder with no `raw/`, `theses/`, `portfolio/` or `scores/` files.
+
+Nothing was built or run beyond these reads.
+
 ## Visualize and Usage refinements, 2026-09-29, on `main`, not released
 
 From the maintainer's screenshots:
@@ -835,6 +861,8 @@ cover the behavior. They are not all release blockers.
   pre-authorized policy, and its catch-up after the app was closed overnight.
   Since Phase 16: the seeded pipeline's chain running stage after stage on a
   real model, and a scheduled question expiring while the run carries on.
+  Phase 17's acceptance adds the same chain producing prices, portfolio
+  figures, rule checks and a scored ledger with no model doing arithmetic.
 
 The first Mac session already closed automatic browser SSE reconnect,
 two simultaneous browser streams, clicking run deletion, both-theme replay

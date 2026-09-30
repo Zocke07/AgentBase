@@ -36,7 +36,10 @@ not follow the space's model: frequent work is cheap, reasoning mid-tier, and
 Opus runs once per decision. The decision agent moved from Opus 5 to Opus 5.5
 in an update unless you had edited it. To run the roster on OpenAI, switch the
 space's provider in Space settings and keep its agents ticked: collectors move
-to GPT-6 Luna, analysts and the decision agent to GPT-6 Sol.
+to GPT-6 Luna, analysts and the decision agent to GPT-6 Sol. On a ChatGPT
+plan without GPT-6 Sol, Space settings then offers GPT-5.6 Terra for those
+agents; to keep the decision agent at the top level, choose GPT-5.6 Sol in its
+editor.
 Prompts treat fetched pages and `raw/` files as untrusted; no built-in uses
 shell. Each built-in's **Calls this agent may make without asking** names low
 and medium, so under the default **Autonomous** policy every stage reads,
@@ -61,11 +64,56 @@ Atom locally, returns at most 20 complete entries, normalizes dates/domains,
 and supplies deterministic IDs and title-deduplication keys. `limits.json`
 contains the hard rules `portfolio-review` and `risk-manager` restate.
 
-Prompts also require external scripts (`scripts/compute_movers.py`,
-`compute_portfolio.py`, `check_limits.py`, `score_predictions.py`,
-`fetch_keyed.py`) for arithmetic and header-requiring fetches, plus a manually
-exported `portfolio/positions.csv`. Models never do the arithmetic. Missing
-input instructs agents to report it and stop.
+#### How the pipeline is meant to work
+
+- **Collectors only collect.** They write what they fetch into `raw/` in
+  fixed shapes. They treat everything they fetch as untrusted: an instruction
+  inside a news item is ignored and noted, never followed.
+- **Models never do the arithmetic.** Prices, P&L, limit checks and accuracy
+  come from computed files; an agent only reports figures those files hold.
+- **Predictions are scored, not self-reported.** The bull and bear agents give
+  each call a confidence before the outcome is known. Calls are then scored
+  against what the price did over 1, 3, 5 or 7 trading days, and the review
+  agent reads the score. One- and three-day calls from news are close to a
+  coin flip; a clearly measured poor result is a useful result.
+- **Everything ends with you.** The decision is a recommendation for you to
+  review. Nothing is bought or sold, and no broker is connected: you export
+  your positions yourself, as `portfolio/positions.csv`.
+
+#### What it needs, and what it cannot do yet
+
+You supply `config/watchlist.json`, `config/sources.json`,
+`config/limits.json` and `portfolio/positions.csv`.
+
+As of 2026-09-30 the pipeline does not do the whole job on its own:
+
+- **The arithmetic steps are not in the app.** The prompts expect five
+  scripts: `compute_movers.py`, `compute_portfolio.py`, `check_limits.py`,
+  `score_predictions.py` and `fetch_keyed.py`. The app neither ships nor runs
+  them. So:
+  - `portfolio-review` finds no `portfolio/computed.json`;
+  - `risk-manager` has no hard-rule results to restate;
+  - `review-analyst` has no scored predictions.
+  Each reports the missing input and stops.
+- **Prices do not arrive.** Stooq, the price source in the
+  `config/sources.json` template, now answers programs with a browser check
+  instead of data, so `market-movers` collects no prices.
+- **Most official calendars cannot be read.** Some pages are too large for an
+  agent to see whole, and some sites refuse programs. A site that is not on
+  your allowed list asks first. In a scheduled run nobody answers, and the
+  question expires after two minutes.
+- **Some sources are not collected.** Reddit, SEC filings, market-wide gainers
+  and losers, and earnings dates.
+
+Computing these figures in the app is the next planned work.
+
+**Timing from Asia.** The morning collection runs on weekdays at 07:00 your
+time, and the US market closes at 04:00 (summer) or 05:00 (winter) Taipei
+time. A weekday 07:00 run therefore sees the previous US session, so Monday's
+run sees Friday's. To match the US week, set that schedule to Tuesday through
+Saturday in Automations.
+
+This is a research and organising tool, not investment advice.
 
 New spaces instead get three editable, deletable **starter roles**:
 `researcher` (`read_file`, `list_dir`, `search_knowledge`, `propose_memory`),

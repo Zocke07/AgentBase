@@ -21,8 +21,29 @@ future changes do not relocate users' data or disconnect their stored keys.
   transition; current AgentBase values take precedence.
 - Phases 0 through 9 and the spaces redesign are implemented. Do not restart
   Phase 0 or replace completed work from an earlier phase.
-- **Autonomy first** (BUILD_SPEC Phase 16, 2026-09-29, on branch
-  `autonomy-first`, not yet released): autonomous workflows are the primary
+- **Next: Phase 17** (BUILD_SPEC; designed 2026-09-30, not started). Its aim
+  is to make the shipped investment pipeline run end to end. It adds four
+  built-in tools that do the pipeline's arithmetic: prices, the portfolio,
+  limit checks and prediction scoring. It also carries migration 020, safer
+  starter files and a pipeline dashboard.
+  - Before coding, settle the phase's six **decisions** with the maintainer
+    (§6, ask before deviating).
+  - Then build in the phase's **Order**, test-first, meeting its **Accept
+    when**.
+  - Two traps are recorded in the phase. Stooq now refuses programs. And
+    019's seeded schedules make every install look used to an 018-style
+    upgrade check.
+  - The maintainer's standalone roster design (`agentspace-investment-agents.md`)
+    was folded into Phase 17 and the user guide (`3_agents.md`), then removed.
+- **Unreleased on `main` since 0.4.8**, as recorded in `docs/verification.md`:
+  - Phase 16.
+  - ChatGPT plan models: the account's model list bounds the pickers, defaults
+    and mappings, and a space on GPT-6 Sol is offered GPT-5.6 Sol.
+  - Visualize: settings files read as field and value rows, readable default
+    axes, and repeated categories averaged.
+  - Usage: a slot for every day, and it follows the header meter.
+- **Autonomy first** (BUILD_SPEC Phase 16, 2026-09-29, merged to `main`, not
+  yet released): autonomous workflows are the primary
   way a space runs. Fresh installs answer low and medium risk by policy;
   migration 018 pins upgraded installs to the answers they had. High risk
   (`run_shell`) is never answered by policy nor kept as a yes for the run
@@ -92,7 +113,8 @@ future changes do not relocate users' data or disconnect their stored keys.
   generic roles are now the starter roles a new
   space is seeded from (`store/builtins.py`); 010 retires them from the
   default space only while untouched. The prompts assume scripts and config
-  files the app does not ship; the user guide says which.
+  files the app does not ship; the user guide says which, and Phase 17
+  designs them into the app.
 - Every space names its own provider and model (2026-09-27; migration 016
   wrote each inheriting space's provider into its row) and an agent may pick
   its own. The app-wide provider is only where a new space starts, and
