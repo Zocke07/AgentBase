@@ -45,7 +45,7 @@ def test_settings_start_at_the_documented_defaults(client: TestClient) -> None:
     body = client.get("/settings").json()
 
     assert body["settings"]["provider"] == "anthropic"
-    assert body["settings"]["model"] == "claude-opus-5-5"
+    assert body["settings"]["model"] == "claude-sonnet-5-5"
     assert body["settings"]["monthly_cap_micros"] == DEFAULT_MONTHLY_CAP_MICROS
 
 
@@ -459,7 +459,7 @@ def test_a_provider_change_moves_no_space(client: TestClient) -> None:
         space["id"]: (space["provider"], space["model"])
         for space in client.get("/spaces").json()
     }
-    assert before[DEFAULT_SPACE_ID] == ("anthropic", "claude-opus-5-5")
+    assert before[DEFAULT_SPACE_ID] == ("anthropic", "claude-sonnet-5-5")
 
     client.patch("/settings", json={"provider": "openai"})
     client.patch("/settings", json={"provider": "ollama"})
@@ -469,11 +469,15 @@ def test_a_provider_change_moves_no_space(client: TestClient) -> None:
         for space in client.get("/spaces").json()
     }
     assert after == before
-    assert after[own["id"]] == ("anthropic", "claude-opus-5-5")
+    assert after[own["id"]] == ("anthropic", "claude-sonnet-5-5")
 
     catalogue = client.get("/settings/providers").json()
     defaults = {entry["name"]: entry["default_model"] for entry in catalogue["providers"]}
-    assert defaults == {"anthropic": "claude-opus-5-5", "openai": "gpt-6-sol", "ollama": None}
+    assert defaults == {
+        "anthropic": "claude-sonnet-5-5",
+        "openai": "gpt-6-sol",
+        "ollama": None,
+    }
 
 
 def test_the_catalogue_lists_the_current_lineup_first_with_tier_and_price(
@@ -486,7 +490,7 @@ def test_the_catalogue_lists_the_current_lineup_first_with_tier_and_price(
     assert [entry["id"] for entry in anthropic[:4]] == [
         "claude-fable-5-1",
         "claude-opus-5-5",
-        "claude-sonnet-5",
+        "claude-sonnet-5-5",
         "claude-haiku-4-5",
     ]
     assert all(entry["current"] for entry in anthropic[:4])

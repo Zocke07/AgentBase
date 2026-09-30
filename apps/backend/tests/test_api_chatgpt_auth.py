@@ -295,6 +295,39 @@ def test_staying_on_openai_plans_the_move_to_models_the_plan_includes(
     ]
 
 
+def test_the_shipped_decision_keeps_its_strong_level_through_gpt_6_sol(
+    app_paths: AppPaths,
+) -> None:
+    """The fixed shipped ID distinguishes decision from balanced agents when
+    GPT-6 Sol has stood in for both levels."""
+    from agentbase.store.spaces import DEFAULT_SPACE_ID
+
+    client, _ = _plan_client(app_paths)
+    with client:
+        # Move with API-key availability first, so both Sonnet and Opus agents
+        # land on GPT-6 Sol.
+        switch = client.get(
+            f"/spaces/{DEFAULT_SPACE_ID}/provider-switch", params={"provider": "openai"}
+        ).json()
+        changed = client.patch(f"/spaces/{DEFAULT_SPACE_ID}", json={"provider": "openai"})
+        assert changed.status_code == 200, changed.text
+        for agent in switch["agents"]:
+            moved = client.patch(
+                f"/agents/{agent['id']}",
+                json={"provider": "openai", "model": agent["to_model"]},
+            )
+            assert moved.status_code == 200, moved.text
+
+        client.patch("/settings", json={"openai_access": "chatgpt"})
+        repair = client.get(
+            f"/spaces/{DEFAULT_SPACE_ID}/provider-switch", params={"provider": "openai"}
+        ).json()
+
+    moves = {agent["name"]: agent["to_model"] for agent in repair["agents"]}
+    assert moves["decision"] == "gpt-5.6-sol"
+    assert moves["bull-architect"] == "gpt-5.6-terra"
+
+
 def test_the_app_wide_check_leaves_the_backing_model_alone(app_paths: AppPaths) -> None:
     """The app-wide model only backs a space row naming none, and each
     space's check covers what its runs use: Settings must not report it."""

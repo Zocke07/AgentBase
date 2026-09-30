@@ -1157,6 +1157,16 @@ source and Phase 14's contract is unchanged:
 
 **Decisions to confirm with the maintainer before coding:**
 
+*Maintainer choices, 2026-09-30: all six decisions below are accepted. Use
+Yahoo's keyless, unofficial chart endpoint; give fresh installs the three-host
+list while preserving saved lists on used installs; ship `read_prices`,
+`compute_portfolio`, `check_limits` and `score_predictions` as medium-risk
+tools; preserve `decision` at the strong level across GPT-6 Sol; keep stable
+chart files and the Phase 14 visualization contract; and run weekly knowledge
+without filings as described above. Where spaces start remains Claude Sonnet
+5.5, GPT-6 Sol, or GPT-5.6 Sol on a ChatGPT plan. An untiered model maps to
+the target provider's space default rather than to one shared tier.*
+
 1. **Price source.** Yahoo's chart endpoint is keyless and unofficial, and it
    can change or refuse. The alternative is waiting for keyed sources.
 2. **Hosts.** The fresh-install host list above.

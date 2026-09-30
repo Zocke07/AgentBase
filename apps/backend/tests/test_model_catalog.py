@@ -4,7 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from agentbase.providers.catalog import DEFAULT_TIER, TIERS, catalog_for, equivalent, tier_of
+from agentbase.providers.catalog import (
+    DEFAULT_TIERS,
+    TIERS,
+    catalog_for,
+    equivalent,
+    equivalent_for_agent,
+    tier_of,
+)
 from agentbase.providers.pricing import MODELS_BY_PROVIDER
 from agentbase.store.settings import DEFAULT_MODELS
 
@@ -28,10 +35,10 @@ def test_a_current_lineup_has_at_most_one_model_per_tier(provider: str) -> None:
 
 @pytest.mark.parametrize("provider", ["anthropic", "openai"])
 def test_a_new_space_starts_where_an_unknown_model_would_map(provider: str) -> None:
-    """The defaults are the current model nearest `DEFAULT_TIER`, so a space
-    created on a provider and one switched there from an untiered model agree."""
+    """Each provider has its own starting level, and an untiered model maps
+    to that space default rather than one shared level."""
     assert DEFAULT_MODELS[provider] == equivalent(None, "ollama", provider)
-    assert DEFAULT_TIER == "strong"
+    assert DEFAULT_TIERS[provider] == "balanced"
 
 
 @pytest.mark.parametrize(
@@ -45,11 +52,11 @@ def test_a_new_space_starts_where_an_unknown_model_would_map(provider: str) -> N
         ("claude-opus-5-5", "anthropic", "openai", "gpt-6-sol"),
         ("claude-opus-4-6", "anthropic", "openai", "gpt-6-sol"),
         ("gpt-6-luna", "openai", "anthropic", "claude-haiku-4-5"),
-        ("gpt-6-sol", "openai", "anthropic", "claude-sonnet-5"),
+        ("gpt-6-sol", "openai", "anthropic", "claude-sonnet-5-5"),
         ("gpt-6-astra", "openai", "anthropic", "claude-fable-5-1"),
         ("gpt-5.5", "openai", "anthropic", "claude-opus-5-5"),
         ("gpt-4o-mini", "openai", "anthropic", "claude-haiku-4-5"),
-        ("qwen3:4b", "ollama", "anthropic", "claude-opus-5-5"),
+        ("qwen3:4b", "ollama", "anthropic", "claude-sonnet-5-5"),
         ("claude-sonnet-5", "anthropic", "anthropic", "claude-sonnet-5"),
     ],
 )
@@ -67,7 +74,7 @@ def test_a_round_trip_through_the_gap_does_not_come_back() -> None:
     """Opus and Sonnet both land on Sol, and Sol comes back as Sonnet. Space
     settings shows every mapped model before saving for this reason."""
     there = equivalent("claude-opus-5-5", "anthropic", "openai")
-    assert equivalent(there, "openai", "anthropic") == "claude-sonnet-5"
+    assert equivalent(there, "openai", "anthropic") == "claude-sonnet-5-5"
 
 
 def test_an_unlisted_model_has_no_tier() -> None:
@@ -106,10 +113,25 @@ def test_a_space_on_gpt_6_sol_is_offered_the_plan_s_model_for_complex_work() -> 
     # Only the plan's repair: an API key keeps Sol, and a provider switch
     # still maps by Sol's own tier.
     assert equivalent("gpt-6-sol", "openai", "openai", space=True) == "gpt-6-sol"
-    assert equivalent("gpt-6-sol", "openai", "anthropic", space=True) == "claude-sonnet-5"
+    assert equivalent("gpt-6-sol", "openai", "anthropic", space=True) == "claude-sonnet-5-5"
     assert equivalent("gpt-6-luna", "openai", "openai", PLAN, space=True) == "gpt-5.6-luna"
 
 
 def test_without_a_plan_the_mapping_is_unchanged() -> None:
     assert equivalent("claude-opus-5-5", "anthropic", "openai") == "gpt-6-sol"
     assert equivalent("gpt-6-sol", "openai", "openai") == "gpt-6-sol"
+
+
+def test_shipped_agents_keep_their_intended_level_when_sol_stands_in_for_two() -> None:
+    decision = "3ea7f62a-6177-43c2-9367-3631dea22798"
+    bull = "6dcd4865-b830-42fe-b005-cca3f9d1057a"
+
+    assert equivalent_for_agent(decision, "gpt-6-sol", "openai", "openai", PLAN) == (
+        "gpt-5.6-sol"
+    )
+    assert equivalent_for_agent(bull, "gpt-6-sol", "openai", "openai", PLAN) == (
+        "gpt-5.6-terra"
+    )
+    assert equivalent_for_agent("person-made", "gpt-6-sol", "openai", "openai", PLAN) == (
+        "gpt-5.6-terra"
+    )

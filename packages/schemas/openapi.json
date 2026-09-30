@@ -3843,7 +3843,7 @@
             "type": "integer"
           },
           "model": {
-            "default": "claude-opus-5-5",
+            "default": "claude-sonnet-5-5",
             "title": "Model",
             "type": "string"
           },

@@ -145,7 +145,7 @@ def test_a_space_names_its_own_provider_and_model(client: TestClient) -> None:
     """Settings' provider is only where a new space starts (2026-09-27). A space
     made without one takes it and keeps it; nothing clears it afterwards."""
     lab = _create(client, "Lab")
-    assert (lab["provider"], lab["model"]) == ("anthropic", "claude-opus-5-5")
+    assert (lab["provider"], lab["model"]) == ("anthropic", "claude-sonnet-5-5")
 
     own = _create(client, "Own", provider="openai", model="gpt-5.4")
     assert (own["provider"], own["model"]) == ("openai", "gpt-5.4")

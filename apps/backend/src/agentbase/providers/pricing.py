@@ -82,7 +82,7 @@ def _dollars_to_micros(dollars: str) -> int:
 
 
 #: List prices per million tokens by provider, used by settings. Both checked
-#: 2026-09-27, Anthropic against platform.claude.com/docs/en/about-claude/pricing
+#: 2026-09-30, Anthropic against platform.claude.com/docs/en/models/overview
 #: and OpenAI against developers.openai.com/api/docs/pricing. Standard-tier,
 #: short-context, non-batch. `catalog.py` gives each one a tier; a model
 #: priced here and missing there fails a test.
@@ -94,6 +94,7 @@ _ANTHROPIC: Final[dict[str, ModelPrice]] = {
     "claude-opus-4-8": _usd("5.00", "25.00"),
     "claude-opus-4-7": _usd("5.00", "25.00"),
     "claude-opus-4-6": _usd("5.00", "25.00"),
+    "claude-sonnet-5-5": _usd("2.00", "10.00"),
     "claude-sonnet-5": _usd("2.00", "10.00"),
     "claude-sonnet-4-6": _usd("3.00", "15.00"),
     "claude-haiku-4-5": _usd("1.00", "5.00"),

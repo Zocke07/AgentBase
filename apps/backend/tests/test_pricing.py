@@ -209,7 +209,7 @@ def test_model_price_is_frozen() -> None:
 def test_price_table_covers_the_default_models() -> None:
     """The models the app can actually be configured to use must be priced, or
     the first run refuses with UnknownModelError."""
-    for model in ("claude-opus-5", "claude-sonnet-5", "gpt-5.4", "gpt-4o"):
+    for model in ("claude-opus-5", "claude-sonnet-5-5", "gpt-5.4", "gpt-4o"):
         assert model in PRICES, model
 
 

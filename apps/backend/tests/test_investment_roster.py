@@ -30,7 +30,7 @@ ROSTER: Final[dict[str, tuple[str, tuple[str, ...], int, tuple[str, ...]]]] = {
         ("low", "medium"),
     ),
     "research-librarian": (
-        "claude-sonnet-5",
+        "claude-sonnet-5-5",
         ("read_file", "list_dir", "search_knowledge", "write_file", "propose_memory"),
         20,
         ("low", "medium"),
@@ -54,19 +54,19 @@ ROSTER: Final[dict[str, tuple[str, tuple[str, ...], int, tuple[str, ...]]]] = {
         ("low", "medium"),
     ),
     "bull-architect": (
-        "claude-sonnet-5",
+        "claude-sonnet-5-5",
         ("read_file", "list_dir", "search_knowledge", "write_file"),
         12,
         ("low", "medium"),
     ),
     "bear-architect": (
-        "claude-sonnet-5",
+        "claude-sonnet-5-5",
         ("read_file", "list_dir", "search_knowledge", "write_file"),
         12,
         ("low", "medium"),
     ),
     "risk-manager": (
-        "claude-sonnet-5",
+        "claude-sonnet-5-5",
         ("read_file", "list_dir", "write_file"),
         10,
         ("low", "medium"),
@@ -79,7 +79,7 @@ ROSTER: Final[dict[str, tuple[str, tuple[str, ...], int, tuple[str, ...]]]] = {
         ("low", "medium"),
     ),
     "review-analyst": (
-        "claude-sonnet-5",
+        "claude-sonnet-5-5",
         ("read_file", "list_dir", "write_file", "propose_memory"),
         15,
         ("low", "medium"),
@@ -477,5 +477,7 @@ def test_migration_016_moves_what_nobody_chose_from_opus_5_to_opus_5_5(
     assert roster["decision"]["model"] == "claude-opus-5-5"
     assert roster["risk-manager"]["model"] == "claude-opus-5"
     assert roster["mine"]["model"] == "claude-opus-5"
-    # No stored app-wide model on a fresh database: nothing to follow.
-    assert fallback is None
+    # Migration 020 sees the added space as use and pins the old unsaved
+    # app-wide default while leaving every existing space alone.
+    assert fallback is not None
+    assert json.loads(fallback["value"]) == "claude-opus-5-5"

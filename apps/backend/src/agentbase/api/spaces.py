@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
-from agentbase.providers.catalog import equivalent
+from agentbase.providers.catalog import equivalent, equivalent_for_agent
 from agentbase.providers.chatgpt import plan_models
 from agentbase.providers.factory import SUPPORTED_PROVIDERS
 from agentbase.store.agents import AgentDef
@@ -289,7 +289,9 @@ async def plan_provider_switch(
                     name=definition.name,
                     provider=definition.provider,
                     model=definition.model,
-                    to_model=equivalent(definition.model, provider, provider, included),
+                    to_model=equivalent_for_agent(
+                        definition.id, definition.model, provider, provider, included
+                    ),
                 )
                 for definition in lacking
             ],
@@ -311,7 +313,9 @@ async def plan_provider_switch(
                 model=definition.model,
                 to_model=None
                 if definition.model is None
-                else equivalent(definition.model, was, provider, included),
+                else equivalent_for_agent(
+                    definition.id, definition.model, was, provider, included
+                ),
             )
             for definition in stranded
         ],

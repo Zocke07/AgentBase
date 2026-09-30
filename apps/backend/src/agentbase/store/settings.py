@@ -47,10 +47,10 @@ DEFAULT_MONTHLY_CAP_MICROS: Final[int] = 20_000_000
 #: Default provider and model for a fresh install. The app-wide provider is
 #: only where a new space starts; each space names its own provider and model.
 DEFAULT_PROVIDER: Final[str] = "anthropic"
-DEFAULT_MODEL: Final[str] = "claude-opus-5-5"
+DEFAULT_MODEL: Final[str] = "claude-sonnet-5-5"
 
-#: Provider defaults for new spaces: each provider's current model at
-#: `catalog.DEFAULT_TIER`, which a test holds them to. Ollama's are typed.
+#: Provider defaults for new spaces. Billed providers start at their balanced
+#: level; a ChatGPT plan starts on its included strong model. Ollama is typed.
 DEFAULT_MODELS: Final[dict[str, str | None]] = {
     "anthropic": DEFAULT_MODEL,
     "openai": "gpt-6-sol",
