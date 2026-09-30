@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { SECTION_ORDER, type Section } from "../lib/sections";
 
+import { BrandMark } from "./BrandMark";
 import { SpaceSwitcher } from "./SpaceSwitcher";
 
 /**
@@ -154,7 +155,7 @@ export function Rail({
       data-testid="rail"
     >
       <div className="rail__brand">
-        <span className="rail__logo" aria-hidden="true" />
+        <BrandMark className="rail__logo" />
         <span className="rail__name">AgentBase</span>
       </div>
 

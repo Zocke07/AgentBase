@@ -250,12 +250,36 @@ pre {
 }
 
 .shell__logo {
-  width: 3rem;
-  height: 3rem;
-  border-radius: 0.9rem;
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
-  box-shadow: var(--shadow-2);
+  width: 3.75rem;
+  height: 3.75rem;
   animation: rise-in var(--dur-slow) var(--ease-spring) backwards;
+}
+
+.brand-mark {
+  display: block;
+  overflow: visible;
+  filter: drop-shadow(0 2px 3px rgb(20 24 40 / 16%));
+}
+
+.brand-mark__links {
+  fill: none;
+  stroke: var(--muted);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3.4;
+}
+
+.brand-mark__node {
+  stroke: var(--surface);
+  stroke-width: 1.5;
+}
+
+.brand-mark__node--lead {
+  fill: var(--accent);
+}
+
+.brand-mark__node--base {
+  fill: var(--info);
 }
 
 .shell__technical {
@@ -569,11 +593,9 @@ pre {
 }
 
 .rail__logo {
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 0.45rem;
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 25%);
+  flex: none;
+  width: 1.65rem;
+  height: 1.65rem;
 }
 
 .rail__name {

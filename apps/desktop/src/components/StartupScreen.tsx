@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 
 import type { SidecarStatus } from "../lib/sidecar";
 
+import { BrandMark } from "./BrandMark";
+
 /**
  * The window before the app can show anything, as named stages rather than a
  * retry count. Every stage is something the window really waits on: the
@@ -72,7 +74,7 @@ export function StartupScreen({ status, settingsLoaded, spacesLoaded, onRetry }:
 
   return (
     <main className="shell shell--waiting">
-      <span className="shell__logo" aria-hidden="true" />
+      <BrandMark className="shell__logo" />
       <h1 className="shell__title">AgentBase</h1>
 
       <div

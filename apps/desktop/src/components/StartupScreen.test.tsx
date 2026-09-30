@@ -30,6 +30,9 @@ describe("the stages", () => {
   it("marks the engine done and the reads in progress once the engine answers", () => {
     screenWith(ready, { settings: true, spaces: false });
 
+    const mark = screen.getByTestId("brand-mark");
+    expect(mark.querySelectorAll("circle")).toHaveLength(3);
+    expect(mark.querySelector("path")).toBeTruthy();
     expect(stageText()).toContain("Starting the engine: done");
     expect(stageText()).toContain("Checking your settings: done");
     expect(stageText()).toContain("Loading your spaces: in progress");
