@@ -569,7 +569,11 @@ async def test_a_fresh_workspace_answers_low_and_medium_itself_and_asks_about_th
         other.close()
     assert fresh.auto_approve == [RiskLevel.LOW, RiskLevel.MEDIUM]
     assert fresh.tool_policies == {}
-    assert fresh.auto_approve_hosts == ["news.google.com", "stooq.com"]
+    assert fresh.auto_approve_hosts == [
+        "news.google.com",
+        "query1.finance.yahoo.com",
+        "api.fiscaldata.treasury.gov",
+    ]
 
     runtime, _ = tool_runtime(store, db, workspace, auto_approve=fresh.auto_approve)
     assert runtime.auto_approve_for(()) == frozenset({RiskLevel.LOW, RiskLevel.MEDIUM})

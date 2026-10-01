@@ -40,7 +40,8 @@ def _at_version_19(app_paths: AppPaths) -> Database:
 def _upgraded(app_paths: AppPaths) -> Database:
     database = Database(app_paths.db_path)
     database.connect()
-    assert database.schema_version == LATEST_SCHEMA_VERSION == 20
+    assert database.schema_version == LATEST_SCHEMA_VERSION
+    assert LATEST_SCHEMA_VERSION >= 20
     return database
 
 

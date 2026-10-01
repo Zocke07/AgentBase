@@ -110,7 +110,7 @@ def test_seeded_agents_never_run_a_shell_and_only_collectors_fetch(
     fetchers = [
         agent["name"]
         for agent in builtins
-        if {"http_get", "read_feed"} & set(agent["allowed_tools"])
+        if {"http_get", "read_feed", "read_prices"} & set(agent["allowed_tools"])
     ]
     assert sorted(fetchers) == ["event-calendar", "market-movers", "news-scanner"]
 

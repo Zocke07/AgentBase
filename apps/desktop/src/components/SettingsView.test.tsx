@@ -220,7 +220,11 @@ describe("saving", () => {
       auto_approve: ["low", "medium"],
       tool_policies: { run_shell: "deny" },
       // No list at all is not "the listed sites", so Autonomous supplies them.
-      auto_approve_hosts: ["news.google.com", "stooq.com"],
+      auto_approve_hosts: [
+        "news.google.com",
+        "query1.finance.yahoo.com",
+        "api.fiscaldata.treasury.gov",
+      ],
     });
   });
 
@@ -236,11 +240,17 @@ describe("saving", () => {
     await loaded();
 
     await user.click(screen.getByTestId("setting-preset-autonomous"));
-    expect(screen.getByTestId<HTMLInputElement>("setting-hosts").value).toBe("news.google.com, stooq.com");
+    expect(screen.getByTestId<HTMLInputElement>("setting-hosts").value).toBe(
+      "news.google.com, query1.finance.yahoo.com, api.fiscaldata.treasury.gov",
+    );
     await user.click(screen.getByRole("button", { name: "Save settings" }));
     expect(mocked.updateSettings).toHaveBeenLastCalledWith({
       auto_approve: ["low", "medium"],
-      auto_approve_hosts: ["news.google.com", "stooq.com"],
+      auto_approve_hosts: [
+        "news.google.com",
+        "query1.finance.yahoo.com",
+        "api.fiscaldata.treasury.gov",
+      ],
     });
   });
 

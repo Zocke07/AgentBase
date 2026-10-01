@@ -563,7 +563,8 @@ def test_the_approval_policy_can_be_turned_back_off(client: TestClient) -> None:
 def test_the_host_list_round_trips_normalized_and_refuses_a_url(client: TestClient) -> None:
     assert client.get("/settings").json()["settings"]["auto_approve_hosts"] == [
         "news.google.com",
-        "stooq.com",
+        "query1.finance.yahoo.com",
+        "api.fiscaldata.treasury.gov",
     ]
 
     saved = client.patch(

@@ -77,8 +77,12 @@ DEFAULT_OLLAMA_BASE_URL: Final[str] = "http://127.0.0.1:11434"
 DEFAULT_AUTO_APPROVE: Final[tuple[RiskLevel, ...]] = (RiskLevel.LOW, RiskLevel.MEDIUM)
 
 #: Hosts a network call may reach on the policy's word: the shipped collectors'
-#: sources. ``*`` is any public host; migration 018 pins it for upgraded installs.
-DEFAULT_AUTO_APPROVE_HOSTS: Final[tuple[str, ...]] = ("news.google.com", "stooq.com")
+#: sources. ``*`` is any public host; migrations 018 and 021 pin earlier answers.
+DEFAULT_AUTO_APPROVE_HOSTS: Final[tuple[str, ...]] = (
+    "news.google.com",
+    "query1.finance.yahoo.com",
+    "api.fiscaldata.treasury.gov",
+)
 
 #: Configurable run limits.
 DEFAULT_MAX_STEPS_PER_AGENT: Final[int] = 20

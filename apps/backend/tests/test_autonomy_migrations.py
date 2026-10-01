@@ -200,7 +200,11 @@ def test_a_fresh_install_starts_autonomous(app_paths: AppPaths) -> None:
         assert _settings_rows(fresh) == {}
         settings = SettingsStore(fresh)._get_sync()
         assert [str(level) for level in settings.auto_approve] == ["low", "medium"]
-        assert settings.auto_approve_hosts == ["news.google.com", "stooq.com"]
+        assert settings.auto_approve_hosts == [
+            "news.google.com",
+            "query1.finance.yahoo.com",
+            "api.fiscaldata.treasury.gov",
+        ]
         assert settings.channel_approvals == "originator"
         assert settings.tool_policies == {}
     finally:

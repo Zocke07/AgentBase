@@ -50,7 +50,11 @@ _FAKE_RUN_SCRIPT: Final[tuple[tuple[EventType, str | None, dict[str, Any]], ...]
             "approval": {
                 "levels": ["low", "medium"],
                 "tool_policies": {},
-                "hosts": ["news.google.com", "stooq.com"],
+                "hosts": [
+                    "news.google.com",
+                    "query1.finance.yahoo.com",
+                    "api.fiscaldata.treasury.gov",
+                ],
                 "question_seconds": None,
                 "supervised": False,
                 "origin": "ui",

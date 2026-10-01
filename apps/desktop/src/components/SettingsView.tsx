@@ -77,7 +77,8 @@ const RISK_LEVELS: readonly RiskLevel[] = ["low", "medium"];
 type Preset = "autonomous" | "supervised" | "custom";
 
 /** The sites Autonomous fetches from, as a fresh install ships them. */
-const DEFAULT_HOSTS = "news.google.com, stooq.com";
+const DEFAULT_HOSTS =
+  "news.google.com, query1.finance.yahoo.com, api.fiscaldata.treasury.gov";
 
 function presetOf(form: Form): Preset {
   const allows = Object.values(form.tool_policies).some((answer) => answer === "allow");
@@ -667,7 +668,7 @@ function SettingsForm({
             <input
               type="text"
               value={form.auto_approve_hosts}
-              placeholder="news.google.com, stooq.com"
+              placeholder="news.google.com, query1.finance.yahoo.com, api.fiscaldata.treasury.gov"
               onChange={(changed) => {
                 set("auto_approve_hosts", changed.target.value);
                 setErrors(({ auto_approve_hosts: _cleared, ...rest }) => rest);
@@ -676,9 +677,9 @@ function SettingsForm({
               data-testid="setting-hosts"
             />
             <span className="editor__hint">
-              Separate them with commas. .stooq.com covers that domain and every name under it, and *
-              allows any public site. A fetch from anywhere else asks, so a page an agent reads cannot
-              send your files to a site nobody chose.
+              Separate them with commas. A leading dot, such as .example.com, covers that domain and
+              every name under it, and * allows any public site. A fetch from anywhere else asks, so a
+              page an agent reads cannot send your files to a site nobody chose.
             </span>
             <FieldError field="auto_approve_hosts" message={errorFor("auto_approve_hosts")} />
           </label>

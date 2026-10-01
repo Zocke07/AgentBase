@@ -37,7 +37,7 @@ ROSTER: Final[dict[str, tuple[str, tuple[str, ...], int, tuple[str, ...]]]] = {
     ),
     "market-movers": (
         "claude-haiku-4-5",
-        ("http_get", "read_file", "write_file"),
+        ("read_prices", "read_file"),
         12,
         ("low", "medium"),
     ),
@@ -49,7 +49,7 @@ ROSTER: Final[dict[str, tuple[str, tuple[str, ...], int, tuple[str, ...]]]] = {
     ),
     "portfolio-review": (
         "claude-haiku-4-5",
-        ("read_file", "list_dir", "write_file"),
+        ("compute_portfolio", "read_file", "list_dir", "write_file"),
         8,
         ("low", "medium"),
     ),
@@ -67,7 +67,7 @@ ROSTER: Final[dict[str, tuple[str, tuple[str, ...], int, tuple[str, ...]]]] = {
     ),
     "risk-manager": (
         "claude-sonnet-5-5",
-        ("read_file", "list_dir", "write_file"),
+        ("check_limits", "read_file", "list_dir", "write_file"),
         10,
         ("low", "medium"),
     ),
@@ -80,7 +80,13 @@ ROSTER: Final[dict[str, tuple[str, tuple[str, ...], int, tuple[str, ...]]]] = {
     ),
     "review-analyst": (
         "claude-sonnet-5-5",
-        ("read_file", "list_dir", "write_file", "propose_memory"),
+        (
+            "score_predictions",
+            "read_file",
+            "list_dir",
+            "write_file",
+            "propose_memory",
+        ),
         15,
         ("low", "medium"),
     ),
@@ -128,7 +134,13 @@ def test_nothing_seeded_can_run_a_shell_and_only_collectors_fetch(db: Database) 
         for name, row in roster.items()
         if {"http_get", "read_feed"} & set(json.loads(str(row["allowed_tools"])))
     }
-    assert fetchers == {"news-scanner", "market-movers", "event-calendar"}
+    assert fetchers == {"news-scanner", "event-calendar"}
+    price_fetchers = {
+        name
+        for name, row in roster.items()
+        if "read_prices" in set(json.loads(str(row["allowed_tools"])))
+    }
+    assert price_fetchers == {"market-movers"}
     assert not any("run_shell" in str(row["allowed_tools"]) for row in roster.values())
     # Narrowing only: no seeded row names a level the app-wide policy has not
     # enabled, and none skips the dialog for a high-risk call.
