@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -92,6 +93,12 @@ async def test_read_prices_writes_bounded_history_movers_and_stable_summary(
         (sandbox.root / "raw/movers-2026-09-30.json").read_text(encoding="utf-8")
     )
     assert [row["ticker"] for row in movers] == ["2330.TW", "AAPL"]
+    # A thesis cites a movers row by this id, as it cites a news record.
+    assert [row["id"] for row in movers] == [
+        "movers-2026-09-30-2330.TW",
+        "movers-2026-09-29-AAPL",
+    ]
+    assert [row["id"] for row in result["summary"]] == [row["id"] for row in movers]
     assert movers[0]["rank"] == 1 and movers[1]["rank"] == 2
     assert all(row["source"] == "query1.finance.yahoo.com" for row in movers)
     assert all(row["microcap"] is False for row in movers)
@@ -109,6 +116,37 @@ async def test_read_prices_writes_bounded_history_movers_and_stable_summary(
 
     second = json.loads(await tool.execute(prepared, sandbox))
     assert second["new_session"] is False
+    await client.aclose()
+
+
+async def test_read_prices_leaves_out_a_session_still_trading(
+    sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The 2330.TW recording was taken at 10:18 Taipei, mid-session.
+
+    Until 13:30 its last bar is a partial day; written as a session, it made the
+    next morning's complete bar look old, and the chain stopped as if no
+    session had traded.
+    """
+    _resolver(monkeypatch)
+    client, _ = _client()
+    during = ReadPricesTool(client, clock=lambda: datetime(2026, 9, 30, 2, 18, tzinfo=UTC))
+
+    result = json.loads(
+        await during.execute(during.prepare({"symbols": ["2330.TW"]}, sandbox), sandbox)
+    )
+    assert result["as_of"] == "2026-09-29"
+    assert result["new_session"] is True
+    assert result["movers_path"] == "raw/movers-2026-09-29.json"
+    history = (sandbox.root / "raw/prices/2330.TW.csv").read_text(encoding="utf-8")
+    assert history.splitlines()[-1].startswith("2026-09-29,")
+
+    closed = ReadPricesTool(client, clock=lambda: datetime(2026, 9, 30, 5, 30, tzinfo=UTC))
+    later = json.loads(
+        await closed.execute(closed.prepare({"symbols": ["2330.TW"]}, sandbox), sandbox)
+    )
+    assert later["as_of"] == "2026-09-30"
+    assert later["new_session"] is True
     await client.aclose()
 
 

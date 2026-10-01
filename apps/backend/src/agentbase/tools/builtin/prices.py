@@ -25,6 +25,7 @@ from agentbase.tools.base import Prepared, ToolArgumentError, ToolExecutionError
 from agentbase.tools.catalogue import RiskLevel, lookup
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Mapping
     from pathlib import Path
 
     from agentbase.tools.sandbox import Sandbox
@@ -73,8 +74,14 @@ class ReadPricesTool:
 
     name = "read_prices"
 
-    def __init__(self, client: httpx2.AsyncClient | None = None) -> None:
+    def __init__(
+        self,
+        client: httpx2.AsyncClient | None = None,
+        clock: Callable[[], datetime] | None = None,
+    ) -> None:
         self._client = client
+        #: Decides whether the latest bar's regular session has closed yet.
+        self._clock = clock or (lambda: datetime.now(UTC))
 
     @property
     def description(self) -> str:
@@ -164,12 +171,13 @@ class ReadPricesTool:
             client = httpx2.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS)
 
         semaphore = asyncio.Semaphore(5)
+        now = self._clock()
 
         async def one(request: dict[str, Any]) -> tuple[_History | None, str | None]:
             async with semaphore:
                 try:
                     body = await _fetch(client, request)
-                    return _parse_history(body, expected=request["symbol"]), None
+                    return _parse_history(body, expected=request["symbol"], now=now), None
                 except ToolExecutionError as exc:
                     return None, str(exc)
 
@@ -259,7 +267,7 @@ async def _fetch(client: httpx2.AsyncClient, request: dict[str, Any]) -> bytes:
     return b"".join(chunks)
 
 
-def _parse_history(body: bytes, *, expected: str) -> _History:
+def _parse_history(body: bytes, *, expected: str, now: datetime) -> _History:
     try:
         document = json.loads(body, parse_float=Decimal)
         chart = document["chart"]
@@ -317,9 +325,12 @@ def _parse_history(body: bytes, *, expected: str) -> _History:
         if session.volume < 0:
             raise ToolExecutionError("returned a negative daily volume")
         sessions.append(session)
+    sessions.sort(key=lambda session: session.date)
+    if sessions and _still_trading(meta, timezone, sessions[-1].date, now):
+        # A bar for a session that has not closed is a partial day, not a session.
+        sessions.pop()
     if len(sessions) < 2:
         raise ToolExecutionError("returned fewer than two complete daily sessions")
-    sessions.sort(key=lambda session: session.date)
     return _History(
         ticker=expected,
         currency=currency,
@@ -360,6 +371,8 @@ def _mover_rows(histories: list[_History]) -> list[dict[str, Any]]:
         high_52w = max(session.high for session in history.sessions)
         average_int = int(average.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
         row: dict[str, Any] = {
+            # A stable id lets a thesis cite the row as evidence, as news records are.
+            "id": f"movers-{latest.date}-{history.ticker}",
             "ticker": history.ticker,
             "date": latest.date,
             "as_of": latest.date,
@@ -420,6 +433,23 @@ def _write_summary(path: Path, rows: list[dict[str, Any]]) -> None:
         rendered = {**row, "close": row["last"]}
         writer.writerow(rendered)
     path.write_text(output.getvalue(), encoding="utf-8", newline="")
+
+
+def _still_trading(
+    meta: Mapping[str, Any], timezone: ZoneInfo, latest: str, now: datetime
+) -> bool:
+    """Whether ``latest`` is the exchange's current day and its regular hours run on.
+
+    Without a readable trading period the bar counts as complete, as before.
+    """
+    try:
+        regular = meta["currentTradingPeriod"]["regular"]
+        start = int(regular["start"])
+        end = int(regular["end"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    day = datetime.fromtimestamp(start, UTC).astimezone(timezone).date().isoformat()
+    return latest == day and now.timestamp() < end
 
 
 def _write_json(path: Path, rows: list[dict[str, Any]]) -> None:

@@ -1014,6 +1014,11 @@ answer it; each writes through `Sandbox.resolve_write_path`; none has a shell.
   - `raw/prices/summary.csv`, the latest session per symbol, for charts.
   It returns that summary, any failure per symbol, and whether the session is
   newer than the last movers file.
+  *(Maintainer choice of 2026-10-01: a bar whose regular session has not
+  closed, by the chart's `currentTradingPeriod`, is a partial day and is left
+  out, so a run during trading hours reports the last complete session. Each
+  movers row carries `id` `movers-{date}-{SYMBOL}`, which a thesis cites as
+  evidence.)*
 - `compute_portfolio` (local): reads `portfolio/positions.csv` and the price
   files; writes `portfolio/computed.json` and `portfolio/weights.csv`.
 - `check_limits` (local): reads `computed.json`, `config/limits.json` and the
