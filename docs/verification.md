@@ -47,6 +47,12 @@ start ("Morning collection had no verified read_prices result").
 Not verified: a real model on the corrected history. The running dev app keeps
 the old sidecar until it is restarted (`just dev-app` rebuilds it).
 
+**Run now lists its run at once.** The maintainer saw a Run now take a while
+to appear in Runs: Automations opened the run but left the list to the shell's
+poll, every 30 seconds while nothing runs. It now rereads the list as Home's
+Run once does. Executed: the new Schedules test failed first; ESLint, `tsc`
+and the full desktop suite, **556 tests**, passed.
+
 **Found, not changed:** during US trading hours (21:30 to 04:00 Taipei) the
 chart's last bar is the session in progress, and `read_prices` counts it as
 complete. At 22:12, AAPL's 2026-10-01 bar held 6.4 million shares against a

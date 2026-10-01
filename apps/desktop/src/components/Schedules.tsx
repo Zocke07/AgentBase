@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
 import { whenLabel } from "../lib/format";
+import { useRunList } from "../state/runList";
 import { useFetched } from "../state/useFetched";
 
 /**
@@ -184,9 +185,12 @@ export function Schedules({ space, settings, onOpenRun, draftRequest, reloadNonc
   const supervisedSpace = Array.isArray(space.auto_approve) && space.auto_approve.length === 0;
 
   // Run now opens the run it started; the list shows its outcome either way.
+  // Reread the run list too: with nothing running, the shell polls every 30 s.
+  const reloadRuns = useRunList((state) => state.load);
   const runNow = async (row: ScheduleResponse): Promise<string> => {
     const run = await api.runScheduleNow(row.id);
     onOpenRun?.(run.id);
+    void reloadRuns();
     return `Started a run for ${row.name}: ${run.id.slice(0, 8)}.`;
   };
 

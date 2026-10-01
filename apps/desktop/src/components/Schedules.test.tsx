@@ -20,6 +20,7 @@ vi.mock("../lib/api", async (importOriginal) => ({
   deleteSchedule: vi.fn(),
   runScheduleNow: vi.fn(),
   previewSchedule: vi.fn(),
+  listRuns: vi.fn(),
 }));
 
 const mocked = vi.mocked(api);
@@ -222,6 +223,27 @@ describe("Schedules", () => {
     await userEvent.click(within(row).getByRole("button", { name: "Run now" }));
     await waitFor(() => {
       expect(onOpenRun).toHaveBeenCalledWith("run-now-1");
+    });
+  });
+
+  it("lists the run Run now started without waiting for the next poll", async () => {
+    // With nothing running, the shell rereads the list only every 30 seconds.
+    mocked.runScheduleNow.mockResolvedValue({
+      id: "run-now-2",
+      space_id: "space-lab",
+      goal: digest.goal,
+      status: "pending",
+      origin: "automation",
+      origin_ref: "sched-1",
+      created_at: "2026-09-19T00:00:00Z",
+    });
+    mocked.listRuns.mockResolvedValue([]);
+    render(<Schedules space={lab} settings={settingsWith(["low"])} />);
+    const row = await screen.findByTestId("schedule-sched-1");
+
+    await userEvent.click(within(row).getByRole("button", { name: "Run now" }));
+    await waitFor(() => {
+      expect(mocked.listRuns).toHaveBeenCalled();
     });
   });
 
