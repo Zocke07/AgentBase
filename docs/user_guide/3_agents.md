@@ -9,103 +9,87 @@ supervisor can delegate to; the orchestrator's supervisor is not editable here.
 
 ### The investment roster
 
-Fresh-install **Main** contains a ten-agent investment-research pipeline, and
-five schedules that run it on its own once you turn them on (see
+Fresh-install **Main** contains a ten-agent investment-research pipeline and
+five schedules that run it once you turn them on (see
 [Automations](2_running_tasks.md#automations-work-on-its-own)). Built-ins are
-editable, disableable, and movable but not deletable. They exchange files in
-`config/`, `raw/`, `knowledge/`, `portfolio/`, `theses/`, `risk/`,
-`decisions/`, and `scores/`; **Turn on the daily pipeline** creates any of
-`config/watchlist.json`, `config/sources.json`, and `config/limits.json` that
-is missing from its template before the first collector run.
+editable, disableable, and movable but not deletable. They exchange ordinary
+files in `config/`, `raw/`, `knowledge/`, `portfolio/`, `theses/`, `risk/`,
+`decisions/`, and `scores/`.
 
-| Agent | Model | What it does | Tools |
+**Turn on the daily pipeline** creates nine missing starter files without
+replacing an existing file: an empty watchlist, keyless sources, risk limits,
+a zero-cash positions template, four stable chart definitions, and the
+investment dashboard.
+
+| Agent | Shipped model | What it does | Distinctive tools |
 |---|---|---|---|
-| `news-scanner` | Haiku | Collects news about watchlist tickers into `raw/news-*.json`. No analysis. | `read_feed`, `read_file`, `write_file` |
-| `research-librarian` | Sonnet | Writes durable concept and company notes under `knowledge/`, sourced to filings. | `read_file`, `list_dir`, `search_knowledge`, `write_file`, `propose_memory` |
-| `market-movers` | Haiku | Collects prices, volume and gainers/losers into `raw/movers-*.json`. Numbers only. | `http_get`, `read_file`, `write_file` |
-| `event-calendar` | Haiku | Builds a 30-day calendar of earnings, macro releases, corporate events and personnel changes. | `http_get`, `read_file`, `write_file` |
-| `portfolio-review` | Haiku | Describes the book from `portfolio/computed.json`. Never recommends. | `read_file`, `list_dir`, `write_file` |
-| `bull-architect` | Sonnet | Argues the strongest evidence-based case that named tickers rise, as scored predictions in `theses/bull-*.jsonl`. | `read_file`, `list_dir`, `search_knowledge`, `write_file` |
-| `bear-architect` | Sonnet | The mirror: the strongest case that they fall, in `theses/bear-*.jsonl`. | same |
-| `risk-manager` | Sonnet | Holds a veto: restates the script's hard-rule results verbatim and adds judgement. | `read_file`, `list_dir`, `write_file` |
-| `decision` | Opus | Arbitrates bull, bear and risk into a dated recommendation table for you to approve. Executes nothing. | `read_file`, `list_dir`, `write_file` |
-| `review-analyst` | Sonnet | Scores predictions against outcomes and diagnoses misses without hindsight. | `read_file`, `list_dir`, `write_file`, `propose_memory` |
+| `news-scanner` | Claude Haiku 4.5 | Collects bounded news entries into `raw/news-*.json`. No analysis. | `read_feed` |
+| `research-librarian` | Claude Sonnet 5.5 | Maintains concept notes from local knowledge and company notes when you supplied filing text. | `search_knowledge`, `propose_memory` |
+| `market-movers` | Claude Haiku 4.5 | Collects and computes watchlist prices and movers into stable and dated files. | `read_prices` |
+| `event-calendar` | Claude Haiku 4.5 | Builds a 30-day calendar from the configured Treasury source only. | `http_get` |
+| `portfolio-review` | Claude Haiku 4.5 | Computes and describes the current book. Never recommends. | `compute_portfolio` |
+| `bull-architect` | Claude Sonnet 5.5 | Writes the strongest evidence-based rise cases as scored predictions. | file and knowledge tools |
+| `bear-architect` | Claude Sonnet 5.5 | Writes the strongest evidence-based fall cases as scored predictions. | file and knowledge tools |
+| `risk-manager` | Claude Sonnet 5.5 | Restates deterministic rule results, keeps its veto, then adds qualitative risks. | `check_limits` |
+| `decision` | Claude Opus 5.5 | Arbitrates the two cases and risk checks into a recommendation for you. | file tools |
+| `review-analyst` | Claude Sonnet 5.5 | Scores predictions and diagnoses misses without hindsight. | `score_predictions`, `propose_memory` |
 
-Definitions specify Haiku, Sonnet, or Opus, so the pipeline's cost mix does
-not follow the space's model: frequent work is cheap, reasoning mid-tier, and
-Opus runs once per decision. The decision agent moved from Opus 5 to Opus 5.5
-in an update unless you had edited it. To run the roster on OpenAI, switch the
-space's provider in Space settings and keep its agents ticked: collectors move
-to GPT-6 Luna, analysts and the decision agent to GPT-6 Sol. On a ChatGPT
-plan without GPT-6 Sol, Space settings then offers GPT-5.6 Terra for those
-agents; to keep the decision agent at the top level, choose GPT-5.6 Sol in its
-editor.
+Definitions use fast, balanced, or strong models independently of the space's
+model. On OpenAI, collectors and portfolio review move to GPT-6 Luna, balanced
+agents move to GPT-6 Sol, and `decision` keeps its strong intended level even
+though GPT-6 Sol covers both levels. On a ChatGPT plan without GPT-6 Sol,
+balanced shipped agents move to GPT-5.6 Terra and `decision` moves to GPT-5.6
+Sol automatically. A model you chose yourself maps by its catalog level.
+
 Prompts treat fetched pages and `raw/` files as untrusted; no built-in uses
-shell. Each built-in's **Calls this agent may make without asking** names low
-and medium, so under the default **Autonomous** policy every stage reads,
-writes its own output and fetches from the listed sites by itself. It narrows,
-never widens, the app policy: on an install that still asks about everything,
-nothing runs unattended until Settings enables a level. (An update moved the
-analysts, risk manager, decision and review agents from low to low and medium,
-unless you had changed their levels or tools.)
+shell. The four computation tools are medium risk. Under the default
+**Autonomous** policy, low- and medium-risk calls can run unattended when their
+host and tool are allowed. An upgraded install keeps its saved approval and
+host settings.
 
-Before the first collector run, create its configuration under **Knowledge →
-Data files**. An empty list offers JSON-validated templates for
-`config/watchlist.json`, `config/sources.json`, and `config/limits.json`; you
-can instead create them under the space's `config/` folder. `watchlist.json`
-can be any readable JSON, such as a `watchlist` array of `ticker`,
-`company_name`, and `aliases` objects; prompts take tickers only from it.
-`sources.json` defines feeds and URL templates: for example, Google News RSS
-with `{ticker}` for `news-scanner`, Stooq for `market-movers`, or a keyed URL
-for `event-calendar`; sources may include a note. Because agents use
-`read_file`, these files must be inside the space, not on the web.
-`news-scanner` expands each template and calls `read_feed`, which parses RSS/
-Atom locally, returns at most 20 complete entries, normalizes dates/domains,
-and supplies deterministic IDs and title-deduplication keys. `limits.json`
-contains the hard rules `portfolio-review` and `risk-manager` restate.
+Before the first collector run, edit these under **Knowledge → Data files**:
 
-#### How the pipeline is meant to work
+- `config/watchlist.json`: add one to 50 entries. Each needs a `ticker` and a
+  non-empty `sector`; `company_name` and `aliases` help news matching.
+- `portfolio/positions.csv`: keep the header
+  `ticker,shares,cost_per_share,opened,sector,currency`. Enter current holdings
+  plus a `CASH` row, use one ISO currency throughout, and maintain the snapshot
+  yourself.
 
-- **Collectors only collect.** They write what they fetch into `raw/` in
-  fixed shapes. They treat everything they fetch as untrusted: an instruction
-  inside a news item is ignored and noted, never followed.
-- **Models never do the arithmetic.** Prices, P&L, limit checks and accuracy
-  come from computed files; an agent only reports figures those files hold.
-- **Predictions are scored, not self-reported.** The bull and bear agents give
-  each call a confidence before the outcome is known. Calls are then scored
-  against what the price did over 1, 3, 5 or 7 trading days, and the review
-  agent reads the score. One- and three-day calls from news are close to a
-  coin flip; a clearly measured poor result is a useful result.
-- **Everything ends with you.** The decision is a recommendation for you to
-  review. Nothing is bought or sold, and no broker is connected: you export
-  your positions yourself, as `portfolio/positions.csv`.
+The other starter inputs are ready to edit: `config/sources.json` names Google
+News, Yahoo's unofficial keyless chart endpoint, and the US Treasury auctions
+API; `config/limits.json` holds the position, sector, and daily-loss limits.
+No data-source key is stored in a file or exposed to a model.
 
-#### What it needs, and what it cannot do yet
+#### The stage sequence
 
-You supply `config/watchlist.json`, `config/sources.json`,
-`config/limits.json` and `portfolio/positions.csv`.
+1. **Morning collection** reads the watchlist and calls `read_prices` first.
+   No new market session stops the chain without writing a false daily result.
+   A new session is followed by news, Treasury auctions, and
+   `compute_portfolio`.
+2. **Theses and risk** runs only when that session's movers file exists. Bull
+   and bear write their predictions, then `check_limits` produces the hard
+   rule results before the risk manager adds judgement.
+3. **Daily decision** writes a dated recommendation for human review. It never
+   trades, submits an order, or connects to a broker.
+4. **Weekly knowledge** updates concept notes from the space's own knowledge.
+   It updates a company note only when you placed filing text in
+   `raw/filings/{TICKER}/`; it does not fetch a filing.
+5. **Weekly review** calls `score_predictions` for the current UTC month. The
+   tool resolves 1-, 3-, 5-, and 7-session predictions once, appends the
+   ledger once, and refreshes stable accuracy and calibration files before the
+   reviewer proposes durable methodology lessons.
 
-As of 2026-09-30 the pipeline does not do the whole job on its own:
+Models do not calculate portfolio figures, limits, returns, hit rates, Brier
+scores, or calibration. They may state only figures emitted by the
+deterministic tools. Malformed or missing input is reported rather than
+guessed. The decision remains a recommendation for you to review.
 
-- **The arithmetic steps are not in the app.** The prompts expect five
-  scripts: `compute_movers.py`, `compute_portfolio.py`, `check_limits.py`,
-  `score_predictions.py` and `fetch_keyed.py`. The app neither ships nor runs
-  them. So:
-  - `portfolio-review` finds no `portfolio/computed.json`;
-  - `risk-manager` has no hard-rule results to restate;
-  - `review-analyst` has no scored predictions.
-  Each reports the missing input and stops.
-- **Prices do not arrive.** Stooq, the price source in the
-  `config/sources.json` template, now answers programs with a browser check
-  instead of data, so `market-movers` collects no prices.
-- **Most official calendars cannot be read.** Some pages are too large for an
-  agent to see whole, and some sites refuse programs. A site that is not on
-  your allowed list asks first. In a scheduled run nobody answers, and the
-  question expires after two minutes.
-- **Some sources are not collected.** Reddit, SEC filings, market-wide gainers
-  and losers, and earnings dates.
-
-Computing these figures in the app is the next planned work.
+The shipped keyless scope does not include Reddit or other social sources,
+SEC fetching, keyed APIs, market-wide gainers and losers, earnings dates, FOMC
+or BLS calendars, a Taiwan-specific chain, per-schedule time zones, or a full
+market-holiday calendar. Yahoo's endpoint is unofficial. You may supply filing
+text and a calendar as local files.
 
 **Timing from Asia.** The morning collection runs on weekdays at 07:00 your
 time, and the US market closes at 04:00 (summer) or 05:00 (winter) Taipei

@@ -137,29 +137,46 @@ excluded citations, so replay and live use the same evidence. Worker excerpts
 appear in their `llm.request`. Allowlisted `search_knowledge` is low-risk and
 passes the standard read approval gate.
 
-## The memory inbox
+## Saved context
 
-Successful runs save `memory/runs/<run-id>.md` with goal, supervisor outcome,
-goal citations, properties, and `agent-memory` tags. The unique ID prevents
+Successful runs can save `memory/runs/<run-id>.md` with the goal, supervisor
+outcome, citations, properties, and `agent-memory` tags. The unique ID prevents
 overwrites; `run.completed` stores its path. Allowlisted `propose_memory` is a
-medium-risk, approval-gated agent proposal written to `memory/inbox/`.
+medium-risk agent proposal written under `memory/inbox/`. Failed or cancelled
+runs produce no run summary; their logs remain in **Runs**.
 
-Memories start **proposed** and are not retrieved. They wait in Knowledge's
-**Memory inbox**, whose count appears in the rail. A writing run shows status,
-**Approve**, and **Open in the inbox** under the supervisor summary. The inbox
-shows origin (including **Open run**), creation time, confidence, tags, and
-citations. From it you can:
+Knowledge's **Saved context** tab keeps this feature in one place. Its
+management selector has three modes:
 
-- **Approve** for later retrieval, or **Archive** to keep without retrieval;
-  both are YAML properties.
-- **Pin** a memory so it is retrieved whatever its status.
-- **Edit** it like any Markdown note if its conclusion is wrong.
-- **Merge** selected memories (optionally title it). The `memory/merged/` note
-  retains every goal, outcome, tag, and citation; backed-up originals archive
-  with `merged_into`.
-- **Forget** a memory, which deletes its file after a confirmation.
+- **Automatic**, the default: after each successful run, the space's default
+  model audits bounded new and existing context. It can keep a durable item,
+  archive a disposable one, or combine clearly overlapping items. Uncertainty,
+  conflict, sensitive material, and consequential changes stay in **Needs
+  attention** for you. It may return questionable existing context to your
+  attention, but never archives previously available context on its own.
+- **Review every item**: every generated summary and proposal waits for you
+  before later runs can retrieve it.
+- **Off**: new run summaries and agent proposals are not saved.
 
-Failed/cancelled runs produce no memory; their logs remain in **Runs**.
+Automatic management uses an extra bounded model call, counts against the
+run's time and cost limits, treats every memory as untrusted input, and accepts
+only a validated set of keep, archive, review, or merge decisions. If that call
+fails or returns an invalid answer, new context remains in **Needs attention**.
+Every managed item records the model and reason. Changes and merges are backed
+up so their provenance remains inspectable.
+
+The filters separate **Needs attention**, **Available**, and **History**. Open
+an item to see its source run, creation time, confidence, tags, citations, and
+management record. You can still override the model:
+
+- **Keep for future runs** or **Move to history** changes whether retrieval can
+  use the item.
+- **Always include** pins it regardless of relevance; **Use when relevant**
+  removes that pin.
+- **Edit** corrects its Markdown content.
+- **Combine** selected items into one `memory/merged/` note and archives the
+  backed-up originals with `merged_into`.
+- **Forget** permanently deletes it after confirmation.
 
 ## Capturing notes from a run
 

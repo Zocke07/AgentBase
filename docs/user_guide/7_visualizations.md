@@ -78,6 +78,22 @@ three columns. Dashboards are also ordinary JSON:
 Each card retains chart settings and export controls. Reopening redraws changed
 source data.
 
+### Investment pipeline dashboard
+
+Turning on Main's investment pipeline creates
+`visualizations/pipeline.dashboard.json` and four stable chart definitions:
+
+- daily change by ticker from `raw/prices/summary.csv`;
+- current weights from `portfolio/weights.csv`;
+- prediction hit rate by horizon and agent from `scores/accuracy.csv`;
+- observed hit rate by confidence bucket from `scores/calibration.csv`.
+
+The deterministic tools refresh those stable source paths, so the dashboard
+does not need a new definition each day or month. Before a stage has produced
+its source, that card shows the missing file clearly; the other cards still
+render. Open the dashboard from **Visualize** after the morning and review
+stages have created data.
+
 ## Mermaid diagrams
 
 Choose **New diagram** or open `.mmd` / `.mermaid`. Mermaid supports flow,
@@ -96,6 +112,6 @@ Visualization also supports fast decisions:
 - retrieval matches have relevance bars on Home, in Knowledge search and in
   a run's recorded context;
 - retrieval evaluation shows MRR, recall at k and each case as progress bars;
-- the memory inbox shows the proposed, approved and archived distribution;
-- Usage retains its day-by-day spend chart, with a place for every day of the
-  month.
+- Saved context shows the needs-attention, available and history distribution;
+- Usage retains its day-by-day spend chart, with a dynamic Y axis scaled from
+  the actual usage and a place for every day of the month.

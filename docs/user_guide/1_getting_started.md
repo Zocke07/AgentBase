@@ -77,7 +77,7 @@ brings it back.
 | **Automations** | What this space runs on its own: schedules at set times or one after another, and what an unattended run may do. |
 | **Runs** | Open a current run or replay a past one in this space. |
 | **Agents** | Create and edit this space's agent definitions. |
-| **Knowledge** | The space folder as a Markdown vault, and the memory inbox. |
+| **Knowledge** | Notes, structured **Data files**, and automatically managed **Saved context** in the space folder. |
 | **Visualize** | Charts from data files, saved dashboards and Mermaid diagrams. |
 | **Usage** | This month's model-call costs, tokens, and carried context by day, model, space, and run. |
 | **Space settings** | Name, description, folder, model, limits and approval answers for this space. |
@@ -90,7 +90,7 @@ outside it, or choosing a section closes it again. Pressing Tab first offers
 **Skip to content**, which jumps past the rail to the section.
 
 The header shows the selected space's model (using its maker's name, such as
-**Claude Opus 5.5**; hover for the provider), this month's spending against your
+**Claude Sonnet 5.5**; hover for the provider), this month's spending against your
 monthly limit, and approvals waiting across spaces. Click the spending for a
 breakdown: this space's share, how many runs there were and what one cost on
 average, the models and spaces the money went to (the three largest of each),
@@ -125,8 +125,9 @@ start on, and its key.
 4. Under **Settings → Provider**, choose where new spaces start (**New spaces
    use**), then click **Save settings**. Anthropic is the default. Each space
    then keeps its own provider and model under **Space settings → Model**; a
-   new one starts on its provider's default (`claude-opus-5-5` for Anthropic,
-   `gpt-6-sol` for OpenAI; type an Ollama model). Changing this setting moves
+   new one starts on its provider's default (`claude-sonnet-5-5` for
+   Anthropic, `gpt-6-sol` for OpenAI API access, and `gpt-5.6-sol` for a
+   ChatGPT plan; type an Ollama model). Changing this setting moves
    no existing space: to move one, change its provider in Space settings (see
    [Create and configure spaces](#create-and-configure-spaces)). An agent can
    choose its own model in its definition.
@@ -170,13 +171,12 @@ your ChatGPT plan**; a new space, or one switched to OpenAI, starts on a model
 the plan includes; Home says when a space's model is not one, and its button
 opens **Space settings**. There, a space on OpenAI offers **Use the closest
 models it includes** for its own model and for its agents that name one the
-plan lacks. A space on GPT-6 Sol is offered GPT-5.6 Sol, the plan's model for
-complex work: a space lands on GPT-6 Sol when it was set up with an API key or
-before you signed in, or moved there from Opus, so it was meant for the top
-level. GPT-5.6 Sol counts at twice GPT-6 Sol's price against the per-run limit,
-so raise the limit if runs stop there. An agent on GPT-6 Sol is offered
-GPT-5.6 Terra, the model at its own level; its editor can choose GPT-5.6 Sol
-instead. An agent in a space on another provider that names an OpenAI model is
+plan lacks. A space on GPT-6 Sol is offered GPT-5.6 Sol, the plan's strong
+model. A shipped `decision` agent on GPT-6 Sol also keeps its intended strong
+level and moves to GPT-5.6 Sol. Other shipped balanced agents on GPT-6 Sol
+move to GPT-5.6 Terra. GPT-5.6 Sol counts at twice GPT-6 Sol's price against
+the per-run limit, so raise the limit if runs stop there. An agent in a space
+on another provider that names an OpenAI model is
 changed in its own editor. AgentBase never swaps a model on its own: a run on
 a model the plan lacks stops with that reason, and an API key reaches every
 model.
@@ -238,11 +238,12 @@ folder; shell commands have broader access, as explained in
 
 A space names its own provider and model under **Model**. A new space starts
 on the provider chosen in Settings and that provider's default model; change
-either here. Choosing another provider moves the model to the one at the same
-level there (Haiku to GPT-6 Luna, Sonnet to GPT-6 Sol, Fable to GPT-6 Astra,
-and back), and you can pick a different one before saving. OpenAI's GPT-6
-lineup has nothing at Opus's level, so Opus moves to GPT-6 Sol, which costs
-less and may be less capable; switching back brings Sonnet, not Opus.
+either here. Choosing another provider moves the model to the current model at
+the same level there (Haiku to GPT-6 Luna, Sonnet 5.5 to GPT-6 Sol, Fable to
+GPT-6 Astra, and back), and you can pick a different one before saving. GPT-6
+Sol covers both balanced and strong work. The shipped `decision` agent keeps
+its strong intent across that bridge; other selections map by the model's own
+catalog level.
 
 Agents that name a model of the old provider, such as every agent in the
 investment roster, would keep using that provider (and need its key). The

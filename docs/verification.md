@@ -1,14 +1,96 @@
 # Verification and remaining work
 
-Updated 2026-09-29. This is the current record; [history](history/README.md)
+Updated 2026-10-01. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
-## Investment pipeline audit, 2026-09-30, design only
+## Phase 17 and run-review UX, 2026-10-01, on `main`, not released
+
+Phase 17 now implements the investment pipeline designed on 2026-09-30. The
+work was built and committed one test-first unit at a time: Sonnet 5.5 and
+migration 020 (`8ccf628`); `read_prices` (`b6b0824`);
+`compute_portfolio` (`2d2ff29`); `check_limits` (`192677a`);
+`score_predictions` (`6ff1a7c`); migration 021 and the three-host default
+(`459542c`); and the nine starter files and dashboard (`687da47`).
+
+- **Models and migration.** Claude Sonnet 5.5 is the current Anthropic
+  balanced model. Fresh spaces start on Sonnet 5.5, GPT-6 Sol, or GPT-5.6 Sol
+  through a ChatGPT plan. Untouched shipped Sonnet roles move in migration
+  020. The shipped `decision` role retains its strong intent across GPT-6 Sol,
+  including GPT-5.6 Sol on a plan. Used spaces and edited definitions stay put.
+- **Deterministic tools.** All four tools are medium risk. `read_prices` uses
+  Yahoo's keyless unofficial chart endpoint and recorded JSON fixtures;
+  `compute_portfolio` writes exact book and weight files; `check_limits`
+  writes hard-rule results and headroom; `score_predictions` appends resolved
+  predictions once and writes the monthly scorecard plus stable accuracy and
+  calibration files. No test uses the network.
+- **Pipeline wiring.** Migration 021 gives untouched roster definitions their
+  tools, updates untouched schedule goals, and handles migration 019's seeded
+  schedules without misclassifying every install as used. Fresh installs list
+  `news.google.com`, `query1.finance.yahoo.com`, and
+  `api.fiscaldata.treasury.gov`; used installs retain their saved list or the
+  former default. The event collector now uses only configured Treasury URLs,
+  removing the SEC, BLS, and issuer requests that failed in the maintainer's
+  runs.
+- **Safe first input.** The watchlist starter is empty, not a sample AAPL
+  recommendation. Home says that the person must supply tickers, sectors,
+  positions, and cash. It creates sources, limits, a positions template, four
+  stable chart definitions, and the dashboard without replacing files.
+- **Run audit.** The captured runs did not satisfy their goals. Stooq returned
+  404, SEC and BLS returned 403, an issuer page returned 404, and the old
+  prompts then looked for `portfolio/computed.json` and dated risk output that
+  no shipped step could produce. A later decision stage honestly wrote a pass
+  at 0% only because those inputs were absent. The new price, portfolio, limit,
+  and scoring tools remove those missing producers; the narrowed calendar
+  removes the known failing sources.
+- **Run-review UX.** Visualize and Usage have distinct icons; Knowledge uses
+  Notes, Data files, and Saved context; cards and text containers wrap without
+  fixed-width clipping; Markdown preview uses the available width; Usage has a
+  visible Y axis whose ticks scale from actual daily values; Runs presents
+  dense results and errors more clearly; the app chrome uses the AgentBase
+  network mark; saved context defaults to conservative model-assisted
+  management with audit reasons and backups; and Automations **Run now** is
+  labelled separately from a timed schedule start.
+
+The Sonnet 5.5 entry was checked again on Anthropic's official models overview
+on 2026-09-30 before implementation: `claude-sonnet-5-5`, released
+2026-09-28, $2 per million input tokens and $10 per million output tokens, 1M
+context, 128K maximum output, and retirement no earlier than 2027-09-28.
+
+- **Gate.** Before the final implementation commit and again for the
+  documentation unit, `just check` passed; backend **1067 passed, 12 skipped**
+  with two existing warnings; desktop **52 files, 553 tests**. The first
+  documentation backend attempt reached **1061 passed** but the sandbox denied
+  the frozen binary's system semaphore; the identical unrestricted rerun
+  passed all 1067 tests.
+- **Browser.** A scratch sidecar used a temporary `AGENTBASE_DATA_DIR` and
+  port 8790; Vite ran on 5173; Chrome requests for 8787 were rewritten over
+  CDP; onboarding was disabled through `PATCH /settings`. At 1440 and 800 px,
+  the fresh host settings, Home setup card, all nine created files, all five
+  enabled schedules, and the four-chart dashboard were checked. Seed data was
+  written only to the scratch space for the charts. There was no horizontal
+  overflow, field error, or console error. The maintainer's `.dev/data` was
+  not used for these UI checks.
+- **Not verified.** No real model has run the daily morning-to-decision chain
+  after these changes.
+  The live Yahoo and Treasury services are deliberately absent from automated
+  tests. The packaged Tauri/WebKit app and Windows build were not rerun for
+  this phase.
+
+The maintainer must perform Phase 17's first acceptance test: fill the
+watchlist and positions, choose **Run now** on Morning collection with a real
+model, let the Theses and risk and Daily decision stages follow, and confirm
+the event log contains successful tool results and the space contains movers,
+prices, portfolio figures, hard-rule checks, and `decisions/{date}.md`. Every
+figure must trace to a `tool.result`; model prose alone is not evidence that a
+tool ran.
+
+## Investment pipeline audit, 2026-09-30, historical pre-build audit
 
 The shipped roster was compared with the maintainer's plan and standalone
-roster design, and that design was folded into BUILD_SPEC Phase 17 (not
-built) and the user guide. What the audit found is in Phase 17.
+roster design, and that design was folded into BUILD_SPEC Phase 17 and the user
+guide. What the audit found is in Phase 17; the implementation above addresses
+the in-scope gaps.
 
 The data sources were probed once with `curl` from the maintainer's Mac:
 - `news.google.com` RSS answered with 112 KB of XML.
@@ -34,9 +116,8 @@ Anthropic's models overview and deprecations pages were read on the same day:
 - Opus 5.5 at $4 and $20, matching the price list.
 - Claude Haiku 4.5 active, with no deprecation announced.
 
-Phase 17's models unit uses these figures.
-
-Nothing was built or run beyond these reads.
+Phase 17's models unit uses these figures. At the time of this audit, nothing
+was built or run beyond these reads.
 
 ## Visualize and Usage refinements, 2026-09-29, on `main`, not released
 

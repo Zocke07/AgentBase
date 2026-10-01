@@ -21,33 +21,30 @@ future changes do not relocate users' data or disconnect their stored keys.
   transition; current AgentBase values take precedence.
 - Phases 0 through 9 and the spaces redesign are implemented. Do not restart
   Phase 0 or replace completed work from an earlier phase.
-- **Next: Phase 17** (BUILD_SPEC; designed 2026-09-30, not started). Its aim
-  is to make the shipped investment pipeline run end to end.
-  - It starts with a models unit, migration 020. Claude Sonnet 5.5, released
-    2026-09-28 at Sonnet 5's price, joins the catalog, and never-edited
-    shipped Sonnet agents move to it. New spaces start on the best model for
-    result and cost: Sonnet 5.5, GPT-6 Sol, or GPT-5.6 Sol on a ChatGPT
-    plan.
-  - It then adds four built-in tools that do the pipeline's arithmetic:
-    prices, the portfolio, limit checks and prediction scoring.
-  - It also carries migration 021, safer starter files and a pipeline
-    dashboard.
-  - Before coding, settle the phase's six **decisions** with the maintainer
-    (§6, ask before deviating).
-  - Then build in the phase's **Order**, test-first, meeting its **Accept
-    when**.
-  - Two traps are recorded in the phase. Stooq now refuses programs. And
-    019's seeded schedules make every install look used to an 018-style
-    upgrade check.
-  - The maintainer's standalone roster design (`agentspace-investment-agents.md`)
-    was folded into Phase 17 and the user guide (`3_agents.md`), then removed.
+- **Phase 17 is implemented on `main`** (2026-10-01). The shipped investment
+  pipeline now has Claude Sonnet 5.5 and migration 020, deterministic
+  `read_prices`, `compute_portfolio`, `check_limits`, and
+  `score_predictions` tools, migration 021, nine starter files, and its
+  four-chart dashboard. Fresh installs list Google News, Yahoo's chart host,
+  and the Treasury API; used installs keep their saved host list. The remaining
+  acceptance item is the maintainer's first daily morning-to-decision chain on
+  a real model.
+  The standalone roster design (`agentspace-investment-agents.md`) was folded
+  into BUILD_SPEC Phase 17 and the user guide, then removed.
 - **Unreleased on `main` since 0.4.8**, as recorded in `docs/verification.md`:
   - Phase 16.
+  - Phase 17's end-to-end investment pipeline, migrations 020 and 021, four
+    deterministic tools, starter inputs, and stable dashboard.
   - ChatGPT plan models: the account's model list bounds the pickers, defaults
-    and mappings, and a space on GPT-6 Sol is offered GPT-5.6 Sol.
-  - Visualize: settings files read as field and value rows, readable default
-    axes, and repeated categories averaged.
-  - Usage: a slot for every day, and it follows the header meter.
+    and mappings; a space and the strong shipped `decision` role on GPT-6 Sol
+    are offered GPT-5.6 Sol.
+  - Run review and navigation: distinct Visualize and Usage icons; Notes, Data
+    files, and Saved context taxonomy; responsive text; a wider Markdown
+    preview; a denser Runs view; a real network logo; automatic saved-context
+    management; and distinct **Run now** provenance.
+  - Visualize handles settings objects, readable axes, repeated categories,
+    and the pipeline dashboard. Usage has a slot for every day, follows the
+    header meter, and scales a visible Y axis from actual usage.
 - **Autonomy first** (BUILD_SPEC Phase 16, 2026-09-29, merged to `main`, not
   yet released): autonomous workflows are the primary
   way a space runs. Fresh installs answer low and medium risk by policy;
@@ -59,8 +56,9 @@ future changes do not relocate users' data or disconnect their stored keys.
   run's unanswered question expires after `unattended_question_seconds` and
   the run carries on; `run.started` records the policy and each automatic
   answer names its `rule`. Manual execution is **Run once** with **Step
-  through** (`supervised`). Memories keep the inbox, the seeded pipeline ships
-  switched off (019), and there is still no tray or service mode.
+  through** (`supervised`). Generated saved context defaults to conservative
+  model-assisted management, the seeded pipeline ships switched off (019),
+  and there is still no tray or service mode.
 - The current release line is **0.4.8**: a steady run canvas, a folding event
   log, named start-up stages, a spending breakdown in the header, and spaces
   that own their provider with tier-mapped model switches and Opus 5.5 and
@@ -85,7 +83,9 @@ future changes do not relocate users' data or disconnect their stored keys.
   bundle has a complete code seal. Check the release page and tag workflow
   for publication status and cross-platform CI evidence.
 - The UI has a left rail, spaces, Home, Automations, Runs, Agents, Knowledge,
-  Visualize, Usage, Space settings, and app-wide Settings. Approvals are docked. The run canvas is a
+  Visualize, Usage, Space settings, and app-wide Settings. Visualize and Usage
+  have distinct icons; Knowledge separates Notes, Data files, and Saved
+  context. Approvals are docked. The run canvas is a
   left-to-right workflow (goal, supervisor, workers, outcome) with an
   inspector; the Knowledge section is laid out as an Obsidian vault and one
   Markdown renderer (`components/Markdown.tsx`, over `lib/markdown.ts`)
@@ -99,7 +99,8 @@ future changes do not relocate users' data or disconnect their stored keys.
   declared `measured`, or every new layout remounts every edge (the canvas
   flicker). Motion is CSS on the
   chrome only, never on log-driven content, and stops under reduced motion;
-  text meets WCAG AA in both themes; below 1,100 px the rail becomes a drawer
+  text meets WCAG AA in both themes; text containers wrap or scroll without
+  fixed-width clipping; below 1,100 px the rail becomes a drawer
   (developer guide, "Motion, contrast and accessibility").
   Discord is the only chat adapter; Telegram was removed on 2026-09-11.
 - A space can schedule runs (Automations): daily or weekly at a local time,
@@ -111,16 +112,14 @@ future changes do not relocate users' data or disconnect their stored keys.
   mode.
 - The default space ships the ten-definition investment research roster
   (migration 010, 2026-09-19): four Haiku collectors, Sonnet analysts and a
-  risk manager, an Opus decision agent, a Sonnet reviewer, each with an
-  explicit Anthropic model and no `run_shell` anywhere. Migration 015 moves
-  an untouched `news-scanner` from raw `http_get` responses to `read_feed`,
-  which parses complete RSS or Atom entries locally and supplies deterministic
-  identifiers; the other network collectors retain `http_get`. The three
-  generic roles are now the starter roles a new
-  space is seeded from (`store/builtins.py`); 010 retires them from the
-  default space only while untouched. The prompts assume scripts and config
-  files the app does not ship; the user guide says which, and Phase 17
-  designs them into the app.
+  risk manager, an Opus decision agent, and a Sonnet reviewer, with no
+  `run_shell`. Migration 015 gives `news-scanner` bounded `read_feed` input.
+  Migration 020 moves untouched Sonnet roles to Sonnet 5.5. Migration 021
+  gives market, portfolio, risk, and review roles the deterministic tools they
+  require and narrows the untouched event collector to configured Treasury
+  URLs. The three generic roles remain the starter roles for new spaces
+  (`store/builtins.py`); 010 retires them from the default space only while
+  untouched.
 - Every space names its own provider and model (2026-09-27; migration 016
   wrote each inheriting space's provider into its row) and an agent may pick
   its own. The app-wide provider is only where a new space starts, and
@@ -129,14 +128,17 @@ future changes do not relocate users' data or disconnect their stored keys.
   a tier and a current flag: a provider switch maps the model to the
   target's current model at that tier or the nearest, a tie going cheaper
   (Opus 5.5 to GPT-6 Sol, by the maintainer's choice; where a ChatGPT plan
-  lacks GPT-6 Sol, a space on it is offered GPT-5.6 Sol, agents on it
-  GPT-5.6 Terra), and
+  lacks GPT-6 Sol, a space on it is offered GPT-5.6 Sol, balanced shipped
+  agents on it GPT-5.6 Terra, and the strong shipped `decision` agent GPT-5.6
+  Sol), and
   `GET /spaces/{id}/provider-switch` previews the switch and the agents it
   would strand, which Space settings offers to move. New spaces start on
-  Opus 5.5 or GPT-6 Sol; 016 moved Anthropic spaces on Opus 5 and never-edited
-  shipped agents on it to Opus 5.5. A schedule may carry its own
+  Sonnet 5.5, GPT-6 Sol, or GPT-5.6 Sol through a ChatGPT plan. Migration 020
+  moves only an unused default space from Opus 5.5 to Sonnet 5.5. Existing
+  spaces keep their models. A schedule may carry its own
   `max_run_seconds`, laid over the space's for its runs alone. `GET /runs`
-  takes `origin`. The Knowledge tree can delete a folder (backed up first);
+  takes `origin`; an Automations **Run now** uses origin `automation`, while a
+  timed start uses `schedule`. The Knowledge tree can delete a folder (backed up first);
   the rail folds to icons (Ctrl/Cmd+B).
 - Three guards on runaway runs, all in `orchestrator/agent.py`: model
   answers may carry `MAX_OUTPUT_TOKENS` (16,384); an answer that hit the
@@ -153,10 +155,14 @@ future changes do not relocate users' data or disconnect their stored keys.
   `.mermaid` holds a diagram. Mermaid uses strict mode and its SVG is sanitized
   again before insertion. These are ordinary space files written through the
   existing gate; there is no visualization database or service.
-- The latest recorded database migration is 019 (017 strips policy yeses for
-  high risk, 018 pins upgraded installs to their old approval answers, 019
-  ships the investment pipeline as disabled schedules). 016 made spaces own
-  their provider and moved untouched Opus 5 to Opus 5.5. Existing workspace files are
+- The latest recorded database migration is 021. Migration 020 adds Sonnet
+  5.5, updates untouched shipped Sonnet roles, and applies fresh space
+  defaults without moving used spaces. Migration 021 wires the four
+  deterministic tools and corrected goals into untouched pipeline rows, gives
+  fresh installs the three-host list, and preserves used installs' saved
+  behavior. Before those, 017 strips policy yeses for high risk, 018 pins
+  upgraded installs to their old approval answers, and 019 ships the pipeline
+  as disabled schedules. Existing workspace files are
   adopted into the default space once; new spaces get their own folders. Each
   space folder is also an Obsidian-compatible Markdown vault. The Knowledge
   section provides notes, properties, tags, links, backlinks, unresolved links,
@@ -164,9 +170,14 @@ future changes do not relocate users' data or disconnect their stored keys.
   notes, search, a graph and a retrieval evaluation. Local BM25 and
   hashed-vector RAG augments goals and handoffs with cited, untrusted excerpts
   that the Home preview and the run view show and the user can exclude.
-  Completed runs and the `propose_memory` tool write proposed memories that
-  the inbox approves, archives, pins, merges or forgets; only approved or
-  pinned memories are retrieved. The practical vault limit is 10,000 notes.
+  In the default **Automatic** mode, a bounded call to the space model audits
+  generated run summaries and `propose_memory` notes after a successful run,
+  keeping, archiving, or merging clear cases and sending uncertainty,
+  conflicts, sensitive content, and consequential changes to **Needs
+  attention**. **Review every item** preserves the manual flow and **Off**
+  stops generated saved context. Management reasons, models, provenance, and
+  backups remain visible; only available or pinned context is retrieved. The
+  practical vault limit is 10,000 notes.
 - OpenAI access can use either an API key or the user's ChatGPT subscription.
   Both remain the `openai` provider and share the same AgentBase behavior;
   Codex App Server is a credential and single-decision inference transport,

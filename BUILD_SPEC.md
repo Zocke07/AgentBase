@@ -935,12 +935,13 @@ not have); forwarding the waiting-question count to the native window title.
 ### Phase 17: The investment pipeline runs end to end
 
 *Designed 2026-09-30 at the maintainer's request, after an audit of the
-shipped roster against the maintainer's plan; **not built**. It adapts and
+shipped roster against the maintainer's plan; **built on main 2026-10-01,
+with the first real-model acceptance run left to the maintainer**. It adapts and
 replaces the maintainer's standalone roster design (`agentspace-investment-agents.md`,
 the source of migration 010's prompts), which was removed from the repository
 root once its content lived here and in the user guide. It adds built-in tools
 to Phase 6's list: settle the decisions below with the maintainer before
-coding (§6, "ask before deviating"). Its first unit, added the same day,
+coding (§6, "ask before deviating"). Its first unit
 brings in Claude Sonnet 5.5 and changes the model a new space starts on
 (**Models**, migration 020).*
 
@@ -954,7 +955,8 @@ review the analysts for performance and learning (3b). Migration 010 ships one
 agent per step (2b as `bull-architect` and `bear-architect`), and 019 chains
 them as five schedules, switched off.
 
-**Why it does not run end to end yet** (audit and source probes, 2026-09-30):
+**Why the old pipeline did not run end to end** (audit and source probes,
+2026-09-30, before this phase):
 
 - The prompts depend on five scripts that are neither shipped nor runnable:
   no seeded agent has a shell, and nothing runs outside a run. So nothing

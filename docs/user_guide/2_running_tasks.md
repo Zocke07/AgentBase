@@ -16,21 +16,21 @@ list of schedules.
 
 The **Main** space ships an investment pipeline as five schedules, switched
 off so nothing spends money until you choose. **Turn on the daily pipeline**,
-on Home or in Automations, creates any data file the agents read that is
-missing (from its template; an existing file is never overwritten) and
-switches the five on:
+on Home or in Automations, creates nine missing starter inputs and dashboard
+files from templates, never overwrites an existing file, and switches the five
+on:
 
 | Schedule | When | What it does |
 |---|---|---|
-| Morning collection | Weekdays at 07:00 | News, prices and the coming month's events for your watchlist, then a description of the current book. |
+| Morning collection | Weekdays at 07:00 | Prices first, then news, Treasury auctions and a computed description of the current book. No new session stops the daily chain. |
 | Theses and risk | After Morning collection completes | The bull and bear cases, then the risk check against your limits. |
 | Daily decision | After Theses and risk completes | A dated recommendation table for you to review. Nothing is bought or sold. |
-| Weekly knowledge | Saturdays at 09:00 | Reference notes for the watchlist companies and the concepts the theses used. |
-| Weekly review | Sundays at 18:00 | Scores the week's predictions and proposes lessons for the memory inbox. |
+| Weekly knowledge | Saturdays at 09:00 | Concept notes from local knowledge, plus company notes only where you supplied filing text. |
+| Weekly review | Sundays at 18:00 | Scores resolved predictions and proposes durable lessons for Saved context. |
 
-Edit `config/watchlist.json` in **Knowledge** to choose the tickers first.
-[Agents](3_agents.md#the-investment-roster) says which inputs come from
-scripts the app does not ship; a stage without them reports what is missing.
+Edit `config/watchlist.json` and `portfolio/positions.csv` in **Knowledge →
+Data files** before the first run. [Agents](3_agents.md#the-investment-roster)
+describes their required fields and the files each deterministic tool writes.
 
 To add your own, click **New schedule**, give it a name and a goal, and choose
 when: **Every day** or **On chosen days** at a time of day (your computer's
@@ -45,9 +45,10 @@ Each row can be switched off, run now, edited or deleted, and shows the next
 time, the last time, what happened then and a link to that run. **Run now**
 starts it at once with the same limits as a timed start and opens the run;
 it does not move the next time, and a stage started this way is followed by
-the stages after it. A scheduled run appears in **Runs** marked **from
-schedule** and is an ordinary run in every other way: the space's agents,
-folder, rules, approval policy and the shared budget all apply.
+the stages after it. A manual start appears in **Runs** as **started with Run
+now**; a timed start says **from schedule**. Both are ordinary runs in every
+other way: the space's agents, folder, rules, approval policy and the shared
+budget all apply.
 
 Three things to know before relying on one:
 
@@ -133,10 +134,12 @@ ones fold behind **Show the whole summary**. Verify it against files and the
 event log. `tool.called` proves execution; inspect `tool.result` / `tool.error`
 for outcome. Tool totals include coordination calls, so they do not prove writes.
 
-**Saved as a memory at** names the note and status: **proposed**, **approved**
-(retrievable), **pinned**, or **archived**. **Approve** acts in place; **Open
-in the inbox** opens it for pinning, merging, or forgetting (see
-[The memory inbox](6_knowledge_and_memory.md#the-memory-inbox)).
+**Saved a run summary at** names the note and whether it is available to later
+runs, needs attention, is always included, or is history. In the default
+**Automatic** mode, the space model manages it after a successful run and
+records why. **Saved context** opens it for keeping, archiving, pinning,
+combining, editing, or forgetting (see
+[Saved context](6_knowledge_and_memory.md#saved-context)).
 
 Models can send large text chunks or call tools without prose, so graph/log
 activity need not stream text.
@@ -162,9 +165,13 @@ about everything until you choose **Autonomous** in Settings.
 | `list_dir` | low | List a directory inside this space's folder. |
 | `search_knowledge` | low | Retrieve relevant Markdown chunks with note and heading citations. |
 | `write_file` | medium | Create or overwrite a file inside this space's folder, except the app's own records. |
-| `propose_memory` | medium | Propose a memory; it waits in the inbox until you approve it. |
+| `propose_memory` | medium | Propose durable saved context; its management mode decides whether the model handles it or it waits for you. |
 | `http_get` | medium | Fetch a public URL; local and private network addresses are refused. |
 | `read_feed` | medium | Fetch public RSS or Atom and return bounded, complete entries; local and private network addresses are refused. |
+| `read_prices` | medium | Fetch one year of Yahoo daily prices for watchlist symbols and write stable price and mover files. |
+| `compute_portfolio` | medium | Compute value, P&L, weights, concentration and limit crossings from saved positions and prices. |
+| `check_limits` | medium | Check the book and thesis tickers against saved position, sector and daily-loss limits. |
+| `score_predictions` | medium | Resolve predictions against saved trading sessions and write the ledger, scorecard, accuracy and calibration files. |
 | `run_shell` | high | Run a shell command as your user, starting in this space's folder, with a timeout. Always asks. |
 
 File calls outside the space folder are refused before approval, and so is
