@@ -48,6 +48,13 @@ shell. The four computation tools are medium risk. Under the default
 host and tool are allowed. An upgraded install keeps its saved approval and
 host settings.
 
+An install created before the deterministic tools may also have older
+collector prompts if an agent's model was changed before the pipeline update.
+Migration 022 repairs an agent only when its prompt and tool list still match
+that exact older shipped definition. It keeps your chosen model and leaves
+genuinely edited instructions alone. Restart the app after updating so the
+new scheduler and migration are loaded.
+
 Before the first collector run, review these under **Knowledge → Agent files**:
 
 - `config/watchlist.json`: the starter follows AAPL, JPM, JNJ, XOM, PG and CAT,
@@ -110,6 +117,14 @@ Models do not calculate portfolio figures, limits, returns, hit rates, Brier
 scores, or calibration. They may state only figures emitted by the
 deterministic tools. Malformed or missing input is reported rather than
 guessed. The decision remains a recommendation for you to review.
+
+For the shipped daily chain, a run marked **completed** is not enough to start
+the next stage. Morning collection must have verified new-session price rows
+with no failed ticker and a successful portfolio calculation. Theses and risk
+must have successful hard-rule checks and the dated risk review file. Tool or
+model errors stop the chain, so a rate-limited Yahoo request cannot turn into
+empty theses or a decision presented as if the inputs were complete. Check
+the run's error details and tool results before trusting its summary.
 
 The shipped keyless scope does not include Reddit or other social sources,
 SEC fetching, keyed APIs, market-wide gainers and losers, earnings dates, FOMC

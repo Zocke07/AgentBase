@@ -24,11 +24,15 @@ future changes do not relocate users' data or disconnect their stored keys.
 - **Phase 17 is implemented on `main`** (2026-10-01). The shipped investment
   pipeline now has Claude Sonnet 5.5 and migration 020, deterministic
   `read_prices`, `compute_portfolio`, `check_limits`, and
-  `score_predictions` tools, migration 021, nine starter files, and its
+  `score_predictions` tools, migrations 021 and 022, nine starter files, and its
   four-chart dashboard. Fresh installs list Google News, Yahoo's chart host,
   and the Treasury API; used installs keep their saved host list. The remaining
   acceptance item is the maintainer's first daily morning-to-decision chain on
-  a real model.
+  a real model. Migration 022 repairs exact old shipped investment agent
+  prompts and tool lists after model-only edits, preserving chosen models and
+  genuine prompt edits. The shipped daily scheduler chain now stops on tool or
+  model failures and requires verified price, portfolio and hard-rule results
+  before starting downstream stages.
   The standalone roster design (`agentspace-investment-agents.md`) was folded
   into BUILD_SPEC Phase 17 and the user guide, then removed.
 - **Unreleased on `main` since 0.4.8**, as recorded in `docs/verification.md`:
@@ -155,12 +159,14 @@ future changes do not relocate users' data or disconnect their stored keys.
   `.mermaid` holds a diagram. Mermaid uses strict mode and its SVG is sanitized
   again before insertion. These are ordinary space files written through the
   existing gate; there is no visualization database or service.
-- The latest recorded database migration is 021. Migration 020 adds Sonnet
+- The latest recorded database migration is 022. Migration 020 adds Sonnet
   5.5, updates untouched shipped Sonnet roles, and applies fresh space
   defaults without moving used spaces. Migration 021 wires the four
   deterministic tools and corrected goals into untouched pipeline rows, gives
   fresh installs the three-host list, and preserves used installs' saved
-  behavior. Before those, 017 strips policy yeses for high risk, 018 pins
+  behavior. Migration 022 repairs exact old shipped pipeline prompts and
+  allowlists whose timestamps changed only because their model was edited.
+  Before those, 017 strips policy yeses for high risk, 018 pins
   upgraded installs to their old approval answers, and 019 ships the pipeline
   as disabled schedules. Existing workspace files are
   adopted into the default space once; new spaces get their own folders. Each

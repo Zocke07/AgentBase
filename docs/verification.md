@@ -6,6 +6,58 @@ cover only work actually executed.
 
 ## Phase 17 and run-review UX, 2026-10-01, on `main`, not released
 
+### Live-run repair and fresh-start reset, 2026-10-01
+
+The maintainer's October 1 screenshots and an explicitly authorised inspection of
+`.dev/data` showed three completed runs that had not achieved their goals.
+Morning collection had 16 tool failures, including Stooq 404 and Yahoo 429;
+its saved movers file was an empty array. Theses and risk then wrote empty
+thesis files and a risk file without a computed portfolio. Daily decision
+reported a pass at 0% despite missing inputs. The same install's five
+affected agent definitions still had old shipped prompts and tool lists:
+migration 021 had treated a model-only edit as a complete user edit. A
+`market-movers-2` graph node was a second spawn, not a separate roster entry.
+
+- Migration 022 (`155294c`) upgrades only exact old shipped prompt and
+  allowlist matches even when `updated_at` differs from `created_at`. Its
+  regression tests preserve chosen models and genuinely edited instructions.
+- The seeded morning and theses schedule followers now require successful
+  tool evidence, not merely a completed run (`4392669`). Tool/model errors,
+  failed price symbols, no new session, missing portfolio calculation, missing
+  hard-rule checks or missing dated risk review block the next stage. Tests
+  cover these cases and unchanged generic schedule behavior.
+- Before each of those commits, `just check`, the full backend suite, and
+  the full desktop suite passed with `set -o pipefail`: first **1068 passed,
+  12 skipped**, then **1074 passed, 12 skipped** on the backend; each had two
+  existing warnings. The desktop suite passed **53 files, 555 tests** each
+  time. No automated test made an external network request.
+- For this documentation and live-repair handoff, `just check` passed and the
+  full backend suite passed again. The first desktop run timed out in the
+  existing replay-identity test after 554 other tests passed; an unchanged
+  full-suite rerun passed all **53 files, 555 tests**. The backend run needed
+  the usual native-binary semaphore access after a sandboxed attempt stalled.
+- With the app closed, a consistent database backup and copy of the Main
+  space were saved at `.dev/backups/phase17-repair-67N7Wx/` and SQLite
+  reported `integrity_check=ok`. The live database migrated from schema 21 to
+  22, retaining the affected agents' selected GPT models. Its saved host list
+  was changed from Google News and Stooq to Google News, Yahoo chart and the
+  Treasury API. The old Stooq source descriptor was replaced, AAPL gained the
+  required sector, and the missing zero-cash `positions.csv` starter was
+  added. The packaged sidecar binary was rebuilt successfully.
+- Exactly three completed runs, their 704 events and 74 approvals, and their
+  schedule last-run markers were removed. The generated `raw`, `theses`,
+  `risk`, `decisions`, `memory/runs` and knowledge-backup folders were moved
+  into that recovery backup. The live space now contains only the three
+  configuration files and the portfolio starter. All 283 spend ledger rows
+  remain, so deleting history did not erase incurred costs or bypass limits.
+
+Not verified: a real model and the live Yahoo and Treasury services after
+this repair; Yahoo's unofficial endpoint may still return HTTP 429. If it
+does, the daily chain now stops and reports the failure instead of writing a
+decision from empty data. The maintainer should restart the dev app so it
+loads the rebuilt sidecar, enter actual holdings and cash when available, then
+perform Phase 17's first acceptance run and inspect the tool results.
+
 Phase 17 now implements the investment pipeline designed on 2026-09-30. The
 work was built and committed one test-first unit at a time: Sonnet 5.5 and
 migration 020 (`8ccf628`); `read_prices` (`b6b0824`);
