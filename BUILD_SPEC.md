@@ -1208,6 +1208,16 @@ unheld thesis ticker has a current position weight of 0%; the tool reports its
 remaining position headroom and the remaining headroom in its configured
 sector.*
 
+*Implementation details adopted by the maintainer on 2026-10-01: magnitude
+bands are half-open (`[0,1)`, `[1,3)`, `[3,5)`, then 5% or more), and
+`band_hit` also requires the predicted direction to be right. A scorecard month
+comes from each prediction's UTC `as_of`, while the stable accuracy and
+calibration CSVs aggregate the complete resolved ledger. Accuracy groups by
+agent and horizon; calibration groups by agent and 0.10 confidence bucket.
+Malformed thesis lines are reported and skipped. A valid prediction without
+enough later price sessions remains unresolved. `score_predictions` takes the
+scorecard month explicitly as `YYYY-MM`.*
+
 1. **Price source.** Yahoo's chart endpoint is keyless and unofficial, and it
    can change or refuse. The alternative is waiting for keyed sources.
 2. **Hosts.** The fresh-install host list above.

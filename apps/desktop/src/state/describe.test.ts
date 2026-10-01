@@ -258,6 +258,14 @@ describe("a sentence for every event", () => {
     expect(phrase.past).toBe("checked limits for 2026-09-30");
   });
 
+  it("describes deterministic prediction scoring for its month", () => {
+    const phrase = callPhrase("score_predictions", { month: "2026-09" });
+
+    expect(phrase.infinitive).toBe("score predictions for 2026-09");
+    expect(phrase.progressive).toBe("scoring predictions for 2026-09");
+    expect(phrase.past).toBe("scored predictions for 2026-09");
+  });
+
   it("falls back to the raw call for a tool it has no verb for", () => {
     expect(callPhrase("summon_dragon", { name: "Smaug" }).infinitive).toBe("call summon_dragon(name=Smaug)");
   });

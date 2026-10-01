@@ -145,6 +145,14 @@ CATALOGUE: Final[tuple[ToolDeclaration, ...]] = (
         risk=RiskLevel.MEDIUM,
     ),
     ToolDeclaration(
+        name="score_predictions",
+        description=(
+            "Resolve thesis predictions against saved trading sessions and write "
+            "the append-only ledger, monthly scorecard, accuracy, and calibration files."
+        ),
+        risk=RiskLevel.MEDIUM,
+    ),
+    ToolDeclaration(
         name="run_shell",
         description=(
             "Run a shell command as your user, starting in the space folder, "

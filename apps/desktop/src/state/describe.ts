@@ -73,6 +73,12 @@ export function callPhrase(tool: string, args: Payload): CallPhrase {
         progressive: `checking limits for ${arg("date")}`,
         past: `checked limits for ${arg("date")}`,
       };
+    case "score_predictions":
+      return {
+        infinitive: `score predictions for ${arg("month")}`,
+        progressive: `scoring predictions for ${arg("month")}`,
+        past: `scored predictions for ${arg("month")}`,
+      };
     case "spawn_agent":
       return { infinitive: `spawn ${arg("agent")}`, progressive: `spawning ${arg("agent")}`, past: `spawned ${arg("agent")}` };
     case "handoff":

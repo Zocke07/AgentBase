@@ -199,6 +199,20 @@ describe("RunGraph", () => {
     expect(getByTestId("agent-node-risk-manager").querySelector(".agent-node__tool")?.textContent).toBe("limits1");
   });
 
+  it("labels prediction scoring without crowding the reviewer card", () => {
+    const log = new LogBuilder();
+    const scoring = reduceAll([
+      log.add("agent.spawned", { role: "reviewer" }, "review-analyst"),
+      log.add("tool.called", { tool: "score_predictions", args: { month: "2026-09" } }, "review-analyst"),
+      log.add("tool.result", { tool: "score_predictions", result: "{}" }, "review-analyst"),
+    ]);
+    const { getByTestId } = render(
+      <RunGraph view={scoring} selectedAgent={null} onSelectAgent={vi.fn()} />,
+    );
+
+    expect(getByTestId("agent-node-review-analyst").querySelector(".agent-node__tool")?.textContent).toBe("scores1");
+  });
+
   it("keeps the whole of every cut-short text in a tooltip", () => {
     /* A card shows what fits; hovering shows the rest. */
     const { getByTestId } = graph();
