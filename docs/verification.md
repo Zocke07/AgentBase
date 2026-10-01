@@ -43,8 +43,28 @@ Taipei. Every output was checked against the tool results it came from.
   fresh data folder (port 8790) migrated to v23 and served the new goal and
   prompts.
 
-Not verified: the theses and decision stages on a real model with 023. The dev
-app needs another restart to load it.
+After a restart loaded 023, the maintainer ran the rest by hand on the same
+session's files:
+
+- **Theses and risk completed** (`7ed44190`) with no tool error. Bull wrote two
+  AAPL predictions (5 and 7 sessions, confidence 0.54, both news ids found in
+  `raw/news-2026-10-01-22.json`, invalidation at the session low 328.37). Bear
+  wrote an empty file. `check_limits` passed AAPL on all three rules, and the
+  risk review followed, so the gate started Daily decision.
+- **Daily decision failed once** (`f25cfb3a`): ChatGPT refused the decision
+  agent's second request as "flagged as potentially violating our usage
+  policy". Its history held only the task, four `list_dir` calls and their
+  listings; the six earlier `decision` runs on GPT-5.6 Terra were never
+  flagged. **Run now** on Daily decision (`a8fbfabe`) sent a request of the
+  same shape, which passed, and wrote `decisions/2026-10-01.md`: AAPL **pass**
+  at 0% NAV, low conviction, with the three required sections and no figure
+  absent from its inputs. The flag did not repeat, so it is treated as a
+  false positive; a provider refusal still fails the run.
+- **Still open:** the risk review and the decision's watch list name the
+  missing `raw/social-*` input, which nothing produces (social sources are out
+  of scope), and they read two routine Treasury bill auctions as market
+  events. The chain has not yet run unattended from Morning collection to the
+  decision in one pass, nor with real positions.
 
 ### Tool calls resent with their results, 2026-10-01
 
