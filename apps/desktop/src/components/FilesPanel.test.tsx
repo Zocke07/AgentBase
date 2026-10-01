@@ -133,7 +133,11 @@ describe("data files", () => {
     expect(screen.getByLabelText<HTMLTextAreaElement>("File contents").value).toContain("google_news_rss");
     await user.click(screen.getByRole("button", { name: "Save file" }));
     await waitFor(() => {
-      expect(mocked.writeFile).toHaveBeenCalledWith("space-lab", "config/sources.json", expect.stringContaining("stooq"));
+      expect(mocked.writeFile).toHaveBeenCalledWith(
+        "space-lab",
+        "config/sources.json",
+        expect.stringContaining("query1.finance.yahoo.com"),
+      );
     });
 
     // Saved: the editor now holds an existing file, which can be deleted.

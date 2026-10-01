@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../lib/api";
-import { PIPELINE_SCHEDULE_IDS } from "../lib/pipeline";
+import { PIPELINE_SCHEDULE_IDS, STARTERS } from "../lib/pipeline";
 import { useRoster } from "../state/roster";
 import { useRunList } from "../state/runList";
 
@@ -491,15 +491,17 @@ describe("working on its own", () => {
 
     const offer = await screen.findByTestId("pipeline-offer");
     expect(offer.textContent).toContain("before spending $2.00");
+    expect(offer.textContent).toContain("watchlist and positions");
+    expect(offer.textContent).toContain("Reddit");
+    expect(offer.textContent).toContain("SEC filings");
     await user.click(screen.getByTestId("pipeline-turn-on"));
 
     await waitFor(() => {
       expect(mocked.updateSchedule).toHaveBeenCalledTimes(5);
     });
-    expect(mocked.writeFile.mock.calls.map((call) => call[1])).toEqual([
-      "config/sources.json",
-      "config/limits.json",
-    ]);
+    expect(mocked.writeFile.mock.calls.map((call) => call[1])).toEqual(
+      STARTERS.map((entry) => entry.path).filter((path) => path !== "config/watchlist.json"),
+    );
     expect((await screen.findByRole("status")).textContent).toContain("The pipeline is on");
   });
 
@@ -509,11 +511,11 @@ describe("working on its own", () => {
     mocked.listSchedules.mockResolvedValue(pipeline);
     // A case-variant of a template's file is the same file on Windows and macOS.
     mocked.listFiles.mockResolvedValue({
-      files: [
-        { path: "Config/Watchlist.json", size: 10, updated_at: "" },
-        { path: "config/sources.json", size: 10, updated_at: "" },
-        { path: "config/limits.json", size: 10, updated_at: "" },
-      ],
+      files: STARTERS.map((entry, index) => ({
+        path: index === 0 ? "Config/Watchlist.json" : entry.path,
+        size: 10,
+        updated_at: "",
+      })),
     });
     mocked.updateSchedule.mockImplementation((id) =>
       id === PIPELINE_SCHEDULE_IDS[1]

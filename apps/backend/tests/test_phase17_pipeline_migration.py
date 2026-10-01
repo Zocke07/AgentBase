@@ -33,6 +33,7 @@ _TOOLS = {
         "propose_memory",
     ],
 }
+_MIGRATED_AGENT_NAMES = (*_TOOLS, "event-calendar")
 
 
 def _at_version_20(app_paths: AppPaths) -> Database:
@@ -58,8 +59,8 @@ def _agents(database: Database) -> dict[str, dict[str, Any]]:
     with database.read() as connection:
         rows = connection.execute(
             "SELECT name, system_prompt, allowed_tools, updated_at FROM agent_defs"
-            " WHERE space_id = ? AND name IN (?, ?, ?, ?)",
-            (DEFAULT_SPACE_ID, *_TOOLS),
+            " WHERE space_id = ? AND name IN (?, ?, ?, ?, ?)",
+            (DEFAULT_SPACE_ID, *_MIGRATED_AGENT_NAMES),
         ).fetchall()
     return {str(row["name"]): dict(row) for row in rows}
 
@@ -87,13 +88,17 @@ def test_a_fresh_database_wires_the_tools_goals_and_new_host_default(
     database = _upgraded(app_paths)
     try:
         agents = _agents(database)
-        assert set(agents) == set(_TOOLS)
+        assert set(agents) == set(_MIGRATED_AGENT_NAMES)
         for name, tools in _TOOLS.items():
             assert json.loads(agents[name]["allowed_tools"]) == tools, name
         assert "Call read_prices first" in agents["market-movers"]["system_prompt"]
         assert "Call compute_portfolio first" in agents["portfolio-review"]["system_prompt"]
         assert "Call check_limits first" in agents["risk-manager"]["system_prompt"]
         assert "Call score_predictions first" in agents["review-analyst"]["system_prompt"]
+        calendar_prompt = agents["event-calendar"]["system_prompt"]
+        assert "config/sources.json" in calendar_prompt
+        assert "Fetch only the URLs under its events object" in calendar_prompt
+        assert "Do not fetch SEC, BLS, FOMC, earnings" in calendar_prompt
 
         goals = _goals(database)
         assert "If it reports no new session" in goals["Morning collection"]
@@ -172,6 +177,11 @@ def test_021_preserves_edited_prompts_allowlists_goals_and_saved_hosts(
                 (_NOW,),
             )
             connection.execute(
+                "UPDATE agent_defs SET system_prompt = 'My calendar prompt.', updated_at = ?"
+                " WHERE name = 'event-calendar'",
+                (_NOW,),
+            )
+            connection.execute(
                 "UPDATE agent_defs SET allowed_tools = '[\"read_file\"]', updated_at = ?"
                 " WHERE name = 'portfolio-review'",
                 (_NOW,),
@@ -196,6 +206,7 @@ def test_021_preserves_edited_prompts_allowlists_goals_and_saved_hosts(
         agents = _agents(after)
         goals = _goals(after)
         assert agents["market-movers"] == original_agents["market-movers"]
+        assert agents["event-calendar"] == original_agents["event-calendar"]
         assert agents["portfolio-review"] == original_agents["portfolio-review"]
         assert goals["Morning collection"] == original_goals["Morning collection"]
         assert _saved_hosts(after) == ["feeds.example"]

@@ -43,18 +43,32 @@ export function PipelineOffer({ spaceId, schedules, runCapMicros, onTurnedOn }: 
 
   return (
     <section className="card pipeline-offer" data-testid="pipeline-offer">
-      <h2 className="card__title">The investment pipeline is ready to run on its own</h2>
+      <h2 className="card__title">Set up the investment pipeline</h2>
       <p>
         {stages.length} schedules are set up and switched off: {stages.map((row) => row.name).join(", ")}.
         Turned on, the morning collection runs on weekdays, the theses and the daily decision follow it
         as soon as each stage completes, and the knowledge and review stages run weekly. The decision is
         a recommendation for you to review; nothing is bought or sold.
       </p>
-      <p className="settings__hint">
+      <div className="pipeline-offer__details">
+        <p>
+          <strong>What this creates:</strong> starter files for your watchlist and positions, plus risk
+          limits, keyless sources and a four-chart dashboard. Existing files are never replaced.
+        </p>
+        <p>
+          <strong>Before the first run:</strong> add tickers and sectors to the empty watchlist and replace
+          the zero-cash row with your real positions and cash. Find both under Knowledge, then Data files.
+        </p>
+        <p>
+          <strong>Coverage:</strong> Google News, Yahoo daily prices and US Treasury auctions. It does not
+          collect Reddit or other social sources, SEC filings, keyed APIs, market-wide screeners,
+          earnings dates, or FOMC and BLS calendars. You can add filing text and calendar data as files.
+        </p>
+      </div>
+      <p className="settings__hint pipeline-offer__limits">
         Each run stops at its time limit
         {runCapMicros !== null && runCapMicros > 0 && ` and before spending $${(runCapMicros / 1_000_000).toFixed(2)}`}, and
-        the monthly cap still holds. Any data file the agents read that is missing is created from its
-        template first; edit config/watchlist.json in Knowledge to choose your tickers.
+        the monthly cap still holds.
       </p>
       {error !== null && (
         <p className="field-error" role="alert">
