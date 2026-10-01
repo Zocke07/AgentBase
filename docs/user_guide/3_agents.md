@@ -101,8 +101,10 @@ pipeline has a defined consumer:
    A new session is followed by news, Treasury auctions, and
    `compute_portfolio`.
 2. **Theses and risk** runs only when that session's movers file exists. Bull
-   and bear write their predictions, then `check_limits` produces the hard
-   rule results before the risk manager adds judgement.
+   and bear read that session's news, movers and calendar files and the
+   computed portfolio. Each writes a theses file dated with the session, left
+   empty when the evidence supports no call. Then `check_limits` produces the
+   hard rule results before the risk manager adds judgement.
 3. **Daily decision** writes a dated recommendation for human review. It never
    trades, submits an order, or connects to a broker.
 4. **Weekly knowledge** updates concept notes from the space's own knowledge.

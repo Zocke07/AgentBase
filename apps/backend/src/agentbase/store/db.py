@@ -73,6 +73,7 @@ MIGRATION_FILES: tuple[tuple[int, str], ...] = (
     (20, "020_sonnet_5_5_and_space_defaults.sql"),
     (21, "021_investment_pipeline.sql"),
     (22, "022_repair_investment_roster.sql"),
+    (23, "023_theses_stage.sql"),
 )
 
 #: Migrations requiring deferred foreign-key checks.

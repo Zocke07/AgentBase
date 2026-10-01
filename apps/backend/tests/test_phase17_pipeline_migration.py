@@ -36,34 +36,24 @@ _TOOLS = {
 _MIGRATED_AGENT_NAMES = (*_TOOLS, "event-calendar")
 
 
-def _at_version_20(app_paths: AppPaths) -> Database:
+def _at_version(app_paths: AppPaths, version: int) -> Database:
     original = db_module.MIGRATIONS
-    db_module.MIGRATIONS = tuple(migration for migration in original if migration.version <= 20)
+    db_module.MIGRATIONS = tuple(
+        migration for migration in original if migration.version <= version
+    )
     database = Database(app_paths.db_path)
     try:
         database.connect()
     finally:
         db_module.MIGRATIONS = original
-    assert database.schema_version == 20
+    assert database.schema_version == version
     return database
 
 
 def _upgraded(app_paths: AppPaths) -> Database:
     database = Database(app_paths.db_path)
     database.connect()
-    assert database.schema_version == LATEST_SCHEMA_VERSION == 22
-    return database
-
-
-def _at_version_21(app_paths: AppPaths) -> Database:
-    original = db_module.MIGRATIONS
-    db_module.MIGRATIONS = tuple(migration for migration in original if migration.version <= 21)
-    database = Database(app_paths.db_path)
-    try:
-        database.connect()
-    finally:
-        db_module.MIGRATIONS = original
-    assert database.schema_version == 21
+    assert database.schema_version == LATEST_SCHEMA_VERSION == 23
     return database
 
 
@@ -73,6 +63,16 @@ def _agents(database: Database) -> dict[str, dict[str, Any]]:
             "SELECT name, system_prompt, allowed_tools, model, updated_at FROM agent_defs"
             " WHERE space_id = ? AND name IN (?, ?, ?, ?, ?)",
             (DEFAULT_SPACE_ID, *_MIGRATED_AGENT_NAMES),
+        ).fetchall()
+    return {str(row["name"]): dict(row) for row in rows}
+
+
+def _architects(database: Database) -> dict[str, dict[str, Any]]:
+    with database.read() as connection:
+        rows = connection.execute(
+            "SELECT name, system_prompt, allowed_tools, auto_approve, provider, model,"
+            " updated_at FROM agent_defs WHERE space_id = ? AND name IN (?, ?)",
+            (DEFAULT_SPACE_ID, "bull-architect", "bear-architect"),
         ).fetchall()
     return {str(row["name"]): dict(row) for row in rows}
 
@@ -131,7 +131,7 @@ def test_a_fresh_database_wires_the_tools_goals_and_new_host_default(
 def test_an_unused_database_created_since_019_gets_the_new_hosts(
     app_paths: AppPaths,
 ) -> None:
-    before = _at_version_20(app_paths)
+    before = _at_version(app_paths, 20)
     try:
         with before.read() as connection:
             schedule_ids = {
@@ -155,7 +155,7 @@ def test_an_unused_database_created_since_019_gets_the_new_hosts(
 def test_a_used_database_without_a_saved_host_list_gets_the_old_default_pinned(
     app_paths: AppPaths,
 ) -> None:
-    before = _at_version_20(app_paths)
+    before = _at_version(app_paths, 20)
     try:
         with before.write() as connection:
             connection.execute(
@@ -180,7 +180,7 @@ def test_a_used_database_without_a_saved_host_list_gets_the_old_default_pinned(
 def test_021_preserves_edited_prompts_allowlists_goals_and_saved_hosts(
     app_paths: AppPaths,
 ) -> None:
-    before = _at_version_20(app_paths)
+    before = _at_version(app_paths, 20)
     try:
         with before.write() as connection:
             connection.execute(
@@ -231,7 +231,7 @@ def test_021_preserves_edited_prompts_allowlists_goals_and_saved_hosts(
 def test_022_repairs_old_shipped_prompts_after_model_only_edits(
     app_paths: AppPaths,
 ) -> None:
-    before = _at_version_20(app_paths)
+    before = _at_version(app_paths, 20)
     try:
         with before.write() as connection:
             connection.execute(
@@ -243,7 +243,7 @@ def test_022_repairs_old_shipped_prompts_after_model_only_edits(
     finally:
         before.close()
 
-    skipped = _at_version_21(app_paths)
+    skipped = _at_version(app_paths, 21)
     try:
         agents = _agents(skipped)
         assert json.loads(agents["market-movers"]["allowed_tools"]) == [
@@ -272,3 +272,79 @@ def test_022_repairs_old_shipped_prompts_after_model_only_edits(
         )
     finally:
         repaired.close()
+
+
+def test_023_points_the_theses_stage_at_the_session_files_and_an_always_written_file(
+    app_paths: AppPaths,
+) -> None:
+    """Told to use only the movers file, both architects found no evidence id and
+    wrote nothing, and check_limits then stopped the chain on the missing file."""
+    database = _upgraded(app_paths)
+    try:
+        goal = _goals(database)["Theses and risk"]
+        assert "Use only the movers file" not in goal
+        assert "that session's files in raw/ and portfolio/computed.json" in goal
+        assert "an empty one when the evidence supports no call" in goal
+        architects = _architects(database)
+        assert set(architects) == {"bull-architect", "bear-architect"}
+        for name, agent in architects.items():
+            prompt = agent["system_prompt"]
+            assert "- Always write that file." in prompt, name
+            assert "dated with the session date of the\nmovers file" in prompt, name
+            assert "Writing nothing" not in prompt, name
+    finally:
+        database.close()
+
+
+def test_023_upgrades_shipped_theses_text_after_model_only_edits(
+    app_paths: AppPaths,
+) -> None:
+    before = _at_version(app_paths, 22)
+    try:
+        with before.write() as connection:
+            connection.execute(
+                "UPDATE agent_defs SET provider = 'openai', model = 'gpt-5.6-terra',"
+                " updated_at = ? WHERE name IN ('bull-architect', 'bear-architect')",
+                (_NOW,),
+            )
+        original = _architects(before)
+    finally:
+        before.close()
+
+    after = _upgraded(app_paths)
+    try:
+        for name, agent in _architects(after).items():
+            assert "- Always write that file." in agent["system_prompt"], name
+            kept = {key: value for key, value in agent.items() if key != "system_prompt"}
+            assert kept == {
+                key: value for key, value in original[name].items() if key != "system_prompt"
+            }, name
+    finally:
+        after.close()
+
+
+def test_023_keeps_an_edited_theses_goal_and_architect_prompt(app_paths: AppPaths) -> None:
+    before = _at_version(app_paths, 22)
+    try:
+        with before.write() as connection:
+            connection.execute(
+                "UPDATE schedules SET goal = 'My theses goal.', updated_at = ?"
+                " WHERE name = 'Theses and risk'",
+                (_NOW,),
+            )
+            connection.execute(
+                "UPDATE agent_defs SET system_prompt = 'My bull prompt.', updated_at = ?"
+                " WHERE name = 'bull-architect'",
+                (_NOW,),
+            )
+    finally:
+        before.close()
+
+    after = _upgraded(app_paths)
+    try:
+        assert _goals(after)["Theses and risk"] == "My theses goal."
+        architects = _architects(after)
+        assert architects["bull-architect"]["system_prompt"] == "My bull prompt."
+        assert "- Always write that file." in architects["bear-architect"]["system_prompt"]
+    finally:
+        after.close()

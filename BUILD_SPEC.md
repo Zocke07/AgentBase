@@ -1083,6 +1083,14 @@ byte for byte. (Migration 020 is the models unit below.)
   - The morning collection stops, and says so, when `read_prices` reports no
     new session (a holiday).
   - The theses stage writes nothing without that session's movers file.
+    *(Maintainer choice of 2026-10-01, migration 023: 021's goal read "Use
+    only the movers file", and a supervisor restricted both architects to it.
+    Movers rows carry no evidence id, so neither wrote a file, and
+    `check_limits` stopped the chain. The goal now dates the stage's files by
+    that movers file's session and gives the architects the session's files
+    in `raw/` and `portfolio/computed.json`. Bull and bear always write their
+    dated file, empty when the evidence supports no call. Exact shipped text
+    only.)*
   - The weekly knowledge stage writes concept notes from the space's own
     knowledge, and company notes only where `raw/filings/{TICKER}/` holds
     filing text a person put there.

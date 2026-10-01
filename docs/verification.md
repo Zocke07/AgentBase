@@ -6,6 +6,46 @@ cover only work actually executed.
 
 ## Phase 17 and run-review UX, 2026-10-01, on `main`, not released
 
+### First chain on the corrected history, and migration 023, 2026-10-01
+
+With the dev app rebuilt, the maintainer moved the default space to ChatGPT
+(GPT-5.6 Sol supervising Luna and Terra) and pressed **Run now** at 22:32
+Taipei. Every output was checked against the tool results it came from.
+
+- **Morning collection completed** (`e655ea47`). `market-movers` read the
+  watchlist once and called `read_prices`: 3 steps, and no agent in the chain
+  was stopped as stuck. The movers, price and portfolio files match their tool
+  results. All 10 news records copy their `read_feed` ID, URL, title and
+  timestamps exactly. The calendar holds the two auctions the Treasury had
+  announced for October. Its `as_of` holds the bills' issue date, not a
+  collection time: agents have no clock, and only the ChatGPT runtime gives
+  them the date and zone. Run during US trading hours, AAPL's 2026-10-01 bar
+  is a partial session (7.6 million shares against a 42.3 million mean).
+- **Theses and risk wrote nothing** (`44245fa1`). Migration 021's goal began
+  "Use only the movers file from today's new market session", and the
+  supervisor told both architects to read nothing else. Movers rows carry no
+  evidence id, and the architects may not write a thesis without one, so
+  neither wrote a file. `check_limits` refused the missing bull file, and the
+  gate kept Daily decision from starting, as designed.
+- **Migration 023** (maintainer's choice of fix): the goal dates the stage by
+  that movers file's session and sends the architects to the session's files
+  in `raw/` and `portfolio/computed.json`. Bull and bear always write their
+  dated file, empty when the evidence supports no call, and list `raw/` before
+  reading. Only exact shipped text moves; models, tools, policies and
+  `updated_at` stay. Not changed, by the same choice: evidence ids on movers
+  rows, a clock for runs, and skipping an unfinished session.
+- **Executed:** a scratch copy of the live space ran all four tools: prices,
+  the empty book, scoring, and `check_limits`, which refuses missing theses
+  and passes empty ones with no items. Migration 023 applied to a copy of the
+  live database moved the goal and both prompts and kept their models. The
+  three new migration tests failed before 023 was registered. The full
+  backend suite passed, **1086 passed, 12 skipped**. A source sidecar on a
+  fresh data folder (port 8790) migrated to v23 and served the new goal and
+  prompts.
+
+Not verified: the theses and decision stages on a real model with 023. The dev
+app needs another restart to load it.
+
 ### Tool calls resent with their results, 2026-10-01
 
 The maintainer's first acceptance **Run now** of the morning collection after
