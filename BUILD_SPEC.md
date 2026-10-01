@@ -857,6 +857,27 @@ skipped (§1 constraint 5). The maintainer chose (asked 2026-09-29):
 4. **Automation runs only while the app is open**; §7's headless/service
    non-goal stands.
 
+**Saved-context management, maintainer choice of 2026-10-01.** This supersedes
+item 2's requirement for a person to approve every generated memory and the
+deferred automatic-memory note below.
+
+- Saved context starts in **Automatic** mode for fresh and existing installs
+  that have not selected a mode. The selected model for the space audits new
+  generated context and previously approved context after each successful run.
+- It may keep or dismiss new context, or combine clearly overlapping context.
+  It may not silently dismiss approved context. Conflict, uncertainty,
+  sensitive material, and consequential changes return to **Needs attention**.
+- Model output is untrusted data and must validate against the exact offered
+  paths before any write. Invalid output or provider failure leaves generated
+  context in **Needs attention** and does not turn a successful run into a
+  failed run.
+- Every automatic change records the model, action, reason, and time in the
+  Markdown note. The original file is backed up under `.agentbase/backups/`.
+  Automatic management never permanently deletes a memory.
+- **Review every item** retains the earlier manual queue. **Off** creates no
+  run summary and policy-denies `propose_memory`. Approved or pinned context
+  remains retrievable until a person changes it.
+
 What makes a policy answer safe, all below or inside the gate:
 
 - **High risk is never answered by policy.** Settings, spaces, migration 017
@@ -883,8 +904,8 @@ roster agents from low to low and medium, corrects the news scanner's role,
 and seeds the pipeline as five disabled schedules in the default space.
 
 Not built, by the constraints: skipping the gate, auto-approving `run_shell`,
-triggers from ambient chat or webhooks, agent-authored schedules or runs, and
-automatic memory approval. Left for later: an outbound Discord notice channel
+triggers from ambient chat or webhooks, and agent-authored schedules or runs.
+Left for later: an outbound Discord notice channel
 for scheduled outcomes; a cap on scheduled runs going at once (each schedule
 still never overlaps itself, each run has its time and cost ceilings, and the
 monthly cap holds; deferring a due run safely needs a queue the scheduler does

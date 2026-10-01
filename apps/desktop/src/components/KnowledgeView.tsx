@@ -6,6 +6,7 @@ import type {
   MemoryItem,
   MemoryStatus,
   SearchHit,
+  SettingsResponse,
   SpaceResponse,
 } from "@agentbase/schemas";
 import {
@@ -22,6 +23,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } f
 
 import * as api from "../lib/api";
 import { obsidianAvailable, openInObsidian } from "../lib/folder";
+import { modelLabel } from "../lib/format";
 import { fuzzyFilter } from "../lib/fuzzy";
 import { forceLayout } from "../lib/graphLayout";
 import { countWords, toggleTaskLine } from "../lib/markdown";
@@ -100,6 +102,7 @@ export function KnowledgeView({
   const [tagChip, setTagChip] = useState<string | null>(null);
   const [mergeSelection, setMergeSelection] = useState<string[]>([]);
   const [mergeTitle, setMergeTitle] = useState("");
+  const [memorySettings, setMemorySettings] = useState<SettingsResponse | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [switcher, setSwitcher] = useState(false);
@@ -129,15 +132,36 @@ export function KnowledgeView({
   }, [space.id]);
 
   useEffect(() => {
-    void Promise.all([api.listKnowledge(space.id), api.listMemories(space.id)])
-      .then(([nextIndex, nextMemories]) => {
+    void Promise.all([api.listKnowledge(space.id), api.listMemories(space.id), api.getSettings()])
+      .then(([nextIndex, nextMemories, nextSettings]) => {
         setIndex(nextIndex);
         setMemories(nextMemories);
+        setMemorySettings(nextSettings);
       })
       .catch((failure: unknown) => {
         setError(asMessage(failure));
       });
   }, [space.id, reloadNonce]);
+
+  const setMemoryManagement = async (mode: "automatic" | "review" | "off") => {
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await api.updateSettings({ memory_management: mode });
+      setMemorySettings(updated);
+      setToast(
+        mode === "automatic"
+          ? "Saved context will be managed automatically after successful runs."
+          : mode === "review"
+            ? "Generated context will wait for your review."
+            : "Generated saved context is off.",
+      );
+    } catch (failure) {
+      setError(asMessage(failure));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => {
     importInput.current?.setAttribute("webkitdirectory", "");
@@ -691,7 +715,7 @@ export function KnowledgeView({
             ? "Markdown knowledge that you and agents write."
             : browserMode === "files"
               ? "Structured inputs and generated files used by agents."
-              : "Useful run summaries you can keep available to future agents."}
+              : "Generated context managed for future runs, with uncertain items sent to your attention."}
         </p>
 
         {browserMode === "notes" && (
@@ -824,6 +848,9 @@ export function KnowledgeView({
             }}
             onMergeTitle={setMergeTitle}
             onMerge={() => void mergeSelected()}
+            management={memorySettings?.settings.memory_management ?? "review"}
+            managementModel={modelLabel(space.model ?? memorySettings?.settings.model ?? "the space model")}
+            onManagement={(management) => void setMemoryManagement(management)}
           />
         ) : hits !== null ? (
           <div className="knowledge__results" aria-label="Retrieval results">
@@ -1190,8 +1217,8 @@ export function KnowledgeView({
             <h2>Shared knowledge for people and agents</h2>
             <p>
               Notes are ordinary Markdown files in this space's folder, and the folder is an Obsidian vault.
-              AgentBase retrieves cited excerpts from them for every run; completed runs put useful summaries in
-              Saved context for you to keep or dismiss.
+              AgentBase retrieves cited excerpts from them for every run; completed runs can have their useful
+              summaries managed automatically in Saved context.
             </p>
             <div className="knowledge__welcome-actions">
               <button

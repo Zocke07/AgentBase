@@ -301,15 +301,15 @@ function FoldedClaim({ text, unfolded }: { text: string; unfolded: boolean }) {
 }
 
 const MEMORY_WORD: Record<MemoryItem["status"], string> = {
-  proposed: "needs review before future runs can use it",
-  approved: "kept for future runs",
-  archived: "dismissed; future runs will not use it",
+  proposed: "needs your attention before future runs can use it",
+  approved: "available to future runs when relevant",
+  archived: "in history; future runs will not use it",
 };
 
 const MEMORY_STATUS: Record<MemoryItem["status"], string> = {
-  proposed: "needs review",
-  approved: "kept",
-  archived: "dismissed",
+  proposed: "needs attention",
+  approved: "available",
+  archived: "history",
 };
 
 /**
@@ -375,6 +375,11 @@ function RunMemory({
           </>
         )}
         {status === null && spaceId === null && ". Keep it in Saved context before later runs can retrieve it."}
+        {item?.managed_at !== null && item?.managed_at !== undefined && (
+          <span className="claim__memory-word">
+            {` Managed by ${item.management_model ?? "the space model"}${item.management_reason === null || item.management_reason === undefined ? "." : `: ${item.management_reason}`}`}
+          </span>
+        )}
       </span>
       <span className="claim__memory-actions">
         {status === "proposed" && (

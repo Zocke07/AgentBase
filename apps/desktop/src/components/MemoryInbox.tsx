@@ -23,14 +23,17 @@ export interface MemoryInboxProps {
   onToggleSelect: (path: string) => void;
   onMergeTitle: (title: string) => void;
   onMerge: () => void;
+  management: "automatic" | "review" | "off";
+  managementModel: string;
+  onManagement: (mode: "automatic" | "review" | "off") => void;
 }
 
 type MemoryView = MemoryStatus | "all";
 
 const STATUS_LABEL: Record<MemoryStatus, string> = {
-  proposed: "Needs review",
-  approved: "Kept",
-  archived: "Dismissed",
+  proposed: "Needs attention",
+  approved: "Available",
+  archived: "History",
 };
 
 export function MemoryInbox({
@@ -47,18 +50,14 @@ export function MemoryInbox({
   onToggleSelect,
   onMergeTitle,
   onMerge,
+  management,
+  managementModel,
+  onManagement,
 }: MemoryInboxProps) {
   const [view, setView] = useState<MemoryView>("proposed");
   const [organizing, setOrganizing] = useState(false);
 
   if (memories === null) return <p className="knowledge__empty">Loading saved context…</p>;
-  if (memories.items.length === 0) {
-    return (
-      <p className="knowledge__empty">
-        Nothing to review yet. Useful run summaries and agent proposals will appear here.
-      </p>
-    );
-  }
 
   const visible = view === "all" ? memories.items : memories.items.filter((memory) => memory.status === view);
   const stopOrganizing = () => {
@@ -70,21 +69,43 @@ export function MemoryInbox({
   return (
     <>
       <div className="knowledge__memory-intro">
-        <p>Keep useful summaries so later runs can find them. Dismiss anything that should not influence future work.</p>
+        <div className="knowledge__memory-management">
+          <label>
+            <span>Saved context management</span>
+            <select
+              value={management}
+              onChange={(event) => {
+                onManagement(event.target.value as "automatic" | "review" | "off");
+              }}
+            >
+              <option value="automatic">Automatic</option>
+              <option value="review">Review every item</option>
+              <option value="off">Off</option>
+            </select>
+          </label>
+          <p>
+            {management === "automatic"
+              ? `${managementModel} manages saved context after each successful run. Only uncertain or conflicting items need your attention.`
+              : management === "review"
+                ? "Every generated summary and proposal waits for your decision before later runs can use it."
+                : "Run summaries and agent proposals are not saved while management is off."}
+          </p>
+          <small>Changes are backed up and each item records why it changed.</small>
+        </div>
         <div className="knowledge__memory-filters" role="group" aria-label="Show saved context">
           <FilterButton
             active={view === "proposed"}
-            label={`Needs review ${String(memories.proposed)}`}
+            label={`Needs attention ${String(memories.proposed)}`}
             onClick={() => { setView("proposed"); }}
           />
           <FilterButton
             active={view === "approved"}
-            label={`Kept ${String(memories.approved)}`}
+            label={`Available ${String(memories.approved)}`}
             onClick={() => { setView("approved"); }}
           />
           <FilterButton
             active={view === "archived"}
-            label={`Dismissed ${String(memories.archived)}`}
+            label={`History ${String(memories.archived)}`}
             onClick={() => { setView("archived"); }}
           />
         </div>
@@ -134,10 +155,10 @@ export function MemoryInbox({
       {visible.length === 0 ? (
         <p className="knowledge__empty">
           {view === "proposed"
-            ? "You are caught up. Nothing needs review."
+            ? "You are caught up. Nothing needs attention."
             : view === "approved"
-              ? "No memories have been kept for future runs."
-              : "No memories have been dismissed."}
+              ? "No saved context is available to future runs."
+              : "There is no saved-context history yet."}
         </p>
       ) : (
         <ol className="knowledge__memories">
@@ -176,6 +197,23 @@ export function MemoryInbox({
                 {new Date(memory.created_at).toLocaleDateString()}
                 {memory.pinned ? " · always included" : ""}
               </small>
+
+              {memory.managed_at !== null && memory.managed_at !== undefined && (
+                <p className="knowledge__memory-management-note">
+                  <strong>
+                    {memory.status === "proposed" ? "Sent to your attention" : "Managed automatically"}
+                  </strong>
+                  {memory.management_model !== null && memory.management_model !== undefined
+                    ? ` by ${memory.management_model}`
+                    : ""}
+                  {memory.management_reason !== null && memory.management_reason !== undefined
+                    ? `: ${memory.management_reason}`
+                    : "."}
+                  {memory.management_backup !== null && memory.management_backup !== undefined
+                    ? " A recoverable copy was saved."
+                    : ""}
+                </p>
+              )}
 
               {(memory.citations ?? []).length > 0 && (
                 <div className="knowledge__citations" aria-label="Supporting citations">

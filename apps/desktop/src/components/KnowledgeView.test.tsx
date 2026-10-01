@@ -40,6 +40,8 @@ vi.mock("../lib/api", async (importOriginal) => ({
   pinKnowledgeNote: vi.fn(),
   evaluateKnowledge: vi.fn(),
   listFiles: vi.fn(),
+  getSettings: vi.fn(),
+  updateSettings: vi.fn(),
 }));
 
 const mocked = vi.mocked(api);
@@ -158,6 +160,30 @@ beforeEach(() => {
     limit: 5,
   });
   mocked.listFiles.mockResolvedValue({ files: [] });
+  mocked.getSettings.mockResolvedValue({
+    settings: { provider: "anthropic", model: "claude-sonnet-5-5", memory_management: "automatic" },
+    configured_secrets: [],
+    known_secrets: [],
+    supported_providers: ["anthropic"],
+    model_is_priced: true,
+    version: "0.0.0",
+    data_dir: "/tmp/agentbase-test",
+  });
+  mocked.updateSettings.mockImplementation((patch) =>
+    Promise.resolve({
+      settings: {
+        provider: "anthropic",
+        model: "claude-sonnet-5-5",
+        memory_management: patch.memory_management ?? "automatic",
+      },
+      configured_secrets: [],
+      known_secrets: [],
+      supported_providers: ["anthropic"],
+      model_is_priced: true,
+      version: "0.0.0",
+      data_dir: "/tmp/agentbase-test",
+    }),
+  );
 });
 
 describe("knowledge vault", () => {
@@ -174,7 +200,7 @@ describe("knowledge vault", () => {
     expect(screen.queryByRole("button", { name: "New note" })).toBeNull();
 
     await user.click(screen.getByRole("tab", { name: "Saved context" }));
-    expect(screen.getByText("Useful run summaries you can keep available to future agents.")).toBeTruthy();
+    expect(screen.getByText(/Generated context managed for future runs/)).toBeTruthy();
 
     await user.click(screen.getByRole("tab", { name: "Notes" }));
     expect(screen.getByRole("group", { name: "Knowledge view" })).toBeTruthy();

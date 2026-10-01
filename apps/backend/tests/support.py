@@ -138,6 +138,10 @@ class ScriptedProvider:
         self.systems: list[str | None] = []
         self.offered_tools: list[list[str]] = []
 
+    def queue(self, *completions: Completion) -> None:
+        """Append replies after a caller learns an ID created at launch time."""
+        self._script.extend(completions)
+
     def _next(
         self, messages: list[Message], tools: list[ToolSpec] | None, system: str | None
     ) -> Completion:

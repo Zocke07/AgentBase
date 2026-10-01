@@ -1558,6 +1558,62 @@
             "title": "Goal",
             "type": "string"
           },
+          "managed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Managed At"
+          },
+          "management_action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Management Action"
+          },
+          "management_backup": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Management Backup"
+          },
+          "management_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Management Model"
+          },
+          "management_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Management Reason"
+          },
           "merged_from": {
             "items": {
               "type": "string"
@@ -3126,6 +3182,22 @@
             ],
             "title": "Max Steps Per Agent"
           },
+          "memory_management": {
+            "anyOf": [
+              {
+                "enum": [
+                  "automatic",
+                  "review",
+                  "off"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memory Management"
+          },
           "model": {
             "anyOf": [
               {
@@ -3841,6 +3913,16 @@
             "minimum": 1.0,
             "title": "Max Steps Per Agent",
             "type": "integer"
+          },
+          "memory_management": {
+            "default": "automatic",
+            "enum": [
+              "automatic",
+              "review",
+              "off"
+            ],
+            "title": "Memory Management",
+            "type": "string"
           },
           "model": {
             "default": "claude-sonnet-5-5",

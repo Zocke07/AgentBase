@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from agentbase.budget.ledger import BudgetedProvider, BudgetExceededError
 from agentbase.events.types import EventType
+from agentbase.knowledge.manager import MemoryManager
 from agentbase.orchestrator.agent import Agent, AgentSpec, StepOutcome
 from agentbase.orchestrator.limits import RunLimits
 from agentbase.orchestrator.registry import AgentRegistry, ProviderPool
@@ -266,7 +267,13 @@ async def _execute(
         logger.exception("run %s failed", run_id)
         await run.fail(f"The run stopped unexpectedly: {exc}")
     else:
-        await _finish(run, outcome, knowledge)
+        await _finish(
+            run,
+            outcome,
+            knowledge,
+            guarded,
+            memory_management=workspace.memory_management,
+        )
 
 
 def _approval_record(
@@ -302,16 +309,24 @@ def _with_workspace_policy(
     """
     if runtime is None:
         return None
+    policies = dict(workspace.tool_policies)
+    if workspace.memory_management == "off":
+        policies["propose_memory"] = ToolPolicy.DENY
     return replace(
         runtime,
         workspace_auto_approve=tuple(workspace.auto_approve),
-        workspace_tool_policies=dict(workspace.tool_policies),
+        workspace_tool_policies=policies,
         workspace_auto_approve_hosts=tuple(workspace.auto_approve_hosts),
     )
 
 
 async def _finish(
-    run: Run, outcome: StepOutcome, knowledge: KnowledgeStore | None = None
+    run: Run,
+    outcome: StepOutcome,
+    knowledge: KnowledgeStore | None = None,
+    provider: Provider | None = None,
+    *,
+    memory_management: str = "review",
 ) -> None:
     """Write terminal event based on supervisor outcome.
 
@@ -321,7 +336,7 @@ async def _finish(
     """
     if outcome.reason == "finished":
         memory_path = None
-        if knowledge is not None:
+        if knowledge is not None and memory_management != "off":
             space_id = run.space.id if run.space is not None else DEFAULT_SPACE_ID
             try:
                 memory_path = await knowledge.save_run_memory(
@@ -333,6 +348,24 @@ async def _finish(
                 )
             except (OSError, ValueError):
                 logger.exception("could not save memory for run %s", run.id)
+            if memory_management == "automatic" and provider is not None:
+                try:
+                    await MemoryManager(knowledge).manage(space_id, provider, run)
+                except Exception as exc:
+                    # Saved context is secondary to the task the person asked
+                    # for. Leave generated notes proposed and make the failure
+                    # visible without changing the successful run outcome.
+                    logger.exception("could not manage saved context for run %s", run.id)
+                    await run.emit(
+                        EventType.LLM_ERROR,
+                        {
+                            "purpose": "saved_context",
+                            "error": (
+                                "Saved context could not be managed automatically. "
+                                f"It remains in Needs attention: {exc}"
+                            ),
+                        },
+                    )
         await run.complete(outcome.result, memory_path)
         return
 

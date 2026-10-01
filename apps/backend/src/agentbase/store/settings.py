@@ -97,6 +97,12 @@ DEFAULT_UNATTENDED_QUESTION_SECONDS: Final[int] = 120
 ChannelApprovalPolicy = Literal["dashboard_only", "originator"]
 DEFAULT_CHANNEL_APPROVALS: Final[ChannelApprovalPolicy] = "originator"
 
+#: How generated saved context is handled after a successful run. Automatic is
+#: conservative: the space model may keep or archive new context, while doubts
+#: and conflicts return to a person.
+MemoryManagement = Literal["automatic", "review", "off"]
+DEFAULT_MEMORY_MANAGEMENT: Final[MemoryManagement] = "automatic"
+
 
 class WorkspaceSettings(BaseModel):
     """Everything the user can configure that is not a secret."""
@@ -134,6 +140,10 @@ class WorkspaceSettings(BaseModel):
     #: this many seconds, the call does not happen and the run carries on. 0
     #: refuses at once. Runs a person started keep waiting for them.
     unattended_question_seconds: int = Field(default=DEFAULT_UNATTENDED_QUESTION_SECONDS, ge=0)
+
+    #: Use the space model after successful runs, retain the manual queue, or
+    #: create no generated saved context.
+    memory_management: MemoryManagement = DEFAULT_MEMORY_MANAGEMENT
 
     # --- channels ---------------------------------------------------------------
 

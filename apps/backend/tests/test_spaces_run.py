@@ -9,6 +9,7 @@ gate pre-answered. The live version of criteria 1 and 2 is in CLAUDE.md.
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import TYPE_CHECKING
 
 import pytest
@@ -254,6 +255,22 @@ async def test_a_run_retrieves_vault_context_and_saves_its_summary_as_memory(
     )
 
     run = await launcher.launch("Which database should this event log use?")
+    provider.queue(
+        says(
+            json.dumps(
+                {
+                    "decisions": [
+                        {
+                            "path": f"memory/runs/{run.id}.md",
+                            "action": "keep",
+                            "reason": "It records the durable database decision.",
+                        }
+                    ],
+                    "merges": [],
+                }
+            )
+        )
+    )
     await asyncio.gather(*launcher.tasks)
 
     assert "[[decisions/database#Database choice]]" in (provider.systems[0] or "")
@@ -265,3 +282,5 @@ async def test_a_run_retrieves_vault_context_and_saves_its_summary_as_memory(
     assert completed.payload["memory_path"] == f"memory/runs/{run.id}.md"
     memory = await knowledge.get_note(DEFAULT_SPACE_ID, completed.payload["memory_path"])
     assert "SQLite remains the choice" in memory.content
+    assert memory.properties["status"] == "approved"
+    assert memory.properties["management_model"] == "scripted/claude-opus-5"

@@ -188,6 +188,9 @@ def test_a_completed_stage_starts_the_next_through_the_real_launcher(
     tells the scheduler, and the stage that follows starts as a scheduled run."""
     app = create_app(app_paths, secrets=secrets)
     with TestClient(app) as client:
+        # This test pins the two stage replies. Saved-context management has
+        # its own integration coverage and would add a model call after each.
+        client.patch("/settings", json={"memory_management": "review"})
         app.state.launcher.provider = ScriptedProvider(
             [
                 says("Collected.", call("finish", "a1", result="Collected the news.")),

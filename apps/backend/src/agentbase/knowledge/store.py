@@ -293,6 +293,11 @@ class MemoryItem(BaseModel):
     citations: list[str] = Field(default_factory=list)
     merged_from: list[str] = Field(default_factory=list)
     merged_into: str | None = None
+    managed_at: datetime | None = None
+    management_model: str | None = None
+    management_action: str | None = None
+    management_reason: str | None = None
+    management_backup: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -839,6 +844,44 @@ class KnowledgeStore:
         if pinned is not None:
             content = _set_frontmatter_property(content, "pinned", str(pinned).lower())
         updated = await self.write_note(space_id, note.path, content)
+        parsed = _memory_item(_parse_note(updated.path, updated.content, updated.updated_at))
+        if parsed is None:  # pragma: no cover - guarded above
+            raise KnowledgeConflictError(f"{note.path} is not an agent run memory.")
+        return parsed
+
+    async def apply_memory_management(
+        self,
+        space_id: str,
+        path: str,
+        *,
+        status: MemoryStatus,
+        model: str,
+        action: str,
+        reason: str,
+    ) -> MemoryItem:
+        """Apply one model decision with provenance and a recoverable copy."""
+        note = await self.get_note(space_id, path)
+        if note.properties.get("type", "").casefold() not in _MEMORY_TYPES:
+            raise KnowledgeConflictError(f"{note.path} is not an agent run memory.")
+        root = await self._root(space_id)
+        source = root / note.path
+        managed_at = datetime.now(UTC).isoformat()
+        clean_reason = " ".join(reason.split())[:500]
+
+        def apply() -> None:
+            backup = _backup_files(root, [source], "memory-management")
+            content = _set_frontmatter_property(note.content, "status", status.value)
+            content = _set_frontmatter_property(content, "managed_at", managed_at)
+            content = _set_frontmatter_property(content, "management_model", model)
+            content = _set_frontmatter_property(content, "management_action", action)
+            content = _set_frontmatter_property(content, "management_reason", clean_reason)
+            content = _set_frontmatter_property(
+                content, "management_backup", backup.relative_to(root).as_posix()
+            )
+            _atomic_write(source, content)
+
+        await asyncio.to_thread(apply)
+        updated = await self.get_note(space_id, note.path)
         parsed = _memory_item(_parse_note(updated.path, updated.content, updated.updated_at))
         if parsed is None:  # pragma: no cover - guarded above
             raise KnowledgeConflictError(f"{note.path} is not an agent run memory.")
@@ -1612,6 +1655,11 @@ def _memory_item(note: _ParsedNote) -> MemoryItem | None:
             for item in _bullets(_section(note.body, "Merged from"))
         ],
         merged_into=note.properties.get("merged_into"),
+        managed_at=_optional_property_date(note.properties.get("managed_at")),
+        management_model=note.properties.get("management_model"),
+        management_action=note.properties.get("management_action"),
+        management_reason=note.properties.get("management_reason"),
+        management_backup=note.properties.get("management_backup"),
         created_at=_property_date(note.properties.get("created"), note.updated_at),
         updated_at=note.updated_at,
     )
@@ -1704,6 +1752,16 @@ def _property_date(value: str | None, fallback: datetime) -> datetime:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=UTC)
     return parsed
+
+
+def _optional_property_date(value: str | None) -> datetime | None:
+    if value is None:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
 
 
 def _set_frontmatter_property(content: str, key: str, value: str) -> str:

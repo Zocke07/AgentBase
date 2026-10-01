@@ -428,6 +428,17 @@ def test_the_approval_policy_can_actually_be_set(client: TestClient) -> None:
 
     assert response.status_code == 200
     assert response.json()["settings"]["auto_approve"] == ["low", "medium"]
+
+
+def test_saved_context_is_automatic_by_default_and_can_be_made_manual(
+    client: TestClient,
+) -> None:
+    assert client.get("/settings").json()["settings"]["memory_management"] == "automatic"
+
+    response = client.patch("/settings", json={"memory_management": "review"})
+
+    assert response.status_code == 200
+    assert response.json()["settings"]["memory_management"] == "review"
     assert client.get("/settings").json()["settings"]["auto_approve"] == ["low", "medium"]
 
 

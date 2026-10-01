@@ -1404,6 +1404,49 @@ pre {
   border-bottom: 1px solid var(--border);
 }
 
+.knowledge__memory-management {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  background: var(--surface-2);
+}
+
+.knowledge__memory-management label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+  font-size: 0.7333rem;
+  font-weight: 650;
+}
+
+.knowledge__memory-management select {
+  flex: 1 1 7.5rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.knowledge__memory-management p,
+.knowledge__memory-management small,
+.knowledge__memory-management-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.6667rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.knowledge__memory-management-note {
+  margin-top: 0.4rem;
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--accent);
+}
+
 .knowledge__memory-intro>p,
 .knowledge__memory-organize p,
 .knowledge__merge p {

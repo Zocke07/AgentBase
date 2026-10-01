@@ -28,6 +28,7 @@ from agentbase.providers.pricing import PRICES, format_micros, is_priced
 from agentbase.secrets import SECRET_KEYS
 from agentbase.store.settings import (
     ChannelApprovalPolicy,
+    MemoryManagement,
     OpenAIAccess,
     WorkspaceSettings,
     default_model_for,
@@ -92,6 +93,7 @@ class UpdateSettingsRequest(BaseModel):
     max_run_seconds: int | None = Field(default=None, ge=1)
     max_run_cost_micros: int | None = Field(default=None, ge=0)
     unattended_question_seconds: int | None = Field(default=None, ge=0)
+    memory_management: MemoryManagement | None = None
 
     # An empty list disables pre-authorization; `exclude_none` distinguishes
     # it from an omitted field.

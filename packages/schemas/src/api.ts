@@ -368,6 +368,11 @@ export interface MemoryItem {
   citations?: string[];
   merged_from?: string[];
   merged_into?: string | null;
+  managed_at?: string | null;
+  management_model?: string | null;
+  management_action?: string | null;
+  management_reason?: string | null;
+  management_backup?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -641,6 +646,7 @@ export interface UpdateSettingsRequest {
   max_run_seconds?: number | null;
   max_run_cost_micros?: number | null;
   unattended_question_seconds?: number | null;
+  memory_management?: "automatic" | "review" | "off" | null;
   auto_approve?: RiskLevel[] | null;
   tool_policies?: Record<string, ToolPolicy> | null;
   auto_approve_hosts?: string[] | null;
@@ -757,6 +763,7 @@ export interface WorkspaceSettings {
   max_run_seconds?: number;
   max_run_cost_micros?: number;
   unattended_question_seconds?: number;
+  memory_management?: "automatic" | "review" | "off";
   discord_enabled?: boolean;
   channel_identities?: ChannelIdentity[];
   channel_approvals?: "dashboard_only" | "originator";

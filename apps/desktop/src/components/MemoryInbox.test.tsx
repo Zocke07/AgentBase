@@ -63,6 +63,9 @@ function props() {
     onToggleSelect: vi.fn(),
     onMergeTitle: vi.fn(),
     onMerge: vi.fn(),
+    management: "automatic" as const,
+    managementModel: "Claude Sonnet 5.5",
+    onManagement: vi.fn(),
   };
 }
 
@@ -71,7 +74,8 @@ describe("MemoryInbox", () => {
     const callbacks = props();
     render(<MemoryInbox {...callbacks} />);
 
-    expect(screen.getByText(/Keep useful summaries so later runs can find them/)).toBeTruthy();
+    expect(screen.getByText(/Claude Sonnet 5.5 manages saved context after each successful run/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Needs attention 1" })).toBeTruthy();
     expect(screen.getByText(proposed.title)).toBeTruthy();
     expect(screen.queryByText(kept.title)).toBeNull();
     expect(screen.queryByText(dismissed.title)).toBeNull();
@@ -80,11 +84,20 @@ describe("MemoryInbox", () => {
     await userEvent.click(screen.getByRole("button", { name: "Keep for future runs" }));
     expect(callbacks.onCurate).toHaveBeenCalledWith(proposed, { status: "approved" });
 
-    await userEvent.click(screen.getByRole("button", { name: "Kept 1" }));
+    await userEvent.click(screen.getByRole("button", { name: "Available 1" }));
     expect(screen.getByText(kept.title)).toBeTruthy();
     expect(screen.queryByText(proposed.title)).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
     expect(callbacks.onCurate).toHaveBeenCalledWith(kept, { status: "archived" });
+  });
+
+  it("makes automatic, review, and off behavior explicit", async () => {
+    const callbacks = props();
+    render(<MemoryInbox {...callbacks} />);
+
+    await userEvent.selectOptions(screen.getByLabelText("Saved context management"), "review");
+    expect(callbacks.onManagement).toHaveBeenCalledWith("review");
+    expect(screen.getByText(/Changes are backed up and each item records why it changed/)).toBeTruthy();
   });
 
   it("keeps organization and destructive actions out of the primary flow", async () => {

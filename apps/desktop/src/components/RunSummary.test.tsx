@@ -167,14 +167,14 @@ describe("RunSummary", () => {
 
     const row = screen.getByTestId("run-memory");
     await waitFor(() => {
-      expect(row.textContent).toContain("needs review");
+      expect(row.textContent).toContain("needs attention");
     });
     expect(row.textContent).toContain("before future runs can use it");
 
     await userEvent.click(screen.getByRole("button", { name: "Keep for future runs" }));
     expect(mocked.updateMemory).toHaveBeenCalledWith("space-1", "memory/runs/run-1.md", { status: "approved" });
     await waitFor(() => {
-      expect(row.textContent).toContain("kept for future runs");
+      expect(row.textContent).toContain("available to future runs");
     });
     expect(onMemoryChanged).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("button", { name: "Keep for future runs" })).toBeNull();
