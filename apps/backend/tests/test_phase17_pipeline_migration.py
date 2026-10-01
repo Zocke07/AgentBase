@@ -51,14 +51,26 @@ def _at_version_20(app_paths: AppPaths) -> Database:
 def _upgraded(app_paths: AppPaths) -> Database:
     database = Database(app_paths.db_path)
     database.connect()
-    assert database.schema_version == LATEST_SCHEMA_VERSION == 21
+    assert database.schema_version == LATEST_SCHEMA_VERSION == 22
+    return database
+
+
+def _at_version_21(app_paths: AppPaths) -> Database:
+    original = db_module.MIGRATIONS
+    db_module.MIGRATIONS = tuple(migration for migration in original if migration.version <= 21)
+    database = Database(app_paths.db_path)
+    try:
+        database.connect()
+    finally:
+        db_module.MIGRATIONS = original
+    assert database.schema_version == 21
     return database
 
 
 def _agents(database: Database) -> dict[str, dict[str, Any]]:
     with database.read() as connection:
         rows = connection.execute(
-            "SELECT name, system_prompt, allowed_tools, updated_at FROM agent_defs"
+            "SELECT name, system_prompt, allowed_tools, model, updated_at FROM agent_defs"
             " WHERE space_id = ? AND name IN (?, ?, ?, ?, ?)",
             (DEFAULT_SPACE_ID, *_MIGRATED_AGENT_NAMES),
         ).fetchall()
@@ -214,3 +226,49 @@ def test_021_preserves_edited_prompts_allowlists_goals_and_saved_hosts(
         assert "score_predictions" in agents["review-analyst"]["allowed_tools"]
     finally:
         after.close()
+
+
+def test_022_repairs_old_shipped_prompts_after_model_only_edits(
+    app_paths: AppPaths,
+) -> None:
+    before = _at_version_20(app_paths)
+    try:
+        with before.write() as connection:
+            connection.execute(
+                "UPDATE agent_defs SET model = 'gpt-5.6-terra', updated_at = ?"
+                " WHERE name IN ('market-movers', 'portfolio-review', 'risk-manager',"
+                " 'event-calendar', 'review-analyst')",
+                (_NOW,),
+            )
+    finally:
+        before.close()
+
+    skipped = _at_version_21(app_paths)
+    try:
+        agents = _agents(skipped)
+        assert json.loads(agents["market-movers"]["allowed_tools"]) == [
+            "http_get",
+            "read_file",
+            "write_file",
+        ]
+        assert "read_prices" not in agents["market-movers"]["system_prompt"]
+    finally:
+        skipped.close()
+
+    repaired = _upgraded(app_paths)
+    try:
+        agents = _agents(repaired)
+        for name in _MIGRATED_AGENT_NAMES:
+            assert agents[name]["model"] == "gpt-5.6-terra"
+        for name, tools in _TOOLS.items():
+            assert json.loads(agents[name]["allowed_tools"]) == tools
+        assert "Call read_prices first" in agents["market-movers"]["system_prompt"]
+        assert "Call compute_portfolio first" in agents["portfolio-review"]["system_prompt"]
+        assert "Call check_limits first" in agents["risk-manager"]["system_prompt"]
+        assert "Call score_predictions first" in agents["review-analyst"]["system_prompt"]
+        assert (
+            "Fetch only the URLs under its events object"
+            in agents["event-calendar"]["system_prompt"]
+        )
+    finally:
+        repaired.close()
