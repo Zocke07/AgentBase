@@ -26,6 +26,7 @@ from agentbase.providers.base import (
     Role,
     TextDelta,
     TokenUsage,
+    ToolCall,
     ToolSpec,
 )
 from agentbase.providers.chatgpt import ChatGPTAuthStatus, ChatGPTModelResponse
@@ -240,6 +241,95 @@ async def test_anthropic_sends_tools_in_its_own_schema() -> None:
     assert tool["input_schema"] == {"type": "object"}
 
 
+#: A worker's second request: its first answer read a file, then the result.
+TOOL_HISTORY: list[Message] = [
+    Message(role=Role.USER, content="Collect the movers"),
+    Message(
+        role=Role.ASSISTANT,
+        content="Reading the watchlist.",
+        tool_calls=(ToolCall("toolu_1", "read_file", {"path": "config/watchlist.json"}),),
+    ),
+    Message(role=Role.TOOL, content='{"watchlist": []}', tool_call_id="toolu_1"),
+]
+
+
+async def test_anthropic_resends_a_tool_call_and_links_its_result() -> None:
+    """The model must see its own call beside the result.
+
+    Sent as prose followed by a user turn, the result looked unasked for, and
+    Claude Haiku 4.5 read the same watchlist again until the stuck guard
+    stopped it, twice in one live run.
+    """
+    captured = Captured()
+    provider = AnthropicProvider(
+        "k", "claude-haiku-4-5", client=mock_client(ANTHROPIC_OK, captured=captured)
+    )
+
+    await provider.complete(TOOL_HISTORY)
+
+    assert captured.body["messages"] == [
+        {"role": "user", "content": "Collect the movers"},
+        {
+            "role": "assistant",
+            "content": [
+                {"type": "text", "text": "Reading the watchlist."},
+                {
+                    "type": "tool_use",
+                    "id": "toolu_1",
+                    "name": "read_file",
+                    "input": {"path": "config/watchlist.json"},
+                },
+            ],
+        },
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "toolu_1",
+                    "content": '{"watchlist": []}',
+                }
+            ],
+        },
+    ]
+
+
+async def test_anthropic_returns_every_result_of_one_answer_in_one_turn() -> None:
+    """An answer with two calls is followed by one user turn holding both
+    results; an answer with no prose sends no empty text block."""
+    captured = Captured()
+    provider = AnthropicProvider(
+        "k", "claude-haiku-4-5", client=mock_client(ANTHROPIC_OK, captured=captured)
+    )
+
+    await provider.complete(
+        [
+            Message(role=Role.USER, content="Read both"),
+            Message(
+                role=Role.ASSISTANT,
+                content="",
+                tool_calls=(
+                    ToolCall("toolu_1", "read_file", {"path": "a.md"}),
+                    ToolCall("toolu_2", "read_file", {"path": "b.md"}),
+                ),
+            ),
+            Message(role=Role.TOOL, content="A", tool_call_id="toolu_1"),
+            Message(role=Role.TOOL, content="", tool_call_id="toolu_2"),
+        ]
+    )
+
+    assistant, results = captured.body["messages"][1:]
+    assert [block["type"] for block in assistant["content"]] == ["tool_use", "tool_use"]
+    assert results == {
+        "role": "user",
+        "content": [
+            {"type": "tool_result", "tool_use_id": "toolu_1", "content": "A"},
+            # The API refuses empty text, and a result's content is optional.
+            {"type": "tool_result", "tool_use_id": "toolu_2"},
+        ],
+    }
+
+
 async def test_anthropic_refuses_without_a_key_before_making_a_request() -> None:
     captured = Captured()
     provider = AnthropicProvider("", "claude-opus-5", client=mock_client(captured=captured))
@@ -292,6 +382,52 @@ async def test_openai_keeps_the_system_prompt_as_a_message() -> None:
 
     turns = captured.body["messages"]
     assert turns[0] == {"role": "system", "content": "Be terse."}
+
+
+async def test_openai_resends_a_tool_call_before_its_result() -> None:
+    """Chat Completions refuses a `tool` turn that no assistant `tool_calls`
+    precedes, and encodes the arguments as a string."""
+    captured = Captured()
+    provider = OpenAIProvider("k", "gpt-5.4", client=mock_client(OPENAI_OK, captured=captured))
+
+    await provider.complete(TOOL_HISTORY)
+
+    assert captured.body["messages"][1:] == [
+        {
+            "role": "assistant",
+            "content": "Reading the watchlist.",
+            "tool_calls": [
+                {
+                    "id": "toolu_1",
+                    "type": "function",
+                    "function": {
+                        "name": "read_file",
+                        "arguments": '{"path": "config/watchlist.json"}',
+                    },
+                }
+            ],
+        },
+        {"role": "tool", "content": '{"watchlist": []}', "tool_call_id": "toolu_1"},
+    ]
+
+
+async def test_openai_sends_no_content_for_a_call_without_prose() -> None:
+    captured = Captured()
+    provider = OpenAIProvider("k", "gpt-5.4", client=mock_client(OPENAI_OK, captured=captured))
+
+    await provider.complete(
+        [
+            Message(role=Role.USER, content="Read it"),
+            Message(
+                role=Role.ASSISTANT,
+                content="",
+                tool_calls=(ToolCall("call_1", "read_file", {"path": "a.md"}),),
+            ),
+            Message(role=Role.TOOL, content="A", tool_call_id="call_1"),
+        ]
+    )
+
+    assert captured.body["messages"][1]["content"] is None
 
 
 async def test_openai_parses_tool_arguments_from_a_json_string() -> None:
@@ -387,6 +523,30 @@ async def test_ollama_normalizes_a_text_response() -> None:
     assert result.provider == "ollama"
     assert result.text == "Hello there."
     assert result.usage == TokenUsage(input_tokens=12, output_tokens=5)
+
+
+async def test_ollama_resends_a_tool_call_and_names_the_tool_in_its_result() -> None:
+    """Ollama takes object arguments and links a result by the tool's name."""
+    captured = Captured()
+    provider = OllamaProvider("llama3.3", client=mock_client(OLLAMA_OK, captured=captured))
+
+    await provider.complete(TOOL_HISTORY)
+
+    assert captured.body["messages"][1:] == [
+        {
+            "role": "assistant",
+            "content": "Reading the watchlist.",
+            "tool_calls": [
+                {
+                    "function": {
+                        "name": "read_file",
+                        "arguments": {"path": "config/watchlist.json"},
+                    }
+                }
+            ],
+        },
+        {"role": "tool", "content": '{"watchlist": []}', "tool_name": "read_file"},
+    ]
 
 
 async def test_ollama_exposes_thinking_beside_the_answer() -> None:

@@ -218,6 +218,10 @@ second chronological log here.
   use one reducer over an event prefix. Adding an event type updates the Python
   contract, generated TypeScript and reducer together. Model summaries are
   claims; executed tool calls are separate evidence.
+- A model's history keeps each assistant turn's `Message.tool_calls`, and
+  every provider adapter resends them in its own shape with each result linked
+  to its call. Without them, results looked unrequested and models repeated
+  calls already answered until the stuck guard stopped them (2026-10-01).
 - API keys, ChatGPT OAuth tokens and the Discord token live in the OS keychain.
   API keys reach the sidecar over stdin at launch; ChatGPT OAuth is owned by the
   pinned Codex runtime, which is fetched from the wheel `uv.lock` pins on the

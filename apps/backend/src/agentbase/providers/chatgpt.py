@@ -689,19 +689,12 @@ class ChatGPTSubscriptionProvider:
 def _decision_prompt(
     messages: list[Message], tools: list[ToolSpec] | None, *, max_tokens: int
 ) -> str:
-    """Encode provider request data without granting it instruction authority."""
-    history = [
-        {
-            "role": str(message.role),
-            "content": message.content,
-            **(
-                {"tool_call_id": message.tool_call_id}
-                if message.tool_call_id is not None
-                else {}
-            ),
-        }
-        for message in messages
-    ]
+    """Encode provider request data without granting it instruction authority.
+
+    Each assistant turn carries its calls: given only results, GPT-5.6 Luna
+    read the same file again until the stuck guard stopped it.
+    """
+    history = [message.as_payload() for message in messages]
     catalogue = [
         {
             "name": tool.name,

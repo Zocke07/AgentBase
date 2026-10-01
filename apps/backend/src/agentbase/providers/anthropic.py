@@ -189,20 +189,62 @@ class AnthropicProvider:
 
 def _split_system(
     messages: Iterable[Message], system: str | None
-) -> tuple[str | None, list[dict[str, str]]]:
-    """Move ``Role.SYSTEM`` turns into Anthropic's top-level system field."""
+) -> tuple[str | None, list[dict[str, Any]]]:
+    """Move ``Role.SYSTEM`` turns into Anthropic's top-level system field.
+
+    Calls go back as ``tool_use`` blocks and results as ``tool_result`` blocks
+    naming them. As plain text, a result looked like an unasked-for user turn,
+    and Claude Haiku 4.5 repeated the read it had already made.
+    """
     collected = [system] if system else []
-    turns: list[dict[str, str]] = []
+    turns: list[dict[str, Any]] = []
 
     for message in messages:
         if message.role is Role.SYSTEM:
             collected.append(message.content)
-            continue
-        # Anthropic treats tool results as user turns.
-        role = "user" if message.role in (Role.USER, Role.TOOL) else "assistant"
-        turns.append({"role": role, "content": message.content})
+        elif message.role is Role.ASSISTANT and message.tool_calls:
+            turns.append({"role": "assistant", "content": _call_blocks(message)})
+        elif message.role is Role.TOOL and message.tool_call_id:
+            _answer(turns, message.tool_call_id, message.content)
+        else:
+            # A result naming no call can only go back as a user turn.
+            role = "user" if message.role in (Role.USER, Role.TOOL) else "assistant"
+            turns.append({"role": role, "content": message.content})
 
     return ("\n\n".join(collected) if collected else None), turns
+
+
+def _call_blocks(message: Message) -> list[dict[str, Any]]:
+    """Prose, if any, then each call; the API refuses a blank text block."""
+    blocks: list[dict[str, Any]] = []
+    if message.content.strip():
+        blocks.append({"type": "text", "text": message.content})
+    blocks.extend(
+        {"type": "tool_use", "id": call.id, "name": call.name, "input": call.arguments}
+        for call in message.tool_calls
+    )
+    return blocks
+
+
+def _answer(turns: list[dict[str, Any]], call_id: str, content: str) -> None:
+    """Add a result to the user turn that answers its call.
+
+    Every call in one answer must be answered in the single user turn after it.
+    """
+    block: dict[str, Any] = {"type": "tool_result", "tool_use_id": call_id}
+    if content.strip():
+        # Content is optional; blank text is refused.
+        block["content"] = content
+
+    previous = turns[-1] if turns else None
+    if (
+        previous is not None
+        and previous["role"] == "user"
+        and isinstance(previous["content"], list)
+    ):
+        previous["content"].append(block)
+    else:
+        turns.append({"role": "user", "content": [block]})
 
 
 def _blocks(content: Any) -> list[dict[str, Any]]:

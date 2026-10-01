@@ -108,6 +108,10 @@ a fresh and an upgraded database.
   a construction branch in `build_provider`, a model catalogue entry, and
   `qualified_model` if it namespaces model ids the way Ollama does.
   `test_qualified_model_is_what_the_built_provider_reports` covers each one.
+  The adapter must resend an assistant turn's `Message.tool_calls` in the
+  vendor's own call shape and link each `Role.TOOL` result to its call. A
+  history that dropped the calls made results look unrequested, and models
+  repeated calls already answered until the stuck guard stopped them.
 
 ### An API route
 

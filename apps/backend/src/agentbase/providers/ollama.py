@@ -164,14 +164,34 @@ class OllamaProvider:
 
 def _to_ollama_messages(
     messages: Iterable[Message], system: str | None
-) -> list[dict[str, str]]:
-    turns: list[dict[str, str]] = []
+) -> list[dict[str, Any]]:
+    turns: list[dict[str, Any]] = []
     if system:
         turns.append({"role": "system", "content": system})
 
+    # Ollama links a result to its call by the tool's name, not an ID.
+    names: dict[str, str] = {}
     for message in messages:
-        role = "tool" if message.role is Role.TOOL else str(message.role)
-        turns.append({"role": role, "content": message.content})
+        if message.role is Role.ASSISTANT and message.tool_calls:
+            names.update((call.id, call.name) for call in message.tool_calls)
+            turns.append(
+                {
+                    "role": "assistant",
+                    "content": message.content,
+                    "tool_calls": [
+                        {"function": {"name": call.name, "arguments": call.arguments}}
+                        for call in message.tool_calls
+                    ],
+                }
+            )
+        elif message.role is Role.TOOL:
+            turn: dict[str, Any] = {"role": "tool", "content": message.content}
+            name = names.get(message.tool_call_id or "")
+            if name is not None:
+                turn["tool_name"] = name
+            turns.append(turn)
+        else:
+            turns.append({"role": str(message.role), "content": message.content})
 
     return turns
 

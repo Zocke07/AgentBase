@@ -9,6 +9,7 @@ reported usage.
 from __future__ import annotations
 
 import asyncio
+import json
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Final
@@ -70,9 +71,17 @@ def estimate_usage(
     """Estimate a pessimistic request-cost upper bound.
 
     Use characters, not a tokenizer that would require the network call this
-    guard avoids.
+    guard avoids. An assistant turn's calls are resent with it, so a written
+    file's content counts again on every later request.
     """
-    characters = sum(len(message.content) for message in messages)
+    characters = sum(
+        len(message.content)
+        + sum(
+            len(call.name) + len(json.dumps(call.arguments, default=str))
+            for call in message.tool_calls
+        )
+        for message in messages
+    )
     if system:
         characters += len(system)
 

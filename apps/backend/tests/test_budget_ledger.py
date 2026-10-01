@@ -26,6 +26,7 @@ from agentbase.providers.base import (
     StreamEvent,
     TextDelta,
     TokenUsage,
+    ToolCall,
     ToolSpec,
 )
 from agentbase.store.settings import SettingsStore
@@ -550,6 +551,26 @@ async def test_the_estimate_counts_the_system_prompt() -> None:
     )
 
     assert with_system.input_tokens > without.input_tokens
+
+
+async def test_the_estimate_counts_the_calls_an_assistant_turn_resends() -> None:
+    """Every later request resends earlier calls' arguments, a written file's
+    content included, so the bound must count them."""
+    prose = estimate_usage([Message(role=Role.ASSISTANT, content="Saving.")], max_tokens=100)
+    with_call = estimate_usage(
+        [
+            Message(
+                role=Role.ASSISTANT,
+                content="Saving.",
+                tool_calls=(
+                    ToolCall("w1", "write_file", {"path": "a.md", "content": "x" * 9_000}),
+                ),
+            )
+        ],
+        max_tokens=100,
+    )
+
+    assert with_call.input_tokens - prose.input_tokens >= 9_000 // 3
 
 
 # --- the streamed path -------------------------------------------------------

@@ -45,6 +45,22 @@ class Message:
     content: str
     #: Tool call whose result this ``TOOL`` message carries.
     tool_call_id: str | None = None
+    #: Calls this ``ASSISTANT`` turn made. Each is resent in the provider's own
+    #: shape; a result without its call reads as unrequested, and a model then
+    #: repeats the call it already made.
+    tool_calls: tuple[ToolCall, ...] = ()
+
+    def as_payload(self) -> dict[str, Any]:
+        """Show the turn as JSON, as ``llm.request`` and ChatGPT's transport do."""
+        payload: dict[str, Any] = {"role": str(self.role), "content": self.content}
+        if self.tool_calls:
+            payload["tool_calls"] = [
+                {"id": call.id, "name": call.name, "arguments": call.arguments}
+                for call in self.tool_calls
+            ]
+        if self.tool_call_id is not None:
+            payload["tool_call_id"] = self.tool_call_id
+        return payload
 
 
 @dataclass(frozen=True, slots=True)

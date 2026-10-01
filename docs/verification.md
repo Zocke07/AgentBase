@@ -6,6 +6,54 @@ cover only work actually executed.
 
 ## Phase 17 and run-review UX, 2026-10-01, on `main`, not released
 
+### Tool calls resent with their results, 2026-10-01
+
+The maintainer's first acceptance **Run now** of the morning collection after
+the repair below (run `8de6694a`, 21:47 Taipei) collected nothing.
+`market-movers` on Claude Haiku 4.5 read `config/watchlist.json`, which
+answered correctly, then made the identical read twice more, and the stuck
+guard stopped it. A second spawn, told to read the file once, did the same.
+The supervisor then stopped as its goal requires, and Theses and risk did not
+start ("Morning collection had no verified read_prices result").
+
+- **Cause.** `Message` had no place for an assistant turn's calls, so the loop
+  kept only the prose, or `(tool call)`, and every adapter sent a history in
+  which the model had never called anything. Anthropic received each result
+  as a plain user turn, and the ChatGPT transport saw results whose IDs no
+  call carried. OpenAI Chat Completions refuses a `tool` turn without a
+  preceding `tool_calls`, so a worker's second request on an API key would
+  have failed outright.
+- **Not only Haiku.** The two pre-repair backups (16 runs on GPT-5.6 Luna and
+  Terra through ChatGPT) hold seven agents stopped by the guard for the same
+  reason: five `market-movers` spawns in four runs re-reading
+  `config/sources.json`, `decision` re-listing the space and `bear-architect`
+  re-reading the movers file.
+- **Fix.** `Message.tool_calls` carries the calls. Anthropic gets `tool_use`
+  blocks, with every result of one answer as `tool_result` blocks in the next
+  user turn. OpenAI gets `tool_calls` with string arguments before each `tool`
+  turn. Ollama gets object arguments, with the tool named in each result. The
+  ChatGPT conversation shows each call beside its result. A cut-off answer's
+  calls never ran and stay off. `llm.request` logs each turn's calls and each
+  result's call ID, repeating arguments as it already repeats results; logged
+  runs replay unchanged. `estimate_usage` counts resent arguments, so the run
+  and monthly pre-flight checks stay upper bounds (test written first).
+- **Executed:** nine new tests, each failing before the change except the
+  cut-off guard; ruff, format and `mypy --strict` on both platforms; the full
+  backend suite, **1083 passed, 12 skipped**, with the two existing warnings.
+  No frontend file changed, and the frontend checks were not rerun. A one-off
+  `read_prices` for AAPL into a scratch folder, not the space, succeeded at
+  22:12 Taipei.
+
+Not verified: a real model on the corrected history. The running dev app keeps
+the old sidecar until it is restarted (`just dev-app` rebuilds it).
+
+**Found, not changed:** during US trading hours (21:30 to 04:00 Taipei) the
+chart's last bar is the session in progress, and `read_prices` counts it as
+complete. At 22:12, AAPL's 2026-10-01 bar held 6.4 million shares against a
+20-day mean of 42.3 million. A Run now in a Taipei evening writes that partial
+session as `raw/movers-2026-10-01.json`, and the next 07:00 run then finds no
+newer session and stops the chain.
+
 ### Live-run repair and fresh-start reset, 2026-10-01
 
 The maintainer's October 1 screenshots and an explicitly authorised inspection of

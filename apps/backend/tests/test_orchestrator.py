@@ -18,7 +18,7 @@ from agentbase.events.types import EventType
 from agentbase.orchestrator import execute_run
 from agentbase.orchestrator.limits import RunLimits
 from agentbase.orchestrator.run import Mailbox, Run, SpawnRefusedError
-from agentbase.providers.base import Completion
+from agentbase.providers.base import Completion, Message, Role
 from support import FakeClock, ReconstructedRun, ScriptedProvider, call, reconstruct, says
 
 if TYPE_CHECKING:
@@ -459,6 +459,85 @@ async def test_a_cut_off_answer_is_not_run_as_a_broken_call(
         "tokens before the call was complete."
     ]
     assert [name for name, _ in researcher.tool_calls] == ["finish"]
+
+
+async def test_the_next_request_shows_each_call_beside_its_result(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+) -> None:
+    """A model must see the call it made, linked to its result by ID.
+
+    History once held only the prose and the result. Claude Haiku 4.5 then
+    took a read it had made for one still to make, and read the same file
+    until the stuck guard stopped it.
+    """
+    goal = "Summarise the quarterly report"
+    provider = ScriptedProvider(TWO_WORKER_SCRIPT)
+    run = await store.create_run(goal=goal, origin="ui")
+    await execute_run(store, settings, agents, ledger, secrets, run.id, goal, provider=provider)
+
+    # The supervisor's second request follows its spawn of the researcher.
+    *_, made, answered = provider.requests[2]
+    assert made == Message(
+        role=Role.ASSISTANT,
+        content="I will split this into research and writing.",
+        tool_calls=TWO_WORKER_SCRIPT[0].tool_calls,
+    )
+    assert answered.role is Role.TOOL
+    assert answered.tool_call_id == "c1"
+
+    # The log records the request as it was sent.
+    requests = [
+        event.payload
+        for event in await store.read(run.id)
+        if event.type is EventType.LLM_REQUEST and event.agent_id == "supervisor"
+    ]
+    assert requests[1]["messages"][1:] == [
+        {
+            "role": "assistant",
+            "content": "I will split this into research and writing.",
+            "tool_calls": [
+                {
+                    "id": "c1",
+                    "name": "spawn_agent",
+                    "arguments": {
+                        "agent": "researcher",
+                        "task": "Find the Q3 revenue and churn figures",
+                    },
+                }
+            ],
+        },
+        {"role": "tool", "content": answered.content, "tool_call_id": "c1"},
+    ]
+
+
+async def test_a_cut_off_call_is_not_shown_to_the_model_as_made(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+) -> None:
+    """A call that never ran has no result, and Anthropic refuses a call
+    without one, so a cut-off answer goes back as prose alone."""
+    provider = ScriptedProvider(
+        [
+            says("Delegating.", call("spawn_agent", "c1", agent="researcher", task="t")),
+            says("Writing everything.", call("write_file", "w1"), stop_reason="max_tokens"),
+            says("Smaller.", call("finish", "w2", result="wrote it in parts")),
+            says("Done.", call("finish", "c2", result="ok")),
+        ]
+    )
+    run = await store.create_run(goal="g", origin="ui")
+    await execute_run(store, settings, agents, ledger, secrets, run.id, "g", provider=provider)
+
+    # The researcher's second request follows its cut-off answer.
+    cut_off, nudge = provider.requests[2][-2:]
+    assert cut_off == Message(role=Role.ASSISTANT, content="Writing everything.")
+    assert nudge.role is Role.USER
 
 
 async def test_an_agent_that_fails_the_same_way_three_times_is_stopped(

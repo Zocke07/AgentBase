@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
@@ -155,6 +156,36 @@ def test_the_transport_prompt_preserves_roles_tool_ids_and_schemas() -> None:
     assert '"tool_call_id": "call_1"' in prompt
     assert '"name": "read_file"' in prompt
     assert '"max_output_tokens": 200' in prompt
+
+
+def test_the_transport_prompt_shows_the_call_each_result_answers() -> None:
+    """Without its call, GPT-5.6 Luna read config/sources.json until the stuck
+    guard stopped it, in two live runs."""
+    prompt = _decision_prompt(
+        [
+            Message(Role.USER, "Read it"),
+            Message(
+                Role.ASSISTANT,
+                "",
+                tool_calls=(ToolCall("codex_t_1", "read_file", {"path": "a.md"}),),
+            ),
+            Message(Role.TOOL, "contents", tool_call_id="codex_t_1"),
+        ],
+        None,
+        max_tokens=200,
+    )
+
+    _, _, encoded = prompt.partition("\n\n")
+    assert json.loads(encoded)["conversation"][1:] == [
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {"id": "codex_t_1", "name": "read_file", "arguments": {"path": "a.md"}}
+            ],
+        },
+        {"role": "tool", "content": "contents", "tool_call_id": "codex_t_1"},
+    ]
 
 
 def test_structured_codex_output_becomes_native_tool_calls() -> None:

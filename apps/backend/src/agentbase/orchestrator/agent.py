@@ -217,8 +217,14 @@ class Agent:
                 messages.append(Message(role=Role.USER, content=_NO_TOOL_NUDGE))
                 continue
 
+            # Keep the calls beside the prose: their results follow, and a
+            # result without its call reads as unrequested, so models repeat it.
             messages.append(
-                Message(role=Role.ASSISTANT, content=completion.text or "(tool call)")
+                Message(
+                    role=Role.ASSISTANT,
+                    content=completion.text,
+                    tool_calls=completion.tool_calls,
+                )
             )
 
             for call in completion.tool_calls:
@@ -254,6 +260,7 @@ class Agent:
 
     async def _cut_off(self, completion: Completion, messages: list[Message]) -> None:
         """Record a truncated answer and give corrective guidance."""
+        # Leave the calls off: they never ran, so no result can answer them.
         messages.append(Message(role=Role.ASSISTANT, content=completion.text or "(cut off)"))
         names = ", ".join(call.name for call in completion.tool_calls)
         for call in completion.tool_calls:
@@ -313,10 +320,7 @@ class Agent:
                 "provider": self._provider.name,
                 "model": self._provider.model,
                 "step": step,
-                "messages": [
-                    {"role": str(message.role), "content": message.content}
-                    for message in messages
-                ],
+                "messages": [message.as_payload() for message in messages],
             },
         )
 

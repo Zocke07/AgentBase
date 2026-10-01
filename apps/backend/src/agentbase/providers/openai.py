@@ -182,6 +182,25 @@ def _to_openai_messages(
                     "tool_call_id": message.tool_call_id or "",
                 }
             )
+        elif message.role is Role.ASSISTANT and message.tool_calls:
+            # A `tool` turn must follow the assistant turn whose call it answers.
+            turns.append(
+                {
+                    "role": "assistant",
+                    "content": message.content or None,
+                    "tool_calls": [
+                        {
+                            "id": call.id,
+                            "type": "function",
+                            "function": {
+                                "name": call.name,
+                                "arguments": json.dumps(call.arguments),
+                            },
+                        }
+                        for call in message.tool_calls
+                    ],
+                }
+            )
         else:
             turns.append({"role": str(message.role), "content": message.content})
 
