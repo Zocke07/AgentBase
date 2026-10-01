@@ -38,9 +38,9 @@ The folder-tree **✕** confirms, backs up every file under `.agentbase/backups/
 then deletes the folder and all contents. Its links become unresolved. It
 cannot delete the vault root or hidden folders.
 
-## Data files
+## Agent files
 
-**Data files** lists non-note plain-text space files: `.json`, `.jsonl`,
+**Agent files** lists non-note plain-text space files: `.json`, `.jsonl`,
 `.csv`, `.txt`, `.yaml`, `.yml`, `.toml`, `.ndjson`, and `.tsv`, including
 `config/watchlist.json`, `raw/news-*.json`, and `portfolio/positions.csv`.
 Edit as text and **Save file**; invalid `.json` is refused before write.

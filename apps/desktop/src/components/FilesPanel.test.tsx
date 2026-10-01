@@ -117,6 +117,8 @@ describe("data files", () => {
 
     expect(screen.getByRole("heading", { name: "watchlist.json" })).toBeTruthy();
     expect(screen.getByText("config/ · JSON")).toBeTruthy();
+    expect(screen.getByText(/An illustrative six-company research list/)).toBeTruthy();
+    expect(screen.getByText(/Every entry needs a ticker and sector/)).toBeTruthy();
     expect(screen.queryByText("Unsaved changes")).toBeNull();
 
     fireEvent.change(text, { target: { value: '{"watchlist": ["AAPL"]}' } });

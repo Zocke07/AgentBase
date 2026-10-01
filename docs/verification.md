@@ -32,10 +32,13 @@ migration 020 (`8ccf628`); `read_prices` (`b6b0824`);
   former default. The event collector now uses only configured Treasury URLs,
   removing the SEC, BLS, and issuer requests that failed in the maintainer's
   runs.
-- **Safe first input.** The watchlist starter is empty, not a sample AAPL
-  recommendation. Home says that the person must supply tickers, sectors,
-  positions, and cash. It creates sources, limits, a positions template, four
-  stable chart definitions, and the dashboard without replacing files.
+- **Starter input.** On 2026-10-01 the maintainer allowed a suggested starter
+  universe. Six illustrative watchlist companies across distinct sectors now
+  make a first collection possible, without creating a holding or cash balance.
+  Home asks the person to review the list, enter real positions and cash, and
+  set personal limits. It creates sources, default limits, a zero-cash positions
+  template, four stable chart definitions, and the dashboard without replacing
+  existing files.
 - **Run audit.** The captured runs did not satisfy their goals. Stooq returned
   404, SEC and BLS returned 403, an issuer page returned 404, and the old
   prompts then looked for `portfolio/computed.json` and dated risk output that
@@ -44,13 +47,17 @@ migration 020 (`8ccf628`); `read_prices` (`b6b0824`);
   and scoring tools remove those missing producers; the narrowed calendar
   removes the known failing sources.
 - **Run-review UX.** Visualize and Usage have distinct icons; Knowledge uses
-  Notes, Data files, and Saved context; cards and text containers wrap without
+  Notes, Agent files, and Saved context; cards and text containers wrap without
   fixed-width clipping; Markdown preview uses the available width; Usage has a
   visible Y axis whose ticks scale from actual daily values; Runs presents
   dense results and errors more clearly; the app chrome uses the AgentBase
   network mark; saved context defaults to conservative model-assisted
   management with audit reasons and backups; and Automations **Run now** is
   labelled separately from a timed schedule start.
+- **Configuration and light theme.** The Agent files editor now explains what
+  every pipeline starter feeds and which fields are actually consumed. The
+  compact AgentBase mark uses dedicated light and dark brand colours, with no
+  blurred shadow in the light rail.
 
 The Sonnet 5.5 entry was checked again on Anthropic's official models overview
 on 2026-09-30 before implementation: `claude-sonnet-5-5`, released
@@ -63,6 +70,10 @@ context, 128K maximum output, and retirement no earlier than 2027-09-28.
   documentation backend attempt reached **1061 passed** but the sandbox denied
   the frozen binary's system semaphore; the identical unrestricted rerun
   passed all 1067 tests.
+  For the 2026-10-01 configuration and light-theme unit, `just fmt-desktop`
+  and `just check` passed, followed by the full backend suite (**1067 passed,
+  12 skipped, two existing warnings**) and desktop suite (**53 files, 555
+  tests**), with `set -o pipefail` set for the gates.
 - **Browser.** A scratch sidecar used a temporary `AGENTBASE_DATA_DIR` and
   port 8790; Vite ran on 5173; Chrome requests for 8787 were rewritten over
   CDP; onboarding was disabled through `PATCH /settings`. At 1440 and 800 px,
@@ -71,6 +82,16 @@ context, 128K maximum output, and retirement no earlier than 2027-09-28.
   written only to the scratch space for the charts. There was no horizontal
   overflow, field error, or console error. The maintainer's `.dev/data` was
   not used for these UI checks.
+  A later light-theme pass used the same topology with a fresh schema-21 data
+  directory. At 1440 by 900 the rail mark rendered at 24.75 px with its light
+  palette, no filter, and no horizontal overflow.
+  The 2026-10-01 starter pass used another temporary schema-21 directory on
+  port 8790. Headless Chrome on Vite 5173, with CDP rewriting 8787 requests
+  and onboarding disabled by `PATCH /settings`, showed the six watchlist
+  symbols and sectors in the Agent files template. The setup card named the
+  illustrative list and current Agent files tab. At 1440 and 800 px there
+  was no horizontal overflow, UI alert, or page exception. A screenshot was
+  inspected for the light logo and editor layout. No live data was touched.
 - **Not verified.** No real model has run the daily morning-to-decision chain
   after these changes.
   The live Yahoo and Treasury services are deliberately absent from automated

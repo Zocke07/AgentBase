@@ -1210,6 +1210,13 @@ unheld thesis ticker has a current position weight of 0%; the tool reports its
 remaining position headroom and the remaining headroom in its configured
 sector.*
 
+*Additional maintainer choice, 2026-10-01: after reviewing the first runs,
+the starter watchlist may contain an illustrative six-company research set
+across sectors. It is not a portfolio or personal investment recommendation.
+The person reviews it before running; existing files are never replaced.
+The positions starter remains zero cash with no invented holdings, and the
+three numeric limits remain defaults until the person chooses a policy.*
+
 *Implementation details adopted by the maintainer on 2026-10-01: magnitude
 bands are half-open (`[0,1)`, `[1,3)`, `[3,5)`, then 5% or more), and
 `band_hit` also requires the predicted direction to be right. A scorecard month

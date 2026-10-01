@@ -56,8 +56,10 @@ export function PipelineOffer({ spaceId, schedules, runCapMicros, onTurnedOn }: 
           limits, keyless sources and a four-chart dashboard. Existing files are never replaced.
         </p>
         <p>
-          <strong>Before the first run:</strong> add tickers and sectors to the empty watchlist and replace
-          the zero-cash row with your real positions and cash. Find both under Knowledge, then Data files.
+          <strong>Before the first run:</strong> review the illustrative six-company watchlist and replace
+          any ticker you do not want followed. The zero-cash row is not your real portfolio; enter your
+          actual positions and cash. Find both under Knowledge, then Agent files. The risk limits are
+          defaults, not your personal policy.
         </p>
         <p>
           <strong>Coverage:</strong> Google News, Yahoo daily prices and US Treasury auctions. It does not

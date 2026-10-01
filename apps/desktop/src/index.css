@@ -48,6 +48,13 @@
   --accent-soft: rgb(184 80 30 / 12%);
   --on-accent: #ffffff;
 
+  /* The product mark keeps one identity instead of borrowing status colours. */
+  --brand-lead: #b8501e;
+  --brand-base: #277e99;
+  --brand-links: #66718d;
+  --brand-ring: #ffffff;
+  --brand-shadow: rgb(20 24 40 / 12%);
+
   --good: #1a7a50;
   --good-soft: rgb(26 122 80 / 12%);
   --bad: #c43d2c;
@@ -118,6 +125,12 @@
     --accent-soft: rgb(255 143 82 / 14%);
     --on-accent: #1a0f06;
 
+    --brand-lead: #ff8f52;
+    --brand-base: #6bc1d4;
+    --brand-links: #74809e;
+    --brand-ring: #161922;
+    --brand-shadow: rgb(0 0 0 / 32%);
+
     --good: #6fcf8e;
     --good-soft: rgb(111 207 142 / 14%);
     --bad: #f2705d;
@@ -156,6 +169,12 @@
   --accent-strong: #ffa672;
   --accent-soft: rgb(255 143 82 / 14%);
   --on-accent: #1a0f06;
+
+  --brand-lead: #ff8f52;
+  --brand-base: #6bc1d4;
+  --brand-links: #74809e;
+  --brand-ring: #161922;
+  --brand-shadow: rgb(0 0 0 / 32%);
 
   --good: #6fcf8e;
   --good-soft: rgb(111 207 142 / 14%);
@@ -252,34 +271,35 @@ pre {
 .shell__logo {
   width: 3.75rem;
   height: 3.75rem;
+  filter: drop-shadow(0 2px 3px var(--brand-shadow));
   animation: rise-in var(--dur-slow) var(--ease-spring) backwards;
 }
 
 .brand-mark {
   display: block;
   overflow: visible;
-  filter: drop-shadow(0 2px 3px rgb(20 24 40 / 16%));
+  filter: none;
 }
 
 .brand-mark__links {
   fill: none;
-  stroke: var(--muted);
+  stroke: var(--brand-links);
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 3.4;
 }
 
 .brand-mark__node {
-  stroke: var(--surface);
+  stroke: var(--brand-ring);
   stroke-width: 1.5;
 }
 
 .brand-mark__node--lead {
-  fill: var(--accent);
+  fill: var(--brand-lead);
 }
 
 .brand-mark__node--base {
-  fill: var(--info);
+  fill: var(--brand-base);
 }
 
 .shell__technical {
@@ -6940,6 +6960,21 @@ input[type="radio"] {
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
+}
+
+.file-editor__purpose {
+  max-width: 72rem;
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border-left: 3px solid var(--brand-base);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.file-editor__purpose strong {
+  color: var(--text);
 }
 
 .file-editor__dirty {

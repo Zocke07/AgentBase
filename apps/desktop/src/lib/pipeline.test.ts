@@ -28,7 +28,16 @@ describe("investment pipeline starters", () => {
       "visualizations/pipeline.dashboard.json",
     ]);
 
-    expect(JSON.parse(starter("config/watchlist.json"))).toEqual({ watchlist: [] });
+    expect(JSON.parse(starter("config/watchlist.json"))).toEqual({
+      watchlist: [
+        { ticker: "AAPL", company_name: "Apple Inc.", sector: "Information Technology" },
+        { ticker: "JPM", company_name: "JPMorgan Chase & Co.", sector: "Financials" },
+        { ticker: "JNJ", company_name: "Johnson & Johnson", aliases: ["J&J"], sector: "Health Care" },
+        { ticker: "XOM", company_name: "Exxon Mobil Corporation", aliases: ["ExxonMobil"], sector: "Energy" },
+        { ticker: "PG", company_name: "The Procter & Gamble Company", aliases: ["P&G"], sector: "Consumer Staples" },
+        { ticker: "CAT", company_name: "Caterpillar Inc.", sector: "Industrials" },
+      ],
+    });
     expect(starter("portfolio/positions.csv")).toBe(
       "ticker,shares,cost_per_share,opened,sector,currency\nCASH,0,,,Cash,USD\n",
     );

@@ -17,9 +17,10 @@ files in `config/`, `raw/`, `knowledge/`, `portfolio/`, `theses/`, `risk/`,
 `decisions/`, and `scores/`.
 
 **Turn on the daily pipeline** creates nine missing starter files without
-replacing an existing file: an empty watchlist, keyless sources, risk limits,
-a zero-cash positions template, four stable chart definitions, and the
-investment dashboard.
+replacing an existing file: an illustrative six-company watchlist, keyless
+sources, risk limits, a zero-cash positions template, four stable chart
+definitions, and the investment dashboard. The list is a research example,
+not a portfolio or a recommendation to buy those shares.
 
 | Agent | Shipped model | What it does | Distinctive tools |
 |---|---|---|---|
@@ -47,10 +48,12 @@ shell. The four computation tools are medium risk. Under the default
 host and tool are allowed. An upgraded install keeps its saved approval and
 host settings.
 
-Before the first collector run, edit these under **Knowledge → Data files**:
+Before the first collector run, review these under **Knowledge → Agent files**:
 
-- `config/watchlist.json`: add one to 50 entries. Each needs a `ticker` and a
-  non-empty `sector`; `company_name` and `aliases` help news matching.
+- `config/watchlist.json`: the starter follows AAPL, JPM, JNJ, XOM, PG and CAT,
+  one from each of six sectors. Replace any you do not want followed, or add
+  others up to 50 entries. Each needs a `ticker` and non-empty `sector`;
+  `company_name` and `aliases` help news matching.
 - `portfolio/positions.csv`: keep the header
   `ticker,shares,cost_per_share,opened,sector,currency`. Enter current holdings
   plus a `CASH` row, use one ISO currency throughout, and maintain the snapshot
@@ -59,7 +62,30 @@ Before the first collector run, edit these under **Knowledge → Data files**:
 The other starter inputs are ready to edit: `config/sources.json` names Google
 News, Yahoo's unofficial keyless chart endpoint, and the US Treasury auctions
 API; `config/limits.json` holds the position, sector, and daily-loss limits.
+Its 10%, 30%, and 3% values are software defaults, not a personal risk policy.
 No data-source key is stored in a file or exposed to a model.
+
+The news scanner reads the feed URL templates in `sources.json`, and the event
+collector reads its event URLs. `read_prices` uses a fixed, checked Yahoo URL;
+the Yahoo entry in `sources.json` describes that source but cannot switch the
+price tool to another host. The three limit keys are enforced by the portfolio
+and risk tools. Extra keys in either file do not add data or rules.
+
+More JSON does not by itself create richer research. Add data only where the
+pipeline has a defined consumer:
+
+- Replace the illustrative entries in `watchlist.json` with the real companies
+  you want followed.
+  `company_name` and `aliases` improve news matching; `sector` is required for
+  deterministic risk grouping. Do not add a sample ticker you would not want
+  discussed in a recommendation.
+- Keep `sources.json` to source formats the shipped collectors understand.
+  Adding an arbitrary URL gives no parser for it and may only create a failed
+  fetch or an approval question.
+- Tune the three numbers in `limits.json` to the person's actual policy. Extra
+  keys are ignored until a deterministic rule is implemented for them.
+- Add current holdings and cash to `positions.csv`. This usually enriches the
+  portfolio and risk output more than adding descriptive configuration.
 
 #### The stage sequence
 

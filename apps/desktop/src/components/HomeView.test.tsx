@@ -492,6 +492,8 @@ describe("working on its own", () => {
     const offer = await screen.findByTestId("pipeline-offer");
     expect(offer.textContent).toContain("before spending $2.00");
     expect(offer.textContent).toContain("watchlist and positions");
+    expect(offer.textContent).toContain("illustrative six-company watchlist");
+    expect(offer.textContent).toContain("Agent files");
     expect(offer.textContent).toContain("Reddit");
     expect(offer.textContent).toContain("SEC filings");
     await user.click(screen.getByTestId("pipeline-turn-on"));

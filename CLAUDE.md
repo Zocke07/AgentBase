@@ -84,7 +84,7 @@ future changes do not relocate users' data or disconnect their stored keys.
   for publication status and cross-platform CI evidence.
 - The UI has a left rail, spaces, Home, Automations, Runs, Agents, Knowledge,
   Visualize, Usage, Space settings, and app-wide Settings. Visualize and Usage
-  have distinct icons; Knowledge separates Notes, Data files, and Saved
+  have distinct icons; Knowledge separates Notes, Agent files, and Saved
   context. Approvals are docked. The run canvas is a
   left-to-right workflow (goal, supervisor, workers, outcome) with an
   inspector; the Knowledge section is laid out as an Obsidian vault and one

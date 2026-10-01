@@ -363,6 +363,11 @@ function FileEditor({
           </button>
         </div>
       </div>
+      {starter !== undefined && (
+        <p className="file-editor__purpose">
+          <strong>Purpose:</strong> {starter.why}
+        </p>
+      )}
       {open.fresh && (
         <label className="file-editor__path-field">
           <span>File path</span>

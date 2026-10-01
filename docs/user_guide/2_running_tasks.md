@@ -28,8 +28,9 @@ on:
 | Weekly knowledge | Saturdays at 09:00 | Concept notes from local knowledge, plus company notes only where you supplied filing text. |
 | Weekly review | Sundays at 18:00 | Scores resolved predictions and proposes durable lessons for Saved context. |
 
-Edit `config/watchlist.json` and `portfolio/positions.csv` in **Knowledge →
-Data files** before the first run. [Agents](3_agents.md#the-investment-roster)
+Review the illustrative `config/watchlist.json` and fill
+`portfolio/positions.csv` with your real holdings and cash in **Knowledge →
+Agent files** before the first run. [Agents](3_agents.md#the-investment-roster)
 describes their required fields and the files each deterministic tool writes.
 
 To add your own, click **New schedule**, give it a name and a goal, and choose

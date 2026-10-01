@@ -82,27 +82,39 @@ const PIPELINE_DASHBOARD: DashboardSpec = {
   columns: 2,
 };
 
+/** An illustrative research universe across six sectors, not a holding list. */
+const WATCHLIST_TEMPLATE = `${JSON.stringify({
+  watchlist: [
+    { ticker: "AAPL", company_name: "Apple Inc.", sector: "Information Technology" },
+    { ticker: "JPM", company_name: "JPMorgan Chase & Co.", sector: "Financials" },
+    { ticker: "JNJ", company_name: "Johnson & Johnson", aliases: ["J&J"], sector: "Health Care" },
+    { ticker: "XOM", company_name: "Exxon Mobil Corporation", aliases: ["ExxonMobil"], sector: "Energy" },
+    { ticker: "PG", company_name: "The Procter & Gamble Company", aliases: ["P&G"], sector: "Consumer Staples" },
+    { ticker: "CAT", company_name: "Caterpillar Inc.", sector: "Industrials" },
+  ],
+}, null, 2)}\n`;
+
 /** The files the investment pipeline starts with, without inventing a holding. */
 export const STARTERS: readonly { path: string; content: string; why: string }[] = [
   {
     path: "config/watchlist.json",
-    why: "the tickers and sectors you want the collectors to follow",
-    content: '{\n  "watchlist": []\n}\n',
+    why: "An illustrative six-company research list across sectors, not a holding list or investment advice. The daily collectors follow these tickers; replace them with companies you actually want followed. Every entry needs a ticker and sector; company_name and aliases improve news matching.",
+    content: WATCHLIST_TEMPLATE,
   },
   {
     path: "config/sources.json",
-    why: "the keyless sources the collectors may fetch",
+    why: "Lists news feeds and event URLs for the collectors. The Yahoo entry documents the price source; read_prices uses its own fixed Yahoo endpoint. Add only a feed or event format an agent understands.",
     content:
       '{\n  "news": {\n    "google_news_rss": {\n      "url_template": "https://news.google.com/rss/search?q={ticker}+when:1d&hl=en-US&gl=US&ceid=US:en",\n      "auth": "none"\n    }\n  },\n  "prices": {\n    "yahoo_chart": {\n      "url_template": "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=1y&interval=1d",\n      "auth": "none",\n      "unofficial": true\n    }\n  },\n  "events": {\n    "treasury_auctions": {\n      "url": "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/od/auctions_query",\n      "auth": "none"\n    }\n  }\n}\n',
   },
   {
     path: "config/limits.json",
-    why: "the hard risk rules the risk manager restates",
+    why: "Sets the deterministic guardrails checked before a recommendation: maximum position weight, sector weight and daily loss, all as percentages. Extra keys are not used.",
     content: '{\n  "max_position_pct": 10,\n  "max_sector_pct": 30,\n  "max_daily_loss_pct": 3\n}\n',
   },
   {
     path: "portfolio/positions.csv",
-    why: "the positions and cash balance you maintain",
+    why: "Holds the current positions and cash snapshot used for value, P&L, weights and concentration. Keep every holding in one currency and update it yourself.",
     content: "ticker,shares,cost_per_share,opened,sector,currency\nCASH,0,,,Cash,USD\n",
   },
   {
