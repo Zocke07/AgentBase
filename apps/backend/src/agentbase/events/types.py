@@ -28,8 +28,8 @@ RunStatus = Literal["pending", "running", "paused", "completed", "failed", "canc
 #: Statuses after which a run receives no more events.
 TERMINAL_RUN_STATUSES: frozenset[str] = frozenset({"completed", "failed", "cancelled"})
 
-#: §4 `runs.origin`.
-RunOrigin = Literal["ui", "discord", "schedule"]
+#: §4 `runs.origin`: ``schedule`` is clock-fired and ``automation`` is Run now.
+RunOrigin = Literal["ui", "discord", "schedule", "automation"]
 
 
 class EventType(StrEnum):

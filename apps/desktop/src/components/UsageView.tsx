@@ -2,7 +2,17 @@ import type { SpaceResponse, UsageBucket, UsageReport, UsageRun } from "@agentba
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import * as api from "../lib/api";
-import { clockDate, ellipsise, formatCount, formatMicros, modelLabel, moneyShort, periodLabel, providerLabel } from "../lib/format";
+import {
+  clockDate,
+  ellipsise,
+  formatCount,
+  formatMicros,
+  modelLabel,
+  moneyShort,
+  periodLabel,
+  providerLabel,
+  runOriginLabel,
+} from "../lib/format";
 import { useFetched } from "../state/useFetched";
 
 import { Skeleton } from "./Skeleton";
@@ -363,7 +373,9 @@ function RunTable({ rows, onOpenRun }: { rows: readonly UsageRun[]; onOpenRun: (
                   {ellipsise(row.goal ?? row.run_id, 56)}
                 </button>
               )}
-              {row.origin !== null && row.origin !== "ui" && <span className="usage__origin"> from {row.origin}</span>}
+              {runOriginLabel(row.origin) !== null && (
+                <span className="usage__origin"> {runOriginLabel(row.origin)}</span>
+              )}
             </td>
             <td>{row.created_at === null ? "-" : clockDate(row.created_at)}</td>
             <td className="usage__num">{formatCount(row.calls)}</td>

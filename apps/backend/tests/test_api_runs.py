@@ -57,8 +57,8 @@ def test_runs_are_listed_newest_first(client: TestClient) -> None:
 
 
 def test_the_list_can_be_narrowed_to_one_origin(client: TestClient) -> None:
-    """Runs you started, runs a schedule started and runs from Discord are one
-    list with a filter, not three lists: the same rows, narrowed by `origin`."""
+    """Runs you started, timed schedules, Run now and Discord share one list,
+    narrowed by the recorded `origin`."""
     from agentbase.store.spaces import DEFAULT_SPACE_ID
 
     mine = client.post("/debug/fake_run", params={"step_ms": 0}).json()["id"]
@@ -72,13 +72,25 @@ def test_the_list_can_be_narrowed_to_one_origin(client: TestClient) -> None:
             space_id=DEFAULT_SPACE_ID,
         )
     ).id
+    run_now = client.portal.call(  # type: ignore[union-attr]
+        functools.partial(
+            store.create_run,
+            goal="nightly now",
+            origin="automation",
+            origin_ref="sched-1",
+            space_id=DEFAULT_SPACE_ID,
+        )
+    ).id
 
     assert [run["id"] for run in client.get("/runs", params={"origin": "schedule"}).json()] == [
         scheduled
     ]
     assert [run["id"] for run in client.get("/runs", params={"origin": "ui"}).json()] == [mine]
+    assert [
+        run["id"] for run in client.get("/runs", params={"origin": "automation"}).json()
+    ] == [run_now]
     assert client.get("/runs", params={"origin": "discord"}).json() == []
-    assert len(client.get("/runs").json()) == 2
+    assert len(client.get("/runs").json()) == 3
     assert client.get("/runs", params={"origin": "carrier-pigeon"}).status_code == 422
 
 

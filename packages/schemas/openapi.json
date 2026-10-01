@@ -647,7 +647,8 @@
             "enum": [
               "ui",
               "discord",
-              "schedule"
+              "schedule",
+              "automation"
             ],
             "title": "Origin",
             "type": "string"
@@ -2128,7 +2129,8 @@
             "enum": [
               "ui",
               "discord",
-              "schedule"
+              "schedule",
+              "automation"
             ],
             "title": "Origin",
             "type": "string"
@@ -4667,7 +4669,8 @@
                   "enum": [
                     "ui",
                     "discord",
-                    "schedule"
+                    "schedule",
+                    "automation"
                   ],
                   "type": "string"
                 },

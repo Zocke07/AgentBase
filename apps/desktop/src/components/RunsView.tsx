@@ -261,6 +261,7 @@ export function RunsView({
           >
             <option value="">All runs</option>
             <option value="ui">Started by you</option>
+            <option value="automation">Run now</option>
             <option value="schedule">Scheduled</option>
             <option value="discord">From Discord</option>
           </select>

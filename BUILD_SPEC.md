@@ -749,6 +749,11 @@ closed on is run again once or noted, by `missed`; Run now goes through the
 scheduler. The scheduler still never answers an approval; a question in a
 scheduled run expires after `unattended_question_seconds`.)*
 
+*(Maintainer choice of 2026-10-01: a timed or catch-up launch keeps origin
+`schedule`; the Automations **Run now** button records origin `automation` and
+the schedule id in `origin_ref`. Both remain unattended and may start the next
+stage in a chain.)*
+
 **Accept when:**
 
 1. A daily schedule created the evening before a DST switch fires at the

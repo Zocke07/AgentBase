@@ -36,7 +36,7 @@ __all__ = [
 
 
 #: Origins with nobody watching: a question in such a run waits only briefly.
-UNATTENDED_ORIGINS: frozenset[RunOrigin] = frozenset({"schedule"})
+UNATTENDED_ORIGINS: frozenset[RunOrigin] = frozenset({"schedule", "automation"})
 
 
 class RunCostExceededError(RuntimeError):

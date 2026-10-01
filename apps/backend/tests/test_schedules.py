@@ -542,6 +542,8 @@ async def test_run_now_is_bounded_like_a_timed_start_and_leaves_the_next_time(
     run = await scheduler.run_now(created)
 
     assert launcher.launched[-1]["max_run_seconds"] == 1800
+    assert run.origin == "automation"
+    assert run.origin_ref == created.id
     after = await schedules.require(created.id)
     assert after.last_run_id == run.id
     assert after.last_outcome == "Started by hand."
@@ -719,7 +721,7 @@ async def test_a_run_that_did_not_complete_stops_the_chain_and_says_so(
     assert len(launcher.launched) == 1
 
 
-async def test_only_scheduled_runs_start_stages_and_nothing_starts_after_close(
+async def test_only_automation_linked_runs_start_stages_and_nothing_starts_after_close(
     schedules: ScheduleStore, scheduler: Scheduler, launcher: FakeLauncher, store: EventStore
 ) -> None:
     first = await schedules.create(_fields(name="First"))

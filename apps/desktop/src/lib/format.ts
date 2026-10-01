@@ -76,6 +76,23 @@ export function ellipsise(value: string, limit: number): string {
   return collapsed.length <= limit ? collapsed : `${collapsed.slice(0, limit - 1)}…`;
 }
 
+/** Explain how a run began without conflating a timed schedule with Run now. */
+export function runOriginLabel(origin: string | null): string | null {
+  switch (origin) {
+    case null:
+    case "ui":
+      return null;
+    case "schedule":
+      return "from schedule";
+    case "automation":
+      return "started with Run now";
+    case "discord":
+      return "from Discord";
+    default:
+      return `from ${origin}`;
+  }
+}
+
 /** `JSON.stringify`, typed as it behaves: `undefined` for a value it cannot serialise. */
 const stringify = (value: unknown): string | undefined => JSON.stringify(value);
 

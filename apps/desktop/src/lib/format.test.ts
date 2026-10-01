@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clockDate, formatDuration, modelLabel, moneyShort, providerLabel } from "./format";
+import { clockDate, formatDuration, modelLabel, moneyShort, providerLabel, runOriginLabel } from "./format";
 
 describe("formatDuration", () => {
   it.each([
@@ -46,5 +46,11 @@ describe("labels a person reads", () => {
     expect(modelLabel("gpt-4o")).toBe("GPT-4o");
     expect(modelLabel("qwen3:4b")).toBe("qwen3:4b");
     expect(providerLabel("openai")).toBe("OpenAI");
+  });
+
+  it("distinguishes timed schedules from the Run now button", () => {
+    expect(runOriginLabel("schedule")).toBe("from schedule");
+    expect(runOriginLabel("automation")).toBe("started with Run now");
+    expect(runOriginLabel("ui")).toBeNull();
   });
 });

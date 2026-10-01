@@ -228,11 +228,15 @@ class Scheduler:
             logger.exception("could not start the stages after run %s", run_id)
 
     async def on_run_finished(self, run_id: str) -> list[Fired]:
-        """Start, or record why not, the stages that follow a finished scheduled run."""
+        """Start, or record why not, the stages that follow an automation run."""
         if self._closed:
             return []
         run = await self.launcher.store.get_run(run_id)
-        if run is None or run.origin != "schedule" or run.origin_ref is None:
+        if (
+            run is None
+            or run.origin not in {"schedule", "automation"}
+            or run.origin_ref is None
+        ):
             return []
         followers = await self.schedules.followers(run.origin_ref)
         if not followers:
@@ -268,7 +272,7 @@ class Scheduler:
         run = await self.launcher.launch(
             schedule.goal,
             space_id=schedule.space_id,
-            origin="schedule",
+            origin="automation",
             origin_ref=schedule.id,
             max_run_seconds=schedule.max_run_seconds,
         )

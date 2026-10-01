@@ -119,7 +119,7 @@ def test_run_now_starts_a_scheduled_run_without_moving_the_next_time(
     started = client.post(f"/schedules/{schedule['id']}/run")
     assert started.status_code == 201, started.text
     run = started.json()
-    assert run["origin"] == "schedule"
+    assert run["origin"] == "automation"
     assert run["origin_ref"] == schedule["id"]
     assert run["space_id"] == DEFAULT_SPACE_ID
     assert run["goal"] == schedule["goal"]

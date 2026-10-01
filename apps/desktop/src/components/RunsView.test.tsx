@@ -284,6 +284,11 @@ describe("the picker", () => {
     });
     expect(await screen.findByText("No runs of this kind yet.")).toBeDefined();
 
+    await user.selectOptions(screen.getByTestId("runs-origin"), "automation");
+    await waitFor(() => {
+      expect(mocked.listRuns).toHaveBeenLastCalledWith(50, "space-main", "automation");
+    });
+
     await user.selectOptions(screen.getByTestId("runs-origin"), "");
     await waitFor(() => {
       expect(mocked.listRuns).toHaveBeenLastCalledWith(50, "space-main", undefined);

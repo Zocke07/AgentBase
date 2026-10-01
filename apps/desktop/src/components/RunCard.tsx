@@ -1,6 +1,6 @@
 import type { Run } from "@agentbase/schemas";
 
-import { clockDate, formatDuration } from "../lib/format";
+import { clockDate, formatDuration, runOriginLabel } from "../lib/format";
 import { STATUS_LABEL } from "../state/describe";
 
 /**
@@ -33,6 +33,7 @@ export function RunCard({
   const finishedAt = run.finished_at ?? null;
   const duration =
     finishedAt === null ? null : formatDuration(Date.parse(finishedAt) - Date.parse(run.created_at));
+  const originLabel = runOriginLabel(run.origin);
 
   return (
     <button
@@ -47,7 +48,7 @@ export function RunCard({
       <span className="run-card__head">
         <span className={`status status--${status}`}>{STATUS_LABEL[status]}</span>
         <span className="run-card__meta">
-          {run.origin !== "ui" && <span className="run-card__origin">from {run.origin}</span>}
+          {originLabel !== null && <span className="run-card__origin">{originLabel}</span>}
           <span className="run-card__time">{clockDate(run.created_at)}</span>
         </span>
       </span>

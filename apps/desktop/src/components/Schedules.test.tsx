@@ -190,7 +190,7 @@ describe("Schedules", () => {
       space_id: "space-lab",
       goal: digest.goal,
       status: "pending",
-      origin: "schedule",
+      origin: "automation",
       origin_ref: "sched-1",
       created_at: "2026-09-19T00:00:00Z",
     });
@@ -211,7 +211,7 @@ describe("Schedules", () => {
       space_id: "space-lab",
       goal: digest.goal,
       status: "pending",
-      origin: "schedule",
+      origin: "automation",
       origin_ref: "sched-1",
       created_at: "2026-09-19T00:00:00Z",
     });

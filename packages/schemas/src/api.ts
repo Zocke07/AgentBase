@@ -136,7 +136,7 @@ export interface CreateAgentRequest {
 export interface CreateRunRequest {
   goal: string;
   space_id?: string | null;
-  origin?: "ui" | "discord" | "schedule";
+  origin?: "ui" | "discord" | "schedule" | "automation";
   origin_ref?: string | null;
   excluded_citations?: string[];
   supervised?: boolean;
@@ -467,7 +467,7 @@ export interface Run {
   space_id: string;
   goal: string;
   status: "pending" | "running" | "paused" | "completed" | "failed" | "cancelled";
-  origin: "ui" | "discord" | "schedule";
+  origin: "ui" | "discord" | "schedule" | "automation";
   origin_ref?: string | null;
   created_at: string;
   finished_at?: string | null;

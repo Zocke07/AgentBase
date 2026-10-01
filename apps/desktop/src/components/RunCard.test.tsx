@@ -42,4 +42,22 @@ describe("RunCard", () => {
     expect(goal?.textContent).toBe(run.goal);
     expect(goal?.getAttribute("title")).toBe(run.goal);
   });
+
+  it("distinguishes Run now from a timed schedule", () => {
+    const run: Run = {
+      id: "run-now",
+      space_id: "space-main",
+      goal: "Collect the inputs now",
+      status: "completed",
+      origin: "automation",
+      origin_ref: "schedule-collect",
+      created_at: "2026-10-01T02:00:00Z",
+      finished_at: "2026-10-01T02:01:00Z",
+    };
+
+    render(<RunCard run={run} onOpen={vi.fn()} />);
+
+    expect(screen.getByTestId("run-card-run-now").textContent).toContain("started with Run now");
+    expect(screen.getByTestId("run-card-run-now").textContent).not.toContain("from schedule");
+  });
 });

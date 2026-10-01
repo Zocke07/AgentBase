@@ -1219,7 +1219,8 @@ async def _scheduled_writer_run(
     return run.id, reconstruct(await store.read(run.id))
 
 
-async def test_an_unanswered_question_in_a_scheduled_run_expires_and_the_run_goes_on(
+@pytest.mark.parametrize("origin", ["schedule", "automation"])
+async def test_an_unanswered_question_in_an_unattended_run_expires_and_the_run_goes_on(
     store: EventStore,
     settings: SettingsStore,
     agents: AgentDefStore,
@@ -1227,6 +1228,7 @@ async def test_an_unanswered_question_in_a_scheduled_run_expires_and_the_run_goe
     secrets: SecretStore,
     db: Database,
     workspace: Path,
+    origin: RunOrigin,
 ) -> None:
     await settings.update({"unattended_question_seconds": 0})
     runtime, service = tool_runtime(store, db, workspace)
@@ -1245,6 +1247,7 @@ async def test_an_unanswered_question_in_a_scheduled_run_expires_and_the_run_goe
                 says("Again.", call("write_file", "w2", path="a.md", content="x")),
                 says("Giving up.", call("finish", "w3", result="Could not write a.md.")),
             ],
+            origin=origin,
         ),
         timeout=10,
     )
