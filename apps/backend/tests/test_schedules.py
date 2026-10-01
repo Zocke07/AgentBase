@@ -10,12 +10,14 @@ can reset their zone.
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from datetime import UTC, datetime, timedelta, tzinfo
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from agentbase.events.types import EventType
 from agentbase.orchestrator.scheduler import MISSED_AFTER, Fired, ScheduleBusyError, Scheduler
 from agentbase.store.db import LATEST_SCHEMA_VERSION
 from agentbase.store.schedules import (
@@ -719,6 +721,214 @@ async def test_a_run_that_did_not_complete_stops_the_chain_and_says_so(
 
     assert fired == [Fired(stage.id, None, f"Not started: Morning collection's run {words}.")]
     assert len(launcher.launched) == 1
+
+
+async def test_the_seeded_investment_chain_stops_after_a_completed_run_with_price_errors(
+    schedules: ScheduleStore, scheduler: Scheduler, launcher: FakeLauncher, store: EventStore
+) -> None:
+    morning = await schedules.update("a7e2c1d0-5b3f-4c6a-9e81-0f4d2b7c9a11", {"enabled": True})
+    theses = await schedules.update("b8f3d2e1-6c4a-4d7b-8f92-1a5e3c8dab22", {"enabled": True})
+    run = await scheduler.run_now(morning)
+    await store.append(
+        run.id,
+        EventType.TOOL_ERROR,
+        {"tool": "http_get", "error": "Yahoo returned HTTP 429."},
+    )
+    await _finish(store, run.id, "completed")
+
+    fired = await scheduler.on_run_finished(run.id)
+
+    assert fired == [
+        Fired(theses.id, None, "Not started: Morning collection had tool or model errors.")
+    ]
+    assert len(launcher.launched) == 1
+
+
+async def test_a_non_pipeline_chain_keeps_its_existing_completed_run_semantics(
+    schedules: ScheduleStore, scheduler: Scheduler, launcher: FakeLauncher, store: EventStore
+) -> None:
+    first = await schedules.create(_fields(name="Custom collection"))
+    next_stage = await schedules.create(_after(first.id, name="Custom review"))
+    run = await scheduler.run_now(first)
+    await store.append(run.id, EventType.TOOL_ERROR, {"tool": "http_get", "error": "failed"})
+    await _finish(store, run.id, "completed")
+
+    (fired,) = await scheduler.on_run_finished(run.id)
+
+    assert fired.schedule_id == next_stage.id and fired.run_id is not None
+    assert len(launcher.launched) == 2
+
+
+async def test_the_seeded_investment_chain_requires_a_new_verified_price_session_and_portfolio(
+    schedules: ScheduleStore, scheduler: Scheduler, launcher: FakeLauncher, store: EventStore
+) -> None:
+    morning = await schedules.update("a7e2c1d0-5b3f-4c6a-9e81-0f4d2b7c9a11", {"enabled": True})
+    theses = await schedules.update("b8f3d2e1-6c4a-4d7b-8f92-1a5e3c8dab22", {"enabled": True})
+    no_session = await scheduler.run_now(morning)
+    await store.append(
+        no_session.id,
+        EventType.TOOL_RESULT,
+        {
+            "tool": "read_prices",
+            "result": json.dumps(
+                {
+                    "new_session": False,
+                    "as_of": "2026-09-30",
+                    "summary": [{"ticker": "AAPL"}],
+                    "failures": [],
+                }
+            ),
+        },
+    )
+    await _finish(store, no_session.id, "completed")
+    assert await scheduler.on_run_finished(no_session.id) == [
+        Fired(
+            theses.id,
+            None,
+            "Not started: Morning collection had no new verified market session.",
+        )
+    ]
+
+    fresh = await scheduler.run_now(morning)
+    await store.append(
+        fresh.id,
+        EventType.TOOL_RESULT,
+        {
+            "tool": "read_prices",
+            "result": json.dumps(
+                {
+                    "new_session": True,
+                    "as_of": "2026-10-01",
+                    "summary": [{"ticker": "AAPL"}],
+                    "failures": [],
+                }
+            ),
+        },
+    )
+    await _finish(store, fresh.id, "completed")
+    assert await scheduler.on_run_finished(fresh.id) == [
+        Fired(theses.id, None, "Not started: Morning collection did not compute the portfolio.")
+    ]
+
+    complete = await scheduler.run_now(morning)
+    await store.append(
+        complete.id,
+        EventType.TOOL_RESULT,
+        {
+            "tool": "read_prices",
+            "result": json.dumps(
+                {
+                    "new_session": True,
+                    "as_of": "2026-10-01",
+                    "summary": [{"ticker": "AAPL"}],
+                    "failures": [],
+                }
+            ),
+        },
+    )
+    await store.append(
+        complete.id,
+        EventType.TOOL_RESULT,
+        {"tool": "compute_portfolio", "result": "{}"},
+    )
+    await _finish(store, complete.id, "completed")
+    (fired,) = await scheduler.on_run_finished(complete.id)
+    assert fired.schedule_id == theses.id and fired.run_id is not None
+    assert len(launcher.launched) == 4
+
+
+async def test_the_seeded_investment_chain_stops_on_partial_price_data(
+    schedules: ScheduleStore, scheduler: Scheduler, launcher: FakeLauncher, store: EventStore
+) -> None:
+    morning = await schedules.update("a7e2c1d0-5b3f-4c6a-9e81-0f4d2b7c9a11", {"enabled": True})
+    theses = await schedules.update("b8f3d2e1-6c4a-4d7b-8f92-1a5e3c8dab22", {"enabled": True})
+    run = await scheduler.run_now(morning)
+    await store.append(
+        run.id,
+        EventType.TOOL_RESULT,
+        {
+            "tool": "read_prices",
+            "result": json.dumps(
+                {
+                    "new_session": True,
+                    "as_of": "2026-10-01",
+                    "summary": [{"ticker": "AAPL"}],
+                    "failures": [{"ticker": "JPM", "error": "HTTP 429"}],
+                }
+            ),
+        },
+    )
+    await store.append(
+        run.id, EventType.TOOL_RESULT, {"tool": "compute_portfolio", "result": "{}"}
+    )
+    await _finish(store, run.id, "completed")
+
+    assert await scheduler.on_run_finished(run.id) == [
+        Fired(theses.id, None, "Not started: Morning collection had incomplete price data.")
+    ]
+    assert len(launcher.launched) == 1
+
+
+async def test_the_seeded_investment_chain_needs_verified_limits_before_decision(
+    schedules: ScheduleStore, scheduler: Scheduler, launcher: FakeLauncher, store: EventStore
+) -> None:
+    theses = await schedules.update("b8f3d2e1-6c4a-4d7b-8f92-1a5e3c8dab22", {"enabled": True})
+    decision = await schedules.update("c9a4e3f2-7d5b-4e8c-9a03-2b6f4d9ebc33", {"enabled": True})
+    run = await scheduler.run_now(theses)
+    await _finish(store, run.id, "completed")
+
+    assert await scheduler.on_run_finished(run.id) == [
+        Fired(
+            decision.id, None, "Not started: Theses and risk did not complete hard-rule checks."
+        )
+    ]
+    assert len(launcher.launched) == 1
+
+
+async def test_the_seeded_investment_chain_starts_decision_only_after_the_risk_file_is_written(
+    schedules: ScheduleStore, scheduler: Scheduler, launcher: FakeLauncher, store: EventStore
+) -> None:
+    theses = await schedules.update("b8f3d2e1-6c4a-4d7b-8f92-1a5e3c8dab22", {"enabled": True})
+    decision = await schedules.update("c9a4e3f2-7d5b-4e8c-9a03-2b6f4d9ebc33", {"enabled": True})
+    incomplete = await scheduler.run_now(theses)
+    await store.append(
+        incomplete.id,
+        EventType.TOOL_RESULT,
+        {"tool": "check_limits", "result": json.dumps({"date": "2026-10-01", "items": []})},
+    )
+    await _finish(store, incomplete.id, "completed")
+    assert await scheduler.on_run_finished(incomplete.id) == [
+        Fired(decision.id, None, "Not started: Theses and risk did not write the risk review.")
+    ]
+
+    complete = await scheduler.run_now(theses)
+    await store.append(
+        complete.id,
+        EventType.TOOL_RESULT,
+        {"tool": "check_limits", "result": json.dumps({"date": "2026-10-01", "items": []})},
+    )
+    await store.append(
+        complete.id,
+        EventType.TOOL_CALLED,
+        {
+            "tool": "write_file",
+            "call_id": "risk-write",
+            "args": {"path": "risk/checks-2026-10-01.json", "content": "{}"},
+        },
+    )
+    await store.append(
+        complete.id,
+        EventType.TOOL_RESULT,
+        {
+            "tool": "write_file",
+            "call_id": "risk-write",
+            "result": "wrote risk/checks-2026-10-01.json",
+        },
+    )
+    await _finish(store, complete.id, "completed")
+    (fired,) = await scheduler.on_run_finished(complete.id)
+    assert fired.schedule_id == decision.id and fired.run_id is not None
+    assert len(launcher.launched) == 3
 
 
 async def test_only_automation_linked_runs_start_stages_and_nothing_starts_after_close(

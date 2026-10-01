@@ -312,4 +312,3 @@ RULES
   phrased so a human can accept or reject it standalone. Never propose a memory
   that encodes a market view.'
    AND allowed_tools = '["read_file","list_dir","write_file","propose_memory"]';
-

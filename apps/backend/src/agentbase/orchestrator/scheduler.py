@@ -20,15 +20,18 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Final
 
+from agentbase.events.types import EventType
 from agentbase.store.schedules import AfterCadence
 from agentbase.store.spaces import SpaceArchivedError, SpaceNotFoundError
 
 if TYPE_CHECKING:
+    from agentbase.events.types import Event
     from agentbase.events.types import Run as RunRow
     from agentbase.orchestrator.launcher import RunLauncher
     from agentbase.store.schedules import Schedule, ScheduleStore
@@ -42,6 +45,79 @@ DEFAULT_POLL_SECONDS: Final[float] = 60.0
 
 #: Startup-due threshold distinguishing closed-app work from sidecar startup.
 MISSED_AFTER: Final[timedelta] = timedelta(minutes=2)
+
+_MORNING_PIPELINE_ID: Final[str] = "a7e2c1d0-5b3f-4c6a-9e81-0f4d2b7c9a11"
+_THESES_PIPELINE_ID: Final[str] = "b8f3d2e1-6c4a-4d7b-8f92-1a5e3c8dab22"
+_PIPELINE_PARENTS: Final[frozenset[str]] = frozenset(
+    {_MORNING_PIPELINE_ID, _THESES_PIPELINE_ID}
+)
+
+
+def _result_objects(events: list[Event], tool: str) -> list[dict[str, object]]:
+    """Only successful tool results count as verified pipeline inputs."""
+    results: list[dict[str, object]] = []
+    for event in events:
+        if event.type != EventType.TOOL_RESULT or event.payload.get("tool") != tool:
+            continue
+        raw = event.payload.get("result")
+        if not isinstance(raw, str):
+            continue
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            results.append(parsed)
+    return results
+
+
+def _pipeline_block_reason(schedule_id: str, events: list[Event]) -> str | None:
+    """Do not turn a completed-but-broken investment run into a chain success."""
+    if schedule_id not in _PIPELINE_PARENTS:
+        return None
+    if any(
+        event.type in {EventType.TOOL_ERROR, EventType.TOOL_DENIED, EventType.LLM_ERROR}
+        for event in events
+    ):
+        return "had tool or model errors."
+
+    if schedule_id == _MORNING_PIPELINE_ID:
+        prices = _result_objects(events, "read_prices")
+        if not prices:
+            return "had no verified read_prices result."
+        if any(result.get("failures") for result in prices):
+            return "had incomplete price data."
+        if not any(result.get("new_session") is True for result in prices):
+            return "had no new verified market session."
+        if not any(
+            isinstance(result.get("summary"), list) and bool(result["summary"])
+            for result in prices
+        ):
+            return "had no verified price rows."
+        if not _result_objects(events, "compute_portfolio"):
+            return "did not compute the portfolio."
+        return None
+
+    checks = _result_objects(events, "check_limits")
+    dates = {result.get("date") for result in checks if isinstance(result.get("date"), str)}
+    if not dates:
+        return "did not complete hard-rule checks."
+    writes = {
+        event.payload.get("call_id"): event.payload.get("args", {}).get("path")
+        for event in events
+        if event.type == EventType.TOOL_CALLED
+        and event.payload.get("tool") == "write_file"
+        and isinstance(event.payload.get("args"), dict)
+    }
+    if not any(
+        event.type == EventType.TOOL_RESULT
+        and event.payload.get("tool") == "write_file"
+        and writes.get(event.payload.get("call_id")) == f"risk/checks-{checked}.json"
+        for checked in dates
+        for event in events
+    ):
+        return "did not write the risk review."
+    return None
 
 
 class ScheduleBusyError(RuntimeError):
@@ -244,13 +320,21 @@ class Scheduler:
         parent = await self.schedules.get(run.origin_ref)
         name = parent.name if parent is not None else "the schedule before it"
         now = self.schedules.now()
+        pipeline_reason = (
+            _pipeline_block_reason(run.origin_ref, await self.launcher.store.read(run_id))
+            if run.status == "completed" and run.origin_ref in _PIPELINE_PARENTS
+            else None
+        )
         fired: list[Fired] = []
         for follower in followers:
-            if run.status == "completed":
+            if run.status == "completed" and pipeline_reason is None:
                 fired.append(await self._fire(follower, now, note=f"it follows {name}"))
                 continue
-            ended = "was cancelled" if run.status == "cancelled" else "did not finish"
-            outcome = f"Not started: {name}'s run {ended}."
+            if pipeline_reason is not None:
+                outcome = f"Not started: {name} {pipeline_reason}"
+            else:
+                ended = "was cancelled" if run.status == "cancelled" else "did not finish"
+                outcome = f"Not started: {name}'s run {ended}."
             await self.schedules.note_outcome(follower.id, now=now, outcome=outcome)
             logger.info("schedule %s: %s", follower.name, outcome)
             fired.append(Fired(follower.id, None, outcome))
