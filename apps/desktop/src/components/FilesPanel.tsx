@@ -3,15 +3,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
+import { VIEW_LABELS, VISUAL_TEMPLATES, viewsFor, type FileView } from "../lib/fileViews";
 import { STARTERS } from "../lib/pipeline";
 import { scrollToActive } from "../lib/scroll";
+import { fileKind, uniquePath, type FileKind } from "../lib/visualization";
 import { isWorkingFile } from "../state/files";
 import { useFetched } from "../state/useFetched";
 
+import { ChartFile, DashboardFile, DataChart, DiagramFile } from "./FileViews";
+
 /**
  * Space-folder plain-text config/data files (for example, watchlist JSON, raw
- * JSON, positions CSV). Source-only list/editor validates JSON before saving
- * and uses sidecar note-equivalent path rules.
+ * JSON, positions CSV). The editor validates JSON before saving and uses
+ * sidecar note-equivalent path rules. A data file can be drawn as a chart,
+ * and a saved chart, dashboard or diagram opens drawn.
  */
 
 export interface FilesPanelProps {
@@ -31,6 +36,10 @@ export interface OpenFile {
   path: string;
   /** True for a file that does not exist yet: the path is still being typed. */
   fresh: boolean;
+  /** A new file's first text, from a template. */
+  content?: string | undefined;
+  /** What the template is for, shown above the new file. */
+  purpose?: string | undefined;
 }
 
 const NO_FILES: TextFileSummary[] = [];
@@ -54,6 +63,34 @@ function fileType(path: string): string {
   const separator = name.lastIndexOf(".");
   return separator < 0 ? "FILE" : name.slice(separator + 1).toUpperCase();
 }
+
+/** A drawn file by what it is; any other by its extension. */
+const DRAWN_TYPES: Partial<Record<FileKind, string>> = {
+  chart: "Chart",
+  dashboard: "Dashboard",
+  diagram: "Diagram",
+};
+
+function typeLabel(path: string): string {
+  return DRAWN_TYPES[fileKind(path)] ?? fileType(path);
+}
+
+/** The editor's small heading over the file name. */
+const EYEBROWS: Readonly<Record<FileKind, string>> = {
+  data: "Data file",
+  chart: "Saved chart",
+  dashboard: "Dashboard",
+  diagram: "Diagram",
+  text: "Agent file",
+};
+
+const SAVE_LABELS: Readonly<Record<FileKind, string>> = {
+  data: "Save file",
+  chart: "Save chart",
+  dashboard: "Save dashboard",
+  diagram: "Save diagram",
+  text: "Save file",
+};
 
 function fileGroup(path: string): string {
   return path.includes("/") ? path.slice(0, path.indexOf("/")) : "";
@@ -139,15 +176,39 @@ export function FilesPanel({ spaceId, part, open, onOpen, onChanged, reloadNonce
               aria-label="Create from template"
               value=""
               onChange={(event) => {
-                if (event.target.value !== "") onOpen({ path: event.target.value, fresh: true });
+                const chosen = event.target.value;
+                if (chosen === "") return;
+                const visual = VISUAL_TEMPLATES.find((template) => template.id === chosen);
+                onOpen(
+                  visual === undefined
+                    ? { path: chosen, fresh: true }
+                    : {
+                        path: uniquePath(
+                          visual.path,
+                          list.map((file) => file.path),
+                        ),
+                        fresh: true,
+                        content: visual.content,
+                        purpose: visual.purpose,
+                      },
+                );
               }}
             >
               <option value="">From template…</option>
-              {STARTERS.map((starter) => (
-                <option key={starter.path} value={starter.path}>
-                  {starter.path}
-                </option>
-              ))}
+              <optgroup label="Charts and diagrams">
+                {VISUAL_TEMPLATES.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.label}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Investment pipeline">
+                {STARTERS.map((starter) => (
+                  <option key={starter.path} value={starter.path}>
+                    {starter.path}
+                  </option>
+                ))}
+              </optgroup>
             </select>
           </label>
         </div>
@@ -208,17 +269,17 @@ export function FilesPanel({ spaceId, part, open, onOpen, onChanged, reloadNonce
                             type="button"
                             className={`files__item${open?.path === file.path ? " files__item--active" : ""}`}
                             aria-current={open?.path === file.path ? "true" : undefined}
-                            aria-label={`${file.path}, ${fileType(file.path)}, ${sizeLabel(file.size)}`}
+                            aria-label={`${file.path}, ${typeLabel(file.path)}, ${sizeLabel(file.size)}`}
                             title={`${file.path} · ${sizeLabel(file.size)}`}
                             onClick={() => {
                               onOpen({ path: file.path, fresh: false });
                             }}
                           >
-                            <span className="files__file-icon" aria-hidden="true">{fileType(file.path).slice(0, 1)}</span>
+                            <span className="files__file-icon" aria-hidden="true">{typeLabel(file.path).slice(0, 1)}</span>
                             <span className="files__identity">
                               <span className="files__name">{parts.name}</span>
                               <span className="files__meta">
-                                {nested !== "" && `${nested} · `}{fileType(file.path)} · {sizeLabel(file.size)}
+                                {nested !== "" && `${nested} · `}{typeLabel(file.path)} · {sizeLabel(file.size)}
                               </span>
                             </span>
                           </button>
@@ -238,7 +299,14 @@ export function FilesPanel({ spaceId, part, open, onOpen, onChanged, reloadNonce
   if (open === null) {
     return (
       <div className="files__placeholder" data-testid="files-editor">
-        <p>Pick an agent file on the left, or create one. These are plain-text inputs and outputs in the space folder; agents read them with read_file.</p>
+        <p>
+          Pick an agent file on the left, or create one. These are plain-text inputs and outputs in the space folder;
+          agents read them with read_file.
+        </p>
+        <p>
+          A CSV or JSON file can be drawn as a chart, and a saved chart, dashboard or diagram opens drawn. New ones
+          start from the template list.
+        </p>
       </div>
     );
   }
@@ -248,6 +316,7 @@ export function FilesPanel({ spaceId, part, open, onOpen, onChanged, reloadNonce
       key={`${spaceId}:${open.path}:${String(open.fresh)}`}
       spaceId={spaceId}
       open={open}
+      files={list}
       onSaved={(path) => {
         files.reload();
         onOpen({ path, fresh: false });
@@ -268,19 +337,23 @@ export function FilesPanel({ spaceId, part, open, onOpen, onChanged, reloadNonce
 function FileEditor({
   spaceId,
   open,
+  files,
   onSaved,
   onDeleted,
   onCancel,
 }: {
   spaceId: string;
   open: OpenFile;
+  /** The space's files, for the data and charts a chart or dashboard can use. */
+  files: readonly TextFileSummary[];
   onSaved: (path: string) => void;
   onDeleted: () => void;
   onCancel: () => void;
 }) {
   const starter = STARTERS.find((candidate) => candidate.path === open.path);
+  const purpose = open.fresh ? (open.purpose ?? starter?.why) : starter?.why;
   const [path, setPath] = useState(open.path);
-  const [content, setContent] = useState(open.fresh ? (starter?.content ?? "") : "");
+  const [content, setContent] = useState(open.fresh ? (open.content ?? starter?.content ?? "") : "");
   const [baseline, setBaseline] = useState(open.fresh ? "" : null as string | null);
   const [loading, setLoading] = useState(!open.fresh);
   const [error, setError] = useState<string | null>(null);
@@ -311,7 +384,11 @@ function FileEditor({
   const dirty = baseline === null ? true : content !== baseline;
   const isJson = path.trim().toLowerCase().endsWith(".json");
   const identity = pathParts(path);
-  const kind = fileType(path);
+  const kind = fileKind(path);
+  // A file opens in its first view; the person's choice holds while it fits.
+  const views = viewsFor(kind);
+  const [chosenView, setChosenView] = useState<FileView | null>(null);
+  const view = chosenView !== null && views.includes(chosenView) ? chosenView : (views[0] ?? "text");
 
   const save = async () => {
     setError(null);
@@ -357,13 +434,30 @@ function FileEditor({
     <div className="file-editor" data-testid="files-editor">
       <div className="file-editor__head">
         <div className="file-editor__identity">
-          <span className="file-editor__eyebrow">Agent file</span>
+          <span className="file-editor__eyebrow">{EYEBROWS[kind]}</span>
           <h2>{identity.name || "New agent file"}</h2>
           {path !== "" && (
-            <p>{identity.directory === "" ? "Space root" : `${identity.directory}/`} · {kind}</p>
+            <p>{identity.directory === "" ? "Space root" : `${identity.directory}/`} · {typeLabel(path)}</p>
           )}
         </div>
         <div className="file-editor__actions">
+          {views.length > 1 && (
+            <div className="knowledge__modes file-editor__views" role="group" aria-label="Show as">
+              {views.map((choice) => (
+                <button
+                  type="button"
+                  key={choice}
+                  aria-pressed={view === choice}
+                  disabled={loading}
+                  onClick={() => {
+                    setChosenView(choice);
+                  }}
+                >
+                  {VIEW_LABELS[choice]}
+                </button>
+              ))}
+            </div>
+          )}
           {!loading && dirty && <span className="file-editor__dirty">Unsaved changes</span>}
           {!open.fresh &&
             (deleteAsked ? (
@@ -399,13 +493,13 @@ function FileEditor({
             Close
           </button>
           <button type="button" className="button button--small button--primary" disabled={busy || loading || !dirty} onClick={() => void save()}>
-            {busy ? "Saving…" : "Save file"}
+            {busy ? "Saving…" : SAVE_LABELS[kind]}
           </button>
         </div>
       </div>
-      {starter !== undefined && (
+      {purpose !== undefined && (
         <p className="file-editor__purpose">
-          <strong>Purpose:</strong> {starter.why}
+          <strong>Purpose:</strong> {purpose}
         </p>
       )}
       {open.fresh && (
@@ -427,20 +521,31 @@ function FileEditor({
           {error}
         </p>
       )}
-      <textarea
-        className="file-editor__text"
-        aria-label="File contents"
-        spellCheck={false}
-        value={loading ? "Loading…" : content}
-        disabled={loading}
-        onChange={(changed) => {
-          setContent(changed.target.value);
-        }}
-      />
+      {view === "text" || loading ? (
+        <textarea
+          className="file-editor__text"
+          aria-label="File contents"
+          spellCheck={false}
+          value={loading ? "Loading…" : content}
+          disabled={loading}
+          onChange={(changed) => {
+            setContent(changed.target.value);
+          }}
+        />
+      ) : view === "chart" && kind === "data" ? (
+        <DataChart spaceId={spaceId} path={path} content={content} dirty={dirty} files={files} onSaved={onSaved} />
+      ) : view === "chart" ? (
+        <ChartFile spaceId={spaceId} content={content} onContent={setContent} files={files} />
+      ) : view === "dashboard" ? (
+        <DashboardFile spaceId={spaceId} content={content} onContent={setContent} files={files} />
+      ) : (
+        <DiagramFile content={content} title={identity.name.replace(/\.(?:mmd|mermaid)$/i, "")} onContent={setContent} />
+      )}
       <p className="file-editor__hint">
-        {isJson ? "JSON is checked before it is saved. " : ""}
-        An agent with read_file sees this file; one with write_file may change it, behind the same
-        approval as any write.
+        {view === "text" && isJson ? "JSON is checked before it is saved. " : ""}
+        {view === "text"
+          ? "An agent with read_file sees this file; one with write_file may change it, behind the same approval as any write."
+          : "Saved as an ordinary file: an agent with write_file can create or change it, behind the same approval as any write."}
       </p>
     </div>
   );

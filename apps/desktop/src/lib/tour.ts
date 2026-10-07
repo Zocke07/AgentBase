@@ -67,20 +67,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     section: "runs",
   },
   {
-    title: "Knowledge and saved context",
+    title: "Knowledge, files and charts",
     body:
-      "The space folder is a vault with notes, tags, links and a graph. Finished runs can leave useful summaries. " +
-      "Keep one to make it available to future runs, or dismiss it.",
+      "Everything the space keeps is here. The Journal reads each day's reports as one page; notes link and tag " +
+      "like a vault; a CSV or JSON file can be drawn as a chart, and dashboards open drawn. Finished runs can leave " +
+      "summaries in Saved context for future runs.",
     target: "rail-knowledge",
     section: "knowledge",
-  },
-  {
-    title: "Visualize the evidence",
-    body:
-      "Turn CSV and JSON into charts, combine saved charts into dashboards, or render Mermaid diagrams. " +
-      "The definitions are ordinary files, so agents can create and update them behind the normal approval gate.",
-    target: "rail-visualize",
-    section: "visualize",
   },
   {
     title: "That is the whole app",

@@ -7,7 +7,6 @@ export type Section =
   | "runs"
   | "agents"
   | "knowledge"
-  | "visualize"
   | "usage"
   | "space"
   | "settings";
@@ -18,7 +17,6 @@ export const SECTION_ORDER: readonly Section[] = [
   "runs",
   "agents",
   "knowledge",
-  "visualize",
   "usage",
   "space",
   "settings",

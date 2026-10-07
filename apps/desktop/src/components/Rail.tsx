@@ -80,16 +80,6 @@ const SECTIONS: readonly { id: Section; label: string; icon: ReactNode }[] = [
     ),
   },
   {
-    id: "visualize",
-    label: "Visualize",
-    icon: (
-      <svg viewBox="0 0 20 20" aria-hidden="true" data-icon="visualization">
-        <path d="M3 3.5v13h14V15H4.5V3.5z" />
-        <path d="m5.5 12.8 3.2-3.4 2.5 2.1 4.2-5.1 1.2 1-5.2 6.2-2.6-2.1-2.2 2.3z" />
-      </svg>
-    ),
-  },
-  {
     id: "usage",
     label: "Usage",
     icon: (

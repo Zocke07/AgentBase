@@ -3,15 +3,43 @@ import { describe, expect, it } from "vitest";
 import {
   DASHBOARD_SCHEMA,
   VISUALIZATION_SCHEMA,
+  blankVisualization,
   dashboardJson,
   defaultVisualization,
+  fileKind,
   parseDashboardSpec,
   parseDataFile,
   parseVisualizationSpec,
   prepareChart,
   type VisualizationSpec,
+  uniquePath,
   visualizationJson,
 } from "./visualization";
+
+describe("agent files Knowledge can draw", () => {
+  it("knows a file's kind by its name", () => {
+    expect(fileKind("visualizations/pipeline.dashboard.json")).toBe("dashboard");
+    expect(fileKind("visualizations/daily-change.viz.json")).toBe("chart");
+    expect(fileKind("visualizations/flow.MMD")).toBe("diagram");
+    expect(fileKind("visualizations/flow.mermaid")).toBe("diagram");
+    expect(fileKind("raw/prices/summary.csv")).toBe("data");
+    expect(fileKind("theses/bull-2026-10-06.jsonl")).toBe("data");
+    expect(fileKind("config/watchlist.json")).toBe("data");
+    expect(fileKind("notes/readme.txt")).toBe("text");
+  });
+
+  it("names a new file after the ones already there, whatever their case", () => {
+    const taken = ["visualizations/Sales.viz.json", "visualizations/sales-2.viz.json", "visualizations/flow.mmd"];
+    expect(uniquePath("visualizations/sales.viz.json", taken)).toBe("visualizations/sales-3.viz.json");
+    expect(uniquePath("visualizations/flow.mmd", taken)).toBe("visualizations/flow-2.mmd");
+    expect(uniquePath("visualizations/new.dashboard.json", taken)).toBe("visualizations/new.dashboard.json");
+    expect(uniquePath("notes", ["notes"])).toBe("notes-2");
+  });
+
+  it("keeps a chart without data a valid chart file", () => {
+    expect(parseVisualizationSpec(visualizationJson(blankVisualization("Chart")))).toMatchObject({ source: "", chart: "table" });
+  });
+});
 
 describe("visualization data", () => {
   it("parses quoted CSV, infers columns and prepares multiple series", () => {

@@ -145,6 +145,62 @@ export function dashboardJson(spec: DashboardSpec): string {
   return `${JSON.stringify({ ...spec, $schema: DASHBOARD_SCHEMA }, null, 2)}\n`;
 }
 
+/** What an agent file holds, which decides how Knowledge can draw it. */
+export type FileKind = "data" | "chart" | "dashboard" | "diagram" | "text";
+
+const DATA_SUFFIXES = [".csv", ".tsv", ".json", ".jsonl", ".ndjson"] as const;
+
+export function fileKind(path: string): FileKind {
+  const lower = path.trim().toLowerCase();
+  if (lower.endsWith(".viz.json")) return "chart";
+  if (lower.endsWith(".dashboard.json")) return "dashboard";
+  if (lower.endsWith(".mmd") || lower.endsWith(".mermaid")) return "diagram";
+  if (DATA_SUFFIXES.some((suffix) => lower.endsWith(suffix))) return "data";
+  return "text";
+}
+
+/** A chart with no data file chosen yet; it draws once one is. */
+export function blankVisualization(title: string): VisualizationSpec {
+  return {
+    $schema: VISUALIZATION_SCHEMA,
+    title,
+    source: "",
+    chart: "table",
+    x: null,
+    y: [],
+    series: null,
+    aggregate: "none",
+    sort: "source",
+    limit: 250,
+  };
+}
+
+/** `Daily change` as `daily-change`, for a file name. */
+export function slugify(value: string): string {
+  return (
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "chart"
+  );
+}
+
+/**
+ * The path itself if no file has it, else the first free `name-2.viz.json`.
+ * Case is ignored, as the Windows and macOS folders ignore it.
+ */
+export function uniquePath(path: string, taken: readonly string[]): string {
+  const used = new Set(taken.map((item) => item.toLowerCase()));
+  if (!used.has(path.toLowerCase())) return path;
+  const match = /^(.*?)(\.viz\.json|\.dashboard\.json|\.[^./]+)?$/i.exec(path);
+  const stem = match?.[1] ?? path;
+  const suffix = match?.[2] ?? "";
+  for (let copy = 2; ; copy += 1) {
+    const candidate = `${stem}-${String(copy)}${suffix}`;
+    if (!used.has(candidate.toLowerCase())) return candidate;
+  }
+}
+
 export function defaultVisualization(path: string, data: DataSet): VisualizationSpec {
   const numeric = data.columns.filter((column) => column.kind === "number").map((column) => column.name);
   const dimension = defaultDimension(data);

@@ -7032,26 +7032,63 @@ input[type="radio"] {
   font-size: 0.7333rem;
 }
 
-/* --- visualization workspace --------------------------------------------- */
+/* --- drawn agent files: charts, dashboards and diagrams in Knowledge ------- */
 
-.visualize {
-  display: grid;
-  grid-template-columns: 17rem minmax(0, 1fr);
-  height: 100%;
-  min-height: 0;
+.file-editor__views {
+  flex: none;
+}
+
+/* A drawn file fills the editor below its head, as the text area does. */
+.file-view {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 16rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   background: var(--surface);
 }
 
-.visualize__browser {
-  min-width: 0;
-  padding: 0.85rem;
-  overflow-y: auto;
-  border-right: 1px solid var(--border);
+.file-view__bar {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--border);
   background: var(--surface-2);
 }
 
-.visualize__browser-head,
-.visualize__toolbar,
+.file-view__save-as {
+  display: flex;
+  flex: 1;
+  gap: 0.45rem;
+  align-items: center;
+  min-width: 14rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.file-view__save-as input {
+  flex: 1;
+  min-width: 8rem;
+  font-family: var(--mono);
+}
+
+.file-view__error {
+  margin: 0.55rem 0.75rem 0;
+}
+
+.file-view__note {
+  max-width: 40rem;
+  margin: auto;
+  padding: 2rem;
+  color: var(--muted);
+  text-align: center;
+}
+
 .viz-chart__head,
 .viz-chart__actions,
 .mermaid-card__head {
@@ -7061,106 +7098,7 @@ input[type="radio"] {
   justify-content: space-between;
 }
 
-.visualize__browser-head {
-  flex-wrap: wrap;
-}
-
-.visualize__group {
-  margin-top: 1.1rem;
-}
-
-.visualize__group h3 {
-  margin: 0 0 0.3rem 0.4rem;
-  color: var(--muted);
-  font-size: 0.7333rem;
-  font-weight: 600;
-}
-
-.visualize__group ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.visualize__item {
-  width: 100%;
-  padding: 0.38rem 0.45rem;
-  overflow: hidden;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text);
-  font: 0.76rem/1.4 var(--mono);
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.visualize__item:hover {
-  background: var(--surface-3);
-}
-
-.visualize__item--active {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-}
-
-.visualize__empty {
-  color: var(--muted);
-  font-size: 0.8rem;
-}
-
-.visualize__workspace {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.visualize__toolbar {
-  flex-wrap: wrap;
-  justify-content: flex-start;
-  padding: 0.7rem 1rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.visualize__path {
-  display: flex;
-  flex: 1;
-  gap: 0.45rem;
-  align-items: center;
-  min-width: 16rem;
-  margin-left: auto;
-  color: var(--muted);
-  font-size: 0.8rem;
-}
-
-.visualize__path input {
-  flex: 1;
-  min-width: 8rem;
-  font-family: var(--mono);
-}
-
-.visualize__error {
-  margin: 0.65rem 1rem 0;
-}
-
-.visualize__welcome {
-  align-self: center;
-  max-width: 44rem;
-  margin: auto;
-  padding: 2rem;
-  color: var(--muted);
-  text-align: center;
-}
-
-.visualize__welcome h2 {
-  color: var(--text);
-}
-
-.visualize__editor,
+.chart-editor,
 .diagram-editor {
   display: grid;
   grid-template-columns: 15rem minmax(0, 1fr);
@@ -7168,7 +7106,7 @@ input[type="radio"] {
   min-height: 0;
 }
 
-.visualize__controls,
+.chart-editor__controls,
 .dashboard-editor__controls,
 .diagram-editor__source {
   display: flex;
@@ -7180,7 +7118,7 @@ input[type="radio"] {
   background: var(--surface-2);
 }
 
-.visualize__controls>label,
+.chart-editor__controls>label,
 .dashboard-editor__controls>label,
 .diagram-editor__source>label {
   display: flex;
@@ -7193,15 +7131,15 @@ input[type="radio"] {
 
 /* Text fields and pickers fill the column; a checkbox keeps its own size, or
    it takes the row and squeezes its label against the far edge. */
-.visualize__controls input:not([type="checkbox"]),
-.visualize__controls select,
+.chart-editor__controls input:not([type="checkbox"]),
+.chart-editor__controls select,
 .dashboard-editor__controls input:not([type="checkbox"]),
 .dashboard-editor__controls select,
 .diagram-editor__source input {
   width: 100%;
 }
 
-.visualize__values,
+.chart-editor__values,
 .dashboard-editor__controls fieldset {
   display: flex;
   flex-direction: column;
@@ -7213,14 +7151,14 @@ input[type="radio"] {
   font-size: 0.8rem;
 }
 
-.visualize__values legend,
+.chart-editor__values legend,
 .dashboard-editor__controls legend {
   color: var(--muted);
   font-size: 0.7333rem;
   font-weight: 600;
 }
 
-.visualize__values label,
+.chart-editor__values label,
 .dashboard-editor__controls fieldset label {
   display: flex;
   gap: 0.45rem;
@@ -7231,14 +7169,16 @@ input[type="radio"] {
   cursor: pointer;
 }
 
-.visualize__values input[type="checkbox"],
+.chart-editor__values input[type="checkbox"],
 .dashboard-editor__controls fieldset input[type="checkbox"] {
   flex: none;
   margin: 0.1rem 0 0;
 }
 
-.visualize__preview,
+.chart-editor__preview,
 .diagram-editor__preview {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
   padding: 1rem;
@@ -7434,28 +7374,26 @@ input[type="radio"] {
    out in columns so they do not push the chart far down. */
 @media (max-width: 1100px) {
   .dashboard--3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .visualize { grid-template-columns: 13rem minmax(0, 1fr); }
-  .visualize__editor,
+  .chart-editor,
   .diagram-editor,
   .dashboard-editor { grid-template-columns: 1fr; grid-template-rows: auto 1fr; overflow: auto; }
-  .visualize__controls,
+  .chart-editor__controls,
   .dashboard-editor__controls,
   .diagram-editor__source { overflow: visible; border-right: 0; border-bottom: 1px solid var(--border); }
-  .visualize__controls {
+  .chart-editor__controls {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
     align-items: start;
   }
-  .visualize__preview,
+  .chart-editor__preview,
   .diagram-editor__preview { overflow: visible; }
 }
 
 @media (max-width: 850px) {
-  .visualize { grid-template-columns: 13rem minmax(0, 1fr); }
-  .visualize__editor,
+  .chart-editor,
   .diagram-editor,
   .dashboard-editor { grid-template-columns: 1fr; overflow: auto; }
-  .visualize__controls,
+  .chart-editor__controls,
   .dashboard-editor__controls,
   .diagram-editor__source { overflow: visible; border-right: 0; border-bottom: 1px solid var(--border); }
   .dashboard--2,

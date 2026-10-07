@@ -19,7 +19,6 @@ import { SpaceSettingsView } from "./components/SpaceSettingsView";
 import { StartupScreen } from "./components/StartupScreen";
 import { Tour } from "./components/Tour";
 import { UsageView } from "./components/UsageView";
-import { VisualizationView } from "./components/VisualizationView";
 import * as api from "./lib/api";
 import { modelLabel, providerLabel } from "./lib/format";
 import { SECTION_ORDER } from "./lib/sections";
@@ -472,7 +471,6 @@ export function App() {
             {section === "runs" && "Runs"}
             {section === "agents" && "Agents"}
             {section === "knowledge" && "Knowledge"}
-            {section === "visualize" && "Visualize"}
             {section === "usage" && "Usage"}
             {section === "space" && "Space settings"}
             {section === "settings" && "Settings"}
@@ -636,11 +634,6 @@ export function App() {
                   onInboxCount={setInboxCount}
                 />
               )}
-            </ErrorBoundary>
-          </div>
-          <div className="app__view" hidden={section !== "visualize"}>
-            <ErrorBoundary label="the visualization workspace">
-              <VisualizationView key={space?.id ?? "loading"} space={space} active={section === "visualize"} />
             </ErrorBoundary>
           </div>
           <div className="app__view" hidden={section !== "usage"}>

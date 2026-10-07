@@ -294,15 +294,13 @@ describe("switching sections", () => {
     expect(screen.getByTestId("home").closest("[hidden]")).not.toBeNull();
   });
 
-  it("gives visualization and usage distinct navigation symbols", async () => {
+  it("keeps charts in Knowledge, with no separate Visualize section", async () => {
     render(<App />);
     await screen.findByTestId("run-list");
 
-    const visualize = screen.getByRole("button", { name: "Visualize" }).querySelector("svg");
-    const usage = screen.getByRole("button", { name: "Usage" }).querySelector("svg");
-
-    expect(visualize?.getAttribute("data-icon")).toBe("visualization");
-    expect(usage?.getAttribute("data-icon")).toBe("usage");
+    expect(screen.queryByRole("button", { name: "Visualize" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Knowledge" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Usage" }).querySelector("svg")?.getAttribute("data-icon")).toBe("usage");
   });
 
   it("folds the sidebar to icons from its button or Ctrl/Cmd+B, and remembers it", async () => {
