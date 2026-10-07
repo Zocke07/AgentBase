@@ -6,6 +6,48 @@ cover only work actually executed.
 
 ## Phase 17 and run-review UX, 2026-10-01, on `main`, not released
 
+### Fixes from reviewing that chain, and a fresh start, 2026-10-07
+
+The maintainer asked for every fixable finding below to be fixed and the
+generated state cleared.
+
+- **`read_prices` leaves out a session still trading** (`31a4719`), judged by
+  the chart's `currentTradingPeriod`. The `2330.TW` recording, taken at 10:18
+  Taipei, now yields 2026-09-29 until 13:30 and 2026-09-30 after. Live at
+  23:19 Taipei on October 1, AAPL reported 2026-09-30 (49.9 million shares),
+  not the partial day. Each movers row carries `id` `movers-{date}-{SYMBOL}`.
+- **Every agent is told when its run started** (`0116f25`, `1a73c1e`): local
+  time with its offset, and UTC, from `created_at`, in each system prompt.
+  The first version read the run row before `run.started`, and a Discord
+  run's reply then landed first; `test_channels` caught it, and the read now
+  follows `run.started`.
+- **Migration 024** (`cdb7cb9`). The goals name the session's date, not
+  "today's", and Daily decision writes `decisions/{session date}.md`. The
+  architects drop `raw/social-*`, copy figures exactly and may cite a movers
+  `id`. The calendar's `as_of` is its collection time, an auction reads
+  "4-Week Bill auction", and the query starts at the run's date. On a copy of
+  the live database all five guarded rows moved, and their models, tools,
+  policies and `updated_at` stayed.
+- **Executed:** ruff, format and `mypy --strict` on both platforms; the full
+  backend suite, **1091 passed, 12 skipped**, with the two existing warnings.
+  No frontend file changed after `18c30f6`.
+- **Fresh start**, with the app closed and rehearsed first on a copy:
+  - Backup at `.dev/backups/fresh-start-20261007-180033/`, integrity `ok`,
+    with the database, the space and every moved file.
+  - Six runs, 822 events and 65 approvals were removed by the store's own
+    deletion rule. 76 spend rows were detached; all 359 rows remain.
+  - Last-run markers were cleared. Morning collection (missed since October
+    2), Weekly knowledge and Weekly review moved to their next times, so
+    nothing catches up at launch.
+  - 23 generated files moved into the backup. The space holds the three
+    `config/` files and `portfolio/positions.csv`.
+  - A source sidecar on the rehearsed copy migrated it to v24 and started
+    no run.
+
+Not verified: the whole chain in one unattended pass, on a real model, with
+these fixes. The first chance is Morning collection at 07:00 Taipei on
+Thursday 2026-10-08, or **Run now** before then.
+
 ### First chain on the corrected history, and migration 023, 2026-10-01
 
 With the dev app rebuilt, the maintainer moved the default space to ChatGPT
