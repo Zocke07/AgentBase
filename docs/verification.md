@@ -6,6 +6,21 @@ cover only work actually executed.
 
 ## Phase 17 and run-review UX, 2026-10-01, on `main`, not released
 
+### Empty portfolio, and a second fresh start, 2026-10-07
+
+- **An empty portfolio is valid** (`15735a6`). A missing, blank or
+  header-only `positions.csv` made `compute_portfolio` fail, and the tool
+  error stopped the chain. It is now an empty book: every value is 0,
+  `empty_book` is true, a `note` says nothing is recorded, and the currency
+  comes from the saved prices. Tests covered all three forms, then
+  `check_limits` on the result. The full backend suite passed, **1103
+  passed, 12 skipped**.
+- **Second fresh start.** At the maintainer's request the dev app was
+  stopped and backed up to `.dev/backups/fresh-start-20261007-202721/`,
+  integrity `ok`. Five runs, 923 events and 75 approvals were removed, with
+  89 spend rows detached and all 448 kept. Generated files moved into the
+  backup; the space holds the three `config/` files and `positions.csv`.
+
 ### Fewer files in view, 2026-10-07
 
 The maintainer found too many files in Knowledge. One AAPL session already
