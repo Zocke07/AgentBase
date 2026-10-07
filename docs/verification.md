@@ -6,6 +6,46 @@ cover only work actually executed.
 
 ## Phase 17 and run-review UX, 2026-10-01, on `main`, not released
 
+### First one-pass chain after the fresh start, and migration 025, 2026-10-07
+
+The maintainer restarted the dev app (schema 24) and pressed **Run now** on
+Morning collection at 18:10 Taipei, with the US market closed.
+
+- **Morning collection completed** (`b7853d7b`):
+  - `read_prices` reported the complete 2026-10-06 session, although the
+    supervisor had assumed 2026-10-07. The movers row carries its `id`.
+  - The news file is named for the local date and hour.
+  - The calendar used one filtered query. Its five auctions read, for
+    example, "9-Year 10-Month Note auction", and `as_of` is the run's start.
+- **Theses and risk started on its own** (`31cdcc85`):
+  - Bull cited a movers id and a news id and copied 333.63 and 345.34
+    exactly. Bear wrote an empty file.
+  - `check_limits` refused: "portfolio/computed.json is for 2026-10-07, not
+    thesis date 2026-10-06". The gate kept Daily decision from starting.
+- **Two causes:**
+  - Told the time, portfolio-review passed the local date as `as_of`.
+  - Leaving it out would also have failed, a latent fault since Phase 17:
+    with nothing held, `compute_portfolio` dated the book by the day
+    `positions.csv` was saved. October 1 passed only because that file was
+    saved that day.
+- **Fix** (`aabfc70`):
+  - A cash-only book is computed for the newest session in
+    `raw/prices/summary.csv`, and the `as_of` description tells models to
+    leave it out.
+  - Migration 025 has portfolio-review leave `as_of` out and date its review
+    by the computed `as_of`.
+  - The new test reproduces the live failure, `compute_portfolio` then
+    `check_limits` for 2026-10-06. The full backend suite passed, **1095
+    passed, 12 skipped**, and ruff and `mypy` are clean.
+- **Rerun setup:** that session's generated files moved to
+  `.dev/backups/session-2026-10-06-rerun-20261007-184500/`, so **Run now**
+  can treat 2026-10-06 as new again. The two runs stay in history. Automatic
+  management archived their saved-context notes, so no later run retrieves
+  them.
+
+Not verified: the chain to the decision with 025, which needs the dev app
+restarted.
+
 ### Fixes from reviewing that chain, and a fresh start, 2026-10-07
 
 The maintainer asked for every fixable finding below to be fixed and the
