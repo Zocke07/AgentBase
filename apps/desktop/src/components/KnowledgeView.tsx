@@ -27,9 +27,11 @@ import { modelLabel } from "../lib/format";
 import { fuzzyFilter } from "../lib/fuzzy";
 import { forceLayout } from "../lib/graphLayout";
 import { countWords, toggleTaskLine } from "../lib/markdown";
+import { journalDays, journalEntries, journalKinds } from "../state/journal";
 import { useFetched } from "../state/useFetched";
 
 import { FilesPanel, type OpenFile } from "./FilesPanel";
+import { JournalIndex, JournalPage, type JournalFocus } from "./Journal";
 import { KnowledgeEvaluationView } from "./KnowledgeEvaluation";
 import { Markdown } from "./Markdown";
 import { MemoryInbox } from "./MemoryInbox";
@@ -66,7 +68,7 @@ export interface KnowledgeViewProps {
 }
 
 type ViewMode = "split" | "write" | "preview" | "graph" | "evaluate";
-type BrowserMode = "recent" | "notes" | "files" | "memories";
+type BrowserMode = "recent" | "journal" | "notes" | "files" | "memories";
 type NoteFilter = "all" | "pinned" | "orphans" | "unresolved";
 type GraphScope = "vault" | "local";
 
@@ -123,6 +125,9 @@ export function KnowledgeView({
   const [filesNonce, setFilesNonce] = useState(0);
   // Delay cross-note navigation until unsaved-change decision.
   const [pendingOpen, setPendingOpen] = useState<{ path: string; heading: string | null } | null>(null);
+  // The Journal's kind filter, and the date last picked in its index.
+  const [journalKind, setJournalKind] = useState<string | null>(null);
+  const [journalFocus, setJournalFocus] = useState<JournalFocus | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const root = useRef<HTMLDivElement>(null);
   const preview = useRef<HTMLElement>(null);
@@ -329,6 +334,17 @@ export function KnowledgeView({
       return;
     }
     setToast(`No note is called "${target}" yet. Create it from the Open dialog (Ctrl/Cmd+O).`);
+  };
+
+  /** A link in a Journal report opens its note in Notes. */
+  const followFromJournal = (target: string, heading: string | null) => {
+    const resolved = resolveLink(target);
+    if (resolved === null) {
+      followLink(target, heading);
+      return;
+    }
+    setBrowserMode("notes");
+    requestOpen(resolved, heading);
   };
 
   const filterByTag = (tag: string) => {
@@ -630,6 +646,14 @@ export function KnowledgeView({
   const stats = index?.stats;
   const selected = note !== null || creating;
   const allNotes = index?.notes ?? [];
+  const journal = useMemo(() => journalEntries(index?.notes ?? []), [index]);
+  const kinds = journalKinds(journal);
+  // A filter whose last report was deleted shows everything again.
+  const shownKind = journalKind !== null && kinds.includes(journalKind) ? journalKind : null;
+  const days = useMemo(
+    () => journalDays(shownKind === null ? journal : journal.filter((entry) => entry.kind === shownKind)),
+    [journal, shownKind],
+  );
   const filtered = allNotes.filter(
     (item) =>
       (noteFilter === "all" ||
@@ -738,6 +762,17 @@ export function KnowledgeView({
           <button
             type="button"
             role="tab"
+            aria-selected={browserMode === "journal"}
+            onClick={() => {
+              setBrowserMode("journal");
+              setHits(null);
+            }}
+          >
+            Journal
+          </button>
+          <button
+            type="button"
+            role="tab"
             aria-selected={browserMode === "notes"}
             onClick={() => {
               setBrowserMode("notes");
@@ -775,6 +810,8 @@ export function KnowledgeView({
         <p className="knowledge__browser-kind">
           {browserMode === "recent"
             ? "The newest notes and agent files, whoever wrote them."
+            : browserMode === "journal"
+            ? "Every dated report, such as each day's decision, as one page, newest first."
             : browserMode === "notes"
             ? "Markdown knowledge that you and agents write."
             : browserMode === "files"
@@ -901,6 +938,17 @@ export function KnowledgeView({
               setOpenFile({ path: wanted, fresh: false });
             }}
           />
+        ) : browserMode === "journal" ? (
+          <JournalIndex
+            days={days}
+            kinds={kinds}
+            kind={shownKind}
+            onKind={setJournalKind}
+            current={journalFocus?.date ?? null}
+            onPick={(date) => {
+              setJournalFocus((current) => ({ date, nonce: (current?.nonce ?? 0) + 1 }));
+            }}
+          />
         ) : browserMode === "files" ? (
           <FilesPanel spaceId={space.id} part="list" open={openFile} onOpen={setOpenFile} reloadNonce={listsNonce} />
         ) : browserMode === "memories" ? (
@@ -1013,7 +1061,7 @@ export function KnowledgeView({
       </aside>
 
       <section className="knowledge__workspace">
-        {browserMode !== "files" && (
+        {browserMode !== "files" && browserMode !== "journal" && (
           <div className="knowledge__toolbar">
           <div className="knowledge__modes" role="group" aria-label="Knowledge view">
             {(["write", "preview", "split"] as const).map((choice) => (
@@ -1184,6 +1232,18 @@ export function KnowledgeView({
               setFilesNonce((current) => current + 1);
               void reload();
             }}
+          />
+        ) : browserMode === "journal" ? (
+          <JournalPage
+            spaceId={space.id}
+            days={days}
+            focus={journalFocus}
+            onOpenNote={(wanted) => {
+              setBrowserMode("notes");
+              requestOpen(wanted);
+            }}
+            onLink={followFromJournal}
+            onTag={filterByTag}
           />
         ) : mode === "graph" ? (
           <KnowledgeGraphView

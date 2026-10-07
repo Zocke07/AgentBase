@@ -242,6 +242,31 @@ describe("knowledge vault", () => {
     expect(screen.getByText("bull-2026-10-06.jsonl")).toBeTruthy();
   });
 
+  it("reads the dated reports as one page in the Journal and opens one as a note", async () => {
+    const decision: KnowledgeNote = {
+      ...note,
+      path: "decisions/2026-10-06.md",
+      title: "DECISION TABLE",
+      content: "## DECISION TABLE\n\nAAPL pass: evidence cuts both ways.",
+    };
+    mocked.listKnowledge.mockResolvedValue({ ...index, notes: [note, decision] });
+    mocked.getKnowledgeNote.mockImplementation((_space, path) => Promise.resolve(path === decision.path ? decision : note));
+    const user = userEvent.setup();
+    render(<KnowledgeView space={space} />);
+
+    await user.click(await screen.findByRole("tab", { name: "Journal" }));
+    expect(screen.getByText("Every dated report, such as each day's decision, as one page, newest first.")).toBeTruthy();
+    // A page to read, not a note to edit: the editor's modes stand aside.
+    expect(screen.queryByRole("group", { name: "Knowledge view" })).toBeNull();
+    expect(await screen.findByText("AAPL pass: evidence cuts both ways.")).toBeTruthy();
+    // The undated note is not a report.
+    expect(screen.getByTestId("journal").textContent).not.toContain("decisions/storage.md");
+
+    await user.click(screen.getByRole("button", { name: "Open note decisions/2026-10-06.md" }));
+    expect(await screen.findByRole("tab", { name: "Notes", selected: true })).toBeTruthy();
+    expect(await screen.findByLabelText("Markdown source")).toHaveProperty("value", decision.content);
+  });
+
   it("folds the run summaries, which Saved context manages, until asked", async () => {
     const user = userEvent.setup();
     mocked.listKnowledge.mockResolvedValue({
