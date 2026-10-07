@@ -123,9 +123,10 @@ class ComputePortfolioTool:
                 "as_of": {
                     "type": "string",
                     "description": (
-                        "Optional calculation date as YYYY-MM-DD. Omit it to use "
-                        "the newest saved price date, or the positions date for "
-                        "a cash-only book."
+                        "Optional calculation date as YYYY-MM-DD. Leave it out in "
+                        "the daily pipeline: the book is then computed for the "
+                        "newest saved market session, the date the theses and "
+                        "limit checks use. Give it only to recompute an earlier date."
                     ),
                 }
             },
@@ -181,11 +182,15 @@ def _compute(payload: dict[str, Any]) -> dict[str, Any]:
     limits = _read_limits(limits_path)
     positions_date = _modified_date(positions_path)
     explicit_as_of = payload["as_of"]
-    as_of = (
-        _parse_date(explicit_as_of, "as_of")
-        if explicit_as_of is not None
-        else max((price.date for price in prices.values()), default=positions_date)
-    )
+    if explicit_as_of is not None:
+        as_of = _parse_date(explicit_as_of, "as_of")
+    elif prices:
+        as_of = max(price.date for price in prices.values())
+    else:
+        # Nothing held sets a price date. The save date of positions.csv made
+        # check_limits refuse every later session's theses, so use the session
+        # the watchlist was priced for, which those theses are dated by.
+        as_of = _newest_session(prices_path) or positions_date
 
     book_currency = _one_currency(position.currency for position in positions)
     all_currencies = {book_currency, *(price.currency for price in prices.values())}
@@ -400,6 +405,20 @@ def _read_prices(path: Path, wanted: set[str]) -> dict[str, _Price]:
             currency=_currency(row.get("currency"), _PRICES_PATH, number),
         )
     return prices
+
+
+def _newest_session(path: Path) -> date | None:
+    """The latest session date in the saved price summary, if one was saved."""
+    if not path.exists():
+        return None
+    rows = _read_csv(path, _PRICES_PATH, _PRICE_COLUMNS)
+    return max(
+        (
+            _parse_date((row.get("date") or "").strip(), f"{_PRICES_PATH} row {number} date")
+            for number, row in enumerate(rows, start=2)
+        ),
+        default=None,
+    )
 
 
 def _read_limits(path: Path) -> dict[str, Decimal]:

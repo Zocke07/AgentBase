@@ -1052,6 +1052,11 @@ is rounded only when written.
 - `portfolio/computed.json`:
   - Freshness: `as_of`; the positions file's date, with `stale` after 3
     days; each ticker's price date; `currency`.
+    *(2026-10-07: without an `as_of` argument the date is the newest saved
+    session, and for a cash-only book the newest date in
+    `raw/prices/summary.csv`, else the positions file's date. The save date
+    of `positions.csv` had made `check_limits` refuse every later session's
+    theses. Migration 025 has portfolio-review leave `as_of` out.)*
   - Book totals: `total_value`, `cash`, `invested`, `day_change` and
     `day_change_pct` (from the previous close), `unrealised` and
     `unrealised_pct`.

@@ -53,7 +53,7 @@ def _at_version(app_paths: AppPaths, version: int) -> Database:
 def _upgraded(app_paths: AppPaths) -> Database:
     database = Database(app_paths.db_path)
     database.connect()
-    assert database.schema_version == LATEST_SCHEMA_VERSION == 24
+    assert database.schema_version == LATEST_SCHEMA_VERSION == 25
     return database
 
 
@@ -413,5 +413,55 @@ def test_024_moves_shipped_text_after_model_only_edits_and_keeps_real_edits(
         calendar = _agents(after)["event-calendar"]
         assert calendar["model"] == "gpt-5.6-terra"
         assert "as_of is when this run collected the record" in calendar["system_prompt"]
+    finally:
+        after.close()
+
+
+def test_025_has_portfolio_review_leave_the_date_to_the_tool(app_paths: AppPaths) -> None:
+    """Told the run's time, portfolio-review passed the local date as as_of, a day
+    ahead of the session the theses were dated by, and check_limits refused."""
+    database = _upgraded(app_paths)
+    try:
+        prompt = _agents(database)["portfolio-review"]["system_prompt"]
+        assert "Call compute_portfolio first and leave out as_of" in prompt
+        assert "portfolio/review-{YYYY-MM-DD}.md, dated with its as_of." in prompt
+    finally:
+        database.close()
+
+
+def test_025_moves_a_model_only_edit(app_paths: AppPaths) -> None:
+    before = _at_version(app_paths, 24)
+    try:
+        with before.write() as connection:
+            connection.execute(
+                "UPDATE agent_defs SET model = 'gpt-5.6-luna', updated_at = ?"
+                " WHERE name = 'portfolio-review'",
+                (_NOW,),
+            )
+    finally:
+        before.close()
+    after = _upgraded(app_paths)
+    try:
+        review = _agents(after)["portfolio-review"]
+        assert review["model"] == "gpt-5.6-luna"
+        assert "leave out as_of" in review["system_prompt"]
+    finally:
+        after.close()
+
+
+def test_025_keeps_an_edited_portfolio_review_prompt(app_paths: AppPaths) -> None:
+    before = _at_version(app_paths, 24)
+    try:
+        with before.write() as connection:
+            connection.execute(
+                "UPDATE agent_defs SET system_prompt = 'My review prompt.', updated_at = ?"
+                " WHERE name = 'portfolio-review'",
+                (_NOW,),
+            )
+    finally:
+        before.close()
+    after = _upgraded(app_paths)
+    try:
+        assert _agents(after)["portfolio-review"]["system_prompt"] == "My review prompt."
     finally:
         after.close()

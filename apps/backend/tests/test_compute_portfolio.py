@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from agentbase.tools.base import ToolArgumentError, ToolExecutionError
+from agentbase.tools.builtin.limits import CheckLimitsTool
 from agentbase.tools.builtin.portfolio import ComputePortfolioTool
 from agentbase.tools.catalogue import RiskLevel
 from agentbase.tools.sandbox import Sandbox
@@ -184,6 +185,49 @@ async def test_compute_portfolio_supports_the_zero_cash_only_starter(
     assert result["day_change_pct"] is None
     assert result["unrealised_pct"] is None
     assert result["concentration"]["limit_crossings"] == []
+
+
+async def test_a_cash_only_book_is_computed_for_the_newest_saved_session(
+    sandbox: Sandbox,
+) -> None:
+    """With nothing held, no price fixed the date, so it was the day positions.csv
+    was saved. check_limits then refused every later session's theses: the
+    2026-10-07 chain stopped on "computed.json is for ..., not thesis date"."""
+    _write(
+        sandbox,
+        "portfolio/positions.csv",
+        "ticker,shares,cost_per_share,opened,sector,currency\nCASH,0,,,Cash,USD\n",
+        modified="2026-10-01T11:15:00",
+    )
+    _write(
+        sandbox,
+        "raw/prices/summary.csv",
+        "ticker,date,open,high,low,close,volume,prev_close,change_pct,"
+        "avg_volume_20d,rel_volume,microcap,rank,currency\n"
+        "AAPL,2026-10-06,332.00,334.38,330.62,333.63,30425700,332.89,0.2223,"
+        "41975560,0.7248,False,1,USD\n",
+    )
+    _write(
+        sandbox,
+        "config/watchlist.json",
+        '{"watchlist":[{"ticker":"AAPL","sector":"Information Technology"}]}\n',
+    )
+    _write(sandbox, "theses/bull-2026-10-06.jsonl", "")
+    _write(sandbox, "theses/bear-2026-10-06.jsonl", "")
+    _limits(sandbox)
+
+    tool = ComputePortfolioTool()
+    result = json.loads(await tool.execute(tool.prepare({}, sandbox), sandbox))
+    assert result["as_of"] == "2026-10-06"
+    assert result["positions_date"] == "2026-10-01"
+    assert result["stale"] is True
+    assert result["price_dates"] == {}
+
+    checks = CheckLimitsTool()
+    checked = json.loads(
+        await checks.execute(checks.prepare({"date": "2026-10-06"}, sandbox), sandbox)
+    )
+    assert checked["portfolio_as_of"] == "2026-10-06"
 
 
 async def test_compute_portfolio_marks_stale_positions_and_daily_loss_crossings(
