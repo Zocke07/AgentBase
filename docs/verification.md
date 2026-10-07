@@ -6,6 +6,62 @@ cover only work actually executed.
 
 ## Phase 17 and run-review UX, 2026-10-01, on `main`, not released
 
+### Finding a run's files, 2026-10-07
+
+After restarting with 025, the chain ran unattended from **Run now** through
+Theses and risk to Daily decision (`91b242c6`, `52718b11`, `e71b7671`). It had
+no tool or model error, and each gate passed. The maintainer could not find
+the `decisions/2026-10-07.md` the run reported. Three causes:
+
+- Knowledge loaded its lists once, and every section stays mounted, so files
+  written later never appeared until a restart.
+- The Notes tree showed only titles. The decision read "DECISION TABLE".
+- The run view never listed the files it wrote. Outputs were split between
+  Notes (Markdown) and Agent files (data) with no common view.
+
+Changes:
+
+- **The four deterministic tools report their files.** Each result carries a
+  `written` array, never in the files themselves. `score_predictions` names
+  the ledger only when it appended to it.
+- **The run view lists the files it wrote.** The list comes from the log:
+  `write_file` paths plus those four tools' `written` arrays. Read or fetched
+  text is not trusted, even if it carries that key. A note opens in Notes;
+  anything else opens in Agent files.
+- **Knowledge lists stay current.** They reread when the section is shown,
+  when a run finishes and on window return.
+- **Knowledge's Recent tab.** It lists notes and agent files together, newest
+  first, by day, without run memories.
+- **The Notes tree.** It sorts by file name and shows the file name under a
+  title that hides it. The open note or file scrolls into view.
+
+**Executed:**
+
+- **Backend:** tests first for every `written` array. Full suite **1097
+  passed, 12 skipped**, with ruff and `mypy` clean.
+- **Desktop:** tests first for the file selector (including untrusted
+  `written` keys), the run's file chips and their folding, Recent's order and
+  opening, and Knowledge rereading when shown or after a finished run. The
+  data-file request and the tree's file names are covered too. ESLint and
+  `tsc` are clean, and the full suite passed **566 tests in 55 files**.
+- **Headless Chrome**, on a copy of the live data and a scratch sidecar:
+  - The decision run showed "Wrote 1 file", and its chip opened the note.
+  - The theses run showed three chips, and its risk file opened in Agent
+    files.
+  - A file written beside a scripted run appeared at the top of Recent 22
+    seconds later, with no interaction.
+  - Both themes were checked.
+
+**Also this session** (`818a67b`, migration 026): Daily decision's supervisor
+took the local date for the session's. It sent decision looking for theses
+dated 2026-10-07, so the decision said its inputs were absent. The goal now
+has decision read the date from the theses file names. The five-auction
+Treasury response was 27,989 characters, past the 20,000 a fetch shows, so the
+calendar now requests four fields.
+
+Not verified: these window changes in the packaged app, and migration 026 on
+a real model.
+
 ### First one-pass chain after the fresh start, and migration 025, 2026-10-07
 
 The maintainer restarted the dev app (schema 24) and pressed **Run now** on

@@ -38,6 +38,18 @@ The folder-tree **✕** confirms, backs up every file under `.agentbase/backups/
 then deletes the folder and all contents. Its links become unresolved. It
 cannot delete the vault root or hidden folders.
 
+The tree lists notes by file name, and under a note whose title differs it
+shows the file name too: an agent's `decisions/2026-10-06.md` can be titled
+**DECISION TABLE**, and the file name is the one its run reports.
+
+## Recent
+
+**Recent** lists notes and agent files together, newest first, under Today,
+Yesterday and Earlier, whoever wrote them. Select one to open it in **Notes** or
+**Agent files**. Run summaries stay in **Saved context**. Every Knowledge list
+rereads the space folder when you open the section, when a run finishes and
+when you return to the window, so a run's outputs appear without a restart.
+
 ## Agent files
 
 **Agent files** lists non-note plain-text space files: `.json`, `.jsonl`,

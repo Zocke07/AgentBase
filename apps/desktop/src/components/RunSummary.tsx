@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import * as api from "../lib/api";
 import { ellipsise, formatCount, formatDuration, formatMicros } from "../lib/format";
 import { policySentence, STATUS_LABEL } from "../state/describe";
+import { splitPath, writtenFiles, type WrittenFile } from "../state/files";
 import type { RunView } from "../state/reducer";
 
 import { Markdown } from "./Markdown";
@@ -18,6 +19,8 @@ export interface RunSummaryProps {
   view: RunView;
   /** Open cited Knowledge note; absent without navigation. */
   onOpenNote?: ((path: string, heading: string | null) => void) | undefined;
+  /** Open a written data file in Knowledge's Agent files; absent without navigation. */
+  onOpenFile?: ((path: string) => void) | undefined;
   /** Run space, used to look up memory status. */
   spaceId?: string | null | undefined;
   /** Open run memory beside inbox for approval or dismissal. */
@@ -34,6 +37,7 @@ const CLAIM_FOLD_PX = 220;
 export function RunSummary({
   view,
   onOpenNote,
+  onOpenFile,
   spaceId = null,
   onOpenMemory,
   onMemoryChanged,
@@ -125,6 +129,9 @@ export function RunSummary({
           <dd data-testid="fact-errors">{view.errors.length}</dd>
         </div>
       </dl>
+
+      {/* Keyed by run so a list unfolded for one run starts folded for the next. */}
+      <RunFiles key={view.runId ?? ""} files={writtenFiles(view)} onOpenNote={onOpenNote} onOpenFile={onOpenFile} />
 
       {view.budgetExceeded && (
         <p className="run-summary__cap" role="alert" data-testid="budget-exceeded">
@@ -404,6 +411,73 @@ function RunMemory({
           {error}
         </span>
       )}
+    </div>
+  );
+}
+
+/** Chips shown before the rest of a long list folds behind a count. */
+const FILES_SHOWN = 6;
+
+/**
+ * What the run wrote, from its log, each opening where it lives: a run that
+ * reported "decisions/2026-10-07.md" left its reader searching for it.
+ */
+function RunFiles({
+  files,
+  onOpenNote,
+  onOpenFile,
+}: {
+  files: readonly WrittenFile[];
+  onOpenNote: RunSummaryProps["onOpenNote"];
+  onOpenFile: RunSummaryProps["onOpenFile"];
+}) {
+  const [all, setAll] = useState(false);
+  if (files.length === 0) return null;
+  const shown = all ? files : files.slice(0, FILES_SHOWN);
+  return (
+    <div className="run-files" data-testid="run-files">
+      <span className="run-files__label">
+        Wrote {files.length} {files.length === 1 ? "file" : "files"}
+      </span>
+      <ul className="run-files__list">
+        {shown.map((file) => {
+          const { name, folder } = splitPath(file.path);
+          const open =
+            file.kind === "note"
+              ? onOpenNote && (() => { onOpenNote(file.path, null); })
+              : onOpenFile && (() => { onOpenFile(file.path); });
+          const label = (
+            <>
+              {folder !== "" && <span className="run-files__folder">{folder}/</span>}
+              <span className="run-files__name">{name}</span>
+            </>
+          );
+          return (
+            <li key={file.path}>
+              {open === undefined ? (
+                <code className="run-files__file">{label}</code>
+              ) : (
+                <button type="button" className="run-files__file" title={`Open ${file.path}`} onClick={open}>
+                  {label}
+                </button>
+              )}
+            </li>
+          );
+        })}
+        {!all && files.length > FILES_SHOWN && (
+          <li>
+            <button
+              type="button"
+              className="run-files__more"
+              onClick={() => {
+                setAll(true);
+              }}
+            >
+              {files.length - FILES_SHOWN} more
+            </button>
+          </li>
+        )}
+      </ul>
     </div>
   );
 }

@@ -1,5 +1,7 @@
 import type { NoteSummary } from "@agentbase/schemas";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { scrollToActive } from "../lib/scroll";
 
 /**
  * Obsidian-style vault folders with window-local fold state. Notes are
@@ -42,7 +44,9 @@ function buildTree(notes: readonly NoteSummary[]): Folder {
 
 function sortFolder(folder: Folder): void {
   folder.folders.sort((left, right) => left.name.localeCompare(right.name));
-  folder.notes.sort((left, right) => left.title.localeCompare(right.title) || left.path.localeCompare(right.path));
+  // By file name, as Obsidian lists them: dated files stay in date order even
+  // when they share a title, as every daily decision does.
+  folder.notes.sort((left, right) => left.path.localeCompare(right.path));
   for (const child of folder.folders) sortFolder(child);
 }
 
@@ -51,6 +55,11 @@ function countNotes(folder: Folder): number {
 }
 
 export function NoteTree({ notes, activePath, onOpen, onDeleteFolder }: NoteTreeProps) {
+  // A note opened from a run or a search can sit far down; bring it into view.
+  const treeRef = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    if (activePath !== null) scrollToActive(treeRef.current, ".tree__note--active");
+  }, [activePath]);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   const tree = buildTree(notes);
 
@@ -118,7 +127,13 @@ export function NoteTree({ notes, activePath, onOpen, onDeleteFolder }: NoteTree
                 {"★"}
               </span>
             )}
-            <span className="tree__name">{note.title}</span>
+            <span className="tree__label">
+              <span className="tree__name">{note.title}</span>
+              {/* The name a run reports, under a title that can hide it. */}
+              {stem(fileName(note.path)) !== note.title && (
+                <span className="tree__file">{fileName(note.path)}</span>
+              )}
+            </span>
           </button>
         </li>
       ))}
@@ -126,8 +141,17 @@ export function NoteTree({ notes, activePath, onOpen, onDeleteFolder }: NoteTree
   );
 
   return (
-    <ul className="tree" aria-label="Notes">
+    <ul className="tree" aria-label="Notes" ref={treeRef}>
       {renderFolder(tree, 0)}
     </ul>
   );
+}
+
+function fileName(path: string): string {
+  return path.slice(path.lastIndexOf("/") + 1);
+}
+
+function stem(name: string): string {
+  const dot = name.lastIndexOf(".");
+  return dot <= 0 ? name : name.slice(0, dot);
 }

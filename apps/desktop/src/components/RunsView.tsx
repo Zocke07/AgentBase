@@ -34,6 +34,8 @@ export interface RunsViewProps {
   onNewRun: () => void;
   /** Open cited Knowledge note. */
   onOpenNote?: ((path: string, heading: string | null) => void) | undefined;
+  /** Open a data file the run wrote in Knowledge's Agent files. */
+  onOpenFile?: ((path: string) => void) | undefined;
   /** Open a run memory beside Knowledge inbox. */
   onOpenMemory?: ((path: string) => void) | undefined;
   /** Run memory status changed; reload inbox. */
@@ -77,6 +79,7 @@ export function RunsView({
   onSelectRun,
   onNewRun,
   onOpenNote,
+  onOpenFile,
   onOpenMemory,
   onMemoryChanged,
 }: RunsViewProps) {
@@ -399,6 +402,7 @@ export function RunsView({
                   loading={loading}
                   onCapture={(event) => void capture(event)}
                   onOpenNote={onOpenNote}
+                  onOpenFile={onOpenFile}
                   spaceId={selectedRow?.space_id ?? null}
                   onOpenMemory={onOpenMemory}
                   onMemoryChanged={onMemoryChanged}

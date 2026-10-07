@@ -45,6 +45,8 @@ export interface RunPanelProps {
   onCapture?: ((event: Event) => void) | undefined;
   /** See {@link RunSummaryProps.onOpenNote}. */
   onOpenNote?: RunSummaryProps["onOpenNote"];
+  /** See {@link RunSummaryProps.onOpenFile}. */
+  onOpenFile?: RunSummaryProps["onOpenFile"];
   /** See linked `RunSummaryProps` memory fields. */
   spaceId?: RunSummaryProps["spaceId"];
   onOpenMemory?: RunSummaryProps["onOpenMemory"];
@@ -63,6 +65,7 @@ export function RunPanel({
   loading = false,
   onCapture,
   onOpenNote,
+  onOpenFile,
   spaceId,
   onOpenMemory,
   onMemoryChanged,
@@ -183,6 +186,7 @@ export function RunPanel({
           <RunSummary
             view={view}
             onOpenNote={onOpenNote}
+            onOpenFile={onOpenFile}
             spaceId={spaceId}
             onOpenMemory={onOpenMemory}
             onMemoryChanged={onMemoryChanged}

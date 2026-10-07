@@ -88,8 +88,11 @@ future changes do not relocate users' data or disconnect their stored keys.
   for publication status and cross-platform CI evidence.
 - The UI has a left rail, spaces, Home, Automations, Runs, Agents, Knowledge,
   Visualize, Usage, Space settings, and app-wide Settings. Visualize and Usage
-  have distinct icons; Knowledge separates Notes, Agent files, and Saved
-  context. Approvals are docked. The run canvas is a
+  have distinct icons; Knowledge separates Recent, Notes, Agent files, and
+  Saved context, and rereads them when shown, when a run finishes and on
+  window return (every section stays mounted). A run lists the files its
+  tools wrote (`state/files.ts`; the four deterministic tools report a
+  `written` array) and opens each in Knowledge. Approvals are docked. The run canvas is a
   left-to-right workflow (goal, supervisor, workers, outcome) with an
   inspector; the Knowledge section is laid out as an Obsidian vault and one
   Markdown renderer (`components/Markdown.tsx`, over `lib/markdown.ts`)

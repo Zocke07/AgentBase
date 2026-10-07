@@ -68,6 +68,8 @@ export function App() {
     heading: string | null;
     nonce: number;
     inbox?: boolean;
+    /** A data file for Agent files rather than a note. */
+    file?: boolean;
   } | null>(null);
   // Bump after a run changes memory status to reload vault inbox.
   const [memoryNonce, setMemoryNonce] = useState(0);
@@ -180,6 +182,20 @@ export function App() {
   const runs = useRunList((state) => state.runs);
   const reloadRuns = useRunList((state) => state.load);
   const anyUnfinished = runs.some(unfinished);
+
+  // A run that finished may have written files: Knowledge rereads its lists.
+  const [outputsNonce, setOutputsNonce] = useState(0);
+  const finishedRuns = runs
+    .filter((run) => !unfinished(run))
+    .map((run) => run.id)
+    .join(",");
+  const lastFinished = useRef<string | null>(null);
+  useEffect(() => {
+    if (lastFinished.current !== null && lastFinished.current !== finishedRuns) {
+      setOutputsNonce((current) => current + 1);
+    }
+    lastFinished.current = finishedRuns;
+  }, [finishedRuns]);
   useEffect(() => {
     if (status.kind !== "ready") return;
     const timer = setInterval(
@@ -269,6 +285,11 @@ export function App() {
 
   const openNote = useCallback((path: string, heading: string | null) => {
     setNoteRequest((current) => ({ path, heading, nonce: (current?.nonce ?? 0) + 1 }));
+    setSection("knowledge");
+  }, []);
+
+  const openFile = useCallback((path: string) => {
+    setNoteRequest((current) => ({ path, heading: null, nonce: (current?.nonce ?? 0) + 1, file: true }));
     setSection("knowledge");
   }, []);
 
@@ -584,6 +605,7 @@ export function App() {
                   setSection("home");
                 }}
                 onOpenNote={openNote}
+                onOpenFile={openFile}
                 onOpenMemory={openMemory}
                 onMemoryChanged={memoryChanged}
               />
@@ -609,6 +631,8 @@ export function App() {
                   onOpenRun={openRun}
                   openRequest={noteRequest ?? undefined}
                   reloadNonce={memoryNonce}
+                  active={section === "knowledge"}
+                  refreshNonce={outputsNonce}
                   onInboxCount={setInboxCount}
                 />
               )}

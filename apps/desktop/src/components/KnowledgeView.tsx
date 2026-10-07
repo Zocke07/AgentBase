@@ -37,6 +37,7 @@ import { MetricBar } from "./MetricBar";
 import { NoteEditor } from "./NoteEditor";
 import { NoteTree } from "./NoteTree";
 import { QuickSwitcher } from "./QuickSwitcher";
+import { RecentFiles } from "./RecentFiles";
 
 /**
  * Space-local Markdown vault: file explorer, source/preview editor, and
@@ -51,15 +52,21 @@ export interface KnowledgeViewProps {
    * Cross-section note request; nonce distinguishes repeats. `inbox` opens it
    * beside memory inbox rather than file tree.
    */
-  openRequest?: { path: string; heading: string | null; nonce: number; inbox?: boolean } | undefined;
+  openRequest?:
+    | { path: string; heading: string | null; nonce: number; inbox?: boolean; file?: boolean }
+    | undefined;
   /** Cross-section memory change; reload inbox. */
   reloadNonce?: number;
+  /** Whether the section is on screen; the lists refresh each time it is shown. */
+  active?: boolean;
+  /** Bumped when a run finishes and may have written files. */
+  refreshNonce?: number;
   /** Memories awaiting decisions for external badge. */
   onInboxCount?: ((proposed: number) => void) | undefined;
 }
 
 type ViewMode = "split" | "write" | "preview" | "graph" | "evaluate";
-type BrowserMode = "notes" | "files" | "memories";
+type BrowserMode = "recent" | "notes" | "files" | "memories";
 type NoteFilter = "all" | "pinned" | "orphans" | "unresolved";
 type GraphScope = "vault" | "local";
 
@@ -75,6 +82,8 @@ export function KnowledgeView({
   onOpenRun,
   openRequest,
   reloadNonce = 0,
+  active = false,
+  refreshNonce = 0,
   onInboxCount,
 }: KnowledgeViewProps) {
   const [index, setIndex] = useState<KnowledgeIndex | null>(null);
@@ -241,11 +250,53 @@ export function KnowledgeView({
   // Cross-section citation or memory note request.
   const lastRequest = useRef<number | null>(null);
   useEffect(() => {
-    if (openRequest === undefined || openRequest.nonce === lastRequest.current) return;
+    if (openRequest === undefined || openRequest.file === true || openRequest.nonce === lastRequest.current) {
+      return;
+    }
     lastRequest.current = openRequest.nonce;
     setBrowserMode(openRequest.inbox === true ? "memories" : "notes");
     requestOpen(openRequest.path, openRequest.heading);
   }, [openRequest, requestOpen]);
+
+  // A data file a run wrote opens in Agent files; adjusted while rendering.
+  const [handledFile, setHandledFile] = useState<number | null>(null);
+  if (openRequest?.file === true && openRequest.nonce !== handledFile) {
+    setHandledFile(openRequest.nonce);
+    setBrowserMode("files");
+    setOpenFile({ path: openRequest.path, fresh: false });
+  }
+
+  // Agents write files while the section sits hidden; without this a run's
+  // outputs stayed missing from every list until the app restarted. The lists
+  // reread whenever the section is shown, a run finishes, or the window
+  // returns: each showing is counted while rendering, a return by its event.
+  const [shown, setShown] = useState({ active, times: 0 });
+  if (shown.active !== active) {
+    setShown({ active, times: active ? shown.times + 1 : shown.times });
+  }
+  const [returns, setReturns] = useState(0);
+  const listsNonce = filesNonce + shown.times + refreshNonce + returns;
+  useEffect(() => {
+    if (!active) return;
+    void Promise.all([api.listKnowledge(space.id), api.listMemories(space.id)])
+      .then(([nextIndex, nextMemories]) => {
+        setIndex(nextIndex);
+        setMemories(nextMemories);
+      })
+      .catch((failure: unknown) => {
+        setError(asMessage(failure));
+      });
+  }, [active, refreshNonce, returns, space.id]);
+  useEffect(() => {
+    if (!active) return undefined;
+    const onVisible = () => {
+      if (!document.hidden) setReturns((current) => current + 1);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [active]);
 
   const resolveLink = useCallback(
     (target: string): string | null => {
@@ -676,6 +727,17 @@ export function KnowledgeView({
           <button
             type="button"
             role="tab"
+            aria-selected={browserMode === "recent"}
+            onClick={() => {
+              setBrowserMode("recent");
+              setHits(null);
+            }}
+          >
+            Recent
+          </button>
+          <button
+            type="button"
+            role="tab"
             aria-selected={browserMode === "notes"}
             onClick={() => {
               setBrowserMode("notes");
@@ -711,7 +773,9 @@ export function KnowledgeView({
         </div>
 
         <p className="knowledge__browser-kind">
-          {browserMode === "notes"
+          {browserMode === "recent"
+            ? "The newest notes and agent files, whoever wrote them."
+            : browserMode === "notes"
             ? "Markdown knowledge that you and agents write."
             : browserMode === "files"
               ? "Structured inputs and generated files used by agents."
@@ -823,8 +887,22 @@ export function KnowledgeView({
           </div>
         )}
 
-        {browserMode === "files" ? (
-          <FilesPanel spaceId={space.id} part="list" open={openFile} onOpen={setOpenFile} reloadNonce={filesNonce} />
+        {browserMode === "recent" ? (
+          <RecentFiles
+            spaceId={space.id}
+            notes={allNotes}
+            reloadNonce={listsNonce}
+            onOpenNote={(wanted) => {
+              setBrowserMode("notes");
+              requestOpen(wanted, null);
+            }}
+            onOpenFile={(wanted) => {
+              setBrowserMode("files");
+              setOpenFile({ path: wanted, fresh: false });
+            }}
+          />
+        ) : browserMode === "files" ? (
+          <FilesPanel spaceId={space.id} part="list" open={openFile} onOpen={setOpenFile} reloadNonce={listsNonce} />
         ) : browserMode === "memories" ? (
           <MemoryInbox
             memories={memories}

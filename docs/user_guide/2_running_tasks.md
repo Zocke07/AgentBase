@@ -130,6 +130,11 @@ the canvas still says what the run is doing now. Click **Event log** again to
 unfold it where you left it, with its filters as they were. The window
 remembers the choice.
 
+Under the run's totals, **Wrote N files** lists every file the run's tools
+wrote, from its log rather than from what an agent said. Select one to open it
+in Knowledge: a note in **Notes**, anything else in **Agent files**. A long
+list shows six and folds the rest behind a count.
+
 At finish, **The supervisor's account of the run** renders its summary; long
 ones fold behind **Show the whole summary**. Verify it against files and the
 event log. `tool.called` proves execution; inspect `tool.result` / `tool.error`

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -35,6 +35,48 @@ const proposed = {
  */
 
 describe("RunSummary", () => {
+  it("lists the files the run wrote and opens each where it lives", async () => {
+    // A run reported "decisions/2026-10-07.md" and the person could not find it.
+    const log = new LogBuilder();
+    const events = [
+      log.add("run.started", { goal: "Decide" }),
+      log.add("tool.called", { tool: "write_file", args: { path: "decisions/2026-10-06.md" }, call_id: "w1" }, "decision"),
+      log.add("tool.result", { tool: "write_file", call_id: "w1", result: "Wrote 10 characters." }, "decision"),
+      log.add("tool.called", { tool: "check_limits", args: { date: "2026-10-06" }, call_id: "c1" }, "risk-manager"),
+      log.add(
+        "tool.result",
+        { tool: "check_limits", call_id: "c1", result: JSON.stringify({ written: ["risk/rule-checks-2026-10-06.json"] }) },
+        "risk-manager",
+      ),
+    ];
+    const onOpenNote = vi.fn();
+    const onOpenFile = vi.fn();
+    render(<RunSummary view={reduceAll(events)} onOpenNote={onOpenNote} onOpenFile={onOpenFile} />);
+
+    const files = screen.getByTestId("run-files");
+    expect(files.textContent).toContain("Wrote 2 files");
+    await userEvent.click(within(files).getByRole("button", { name: /2026-10-06\.md/ }));
+    expect(onOpenNote).toHaveBeenCalledWith("decisions/2026-10-06.md", null);
+    await userEvent.click(within(files).getByRole("button", { name: /rule-checks-2026-10-06\.json/ }));
+    expect(onOpenFile).toHaveBeenCalledWith("risk/rule-checks-2026-10-06.json");
+  });
+
+  it("folds a long list of written files behind a count", async () => {
+    const log = new LogBuilder();
+    const written = Array.from({ length: 9 }, (_, index) => `raw/prices/T${String(index)}.csv`);
+    const events = [
+      log.add("run.started", { goal: "Prices" }),
+      log.add("tool.called", { tool: "read_prices", args: { symbols: [] }, call_id: "p1" }, "market-movers"),
+      log.add("tool.result", { tool: "read_prices", call_id: "p1", result: JSON.stringify({ written }) }, "market-movers"),
+    ];
+    render(<RunSummary view={reduceAll(events)} onOpenFile={vi.fn()} />);
+
+    const files = screen.getByTestId("run-files");
+    expect(within(files).getAllByRole("button", { name: /\.csv/ })).toHaveLength(6);
+    await userEvent.click(within(files).getByRole("button", { name: "3 more" }));
+    expect(within(files).getAllByRole("button", { name: /\.csv/ })).toHaveLength(9);
+  });
+
   it("summarises model and tool errors before revealing their details", () => {
     /* `view.errors` was folded from `llm.error` and `tool.error` and rendered
        nowhere; an agent that hit five provider errors in a row looked like an

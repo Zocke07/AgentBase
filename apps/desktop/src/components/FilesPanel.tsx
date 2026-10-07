@@ -1,9 +1,10 @@
 import type { TextFileSummary } from "@agentbase/schemas";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
 import { STARTERS } from "../lib/pipeline";
+import { scrollToActive } from "../lib/scroll";
 import { useFetched } from "../state/useFetched";
 
 /**
@@ -77,6 +78,14 @@ export function FilesPanel({ spaceId, part, open, onOpen, onChanged, reloadNonce
     if (reloadNonce > 0) reload();
   }, [reloadNonce, reload]);
 
+  // A file opened from a run's list can sit far down; bring it into view.
+  const listRef = useRef<HTMLDivElement>(null);
+  const openPath = open?.path;
+  useEffect(() => {
+    if (part !== "list" || openPath === undefined) return;
+    scrollToActive(listRef.current, ".files__item--active");
+  }, [part, openPath, list.length]);
+
   if (part === "list") {
     const matching = list.filter((file) => file.path.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
     const groups = new Map<string, TextFileSummary[]>();
@@ -91,7 +100,7 @@ export function FilesPanel({ spaceId, part, open, onOpen, onChanged, reloadNonce
     });
 
     return (
-      <div className="files" data-testid="files-list">
+      <div className="files" data-testid="files-list" ref={listRef}>
         <div className="files__head">
           <div>
             <strong>Agent files</strong>

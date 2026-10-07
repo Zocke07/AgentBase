@@ -40,6 +40,7 @@ vi.mock("../lib/api", async (importOriginal) => ({
   pinKnowledgeNote: vi.fn(),
   evaluateKnowledge: vi.fn(),
   listFiles: vi.fn(),
+  getFile: vi.fn(),
   getSettings: vi.fn(),
   updateSettings: vi.fn(),
 }));
@@ -187,6 +188,69 @@ beforeEach(() => {
 });
 
 describe("knowledge vault", () => {
+  it("rereads its lists each time it is shown or a run finishes, so new files appear", async () => {
+    // Every section stays mounted; a run's outputs once stayed missing until a restart.
+    const { rerender } = render(<KnowledgeView space={space} active={false} />);
+    await waitFor(() => {
+      expect(mocked.listKnowledge).toHaveBeenCalledTimes(1);
+    });
+
+    rerender(<KnowledgeView space={space} active />);
+    await waitFor(() => {
+      expect(mocked.listKnowledge).toHaveBeenCalledTimes(2);
+    });
+
+    rerender(<KnowledgeView space={space} active refreshNonce={1} />);
+    await waitFor(() => {
+      expect(mocked.listKnowledge).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  it("opens a data file that a run wrote in Agent files", async () => {
+    mocked.getFile.mockResolvedValue({
+      path: "risk/checks-2026-10-06.json",
+      size: 2,
+      updated_at: "2026-10-07T11:10:58Z",
+      content: "{}",
+    });
+    render(
+      <KnowledgeView
+        space={space}
+        openRequest={{ path: "risk/checks-2026-10-06.json", heading: null, nonce: 1, file: true }}
+      />,
+    );
+
+    expect(await screen.findByRole("tab", { name: "Agent files", selected: true })).toBeTruthy();
+    await waitFor(() => {
+      expect(mocked.getFile).toHaveBeenCalledWith("space-lab", "risk/checks-2026-10-06.json");
+    });
+  });
+
+  it("lists the newest notes and agent files together under Recent", async () => {
+    mocked.listFiles.mockResolvedValue({
+      files: [{ path: "theses/bull-2026-10-06.jsonl", size: 0, updated_at: "2026-10-07T11:09:12Z" }],
+    });
+    const user = userEvent.setup();
+    render(<KnowledgeView space={space} />);
+
+    await user.click(await screen.findByRole("tab", { name: "Recent" }));
+    expect(screen.getByText("The newest notes and agent files, whoever wrote them.")).toBeTruthy();
+    expect(await screen.findByText("bull-2026-10-06.jsonl")).toBeTruthy();
+    expect(screen.getByText("storage.md")).toBeTruthy();
+  });
+
+  it("shows a note's file name under a title that hides it", async () => {
+    // "DECISION TABLE" hid decisions/2026-10-07.md, the name the run reported.
+    mocked.listKnowledge.mockResolvedValue({
+      ...index,
+      notes: [{ ...note, path: "decisions/2026-10-07.md", title: "DECISION TABLE" }],
+    });
+    render(<KnowledgeView space={space} />);
+
+    expect(await screen.findByText("DECISION TABLE")).toBeTruthy();
+    expect(screen.getByText("2026-10-07.md")).toBeTruthy();
+  });
+
   it("names and explains the three kinds of workspace knowledge", async () => {
     const user = userEvent.setup();
     render(<KnowledgeView space={space} />);
