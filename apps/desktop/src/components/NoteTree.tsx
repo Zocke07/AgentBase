@@ -60,7 +60,9 @@ export function NoteTree({ notes, activePath, onOpen, onDeleteFolder }: NoteTree
   useEffect(() => {
     if (activePath !== null) scrollToActive(treeRef.current, ".tree__note--active");
   }, [activePath]);
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+  // Run summaries are many, and Saved context manages them, so their folder
+  // starts folded. The open note's folders always unfold.
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set(["memory"]));
   const tree = buildTree(notes);
 
   const toggle = (path: string) => {
@@ -75,7 +77,7 @@ export function NoteTree({ notes, activePath, onOpen, onDeleteFolder }: NoteTree
   const renderFolder = (folder: Folder, depth: number) => (
     <>
       {folder.folders.map((child) => {
-        const open = !collapsed.has(child.path);
+        const open = !collapsed.has(child.path) || (activePath?.startsWith(`${child.path}/`) ?? false);
         return (
           <li key={`folder:${child.path}`} className="tree__item">
             <div className="tree__folder-row">

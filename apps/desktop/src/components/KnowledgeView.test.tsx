@@ -235,8 +235,27 @@ describe("knowledge vault", () => {
 
     await user.click(await screen.findByRole("tab", { name: "Recent" }));
     expect(screen.getByText("The newest notes and agent files, whoever wrote them.")).toBeTruthy();
-    expect(await screen.findByText("bull-2026-10-06.jsonl")).toBeTruthy();
-    expect(screen.getByText("storage.md")).toBeTruthy();
+    expect(await screen.findByText("storage.md")).toBeTruthy();
+    // The theses file is the runs' working data: one click away, not in the way.
+    expect(screen.queryByText("bull-2026-10-06.jsonl")).toBeNull();
+    await user.click(await screen.findByRole("button", { name: "Show 1 working file" }));
+    expect(screen.getByText("bull-2026-10-06.jsonl")).toBeTruthy();
+  });
+
+  it("folds the run summaries, which Saved context manages, until asked", async () => {
+    const user = userEvent.setup();
+    mocked.listKnowledge.mockResolvedValue({
+      ...index,
+      notes: [note, { ...note, path: "memory/runs/run-1.md", title: "Run memory: Decide" }],
+    });
+    render(<KnowledgeView space={space} />);
+
+    expect(await screen.findByText("Storage decision")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^memory/ }).getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText("Run memory: Decide")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: /^memory/ }));
+    expect(screen.getByText("Run memory: Decide")).toBeTruthy();
   });
 
   it("shows a note's file name under a title that hides it", async () => {

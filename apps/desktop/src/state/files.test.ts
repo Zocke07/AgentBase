@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { LogBuilder } from "../test/log";
 
-import { writtenFiles } from "./files";
+import { isWorkingFile, writtenFiles } from "./files";
 import { reduceAll } from "./reducer";
 
 /** One answered call: executed, then answered. */
@@ -52,5 +52,31 @@ describe("writtenFiles", () => {
     ];
 
     expect(writtenFiles(reduceAll(events))).toEqual([]);
+  });
+});
+
+describe("isWorkingFile", () => {
+  it("folds the runs' working data and keeps reports and inputs in view", () => {
+    for (const path of [
+      "raw/movers-2026-10-06.json",
+      "raw/prices/AAPL.csv",
+      "theses/bull-2026-10-06.jsonl",
+      "risk/checks-2026-10-06.json",
+      "scores/accuracy.csv",
+      "portfolio/computed.json",
+      "portfolio/weights.csv",
+    ]) {
+      expect(isWorkingFile(path), path).toBe(true);
+    }
+    for (const path of [
+      "decisions/2026-10-06.md",
+      "portfolio/review-2026-10-06.md",
+      "portfolio/positions.csv",
+      "config/watchlist.json",
+      "visualizations/pipeline.dashboard.json",
+      "notes/raw/ideas.md",
+    ]) {
+      expect(isWorkingFile(path), path).toBe(false);
+    }
   });
 });

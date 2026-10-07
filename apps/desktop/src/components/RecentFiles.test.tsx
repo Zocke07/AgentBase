@@ -40,21 +40,27 @@ describe("RecentFiles", () => {
     const notes = [
       noteAt("decisions/2026-10-06.md", "DECISION TABLE", "2026-10-07T11:12:06Z"),
       noteAt("memory/runs/run-1.md", "Run memory: Decide", "2026-10-07T11:12:29Z"),
-      noteAt("portfolio/review-2026-10-06.md", "Portfolio review", "2026-10-06T23:08:00Z"),
+      // Within the same hour as the others, so every time zone sees one day.
+      noteAt("portfolio/review-2026-10-06.md", "Portfolio review", "2026-10-07T11:08:00Z"),
     ];
     render(<RecentFiles spaceId="space-lab" notes={notes} onOpenNote={vi.fn()} onOpenFile={vi.fn()} />);
 
     const list = await screen.findByTestId("recent-files");
+    const rows = () => [...list.querySelectorAll<HTMLElement>("[data-path]")].map((row) => row.dataset.path);
+    // The runs' working data folds away; reports and inputs stay in view.
     await waitFor(() => {
-      expect(within(list).getAllByRole("button").map((row) => row.dataset.path)).toEqual([
-        "decisions/2026-10-06.md",
-        "theses/bull-2026-10-06.jsonl",
-        "portfolio/review-2026-10-06.md",
-        "config/watchlist.json",
-      ]);
+      expect(rows()).toEqual(["decisions/2026-10-06.md", "portfolio/review-2026-10-06.md", "config/watchlist.json"]);
     });
     expect(list.textContent).toContain("DECISION TABLE");
     expect(list.textContent).not.toContain("Run memory");
+
+    await userEvent.click(within(list).getByRole("button", { name: "Show 1 working file" }));
+    expect(rows()).toEqual([
+      "decisions/2026-10-06.md",
+      "portfolio/review-2026-10-06.md",
+      "theses/bull-2026-10-06.jsonl",
+      "config/watchlist.json",
+    ]);
   });
 
   it("opens a note as a note and a data file as an agent file", async () => {
@@ -72,6 +78,7 @@ describe("RecentFiles", () => {
     const list = await screen.findByTestId("recent-files");
     await userEvent.click(within(list).getByRole("button", { name: /2026-10-06\.md/ }));
     expect(onOpenNote).toHaveBeenCalledWith("decisions/2026-10-06.md");
+    await userEvent.click(await within(list).findByRole("button", { name: "Show 1 working file" }));
     await userEvent.click(await within(list).findByRole("button", { name: /bull-2026-10-06\.jsonl/ }));
     expect(onOpenFile).toHaveBeenCalledWith("theses/bull-2026-10-06.jsonl");
   });

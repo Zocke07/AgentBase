@@ -40,13 +40,18 @@ cannot delete the vault root or hidden folders.
 
 The tree lists notes by file name, and under a note whose title differs it
 shows the file name too: an agent's `decisions/2026-10-06.md` can be titled
-**DECISION TABLE**, and the file name is the one its run reports.
+**DECISION TABLE**, and the file name is the one its run reports. The
+`memory` folder of run summaries starts folded, since **Saved context**
+manages them; select it to unfold. The open note's folder always unfolds.
 
 ## Recent
 
 **Recent** lists notes and agent files together, newest first, under Today,
 Yesterday and Earlier, whoever wrote them. Select one to open it in **Notes** or
-**Agent files**. Run summaries stay in **Saved context**. Every Knowledge list
+**Agent files**. Run summaries stay in **Saved context**. Each day shows its
+reports and the inputs you keep; the working data the runs write for each
+other (`raw/`, `theses/`, `risk/`, `scores/`, the computed portfolio and its
+weights) folds into one **Show N working files** line. Every Knowledge list
 rereads the space folder when you open the section, when a run finishes and
 when you return to the window, so a run's outputs appear without a restart.
 
@@ -59,7 +64,9 @@ Edit as text and **Save file**; invalid `.json` is refused before write.
 **New file** accepts a space-relative path; an empty list offers three roster
 config templates. **Delete…** confirms and backs up to `.agentbase/backups/`.
 Hidden files, binaries, and out-of-space paths remain inaccessible. Agents use
-the same `write_file` approval to modify them.
+the same `write_file` approval to modify them. A folder holding only the runs'
+working data (`raw/`, `theses/`, `risk/`, `scores/`) starts folded; select its
+name to unfold it. A search, or a file opened from a run, unfolds its folder.
 
 ## Links, properties and preview
 

@@ -1,9 +1,9 @@
 import type { NoteSummary } from "@agentbase/schemas";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import * as api from "../lib/api";
 import { whenLabel } from "../lib/format";
-import { splitPath } from "../state/files";
+import { isWorkingFile, splitPath } from "../state/files";
 import { useFetched } from "../state/useFetched";
 
 /**
@@ -35,6 +35,8 @@ const RECENT_LIMIT = 40;
 export function RecentFiles({ spaceId, notes, reloadNonce = 0, onOpenNote, onOpenFile }: RecentFilesProps) {
   const load = useCallback(() => api.listFiles(spaceId), [spaceId]);
   const files = useFetched(load, null);
+  // Days whose working files the person unfolded.
+  const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(new Set());
   const { reload } = files;
   useEffect(() => {
     if (reloadNonce > 0) reload();
@@ -67,40 +69,57 @@ export function RecentFiles({ spaceId, notes, reloadNonce = 0, onOpenNote, onOpe
     else groups.push({ label, entries: [entry] });
   }
 
+  const row = (entry: Entry) => {
+    const { name, folder } = splitPath(entry.path);
+    const type = entry.kind === "note" ? "Note" : extension(name);
+    return (
+      <li key={entry.path}>
+        <button
+          type="button"
+          className="files__item"
+          data-path={entry.path}
+          title={entry.path}
+          onClick={() => {
+            if (entry.kind === "note") onOpenNote(entry.path);
+            else onOpenFile(entry.path);
+          }}
+        >
+          <span className="files__file-icon" aria-hidden="true">
+            {type.slice(0, 1)}
+          </span>
+          <span className="files__identity">
+            <span className="files__name">{name}</span>
+            <span className="files__meta">
+              {[folder === "" ? "Space root" : `${folder}/`, entry.title ?? type, timeLabel(entry.updatedAt)].join(" · ")}
+            </span>
+          </span>
+        </button>
+      </li>
+    );
+  };
+
   return (
     <div className="recent" data-testid="recent-files">
       {groups.map((group) => (
         <section key={group.label} className="recent__group" aria-label={group.label}>
           <h3 className="recent__day">{group.label}</h3>
           <ul className="files__list">
-            {group.entries.map((entry) => {
-              const { name, folder } = splitPath(entry.path);
-              const type = entry.kind === "note" ? "Note" : extension(name);
-              return (
-                <li key={entry.path}>
-                  <button
-                    type="button"
-                    className="files__item"
-                    data-path={entry.path}
-                    title={entry.path}
-                    onClick={() => {
-                      if (entry.kind === "note") onOpenNote(entry.path);
-                      else onOpenFile(entry.path);
-                    }}
-                  >
-                    <span className="files__file-icon" aria-hidden="true">
-                      {type.slice(0, 1)}
-                    </span>
-                    <span className="files__identity">
-                      <span className="files__name">{name}</span>
-                      <span className="files__meta">
-                        {[folder === "" ? "Space root" : `${folder}/`, entry.title ?? type, timeLabel(entry.updatedAt)].join(" · ")}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
+            {group.entries.filter((entry) => !isWorkingFile(entry.path)).map(row)}
+            {group.entries.some((entry) => isWorkingFile(entry.path)) && (
+              <WorkingFiles
+                entries={group.entries.filter((entry) => isWorkingFile(entry.path))}
+                open={unfolded.has(group.label)}
+                onToggle={() => {
+                  setUnfolded((current) => {
+                    const next = new Set(current);
+                    if (next.has(group.label)) next.delete(group.label);
+                    else next.add(group.label);
+                    return next;
+                  });
+                }}
+                row={row}
+              />
+            )}
           </ul>
         </section>
       ))}
@@ -131,4 +150,34 @@ function startOfDay(at: Date): number {
 function timeLabel(iso: string): string {
   if (dayLabel(iso) !== "Today") return whenLabel(iso);
   return new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
+/**
+ * A day's working data as one line until asked for: the raw prices, theses
+ * and checks the runs write for each other outnumber the reports a person
+ * reads, and buried them.
+ */
+function WorkingFiles({
+  entries,
+  open,
+  onToggle,
+  row,
+}: {
+  entries: readonly Entry[];
+  open: boolean;
+  onToggle: () => void;
+  row: (entry: Entry) => React.ReactNode;
+}) {
+  const count = `${String(entries.length)} working file${entries.length === 1 ? "" : "s"}`;
+  return (
+    <>
+      <li>
+        <button type="button" className="recent__fold" aria-expanded={open} onClick={onToggle}>
+          <span className={`tree__chevron${open ? " tree__chevron--open" : ""}`} aria-hidden="true" />
+          {open ? `Hide ${count}` : `Show ${count}`}
+        </button>
+      </li>
+      {open && entries.map(row)}
+    </>
+  );
 }

@@ -44,6 +44,19 @@ export function isNote(path: string): boolean {
   return path.toLocaleLowerCase().endsWith(".md");
 }
 
+/** Folders the shipped pipeline's runs fill with working data, a day at a time. */
+const WORKING_FOLDERS: readonly string[] = ["raw/", "theses/", "risk/", "scores/"];
+const WORKING_FILES: ReadonlySet<string> = new Set(["portfolio/computed.json", "portfolio/weights.csv"]);
+
+/**
+ * A data file runs write for each other rather than for a person to read: the
+ * lists fold these away so the reports and the inputs a person keeps stand out.
+ * Notes are never working files, and nothing outside these folders is.
+ */
+export function isWorkingFile(path: string): boolean {
+  return !isNote(path) && (WORKING_FILES.has(path) || WORKING_FOLDERS.some((folder) => path.startsWith(folder)));
+}
+
 /** `decisions/2026-10-06.md` as its file name and its folder. */
 export function splitPath(path: string): { name: string; folder: string } {
   const separator = path.lastIndexOf("/");

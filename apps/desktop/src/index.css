@@ -8258,3 +8258,43 @@ button.run-files__file:hover,
   font-weight: 650;
   letter-spacing: 0.035em;
 }
+
+/* Recent's fold for a day's working files: quieter than a file row. */
+.recent__fold {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.75rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recent__fold:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* Agent files folder heading as its own fold toggle. */
+.files__group-toggle {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.files__group-toggle:hover {
+  color: var(--text);
+}

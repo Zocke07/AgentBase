@@ -59,9 +59,16 @@ describe("data files", () => {
     expect(await screen.findByRole("heading", { name: "config" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "raw" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Space root" })).toBeTruthy();
+    // The runs' working data starts folded; the inputs a person keeps stay open.
+    expect(screen.getByText("watchlist.json")).toBeTruthy();
+    expect(screen.queryByText("prices.json")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "raw" }));
     expect(screen.getByText("prices.json")).toBeTruthy();
     expect(screen.getByText("market/ · JSON · 2.0 KB")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "raw" }));
+    expect(screen.queryByText("prices.json")).toBeNull();
 
+    // A search shows every match, folded or not.
     await user.type(screen.getByRole("searchbox", { name: "Filter agent files" }), "prices");
     expect(screen.queryByText("watchlist.json")).toBeNull();
     expect(screen.getByText("prices.json")).toBeTruthy();

@@ -6,6 +6,35 @@ cover only work actually executed.
 
 ## Phase 17 and run-review UX, 2026-10-01, on `main`, not released
 
+### Fewer files in view, 2026-10-07
+
+The maintainer found too many files in Knowledge. One AAPL session already
+wrote 11 working files beside a decision and a portfolio review, and run
+summaries filled the Notes tree. The files on disk are unchanged, since the
+tools, gates and charts depend on their paths; what the window shows by
+default is simpler:
+
+- **Recent:** each day shows reports and inputs, with the runs' working data
+  behind one **Show N working files** line.
+- **Agent files:** folders holding only working data start folded. A search,
+  or a file opened from a run, unfolds its folder.
+- **Notes:** the `memory` folder starts folded unless the open note is in it.
+
+`isWorkingFile` (`state/files.ts`) names that data: `raw/`, `theses/`,
+`risk/` and `scores/`, plus `portfolio/computed.json` and `weights.csv`.
+Notes and anything elsewhere are never folded away.
+
+**Executed:** the classifier test and the folding tests failed first, and
+older tests now unfold before asking for working files. The full desktop
+suite passed **568 tests in 55 files**, with ESLint and `tsc` clean. Headless
+Chrome on a time-preserving copy of the live space showed:
+
+- Recent as the decision, the review and "Show 11 working files", then four
+  inputs under Earlier.
+- Agent files with `config` and `portfolio` open and `raw`, `risk` and
+  `theses` folded.
+- Notes with `memory` folded.
+
 ### Decisions that show their sources, migration 027, 2026-10-07
 
 The maintainer asked why the decision table's header read "size %NAV", and

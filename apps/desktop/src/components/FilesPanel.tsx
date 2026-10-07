@@ -5,6 +5,7 @@ import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
 import { STARTERS } from "../lib/pipeline";
 import { scrollToActive } from "../lib/scroll";
+import { isWorkingFile } from "../state/files";
 import { useFetched } from "../state/useFetched";
 
 /**
@@ -73,6 +74,8 @@ export function FilesPanel({ spaceId, part, open, onOpen, onChanged, reloadNonce
   const files = useFetched(load, null);
   const list = files.data?.files ?? NO_FILES;
   const [query, setQuery] = useState("");
+  // Folders whose fold the person changed from its default.
+  const [toggled, setToggled] = useState<ReadonlySet<string>>(new Set());
   const { reload } = files;
   useEffect(() => {
     if (reloadNonce > 0) reload();
@@ -163,42 +166,70 @@ export function FilesPanel({ spaceId, part, open, onOpen, onChanged, reloadNonce
           <p className="files__no-match">No files match “{query.trim()}”.</p>
         )}
         <div className="files__groups">
-          {orderedGroups.map(([group, groupedFiles], position) => (
-            <section className="files__group" key={group || "root"} aria-labelledby={`file-group-${String(position)}`}>
-              <div className="files__group-head">
-                <h3 id={`file-group-${String(position)}`}>{groupLabel(group)}</h3>
-                <span>{groupedFiles.length}</span>
-              </div>
-              <ul className="files__list">
-                {groupedFiles.map((file) => {
-                  const parts = pathParts(file.path);
-                  const nested = nestedDirectory(file.path);
-                  return (
-                    <li key={file.path}>
-                      <button
-                        type="button"
-                        className={`files__item${open?.path === file.path ? " files__item--active" : ""}`}
-                        aria-current={open?.path === file.path ? "true" : undefined}
-                        aria-label={`${file.path}, ${fileType(file.path)}, ${sizeLabel(file.size)}`}
-                        title={`${file.path} · ${sizeLabel(file.size)}`}
-                        onClick={() => {
-                          onOpen({ path: file.path, fresh: false });
-                        }}
-                      >
-                        <span className="files__file-icon" aria-hidden="true">{fileType(file.path).slice(0, 1)}</span>
-                        <span className="files__identity">
-                          <span className="files__name">{parts.name}</span>
-                          <span className="files__meta">
-                            {nested !== "" && `${nested} · `}{fileType(file.path)} · {sizeLabel(file.size)}
-                          </span>
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ))}
+          {orderedGroups.map(([group, groupedFiles], position) => {
+            // A folder of the runs' working data starts folded, so the inputs a
+            // person keeps stand out. A search, or the open file, unfolds it.
+            const byDefault = groupedFiles.every((file) => isWorkingFile(file.path));
+            const folded =
+              query.trim() === "" &&
+              (open === null || fileGroup(open.path) !== group) &&
+              (toggled.has(group) ? !byDefault : byDefault);
+            return (
+              <section className="files__group" key={group || "root"} aria-labelledby={`file-group-${String(position)}`}>
+                <div className="files__group-head">
+                  <h3 id={`file-group-${String(position)}`}>
+                    <button
+                      type="button"
+                      className="files__group-toggle"
+                      aria-expanded={!folded}
+                      onClick={() => {
+                        setToggled((current) => {
+                          const next = new Set(current);
+                          if (next.has(group)) next.delete(group);
+                          else next.add(group);
+                          return next;
+                        });
+                      }}
+                    >
+                      <span className={`tree__chevron${folded ? "" : " tree__chevron--open"}`} aria-hidden="true" />
+                      {groupLabel(group)}
+                    </button>
+                  </h3>
+                  <span>{groupedFiles.length}</span>
+                </div>
+                {!folded && (
+                  <ul className="files__list">
+                    {groupedFiles.map((file) => {
+                      const parts = pathParts(file.path);
+                      const nested = nestedDirectory(file.path);
+                      return (
+                        <li key={file.path}>
+                          <button
+                            type="button"
+                            className={`files__item${open?.path === file.path ? " files__item--active" : ""}`}
+                            aria-current={open?.path === file.path ? "true" : undefined}
+                            aria-label={`${file.path}, ${fileType(file.path)}, ${sizeLabel(file.size)}`}
+                            title={`${file.path} · ${sizeLabel(file.size)}`}
+                            onClick={() => {
+                              onOpen({ path: file.path, fresh: false });
+                            }}
+                          >
+                            <span className="files__file-icon" aria-hidden="true">{fileType(file.path).slice(0, 1)}</span>
+                            <span className="files__identity">
+                              <span className="files__name">{parts.name}</span>
+                              <span className="files__meta">
+                                {nested !== "" && `${nested} · `}{fileType(file.path)} · {sizeLabel(file.size)}
+                              </span>
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
+            );
+          })}
         </div>
       </div>
     );
