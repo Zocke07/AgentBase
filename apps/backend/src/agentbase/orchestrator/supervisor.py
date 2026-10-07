@@ -35,12 +35,16 @@ SUPERVISOR_NAME = "supervisor"
 SUPERVISOR_ROLE = "Plans the work and delegates it"
 
 
-def supervisor_prompt(goal: str, roster: str, knowledge_context: str = "") -> str:
+def supervisor_prompt(
+    goal: str, roster: str, knowledge_context: str = "", time_note: str = ""
+) -> str:
     """Build supervisor system prompt; roster differs per run, not per spawn."""
     knowledge = f"\n\n{knowledge_context}" if knowledge_context else ""
+    started = f"{time_note}\n\n" if time_note else ""
     return (
         "You are the supervisor of a small team of AI agents.\n\n"
         f"The user's goal is:\n{goal}\n\n"
+        f"{started}"
         "These agents are available to you:\n"
         f"{roster}\n\n"
         "Break the goal into the smallest number of subtasks that genuinely "
@@ -71,6 +75,7 @@ class Supervisor(Agent):
         space_id: str | None = None,
         knowledge_context: str = "",
         excluded_citations: frozenset[str] = frozenset(),
+        time_note: str = "",
     ) -> None:
         super().__init__(
             run=run,
@@ -79,7 +84,9 @@ class Supervisor(Agent):
             spec=AgentSpec(
                 name=SUPERVISOR_NAME,
                 role=SUPERVISOR_ROLE,
-                system_prompt=supervisor_prompt(goal, registry.describe(), knowledge_context),
+                system_prompt=supervisor_prompt(
+                    goal, registry.describe(), knowledge_context, time_note
+                ),
                 # No definition or allowlist.
                 max_steps=run.limits.max_steps_per_agent,
                 control_names=SUPERVISOR_CONTROL_NAMES,

@@ -8,7 +8,9 @@ claim depends on its named events. Scripts select seeded ``agent_defs`` workers.
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -16,6 +18,7 @@ from agentbase.api.stream import run_stream
 from agentbase.events.bus import DEFAULT_QUEUE_SIZE, EventBus
 from agentbase.events.types import EventType
 from agentbase.orchestrator import execute_run
+from agentbase.orchestrator.clock import started_note
 from agentbase.orchestrator.limits import RunLimits
 from agentbase.orchestrator.run import Mailbox, Run, SpawnRefusedError
 from agentbase.providers.base import Completion, Message, Role
@@ -512,6 +515,52 @@ async def test_the_next_request_shows_each_call_beside_its_result(
         },
         {"role": "tool", "content": answered.content, "tool_call_id": "c1"},
     ]
+
+
+def test_the_start_time_reads_in_local_time_and_utc() -> None:
+    """A 07:00 Taipei start is the previous day in UTC; agents need both."""
+    started = datetime(2026, 10, 1, 23, 0, tzinfo=UTC)
+
+    assert started_note(started, ZoneInfo("Asia/Taipei")) == (
+        "This run started on Friday 2026-10-02 at 07:00 local time (UTC+08:00), "
+        "which is 2026-10-01 23:00 UTC. Use this for every date and time you "
+        "write, and never guess one."
+    )
+
+
+async def test_every_agent_is_told_when_the_run_started(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+) -> None:
+    """Models have no clock: dated files once came from guesses and file names.
+
+    The run's recorded start goes into the supervisor's and each worker's
+    system prompt, which ``agent.spawned`` logs for replay.
+    """
+    zone = ZoneInfo("Asia/Taipei")
+    provider = ScriptedProvider(TWO_WORKER_SCRIPT)
+    run = await store.create_run(goal="g", origin="ui")
+    await execute_run(
+        store, settings, agents, ledger, secrets, run.id, "g", provider=provider, zone=zone
+    )
+
+    local = run.created_at.astimezone(zone)
+    expected = (
+        f"This run started on {local:%A %Y-%m-%d} at {local:%H:%M} local time (UTC+08:00)"
+    )
+    supervisor, researcher = provider.systems[0], provider.systems[1]
+    assert supervisor is not None and expected in supervisor
+    assert researcher is not None and expected in researcher
+    logged = [
+        event.payload["system_prompt"]
+        for event in await store.read(run.id)
+        if event.type is EventType.AGENT_SPAWNED
+    ]
+    assert len(logged) == 3
+    assert all(expected in prompt for prompt in logged)
 
 
 async def test_a_cut_off_call_is_not_shown_to_the_model_as_made(

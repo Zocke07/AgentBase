@@ -221,6 +221,8 @@ second chronological log here.
   use one reducer over an event prefix. Adding an event type updates the Python
   contract, generated TypeScript and reducer together. Model summaries are
   claims; executed tool calls are separate evidence.
+- Every agent's system prompt states the run's recorded start in local time
+  and UTC (`orchestrator/clock.py`); models have no clock of their own.
 - A model's history keeps each assistant turn's `Message.tool_calls`, and
   every provider adapter resends them in its own shape with each result linked
   to its call. Without them, results looked unrequested and models repeated

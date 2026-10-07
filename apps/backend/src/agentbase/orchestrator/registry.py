@@ -46,9 +46,10 @@ WORKER_PROTOCOL: Final[str] = (
 )
 
 
-def compose_worker_prompt(definition: AgentDef) -> str:
-    """Build worker system prompt: user text followed by protocol."""
-    return f"{definition.system_prompt}\n\n{WORKER_PROTOCOL}"
+def compose_worker_prompt(definition: AgentDef, time_note: str = "") -> str:
+    """Build worker system prompt: user text, protocol, then the run's start."""
+    started = f"\n\n{time_note}" if time_note else ""
+    return f"{definition.system_prompt}\n\n{WORKER_PROTOCOL}{started}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,15 +60,23 @@ class AgentRegistry:
     definitions: tuple[AgentDef, ...]
     #: Global ``max_steps_per_agent`` cap applied over each row's setting.
     max_steps_ceiling: int
+    #: When the run started, added to every worker's prompt.
+    time_note: str = ""
 
     @classmethod
     async def load(
-        cls, agents: AgentDefStore, limits: RunLimits, *, space_id: str = DEFAULT_SPACE_ID
+        cls,
+        agents: AgentDefStore,
+        limits: RunLimits,
+        *,
+        space_id: str = DEFAULT_SPACE_ID,
+        time_note: str = "",
     ) -> AgentRegistry:
         """Load one space's roster once at run start; exclude other-space rows."""
         return cls(
             definitions=tuple(await agents.list_enabled(space_id)),
             max_steps_ceiling=limits.max_steps_per_agent,
+            time_note=time_note,
         )
 
     # --- the roster --------------------------------------------------------
@@ -113,7 +122,7 @@ class AgentRegistry:
         return AgentSpec(
             name=run_name,
             role=definition.role,
-            system_prompt=compose_worker_prompt(definition),
+            system_prompt=compose_worker_prompt(definition, self.time_note),
             definition_id=definition.id,
             definition_name=definition.name,
             allowed_tools=definition.allowed_tools,

@@ -996,6 +996,13 @@ them as five schedules, switched off.
 5. One- and three-day calls from news are close to a coin flip; a clearly
    measured negative result is a successful output.
 
+*(Maintainer choice of 2026-10-01: models have no clock, so every agent's
+system prompt states when its run started, from the run's recorded
+`created_at`, in the machine's local time with its UTC offset and in UTC.
+`agent.spawned` logs the prompt, so a replay shows the time the agents were
+given. Before this, dates came from file names or guesses, and only the
+ChatGPT runtime supplied a date.)*
+
 **Built-in tools.** Each is medium risk (it fetches or writes), so a policy may
 answer it; each writes through `Sandbox.resolve_write_path`; none has a shell.
 

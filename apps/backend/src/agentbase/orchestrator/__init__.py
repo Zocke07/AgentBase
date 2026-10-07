@@ -10,12 +10,14 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import replace
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from agentbase.budget.ledger import BudgetedProvider, BudgetExceededError
 from agentbase.events.types import EventType
 from agentbase.knowledge.manager import MemoryManager
 from agentbase.orchestrator.agent import Agent, AgentSpec, StepOutcome
+from agentbase.orchestrator.clock import started_note
 from agentbase.orchestrator.limits import RunLimits
 from agentbase.orchestrator.registry import AgentRegistry, ProviderPool
 from agentbase.orchestrator.run import (
@@ -29,11 +31,13 @@ from agentbase.orchestrator.run import (
 from agentbase.orchestrator.supervisor import SUPERVISOR_NAME, Supervisor
 from agentbase.providers.base import ProviderError
 from agentbase.providers.factory import UnknownProviderError
+from agentbase.store.schedules import LocalZone
 from agentbase.store.spaces import DEFAULT_SPACE_ID
 from agentbase.tools.catalogue import ToolPolicy
 
 if TYPE_CHECKING:
     from collections.abc import Callable, MutableMapping
+    from datetime import tzinfo
 
     import httpx2
 
@@ -88,6 +92,7 @@ async def execute_run(
     max_run_seconds: int | None = None,
     origin: RunOrigin = "ui",
     supervised: bool = False,
+    zone: tzinfo | None = None,
 ) -> None:
     """Drive a run from ``run.started`` to a terminal event.
 
@@ -106,6 +111,8 @@ async def execute_run(
         questions expire after ``unattended_question_seconds``.
     :param supervised: step through: every call asks a person, who is there
         to answer, and only the app's own refusals still answer by policy.
+    :param zone: local time zone for the start time agents are told; the
+        machine's own by default.
     """
     workspace = await settings.get()
     if space is not None:
@@ -137,6 +144,11 @@ async def execute_run(
         except OSError:
             logger.exception("knowledge retrieval failed for run %s", run_id)
     knowledge_context = knowledge.format_context(hits) if knowledge is not None else ""
+
+    # The recorded start, so the time agents see matches the run's own record.
+    row = await store.get_run(run_id)
+    started = row.created_at if row is not None else datetime.now(UTC)
+    time_note = started_note(started, zone if zone is not None else LocalZone())
 
     question_seconds = (
         workspace.unattended_question_seconds
@@ -176,6 +188,7 @@ async def execute_run(
             knowledge,
             knowledge_context,
             excluded_citations,
+            time_note,
         )
     finally:
         if live is not None:
@@ -195,6 +208,7 @@ async def _execute(
     knowledge: KnowledgeStore | None,
     knowledge_context: str,
     excluded_citations: frozenset[str],
+    time_note: str,
 ) -> None:
     """Execute a run after registering it as live."""
     run_id = run.id
@@ -204,7 +218,10 @@ async def _execute(
     await run.start()
 
     registry = await AgentRegistry.load(
-        agents, limits, space_id=run.space.id if run.space is not None else DEFAULT_SPACE_ID
+        agents,
+        limits,
+        space_id=run.space.id if run.space is not None else DEFAULT_SPACE_ID,
+        time_note=time_note,
     )
     providers = ProviderPool(
         workspace,
@@ -239,6 +256,7 @@ async def _execute(
         space_id=run.space.id if run.space is not None else DEFAULT_SPACE_ID,
         knowledge_context=knowledge_context,
         excluded_citations=excluded_citations,
+        time_note=time_note,
     )
     await run.emit(
         EventType.AGENT_SPAWNED,
