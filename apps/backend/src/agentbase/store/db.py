@@ -77,6 +77,7 @@ MIGRATION_FILES: tuple[tuple[int, str], ...] = (
     (24, "024_pipeline_prompts.sql"),
     (25, "025_portfolio_session_date.sql"),
     (26, "026_decision_date_and_calendar_fields.sql"),
+    (27, "027_decision_sources.sql"),
 )
 
 #: Migrations requiring deferred foreign-key checks.

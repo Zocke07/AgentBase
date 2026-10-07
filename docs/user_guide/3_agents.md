@@ -108,8 +108,13 @@ pipeline has a defined consumer:
    empty when the evidence supports no call. Then `check_limits` produces the
    hard rule results before the risk manager adds judgement.
 3. **Daily decision** writes `decisions/{session date}.md`, a recommendation
-   for human review. It never trades, submits an order, or connects to a
-   broker.
+   for human review. Its table's **Size (% of portfolio)** is the share of
+   the portfolio's total value to hold, 0% for a pass. Every row, a pass
+   included, has its reasoning. **SOURCES** names what each row rests on: the
+   theses, the news headlines and movers figures they cite, and the risk
+   checks. An empty theses file is listed too, because it means that analyst
+   found nothing worth a call. It never trades, submits an order, or connects
+   to a broker.
 4. **Weekly knowledge** updates concept notes from the space's own knowledge.
    It updates a company note only when you placed filing text in
    `raw/filings/{TICKER}/`; it does not fetch a filing.

@@ -1126,6 +1126,12 @@ byte for byte. (Migration 020 is the models unit below.)
     theses file names. The calendar asks the auctions query for four fields,
     since five full 114-field records already passed the 20,000 characters a
     fetch shows.)*
+    *(Migration 027, at the maintainer's request for decisions that show why:
+    the decision file gains a SOURCES section that resolves every cited
+    evidence id to its news title, publisher and URL or movers figures, gives
+    reasoning for every row including a pass, and uses plain column headers,
+    "Size (% of portfolio)" for "size %NAV". It may not make thin evidence
+    sound stronger than its sources.)*
   - The weekly knowledge stage writes concept notes from the space's own
     knowledge, and company notes only where `raw/filings/{TICKER}/` holds
     filing text a person put there.

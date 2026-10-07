@@ -6,6 +6,35 @@ cover only work actually executed.
 
 ## Phase 17 and run-review UX, 2026-10-01, on `main`, not released
 
+### Decisions that show their sources, migration 027, 2026-10-07
+
+The maintainer asked why the decision table's header read "size %NAV", and
+for decisions that show their sources and reasons. The shipped decision
+prompt causes all three problems:
+
+- It lists the columns as `size %NAV` and `action (buy/add/hold/trim/exit/pass)`,
+  and the agent copied them as headers.
+- It asks for reasoning only for non-pass rows, so a pass said nothing.
+- It never asks the agent to resolve the evidence the theses cite.
+
+Migration 027 updates the prompt where it is still the shipped text; the
+maintainer's row was, apart from its model.
+
+- **Plain headers:** the columns are named, and Size (% of portfolio) is
+  explained under the table.
+- **Reasoning for every row:** a pass says which cause applied.
+- **A SOURCES section:** each cited evidence id is resolved to its news title,
+  publisher and URL or to its movers figures, beside the risk results. An
+  empty theses file is listed as an analyst finding no supported call.
+- **A rule against overstatement:** the decision may not make thin evidence
+  sound stronger than its sources.
+
+Executed: the three new migration tests failed first. On a copy of the live
+database the prompt moved and its GPT-5.6 Terra model stayed. The full backend
+suite passed, **1100 passed, 12 skipped**.
+
+Not verified: a decision written with 027 on a real model.
+
 ### Finding a run's files, 2026-10-07
 
 After restarting with 025, the chain ran unattended from **Run now** through

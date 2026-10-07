@@ -53,7 +53,7 @@ def _at_version(app_paths: AppPaths, version: int) -> Database:
 def _upgraded(app_paths: AppPaths) -> Database:
     database = Database(app_paths.db_path)
     database.connect()
-    assert database.schema_version == LATEST_SCHEMA_VERSION == 26
+    assert database.schema_version == LATEST_SCHEMA_VERSION == 27
     return database
 
 
@@ -506,5 +506,69 @@ def test_026_moves_a_model_only_edit_and_keeps_an_edited_goal(app_paths: AppPath
         calendar = _agents(after)["event-calendar"]
         assert calendar["model"] == "gpt-5.6-luna"
         assert "fields=cusip" in calendar["system_prompt"]
+    finally:
+        after.close()
+
+
+def _decision(database: Database) -> dict[str, Any]:
+    with database.read() as connection:
+        row = connection.execute(
+            "SELECT system_prompt, model FROM agent_defs WHERE space_id = ? AND name = 'decision'",
+            (DEFAULT_SPACE_ID,),
+        ).fetchone()
+    return dict(row)
+
+
+def test_027_has_every_decision_row_explain_itself_and_name_its_sources(
+    app_paths: AppPaths,
+) -> None:
+    """Reasoning covered only non-pass rows, so a quiet day's decision never said
+    why it passed, and the copied column list made headers like "size %NAV"."""
+    database = _upgraded(app_paths)
+    try:
+        prompt = _decision(database)["system_prompt"]
+        assert "for every row, a pass included" in prompt
+        assert "3. SOURCES: for every row, what it rests on." in prompt
+        assert "Size (% of portfolio)" in prompt
+        assert "size %NAV" not in prompt
+        assert "Cite only records you read." in prompt
+    finally:
+        database.close()
+
+
+def test_027_moves_a_model_only_edit(app_paths: AppPaths) -> None:
+    before = _at_version(app_paths, 26)
+    try:
+        with before.write() as connection:
+            connection.execute(
+                "UPDATE agent_defs SET model = 'gpt-5.6-terra', updated_at = ?"
+                " WHERE name = 'decision'",
+                (_NOW,),
+            )
+    finally:
+        before.close()
+    after = _upgraded(app_paths)
+    try:
+        decision = _decision(after)
+        assert decision["model"] == "gpt-5.6-terra"
+        assert "3. SOURCES:" in decision["system_prompt"]
+    finally:
+        after.close()
+
+
+def test_027_keeps_an_edited_decision_prompt(app_paths: AppPaths) -> None:
+    before = _at_version(app_paths, 26)
+    try:
+        with before.write() as connection:
+            connection.execute(
+                "UPDATE agent_defs SET system_prompt = 'My decision prompt.', updated_at = ?"
+                " WHERE name = 'decision'",
+                (_NOW,),
+            )
+    finally:
+        before.close()
+    after = _upgraded(app_paths)
+    try:
+        assert _decision(after)["system_prompt"] == "My decision prompt."
     finally:
         after.close()
