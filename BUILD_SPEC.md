@@ -1103,6 +1103,15 @@ byte for byte. (Migration 020 is the models unit below.)
     in `raw/` and `portfolio/computed.json`. Bull and bear always write their
     dated file, empty when the evidence supports no call. Exact shipped text
     only.)*
+    *(Migration 024, after reviewing that chain's outputs: agents now know
+    the local date, and a Taipei morning's session is the previous day, so
+    the goals name the session's date rather than "today's", and Daily
+    decision writes `decisions/{session date}.md`. The architects read the
+    newest news, movers and calendar files, drop the never-written
+    `raw/social-*` that the risk review had cited as missing, copy figures
+    exactly and may cite a movers row's id. The calendar's `as_of` is the
+    collection time, an auction reads "4-Week Bill auction", and its query
+    starts at the run's date.)*
   - The weekly knowledge stage writes concept notes from the space's own
     knowledge, and company notes only where `raw/filings/{TICKER}/` holds
     filing text a person put there.

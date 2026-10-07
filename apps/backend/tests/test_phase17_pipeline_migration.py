@@ -53,7 +53,7 @@ def _at_version(app_paths: AppPaths, version: int) -> Database:
 def _upgraded(app_paths: AppPaths) -> Database:
     database = Database(app_paths.db_path)
     database.connect()
-    assert database.schema_version == LATEST_SCHEMA_VERSION == 23
+    assert database.schema_version == LATEST_SCHEMA_VERSION == 24
     return database
 
 
@@ -279,7 +279,7 @@ def test_023_points_the_theses_stage_at_the_session_files_and_an_always_written_
 ) -> None:
     """Told to use only the movers file, both architects found no evidence id and
     wrote nothing, and check_limits then stopped the chain on the missing file."""
-    database = _upgraded(app_paths)
+    database = _at_version(app_paths, 23)
     try:
         goal = _goals(database)["Theses and risk"]
         assert "Use only the movers file" not in goal
@@ -346,5 +346,72 @@ def test_023_keeps_an_edited_theses_goal_and_architect_prompt(app_paths: AppPath
         architects = _architects(after)
         assert architects["bull-architect"]["system_prompt"] == "My bull prompt."
         assert "- Always write that file." in architects["bear-architect"]["system_prompt"]
+    finally:
+        after.close()
+
+
+def test_024_dates_the_chain_by_session_and_cleans_the_architect_inputs(
+    app_paths: AppPaths,
+) -> None:
+    """Agents now know the date, and a Taipei morning's session is the day before."""
+    database = _upgraded(app_paths)
+    try:
+        goals = _goals(database)
+        assert "Use the newest raw/movers-{YYYY-MM-DD}.json" in goals["Theses and risk"]
+        assert "can be the day before the local date" in goals["Theses and risk"]
+        assert "today" not in goals["Theses and risk"]
+        assert goals["Daily decision"].startswith(
+            "Ask decision to write decisions/{session date}.md"
+        )
+        for name, agent in _architects(database).items():
+            prompt = agent["system_prompt"]
+            assert "raw/social" not in prompt, name
+            assert "Copy every figure exactly as its file states it." in prompt, name
+            assert "or a movers row's id" in prompt, name
+            assert "- Always write that file." in prompt, name
+        calendar = _agents(database)["event-calendar"]["system_prompt"]
+        assert "filter=auction_date:gte:{the run's local date}" in calendar
+        assert "as_of is when this run collected the record" in calendar
+        assert '"4-Week Bill auction"' in calendar
+    finally:
+        database.close()
+
+
+def test_024_moves_shipped_text_after_model_only_edits_and_keeps_real_edits(
+    app_paths: AppPaths,
+) -> None:
+    before = _at_version(app_paths, 23)
+    try:
+        with before.write() as connection:
+            connection.execute(
+                "UPDATE agent_defs SET model = 'gpt-5.6-terra', updated_at = ?"
+                " WHERE name IN ('bull-architect', 'bear-architect', 'event-calendar')",
+                (_NOW,),
+            )
+            connection.execute(
+                "UPDATE schedules SET goal = 'My decision goal.', updated_at = ?"
+                " WHERE name = 'Daily decision'",
+                (_NOW,),
+            )
+            connection.execute(
+                "UPDATE agent_defs SET system_prompt = 'My bear prompt.', updated_at = ?"
+                " WHERE name = 'bear-architect'",
+                (_NOW,),
+            )
+    finally:
+        before.close()
+
+    after = _upgraded(app_paths)
+    try:
+        goals = _goals(after)
+        assert goals["Daily decision"] == "My decision goal."
+        assert "Use the newest raw/movers-" in goals["Theses and risk"]
+        architects = _architects(after)
+        assert architects["bear-architect"]["system_prompt"] == "My bear prompt."
+        assert "Copy every figure exactly" in architects["bull-architect"]["system_prompt"]
+        assert architects["bull-architect"]["model"] == "gpt-5.6-terra"
+        calendar = _agents(after)["event-calendar"]
+        assert calendar["model"] == "gpt-5.6-terra"
+        assert "as_of is when this run collected the record" in calendar["system_prompt"]
     finally:
         after.close()

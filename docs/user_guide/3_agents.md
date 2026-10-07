@@ -100,13 +100,16 @@ pipeline has a defined consumer:
    No new market session stops the chain without writing a false daily result.
    A new session is followed by news, Treasury auctions, and
    `compute_portfolio`.
-2. **Theses and risk** runs only when that session's movers file exists. Bull
-   and bear read that session's news, movers and calendar files and the
-   computed portfolio. Each writes a theses file dated with the session, left
+2. **Theses and risk** runs only when a movers file exists. Its date is the
+   market session's, which in an Asian morning is the day before your local
+   date, and it dates the stage's files. Bull and bear read the newest news,
+   movers and calendar files and the computed portfolio, and may cite a
+   movers row by its `id`. Each writes a theses file for the session, left
    empty when the evidence supports no call. Then `check_limits` produces the
    hard rule results before the risk manager adds judgement.
-3. **Daily decision** writes a dated recommendation for human review. It never
-   trades, submits an order, or connects to a broker.
+3. **Daily decision** writes `decisions/{session date}.md`, a recommendation
+   for human review. It never trades, submits an order, or connects to a
+   broker.
 4. **Weekly knowledge** updates concept notes from the space's own knowledge.
    It updates a company note only when you placed filing text in
    `raw/filings/{TICKER}/`; it does not fetch a filing.
