@@ -1117,6 +1117,12 @@ byte for byte. (Migration 020 is the models unit below.)
     exactly and may cite a movers row's id. The calendar's `as_of` is the
     collection time, an auction reads "4-Week Bill auction", and its query
     starts at the run's date.)*
+    *(Migration 026, after the first one-pass chain on 2026-10-07: Daily
+    decision's supervisor cannot see files and took the local date for the
+    session's, so the goal now has decision read the date from the newest
+    theses file names. The calendar asks the auctions query for four fields,
+    since five full 114-field records already passed the 20,000 characters a
+    fetch shows.)*
   - The weekly knowledge stage writes concept notes from the space's own
     knowledge, and company notes only where `raw/filings/{TICKER}/` holds
     filing text a person put there.

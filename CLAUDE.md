@@ -24,7 +24,7 @@ future changes do not relocate users' data or disconnect their stored keys.
 - **Phase 17 is implemented on `main`** (2026-10-01). The shipped investment
   pipeline now has Claude Sonnet 5.5 and migration 020, deterministic
   `read_prices`, `compute_portfolio`, `check_limits`, and
-  `score_predictions` tools, migrations 021 to 025, nine starter files, and its
+  `score_predictions` tools, migrations 021 to 026, nine starter files, and its
   four-chart dashboard. Fresh installs list Google News, Yahoo's chart host,
   and the Treasury API; used installs keep their saved host list. The remaining
   acceptance item is the maintainer's first daily morning-to-decision chain on
@@ -159,7 +159,7 @@ future changes do not relocate users' data or disconnect their stored keys.
   `.mermaid` holds a diagram. Mermaid uses strict mode and its SVG is sanitized
   again before insertion. These are ordinary space files written through the
   existing gate; there is no visualization database or service.
-- The latest recorded database migration is 025. Migration 020 adds Sonnet
+- The latest recorded database migration is 026. Migration 020 adds Sonnet
   5.5, updates untouched shipped Sonnet roles, and applies fresh space
   defaults without moving used spaces. Migration 021 wires the four
   deterministic tools and corrected goals into untouched pipeline rows, gives
@@ -172,7 +172,9 @@ future changes do not relocate users' data or disconnect their stored keys.
   dates the chain by the market session rather than "today", drops the
   never-written `raw/social-*` input, and fixes the calendar's `as_of` and
   auction descriptions. Migration 025 has portfolio-review leave `as_of` to
-  `compute_portfolio`, which computes the newest saved session.
+  `compute_portfolio`, which computes the newest saved session. Migration 026
+  has Daily decision read its date from the theses file names and the
+  calendar request four auction fields.
   Before those, 017 strips policy yeses for high risk, 018 pins
   upgraded installs to their old approval answers, and 019 ships the pipeline
   as disabled schedules. Existing workspace files are

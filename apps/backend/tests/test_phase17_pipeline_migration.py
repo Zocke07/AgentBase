@@ -53,7 +53,7 @@ def _at_version(app_paths: AppPaths, version: int) -> Database:
 def _upgraded(app_paths: AppPaths) -> Database:
     database = Database(app_paths.db_path)
     database.connect()
-    assert database.schema_version == LATEST_SCHEMA_VERSION == 25
+    assert database.schema_version == LATEST_SCHEMA_VERSION == 26
     return database
 
 
@@ -354,7 +354,7 @@ def test_024_dates_the_chain_by_session_and_cleans_the_architect_inputs(
     app_paths: AppPaths,
 ) -> None:
     """Agents now know the date, and a Taipei morning's session is the day before."""
-    database = _upgraded(app_paths)
+    database = _at_version(app_paths, 24)
     try:
         goals = _goals(database)
         assert "Use the newest raw/movers-{YYYY-MM-DD}.json" in goals["Theses and risk"]
@@ -463,5 +463,48 @@ def test_025_keeps_an_edited_portfolio_review_prompt(app_paths: AppPaths) -> Non
     after = _upgraded(app_paths)
     try:
         assert _agents(after)["portfolio-review"]["system_prompt"] == "My review prompt."
+    finally:
+        after.close()
+
+
+def test_026_has_decision_find_its_date_and_the_calendar_ask_for_less(
+    app_paths: AppPaths,
+) -> None:
+    """The decision stage's supervisor took the local date for the session's, and
+    five full auction records ran past the 20,000 characters a fetch shows."""
+    database = _upgraded(app_paths)
+    try:
+        goal = _goals(database)["Daily decision"]
+        assert goal.startswith("Ask decision to list theses/")
+        assert "do not give decision a date yourself" in goal
+        calendar = _agents(database)["event-calendar"]["system_prompt"]
+        assert "fields=cusip,security_type,security_term,auction_date," in calendar
+        assert "as_of is when this run collected the record" in calendar
+    finally:
+        database.close()
+
+
+def test_026_moves_a_model_only_edit_and_keeps_an_edited_goal(app_paths: AppPaths) -> None:
+    before = _at_version(app_paths, 25)
+    try:
+        with before.write() as connection:
+            connection.execute(
+                "UPDATE agent_defs SET model = 'gpt-5.6-luna', updated_at = ?"
+                " WHERE name = 'event-calendar'",
+                (_NOW,),
+            )
+            connection.execute(
+                "UPDATE schedules SET goal = 'My decision goal.', updated_at = ?"
+                " WHERE name = 'Daily decision'",
+                (_NOW,),
+            )
+    finally:
+        before.close()
+    after = _upgraded(app_paths)
+    try:
+        assert _goals(after)["Daily decision"] == "My decision goal."
+        calendar = _agents(after)["event-calendar"]
+        assert calendar["model"] == "gpt-5.6-luna"
+        assert "fields=cusip" in calendar["system_prompt"]
     finally:
         after.close()
