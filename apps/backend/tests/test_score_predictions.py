@@ -193,6 +193,12 @@ async def test_score_predictions_appends_once_and_writes_hand_checked_outputs(
 
     assert result["month"] == "2026-09"
     assert result["appended"] == 5
+    assert result["written"] == [
+        "scores/predictions.jsonl",
+        "scores/accuracy.csv",
+        "scores/calibration.csv",
+        "scores/scorecard-2026-09.json",
+    ]
     assert result["already_scored"] == 0
     assert result["unresolved"] == 1
     assert result["malformed"] == 1
@@ -266,6 +272,8 @@ async def test_score_predictions_appends_once_and_writes_hand_checked_outputs(
     before = ledger_path.read_bytes()
     second = json.loads(await tool.execute(prepared, sandbox))
     assert second["appended"] == 0
+    # Nothing new resolved, so the append-only ledger was not touched.
+    assert "scores/predictions.jsonl" not in second["written"]
     assert second["already_scored"] == 5
     assert ledger_path.read_bytes() == before
 

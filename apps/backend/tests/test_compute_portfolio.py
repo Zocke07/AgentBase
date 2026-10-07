@@ -87,6 +87,10 @@ async def test_compute_portfolio_writes_exact_book_weights_and_limit_crossings(
 
     result = json.loads(await tool.execute(prepared, sandbox))
 
+    # The run view lists these; the computed file itself does not carry them.
+    assert result["written"] == ["portfolio/computed.json", "portfolio/weights.csv"]
+    computed = (sandbox.root / "portfolio/computed.json").read_text(encoding="utf-8")
+    assert "written" not in json.loads(computed)
     assert result["as_of"] == "2026-09-30"
     assert result["positions_date"] == "2026-09-28"
     assert result["stale"] is False
@@ -147,8 +151,8 @@ async def test_compute_portfolio_writes_exact_book_weights_and_limit_crossings(
         ],
     }
 
-    written = json.loads((sandbox.root / "portfolio/computed.json").read_text(encoding="utf-8"))
-    assert written == result
+    saved = json.loads((sandbox.root / "portfolio/computed.json").read_text(encoding="utf-8"))
+    assert saved == {key: value for key, value in result.items() if key != "written"}
     assert (sandbox.root / "portfolio/weights.csv").read_text(
         encoding="utf-8"
     ).splitlines() == [

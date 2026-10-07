@@ -279,6 +279,13 @@ def _score_and_write_locked(payload: dict[str, Any], now: datetime) -> dict[str,
         "scorecard_path": f"scores/scorecard-{month}.json",
         "accuracy_path": _ACCURACY_PATH,
         "calibration_path": _CALIBRATION_PATH,
+        # For the run view: the ledger only when a prediction was appended to it.
+        "written": [
+            *([_LEDGER_PATH] if newly_resolved else []),
+            _ACCURACY_PATH,
+            _CALIBRATION_PATH,
+            f"scores/scorecard-{month}.json",
+        ],
     }
 
 

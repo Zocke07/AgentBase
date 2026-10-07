@@ -79,6 +79,13 @@ async def test_read_prices_writes_bounded_history_movers_and_stable_summary(
     assert result["failures"] == []
     assert [row["ticker"] for row in result["summary"]] == ["2330.TW", "AAPL"]
     assert result["movers_path"] == "raw/movers-2026-09-30.json"
+    # The run view lists these as the files the call wrote.
+    assert result["written"] == [
+        "raw/prices/AAPL.csv",
+        "raw/prices/2330.TW.csv",
+        "raw/prices/summary.csv",
+        "raw/movers-2026-09-30.json",
+    ]
 
     aapl = (sandbox.root / "raw/prices/AAPL.csv").read_text(encoding="utf-8").splitlines()
     assert len(aapl) == 252

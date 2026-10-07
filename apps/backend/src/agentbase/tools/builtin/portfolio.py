@@ -166,7 +166,9 @@ class ComputePortfolioTool:
             raise ToolExecutionError(
                 "portfolio inputs contain a number outside the supported range."
             ) from exc
-        return json.dumps(result, ensure_ascii=False, separators=(",", ":"))
+        # For the run view only; computed.json was written without it.
+        reported = {**result, "written": [_COMPUTED_PATH, _WEIGHTS_PATH]}
+        return json.dumps(reported, ensure_ascii=False, separators=(",", ":"))
 
 
 def _compute(payload: dict[str, Any]) -> dict[str, Any]:

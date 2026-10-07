@@ -1005,6 +1005,9 @@ ChatGPT runtime supplied a date.)*
 
 **Built-in tools.** Each is medium risk (it fetches or writes), so a policy may
 answer it; each writes through `Sandbox.resolve_write_path`; none has a shell.
+*(2026-10-07: each also lists the files it wrote in its result's `written`
+array, which the run view turns into links. The run view trusts that key only
+from these four tools, never from read or fetched text.)*
 
 - `read_prices` (network): for up to 50 watchlist symbols, fetch a year of
   daily history from one fixed endpoint, recommended

@@ -104,7 +104,9 @@ class CheckLimitsTool:
             raise ToolExecutionError(
                 "portfolio or limit inputs contain a number outside the supported range."
             ) from exc
-        return json.dumps(result, ensure_ascii=False, separators=(",", ":"))
+        # For the run view only; the checks file was written without it.
+        reported = {**result, "written": [sandbox.relative(prepared.payload["output_path"])]}
+        return json.dumps(reported, ensure_ascii=False, separators=(",", ":"))
 
 
 def _check(payload: dict[str, Any]) -> dict[str, Any]:

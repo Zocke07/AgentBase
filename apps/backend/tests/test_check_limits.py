@@ -86,6 +86,8 @@ async def test_check_limits_writes_exact_checks_and_headroom(sandbox: Sandbox) -
 
     result = json.loads(await tool.execute(prepared, sandbox))
 
+    # Reported for the run view, never written into the checks file.
+    assert result.pop("written") == ["risk/rule-checks-2026-09-30.json"]
     assert result == {
         "date": "2026-09-30",
         "portfolio_as_of": "2026-09-30",

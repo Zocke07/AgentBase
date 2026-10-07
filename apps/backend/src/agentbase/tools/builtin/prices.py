@@ -191,6 +191,8 @@ class ReadPricesTool:
 
         histories: list[_History] = []
         failures: list[dict[str, str]] = []
+        # Reported so the run view can list and open what this call wrote.
+        written: list[str] = []
         for request, (history, error) in zip(
             prepared.payload["requests"], outcomes, strict=True
         ):
@@ -199,10 +201,12 @@ class ReadPricesTool:
                 continue
             histories.append(history)
             await asyncio.to_thread(_write_history, request["path"], history)
+            written.append(sandbox.relative(request["path"]))
 
         rows = _mover_rows(histories)
         summary_path: Path = prepared.payload["summary_path"]
         await asyncio.to_thread(_write_summary, summary_path, rows)
+        written.append(sandbox.relative(summary_path))
 
         movers_dir: Path = prepared.payload["movers_dir"]
         as_of = max((row["date"] for row in rows), default=None)
@@ -212,6 +216,7 @@ class ReadPricesTool:
         if as_of is not None:
             movers_path = sandbox.resolve_write_path(f"raw/movers-{as_of}.json")
             await asyncio.to_thread(_write_json, movers_path, rows)
+            written.append(sandbox.relative(movers_path))
 
         returned = {
             "as_of": as_of,
@@ -220,6 +225,7 @@ class ReadPricesTool:
             "movers_path": None if movers_path is None else sandbox.relative(movers_path),
             "summary": rows,
             "failures": failures,
+            "written": written,
         }
         return json.dumps(returned, ensure_ascii=False, separators=(",", ":"))
 
