@@ -178,11 +178,14 @@ def _compute(payload: dict[str, Any]) -> dict[str, Any]:
     computed_path: Path = payload["computed_path"]
     weights_path: Path = payload["weights_path"]
 
-    positions = _read_positions(positions_path)
+    # No holdings recorded yet is a state to report, not a failure: an error
+    # here stopped the whole daily chain before any thesis was written.
+    empty = _records_nothing(positions_path)
+    positions = [] if empty else _read_positions(positions_path)
     held = [position for position in positions if position.ticker != "CASH"]
     prices = _read_prices(prices_path, {position.ticker for position in held})
     limits = _read_limits(limits_path)
-    positions_date = _modified_date(positions_path)
+    positions_date = _modified_date(positions_path) if positions_path.exists() else None
     explicit_as_of = payload["as_of"]
     if explicit_as_of is not None:
         as_of = _parse_date(explicit_as_of, "as_of")
@@ -192,11 +195,19 @@ def _compute(payload: dict[str, Any]) -> dict[str, Any]:
         # Nothing held sets a price date. The save date of positions.csv made
         # check_limits refuse every later session's theses, so use the session
         # the watchlist was priced for, which those theses are dated by.
-        as_of = _newest_session(prices_path) or positions_date
+        as_of = _newest_session(prices_path) or positions_date or datetime.now(UTC).date()
 
-    book_currency = _one_currency(position.currency for position in positions)
-    all_currencies = {book_currency, *(price.currency for price in prices.values())}
-    if len(all_currencies) != 1:
+    book_currency = (
+        _session_currency(prices_path)
+        if empty
+        else _one_currency(position.currency for position in positions)
+    )
+    all_currencies = {
+        currency
+        for currency in (book_currency, *(price.currency for price in prices.values()))
+        if currency is not None
+    }
+    if len(all_currencies) > 1:
         raise ToolExecutionError(
             f"{ComputePortfolioTool.name} cannot mix currencies: "
             f"{_list_words(sorted(all_currencies))}."
@@ -283,8 +294,9 @@ def _compute(payload: dict[str, Any]) -> dict[str, Any]:
     reason = "positions.csv is a current snapshot without transaction history."
     result: dict[str, Any] = {
         "as_of": as_of.isoformat(),
-        "positions_date": positions_date.isoformat(),
-        "stale": (as_of - positions_date).days > 3,
+        "positions_date": None if positions_date is None else positions_date.isoformat(),
+        "stale": not empty and positions_date is not None and (as_of - positions_date).days > 3,
+        "empty_book": empty,
         "price_dates": {ticker: prices[ticker].date.isoformat() for ticker in sorted(prices)},
         "currency": book_currency,
         "total_value": _json_number(total, _MONEY),
@@ -309,6 +321,11 @@ def _compute(payload: dict[str, Any]) -> dict[str, Any]:
             "limit_crossings": crossings,
         },
     }
+    if empty:
+        result["note"] = (
+            f"{_POSITIONS_PATH} records no holdings or cash, so every value is 0. "
+            "Add a CASH row and any holdings to it to size positions."
+        )
 
     _write_outputs(
         computed_path,
@@ -318,7 +335,7 @@ def _compute(payload: dict[str, Any]) -> dict[str, Any]:
         cash_position,
         cash,
         total,
-        book_currency,
+        book_currency or "",
     )
     return result
 
@@ -522,6 +539,29 @@ def _parse_date(value: str, label: str) -> date:
         return date.fromisoformat(value)
     except ValueError as exc:
         raise ToolExecutionError(f"{label} must be a real date in YYYY-MM-DD form.") from exc
+
+
+def _records_nothing(path: Path) -> bool:
+    """Missing, blank or a header alone: no holdings or cash are recorded yet."""
+    if not path.exists():
+        return True
+    try:
+        lines = path.read_text(encoding="utf-8-sig").splitlines()
+    except (OSError, UnicodeError):
+        return False  # Let the full reader report what is wrong with it.
+    rows = [line for line in lines if line.strip(" ,\t")]
+    return len(rows) <= 1 and (not rows or rows[0].strip().lower().startswith("ticker"))
+
+
+def _session_currency(path: Path) -> str | None:
+    """The saved prices' one currency, for an empty book; none when unclear."""
+    if not path.exists():
+        return None
+    currencies = {
+        (row.get("currency") or "").strip().upper()
+        for row in _read_csv(path, _PRICES_PATH, _PRICE_COLUMNS)
+    } - {""}
+    return next(iter(currencies)) if len(currencies) == 1 else None
 
 
 def _modified_date(path: Path) -> date:

@@ -1060,6 +1060,10 @@ is rounded only when written.
     `raw/prices/summary.csv`, else the positions file's date. The save date
     of `positions.csv` had made `check_limits` refuse every later session's
     theses. Migration 025 has portfolio-review leave `as_of` out.)*
+    *(Maintainer request of 2026-10-07: a missing, blank or header-only
+    `positions.csv` is an empty book, not an error that stops the chain:
+    every value is 0, `empty_book` is true, a `note` says nothing is
+    recorded, and the currency comes from the saved prices.)*
   - Book totals: `total_value`, `cash`, `invested`, `day_change` and
     `day_change_pct` (from the previous close), `unrealised` and
     `unrealised_pct`.

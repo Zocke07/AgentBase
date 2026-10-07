@@ -92,7 +92,8 @@ pipeline has a defined consumer:
 - Tune the three numbers in `limits.json` to the person's actual policy. Extra
   keys are ignored until a deterministic rule is implemented for them.
 - Add current holdings and cash to `positions.csv`. This usually enriches the
-  portfolio and risk output more than adding descriptive configuration.
+  portfolio and risk output more than adding descriptive configuration. An
+  empty or missing file still runs the chain, as an empty book worth 0.
 
 #### The stage sequence
 

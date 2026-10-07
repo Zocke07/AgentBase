@@ -376,3 +376,47 @@ def test_compute_portfolio_validates_its_optional_date(sandbox: Sandbox) -> None
 
     with pytest.raises(ToolArgumentError, match="YYYY-MM-DD"):
         tool.prepare({"as_of": "30 September 2026"}, sandbox)
+
+
+@pytest.mark.parametrize(
+    "positions",
+    [None, "", "ticker,shares,cost_per_share,opened,sector,currency\n"],
+    ids=["missing", "blank", "header-only"],
+)
+async def test_an_empty_portfolio_is_an_empty_book_not_a_failure(
+    sandbox: Sandbox, positions: str | None
+) -> None:
+    """A tool error here stopped the whole daily chain before any thesis."""
+    if positions is not None:
+        _write(sandbox, "portfolio/positions.csv", positions)
+    _write(
+        sandbox,
+        "raw/prices/summary.csv",
+        "ticker,date,open,high,low,close,volume,prev_close,change_pct,"
+        "avg_volume_20d,rel_volume,microcap,rank,currency\n"
+        "AAPL,2026-10-06,332.00,334.38,330.62,333.63,30425700,332.89,0.2223,"
+        "41975560,0.7248,False,1,USD\n",
+    )
+    _write(
+        sandbox,
+        "config/watchlist.json",
+        '{"watchlist":[{"ticker":"AAPL","sector":"Information Technology"}]}\n',
+    )
+    _write(sandbox, "theses/bull-2026-10-06.jsonl", "")
+    _write(sandbox, "theses/bear-2026-10-06.jsonl", "")
+    _limits(sandbox)
+
+    tool = ComputePortfolioTool()
+    result = json.loads(await tool.execute(tool.prepare({}, sandbox), sandbox))
+    assert result["empty_book"] is True
+    assert "records no holdings or cash" in result["note"]
+    assert result["as_of"] == "2026-10-06"
+    assert result["currency"] == "USD"
+    assert result["total_value"] == 0
+    assert result["positions"] == []
+
+    checks = CheckLimitsTool()
+    checked = json.loads(
+        await checks.execute(checks.prepare({"date": "2026-10-06"}, sandbox), sandbox)
+    )
+    assert checked["items"] == []
