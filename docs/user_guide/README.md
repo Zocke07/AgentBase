@@ -11,8 +11,8 @@ enabled agents. The graph and event log show every step, live or replayed.
 A **space** groups agents, a folder for their files, and run settings. Its
 folder is also a Markdown knowledge vault shared by people and agents. The
 left rail shows **Home**, **Automations**, **Runs**, **Agents**, **Knowledge**,
-**Visualize**, **Usage**, and **Space settings** for the selected space;
-Ctrl/Cmd+1 to 9 jump to those sections and Settings in order. Badges on **Runs** or **Knowledge** show waiting
+**Usage**, and **Space settings** for the selected space; Ctrl/Cmd+1 to 8 jump
+to those sections and Settings in order. Badges on **Runs** or **Knowledge** show waiting
 approvals or memories. **Settings** at the bottom controls
 defaults, model access, API keys, the shared budget, Discord, appearance, and
 the version. The first launch opens a short tour that you can replay from
@@ -40,7 +40,8 @@ before each call until you choose **Autonomous**.
    choose where chat tasks run.
 5. [Troubleshooting and reference](5_troubleshooting_and_reference.md): common
    failures, data locations, upgrades, removal and the local API.
-6. [Knowledge and memory](6_knowledge_and_memory.md): Markdown notes, links,
-   properties, Obsidian, retrieval, citations and durable run memory.
-7. [Visualizations and dashboards](7_visualizations.md): charts from CSV and
-   JSON, agent-written visualization files, dashboards, Mermaid and exports.
+6. [Knowledge and memory](6_knowledge_and_memory.md): the Journal of dated
+   reports, Markdown notes, links, properties, Obsidian, retrieval, citations
+   and durable run memory.
+7. [Charts and dashboards](7_visualizations.md): data files drawn as charts in
+   Knowledge, agent-written chart files, dashboards, Mermaid and exports.

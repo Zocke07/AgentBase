@@ -1,10 +1,46 @@
 # Verification and remaining work
 
-Updated 2026-10-01. This is the current record; [history](history/README.md)
+Updated 2026-10-08. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
 ## Phase 17 and run-review UX, 2026-10-01, on `main`, not released
+
+### The Journal, and Visualize folded into Knowledge, 2026-10-08
+
+The maintainer asked whether to merge Visualize into Knowledge, and whether
+runs should append to one growing file rather than write dated ones. They
+chose a Journal and the merge. Agents still write one dated file per session,
+for the reasons in BUILD_SPEC Phase 17's file contracts note.
+
+- **Journal.** A Knowledge tab reads every note dated in its file name,
+  outside `memory/` and `templates/`, as one page, newest first, a week of
+  dates at a time. A month's report, such as `scores/review-2026-10.md`, heads
+  its month. The dates down the browser jump to one; **Show** narrows the
+  page to one kind. Nothing on disk changes.
+- **Visualize folded in.** The rail has no Visualize section, so the
+  shortcuts run 1 to 8 (Usage is 6). In Agent files a data file has a Text /
+  Chart switch, and **Save chart** writes a `.viz.json` under a name no chart
+  has and opens it. A saved chart, dashboard or diagram opens drawn, with
+  Text for its source, and **From template…** adds Chart, Dashboard and
+  Mermaid diagram. The editors moved from `VisualizationView.tsx` to
+  `FileViews.tsx`. The tour's Visualize step merged into the Knowledge step.
+- **Checks.** Frontend: **585 passed in 56 files**. The three Visualize tests
+  became six in `FilesPanel.test.tsx`; the Journal has ten, Knowledge one
+  more, the file helpers three. eslint and tsc are clean; the hygiene test
+  passed, 16. A browser check ran against a scratch sidecar at schema 27,
+  seeded with nine sessions of decisions and portfolio reviews, two weekly
+  reviews and a daily note:
+  - the Journal showed 21 reports from 11 dates;
+  - picking Sep 24 widened the page to all 11 and scrolled that date to the
+    top; **Show: Decisions** left nine;
+  - the pipeline dashboard drew two charts and named its missing third;
+  - `summary.csv` drew as a bar chart, suggesting
+    `visualizations/summary.viz.json`, and `flow.mmd` drew;
+  - at 960 px wide neither page scrolled sideways.
+- **Unverified.** The packaged Tauri window (WebKit) has not shown either.
+  Its scroll anchoring differs from Chrome's, so a picked date scrolls only
+  after every report above it has loaded.
 
 ### Empty portfolio, and a second fresh start, 2026-10-07
 

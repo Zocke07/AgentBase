@@ -42,13 +42,17 @@ future changes do not relocate users' data or disconnect their stored keys.
   - ChatGPT plan models: the account's model list bounds the pickers, defaults
     and mappings; a space and the strong shipped `decision` role on GPT-6 Sol
     are offered GPT-5.6 Sol.
-  - Run review and navigation: distinct Visualize and Usage icons; Notes, Data
-    files, and Saved context taxonomy; responsive text; a wider Markdown
-    preview; a denser Runs view; a real network logo; automatic saved-context
+  - Run review and navigation: a distinct Usage icon; Notes, Data files, and
+    Saved context taxonomy; responsive text; a wider Markdown preview; a
+    denser Runs view; a real network logo; automatic saved-context
     management; and distinct **Run now** provenance.
-  - Visualize handles settings objects, readable axes, repeated categories,
-    and the pipeline dashboard. Usage has a slot for every day, follows the
+  - Charts handle settings objects, readable axes, repeated categories, and
+    the pipeline dashboard. Usage has a slot for every day, follows the
     header meter, and scales a visible Y axis from actual usage.
+  - Knowledge's Journal reads every dated report as one page, and the
+    Visualize section is folded into Knowledge (2026-10-08): a data file in
+    Agent files draws as a chart, and saved charts, dashboards and diagrams
+    open drawn.
 - **Autonomy first** (BUILD_SPEC Phase 16, 2026-09-29, merged to `main`, not
   yet released): autonomous workflows are the primary
   way a space runs. Fresh installs answer low and medium risk by policy;
@@ -87,10 +91,11 @@ future changes do not relocate users' data or disconnect their stored keys.
   bundle has a complete code seal. Check the release page and tag workflow
   for publication status and cross-platform CI evidence.
 - The UI has a left rail, spaces, Home, Automations, Runs, Agents, Knowledge,
-  Visualize, Usage, Space settings, and app-wide Settings. Visualize and Usage
-  have distinct icons; Knowledge separates Recent, Notes, Agent files, and
-  Saved context, and rereads them when shown, when a run finishes and on
-  window return (every section stays mounted). A run lists the files its
+  Usage, Space settings, and app-wide Settings. Knowledge separates Recent,
+  Journal, Notes, Agent files, and Saved context, and rereads them when shown,
+  when a run finishes and on window return (every section stays mounted). The
+  Journal (`state/journal.ts`) is every note dated in its file name, outside
+  `memory/` and `templates/`, newest first, read a week of dates at a time. A run lists the files its
   tools wrote (`state/files.ts`; the four deterministic tools report a
   `written` array) and opens each in Knowledge. Approvals are docked. The run canvas is a
   left-to-right workflow (goal, supervisor, workers, outcome) with an
@@ -156,12 +161,15 @@ future changes do not relocate users' data or disconnect their stored keys.
   that has spent it, checked before each model call like the deadline.
   Plain-text data files beside the notes are listed and edited through
   `/knowledge/files` and `/knowledge/file` (JSON parsed before a write).
-- The Visualize section parses CSV, TSV, JSON and JSON-lines locally and draws
-  bar, line, area, scatter, pie, metric and table views. A versioned `.viz.json`
-  points at a data file, `.dashboard.json` composes saved charts and `.mmd` or
-  `.mermaid` holds a diagram. Mermaid uses strict mode and its SVG is sanitized
-  again before insertion. These are ordinary space files written through the
-  existing gate; there is no visualization database or service.
+- Knowledge's Agent files parse CSV, TSV, JSON and JSON-lines locally and draw
+  bar, line, area, scatter, pie, metric and table views (`FileViews.tsx`;
+  `lib/fileViews.ts` picks a file's views). A versioned `.viz.json` points at
+  a data file, `.dashboard.json` composes saved charts and `.mmd` or
+  `.mermaid` holds a diagram; each opens drawn, with Text for its source.
+  Mermaid uses strict mode and its SVG is sanitized again before insertion.
+  These are ordinary space files written through the existing gate; there is
+  no visualization database or service, and no Visualize section since
+  2026-10-08.
 - The latest recorded database migration is 027. Migration 020 adds Sonnet
   5.5, updates untouched shipped Sonnet roles, and applies fresh space
   defaults without moving used spaces. Migration 021 wires the four
@@ -289,6 +297,11 @@ second chronological log here.
   run memories use unique app-owned paths and are named in `run.completed`;
   a memory is retrieved only once approved or pinned. Merges and moves back up
   the files they change under `.agentbase/backups/`.
+- Agents' outputs stay one dated file per session; the Journal only reads
+  them. Do not make a model append to a growing file: `write_file` rewrites
+  the whole file, `read_file` shows its first 20,000 characters, and a scored
+  thesis must never change. Growing ledgers are written by deterministic
+  tools (`scores/predictions.jsonl`, the price CSVs).
 - Discord accepts explicit commands/mentions from allowed senders only. Its
   supervised adapter runs in-process and uses the same approval gate as the UI.
 

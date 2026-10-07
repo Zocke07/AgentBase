@@ -772,6 +772,14 @@ stage in a chain.)*
 
 *Added 2026-09-24 at the maintainer's request for release 0.4.5.*
 
+*(Maintainer choice of 2026-10-08: the Visualize section is folded into
+Knowledge, so a space has one place for its files. In Agent files a data file
+has a Text / Chart switch, and **Save chart** writes a `.viz.json` under a name
+no existing chart has; a saved chart, dashboard or diagram opens drawn, with
+Text for its source; new ones start from the template list. The contracts,
+bounds and sanitizing below are unchanged, and so is acceptance: it now runs
+in Knowledge.)*
+
 Visualization uses ordinary space files: no chart DB, remote renderer, or new
 agent tool. Agents use approval-gated `write_file`; people edit the same files
 in Knowledge.
@@ -1042,6 +1050,17 @@ from these four tools, never from read or fetched text.)*
 
 **File contracts.** The prompts' paths are kept. Arithmetic is `Decimal` and
 is rounded only when written.
+
+*(Maintainer question of 2026-10-08, whether runs should append to one
+growing file instead of writing dated ones: no for anything a model writes.
+`write_file` rewrites a whole file, so a model would copy the history out and
+back each day, against its output limit; `read_file` shows a file's first
+20,000 characters, so the newest entries would be cut from the next run's
+view; and a rewrite could change a past thesis before it is scored. Growing
+ledgers stay with the deterministic tools: the price CSVs, the append-only
+`scores/predictions.jsonl`, and the stable accuracy and calibration files.
+Knowledge's **Journal** reads every dated report as one page, newest first,
+without changing a file.)*
 
 - `portfolio/positions.csv`:
   - Required columns: `ticker,shares,cost_per_share,opened,sector,currency`;
@@ -1327,7 +1346,8 @@ checklists, and commit each unit.
 2. Given recorded prices, `score_predictions` appends each resolvable
    prediction exactly once, a second run adds nothing, and its scorecard,
    accuracy and calibration files match values computed by hand.
-3. The pipeline dashboard opens in Visualize with its four charts.
+3. The pipeline dashboard opens in Visualize with its four charts *(in
+   Knowledge → Agent files since 2026-10-08)*.
 4. A fresh install fetches prices and Treasury data by policy, a used install
    keeps its old host list, and an install created after 019 but never used
    gets the new list.

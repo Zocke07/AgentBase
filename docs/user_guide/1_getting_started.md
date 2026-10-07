@@ -77,8 +77,7 @@ brings it back.
 | **Automations** | What this space runs on its own: schedules at set times or one after another, and what an unattended run may do. |
 | **Runs** | Open a current run or replay a past one in this space. |
 | **Agents** | Create and edit this space's agent definitions. |
-| **Knowledge** | **Recent** files first, human-readable **Notes**, structured **Agent files**, and automatically managed **Saved context** in the space folder. |
-| **Visualize** | Charts from data files, saved dashboards and Mermaid diagrams. |
+| **Knowledge** | Everything in the space folder: **Recent** files, the **Journal** of dated reports read as one page, human-readable **Notes**, **Agent files** (data files can be drawn as charts, and saved charts, dashboards and diagrams open drawn), and automatically managed **Saved context**. |
 | **Usage** | This month's model-call costs, tokens, and carried context by day, model, space, and run. |
 | **Space settings** | Name, description, folder, model, limits and approval answers for this space. |
 | **Settings**, at the bottom | App defaults, keys, shared budget, Discord, theme and the About box. |

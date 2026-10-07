@@ -1,12 +1,14 @@
-# Visualizations and dashboards
+# Charts and dashboards
 
 [Guide contents](README.md)
 
-## The Visualize workspace
+## Charts in Knowledge
 
-Open **Visualize** in the left rail. It reads ordinary selected-space files as
-charts, dashboards, Mermaid diagrams, and data sources; it neither uploads,
-stores, nor converts them into proprietary binaries.
+Charts live where their files do, in **Knowledge → Agent files**. Open a CSV,
+TSV, JSON or JSON-lines file and choose **Chart** above it to draw it; **Text**
+returns to its source. A saved chart, dashboard or Mermaid diagram opens
+drawn. Everything is an ordinary file in the selected space; nothing is
+uploaded, stored elsewhere, or converted into a proprietary format.
 
 Charts read `.csv`, `.tsv`, `.json`, `.jsonl`, and `.ndjson`. JSON arrays are
 tables, and an object that holds an array uses its largest one. An object of
@@ -18,7 +20,7 @@ a bar of its own. CSV/TSV support quoted fields, embedded delimiters, and
 newlines. Parsing stops at 10,000 rows and rendering at 2,000 to keep large
 exports responsive.
 
-Choose a data source to infer a first chart. It is drawn along a date that
+**Chart** infers a first chart from the file. It is drawn along a date that
 changes from row to row, or else a short label such as a ticker, never an ID,
 a link or a sentence. Where several rows share a category, the first chart
 averages them. A chart that does not combine them draws only the first row of
@@ -36,7 +38,13 @@ Every chart has an accessible data table. **Export SVG** saves the graphic;
 
 ## Saved charts that agents can create
 
-**Save** writes an ordinary `.viz.json` file. Its complete v1 contract:
+**Save chart**, beside **Save as**, writes the chart as an ordinary
+`.viz.json` file, named so it never replaces a chart the space already has,
+and opens it. Save the data file's own changes first: a saved chart reads the
+saved file. A chart can also start from **From template… → Chart**, which asks
+for its **Data source**. Opening a saved chart draws it from its data file; its
+settings edit the file, **Save chart** keeps them, and **Text** shows the JSON.
+Its complete v1 contract:
 
 ```json
 {
@@ -60,8 +68,9 @@ malformed sources display errors and never execute.
 
 ## Dashboards
 
-Save charts, choose **New dashboard**, select them, and choose one, two, or
-three columns. Dashboards are also ordinary JSON:
+Save charts, choose **From template… → Dashboard**, tick them, choose one,
+two, or three columns, and **Save dashboard**. Dashboards are also ordinary
+JSON:
 
 ```json
 {
@@ -91,12 +100,13 @@ Turning on Main's investment pipeline creates
 The deterministic tools refresh those stable source paths, so the dashboard
 does not need a new definition each day or month. Before a stage has produced
 its source, that card shows the missing file clearly; the other cards still
-render. Open the dashboard from **Visualize** after the morning and review
-stages have created data.
+render. Open `visualizations/pipeline.dashboard.json` in **Knowledge → Agent
+files** after the morning and review stages have created data.
 
 ## Mermaid diagrams
 
-Choose **New diagram** or open `.mmd` / `.mermaid`. Mermaid supports flow,
+Choose **From template… → Mermaid diagram** or open a `.mmd` / `.mermaid`
+file. Mermaid supports flow,
 sequence, class, entity, state, timeline, Gantt, mind-map, and other built-in
 syntaxes. Rendering uses strict security with HTML labels disabled; AgentBase
 also removes scripts, embedded objects, event handlers, and external SVG links.

@@ -313,7 +313,7 @@ allowed tools.
 
 ## Follow cost, tokens and context
 
-**Usage** (Ctrl/Cmd+7) is a month of model calls from the same ledger the
+**Usage** (Ctrl/Cmd+6) is a month of model calls from the same ledger the
 monthly cap is enforced on, so it agrees with the meter in the header; while it
 is open, a run that spends refreshes it. The cards show what was spent
 (against the cap, when every space is shown), how many model calls were made

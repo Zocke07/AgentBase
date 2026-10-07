@@ -44,6 +44,24 @@ shows the file name too: an agent's `decisions/2026-10-06.md` can be titled
 `memory` folder of run summaries starts folded, since **Saved context**
 manages them; select it to unfold. The open note's folder always unfolds.
 
+## Journal
+
+**Journal** reads every dated report in the space as one page, newest first:
+each day's decision (`decisions/`), its portfolio review
+(`portfolio/review-*`), the weekly review of the month's predictions
+(`scores/review-*`), your daily notes, and any other note with a date in its
+file name. A month's review heads that month. The dates are listed down the
+left, grouped by month; select one to jump to it. **Show** narrows the page to
+one kind, such as decisions only. The page draws a week of dates at a time,
+and **Show N older dates** adds the next. **Open note** opens a report in
+**Notes** to edit it. Run summaries and templates never appear here.
+
+The Journal only reads. Each report stays its own file, because an agent can
+only rewrite a whole file and reads at most a file's first 20,000 characters:
+a single log that grew every day would have to be copied out and back by a
+model, would hide its newest entries from the next run, and could change a
+past prediction before it is scored.
+
 ## Recent
 
 **Recent** lists notes and agent files together, newest first, under Today,
@@ -67,6 +85,13 @@ Hidden files, binaries, and out-of-space paths remain inaccessible. Agents use
 the same `write_file` approval to modify them. A folder holding only the runs'
 working data (`raw/`, `theses/`, `risk/`, `scores/`) starts folded; select its
 name to unfold it. A search, or a file opened from a run, unfolds its folder.
+
+A CSV, TSV, JSON or JSON-lines file has a **Text** / **Chart** switch: **Chart**
+draws it and **Save chart** keeps that chart as a file of its own. A saved
+chart (`.viz.json`), dashboard (`.dashboard.json`) or Mermaid diagram (`.mmd`)
+opens drawn, with **Text** for its source. **From template…** starts a new
+chart, dashboard or diagram. [Charts and dashboards](7_visualizations.md)
+covers them in full.
 
 ## Links, properties and preview
 
