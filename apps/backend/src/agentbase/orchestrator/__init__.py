@@ -145,11 +145,6 @@ async def execute_run(
             logger.exception("knowledge retrieval failed for run %s", run_id)
     knowledge_context = knowledge.format_context(hits) if knowledge is not None else ""
 
-    # The recorded start, so the time agents see matches the run's own record.
-    row = await store.get_run(run_id)
-    started = row.created_at if row is not None else datetime.now(UTC)
-    time_note = started_note(started, zone if zone is not None else LocalZone())
-
     question_seconds = (
         workspace.unattended_question_seconds
         if origin in UNATTENDED_ORIGINS and not supervised
@@ -188,7 +183,7 @@ async def execute_run(
             knowledge,
             knowledge_context,
             excluded_citations,
-            time_note,
+            zone if zone is not None else LocalZone(),
         )
     finally:
         if live is not None:
@@ -208,7 +203,7 @@ async def _execute(
     knowledge: KnowledgeStore | None,
     knowledge_context: str,
     excluded_citations: frozenset[str],
-    time_note: str,
+    zone: tzinfo,
 ) -> None:
     """Execute a run after registering it as live."""
     run_id = run.id
@@ -216,6 +211,11 @@ async def _execute(
     limits = run.limits
 
     await run.start()
+
+    # Read only after run.started: an earlier await let a channel's reply land
+    # first. The recorded start keeps the agents' time equal to the run's own.
+    row = await run.store.get_run(run_id)
+    time_note = started_note(row.created_at if row is not None else datetime.now(UTC), zone)
 
     registry = await AgentRegistry.load(
         agents,
