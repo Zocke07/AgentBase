@@ -1,5 +1,6 @@
 import type {
   AgentDef,
+  AlertsResponse,
   ApprovalResponse,
   BudgetResponse,
   ChannelStatusResponse,
@@ -22,12 +23,14 @@ import type {
   MemoryItem,
   MemoryMergeResult,
   MemoryStatus,
+  MonitorStatus,
   ProviderCatalogueResponse,
   ProviderSwitchPlan,
   Run,
   SchedulePreview,
   ScheduleResponse,
   SearchFilters,
+  SeenResponse,
   SettingsResponse,
   SpaceResponse,
   TextFile,
@@ -473,3 +476,19 @@ export const cancelChatGPTLogin = (): Promise<void> =>
 
 export const logoutChatGPT = (): Promise<void> =>
   requestNoContent("/auth/chatgpt/logout", { method: "POST" });
+
+/** Market alerts (Phase 18), newest first, in one space or all, and how many are unseen. */
+export const listAlerts = (spaceId?: string, limit = 50): Promise<AlertsResponse> =>
+  request<AlertsResponse>(`/alerts${query({ space_id: spaceId, limit })}`);
+
+/** Mark a space's alerts, or every space's, as seen. */
+export const markAlertsSeen = (spaceId?: string): Promise<SeenResponse> =>
+  request<SeenResponse>("/alerts/seen", { method: "POST", ...asJson({ space_id: spaceId ?? null }) });
+
+/** A space's market watch: on or off, what it follows, when it last looked. */
+export const getMonitor = (spaceId: string): Promise<MonitorStatus> =>
+  request<MonitorStatus>(`/spaces/${spaceId}/monitor`);
+
+/** Switch the watch by its file, writing the starter file the first time. */
+export const setMonitor = (spaceId: string, enabled: boolean): Promise<MonitorStatus> =>
+  request<MonitorStatus>(`/spaces/${spaceId}/monitor`, { method: "PUT", ...asJson({ enabled }) });

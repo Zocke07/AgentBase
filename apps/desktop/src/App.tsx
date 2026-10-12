@@ -1,4 +1,5 @@
 import type {
+  AlertsResponse,
   ApprovalResponse,
   BudgetResponse,
   SettingsResponse,
@@ -21,9 +22,11 @@ import { Tour } from "./components/Tour";
 import { UsageView } from "./components/UsageView";
 import * as api from "./lib/api";
 import { modelLabel, providerLabel } from "./lib/format";
+import { notifyDesktop } from "./lib/notify";
 import { SECTION_ORDER } from "./lib/sections";
 import { connectWithRetry, type SidecarStatus } from "./lib/sidecar";
 import { useTheme } from "./lib/theme";
+import { pendingNotices, readRaised, writeRaised } from "./state/alerts";
 import { useRoster } from "./state/roster";
 import { unfinished, useRunList } from "./state/runList";
 import { useRunStore } from "./state/runStore";
@@ -148,6 +151,15 @@ export function App() {
       .catch(() => undefined);
   }, []);
 
+  // Market alerts across spaces (Phase 18): the badge, Home's list, notices.
+  const [alertList, setAlertList] = useState<AlertsResponse | null>(null);
+  const refreshAlerts = useCallback(() => {
+    void api
+      .listAlerts()
+      .then(setAlertList)
+      .catch(() => undefined);
+  }, []);
+
   const refreshWorkspace = useCallback(() => {
     // Meter and preflight follow the selected space.
     void api.getBudget(spaceId ?? undefined).then(setBudget).catch(() => undefined);
@@ -160,7 +172,8 @@ export function App() {
       });
     void api.verifySettings(spaceId ?? undefined).then(setVerified).catch(() => undefined);
     refreshApprovals();
-  }, [spaceId, refreshApprovals]);
+    refreshAlerts();
+  }, [spaceId, refreshApprovals, refreshAlerts]);
 
   useEffect(() => {
     if (status.kind === "ready") refreshWorkspace();
@@ -201,7 +214,10 @@ export function App() {
       () => {
         void reloadRuns();
         if (anyUnfinished) refreshWorkspace();
-        else refreshApprovals();
+        else {
+          refreshApprovals();
+          refreshAlerts();
+        }
         // A scheduled stage may have fired: its next time and outcome moved.
         schedulesChanged();
       },
@@ -210,7 +226,7 @@ export function App() {
     return () => {
       clearInterval(timer);
     };
-  }, [status.kind, anyUnfinished, reloadRuns, refreshWorkspace, refreshApprovals, schedulesChanged]);
+  }, [status.kind, anyUnfinished, reloadRuns, refreshWorkspace, refreshApprovals, refreshAlerts, schedulesChanged]);
 
   // A question waiting on someone is counted in the document title. That
   // shows in a browser tab; the packaged Tauri window keeps its configured
@@ -235,6 +251,41 @@ export function App() {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [status.kind, reloadRuns, refreshWorkspace, schedulesChanged]);
+
+  // Each alert and each finished explanation raises one desktop notice per
+  // window. A window's first look records what is already there instead of
+  // replaying it, so opening the app is not a burst of old news.
+  const desktopNotices = settings?.settings.alert_desktop_notifications !== false;
+  useEffect(() => {
+    if (alertList === null) return;
+    const stored = readRaised();
+    const pending = pendingNotices(alertList.alerts, stored ?? new Set());
+    if (stored !== null && pending.length === 0) return;
+    writeRaised([...(stored ?? []), ...pending.map((notice) => notice.key)]);
+    if (stored === null || !desktopNotices) return;
+    // A burst of checks shows its latest few; the rest are on Home.
+    for (const notice of pending.slice(-3)) {
+      void notifyDesktop(notice.title, notice.body).catch(() => undefined);
+    }
+  }, [alertList, desktopNotices]);
+
+  // Home shows the space's alerts; looking at it marks them seen, and the ones
+  // that were new stay marked for this visit.
+  const spaceAlerts = (alertList?.alerts ?? []).filter((alert) => alert.space_id === spaceId);
+  const unseenHere = spaceAlerts.filter((alert) => alert.seen_at === null);
+  const unseenKey = unseenHere.map((alert) => alert.id).join(",");
+  const [freshAlerts, setFreshAlerts] = useState<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    if (section !== "home" || spaceId === null || unseenKey === "") return;
+    const ids = unseenKey.split(",");
+    void api
+      .markAlertsSeen(spaceId)
+      .then(() => {
+        setFreshAlerts((current) => new Set([...current, ...ids]));
+        refreshAlerts();
+      })
+      .catch(() => undefined);
+  }, [section, spaceId, unseenKey, refreshAlerts]);
 
   // Prefer open-run log status over lagging table row.
   const loadedRunId = useRunStore((state) => state.runId);
@@ -278,6 +329,7 @@ export function App() {
       setRunId(null);
       setInboxCount(0);
       setScheduleDraft(null);
+      setFreshAlerts(new Set());
     },
     [spaceId, selectSpace],
   );
@@ -437,7 +489,11 @@ export function App() {
             setSection("home");
           });
         }}
-        badges={{ runs: pendingApprovals.length, knowledge: inboxCount }}
+        badges={{
+          home: section === "home" ? 0 : unseenHere.length,
+          runs: pendingApprovals.length,
+          knowledge: inboxCount,
+        }}
       />
 
       <div className="app__main">
@@ -572,6 +628,8 @@ export function App() {
                 onAutomate={automate}
                 schedulesNonce={schedulesNonce}
                 onSchedulesChanged={schedulesChanged}
+                alerts={spaceAlerts}
+                freshAlerts={freshAlerts}
               />
             </ErrorBoundary>
           </div>
@@ -588,6 +646,7 @@ export function App() {
                   draftRequest={scheduleDraft}
                   schedulesNonce={schedulesNonce}
                   onSchedulesChanged={schedulesChanged}
+                  onOpenFile={openFile}
                 />
               )}
             </ErrorBoundary>

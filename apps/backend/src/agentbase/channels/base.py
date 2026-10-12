@@ -90,6 +90,15 @@ class ChannelReply(Protocol):
 
 
 @runtime_checkable
+class NoticeSender(Protocol):
+    """An adapter that can post a notice nobody asked for, such as a market alert."""
+
+    async def send_notice(self, channel_id: str, text: str) -> None:
+        """Post ``text`` to one channel, mentioning nobody."""
+        ...
+
+
+@runtime_checkable
 class ChannelAdapter(Protocol):
     """Long-lived chat-platform connection supervised by ``ChannelService``.
 

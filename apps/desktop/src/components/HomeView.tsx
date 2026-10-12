@@ -1,4 +1,12 @@
-import type { AgentDef, ApprovalResponse, Run, ScheduleResponse, SearchHit, SpaceResponse } from "@agentbase/schemas";
+import type {
+  AgentDef,
+  ApprovalResponse,
+  MarketAlert,
+  Run,
+  ScheduleResponse,
+  SearchHit,
+  SpaceResponse,
+} from "@agentbase/schemas";
 import { useCallback, useEffect, useState } from "react";
 
 import * as api from "../lib/api";
@@ -9,6 +17,7 @@ import { unfinished, useRunList } from "../state/runList";
 import { useFetched } from "../state/useFetched";
 
 import { Markdown } from "./Markdown";
+import { MarketAlerts } from "./MarketAlerts";
 import { MetricBar } from "./MetricBar";
 import { PipelineOffer } from "./PipelineOffer";
 import { RunCard } from "./RunCard";
@@ -53,6 +62,10 @@ export interface HomeViewProps {
   schedulesNonce?: number | undefined;
   /** Home changed the schedules (the pipeline turned on). */
   onSchedulesChanged?: (() => void) | undefined;
+  /** This space's recent market alerts, newest first (Phase 18). */
+  alerts?: readonly MarketAlert[] | undefined;
+  /** Alert ids that were unseen when Home was opened, marked as new. */
+  freshAlerts?: ReadonlySet<string> | undefined;
 }
 
 export type BlockerKind = "setup" | "space" | "cap";
@@ -65,6 +78,8 @@ const BLOCKER_TITLE: Record<BlockerKind, string> = {
 };
 
 const NO_SCHEDULES: ScheduleResponse[] = [];
+const NO_ALERTS: readonly MarketAlert[] = [];
+const NO_FRESH: ReadonlySet<string> = new Set();
 
 /** How many finished runs the Home screen shows before pointing at the list. */
 const RECENT = 6;
@@ -97,6 +112,8 @@ export function HomeView({
   onAutomate,
   schedulesNonce = 0,
   onSchedulesChanged,
+  alerts = NO_ALERTS,
+  freshAlerts = NO_FRESH,
 }: HomeViewProps) {
   const [goal, setGoal] = useState("");
   const [stepThrough, setStepThrough] = useState(false);
@@ -287,6 +304,20 @@ export function HomeView({
             onAutomate={onAutomate}
           />
         </section>
+
+        <MarketAlerts
+          alerts={alerts}
+          fresh={freshAlerts}
+          onOpenNote={
+            onOpenNote === undefined
+              ? undefined
+              : (path) => {
+                  onOpenNote(path, null);
+                }
+          }
+          onOpenRun={onOpenRun}
+          onOpenAutomations={onOpenAutomations}
+        />
 
         <form
           className="new-run"

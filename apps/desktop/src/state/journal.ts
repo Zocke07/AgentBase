@@ -30,6 +30,7 @@ const KINDS: readonly { prefix: string; kind: string }[] = [
   { prefix: "portfolio/review-", kind: "Portfolio review" },
   { prefix: "scores/review-", kind: "Weekly review" },
   { prefix: "daily/", kind: "Daily note" },
+  { prefix: "alerts/", kind: "Market alert" },
 ];
 const OTHER = "Note";
 const LEFT_OUT: readonly string[] = ["memory/", "templates/"];

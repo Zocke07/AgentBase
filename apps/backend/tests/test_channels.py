@@ -686,6 +686,44 @@ async def test_an_adapter_that_keeps_failing_is_left_stopped_with_a_reason(
     assert "LoginFailure" in discord_status.last_error
 
 
+async def test_a_market_alert_reaches_the_alert_channel_and_nowhere_else(
+    store: EventStore,
+    bus: EventBus,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+) -> None:
+    """Outbound only, to the one channel the person named (Phase 18)."""
+    notices: list[tuple[str, str]] = []
+
+    class _Noticing(_FakeAdapter):
+        async def send_notice(self, channel_id: str, text: str) -> None:
+            notices.append((channel_id, text))
+
+    deps = deps_for(store, bus, settings, agents, ledger, secrets, finishing_provider())
+    secrets.load({"discord_bot_token": "token"})
+
+    def build(_deps: ChannelDeps, _token: str, _on_refusal: Any) -> Any:
+        return _Noticing("discord", [], fail=False)
+
+    service = ChannelService(deps, secrets, {"discord": build})
+    # Not running yet: nothing to post through.
+    assert await service.announce("MU down 5.5%") is False
+
+    await settings.update({"discord_enabled": True})
+    await service.start()
+    await _until(lambda: service._is_running("discord") and "discord" in service._adapters)
+    # Running, but no channel named: still nothing.
+    assert await service.announce("MU down 5.5%") is False
+
+    await settings.update({"discord_alert_channel_id": "123456789012345678"})
+    assert await service.announce("MU down 5.5%") is True
+    await service.aclose()
+
+    assert notices == [("123456789012345678", "MU down 5.5%")]
+
+
 # --- helpers ------------------------------------------------------------------
 
 

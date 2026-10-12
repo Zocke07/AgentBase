@@ -15,6 +15,12 @@ const starter = (path: string): string => {
 };
 
 describe("investment pipeline starters", () => {
+  it("ships the market watch's settings switched off, every threshold spelled out", () => {
+    const monitor = JSON.parse(starter("config/monitor.json")) as Record<string, unknown>;
+    expect(monitor.enabled).toBe(false);
+    expect(monitor.indexes).toEqual(["^GSPC", "^IXIC", "^DJI"]);
+    expect([monitor.stock_move_pct, monitor.stock_jump_pct, monitor.index_move_pct]).toEqual([5, 2.5, 1.5]);
+  });
 
   it("starts with the requested US holdings, cash and explicit unknown purchase data", () => {
     expect(STARTERS.map((entry) => entry.path)).toEqual([
@@ -22,6 +28,7 @@ describe("investment pipeline starters", () => {
       "config/sources.json",
       "config/limits.json",
       "portfolio/positions.csv",
+      "config/monitor.json",
       "visualizations/daily-change.viz.json",
       "visualizations/portfolio-weights.viz.json",
       "visualizations/prediction-accuracy.viz.json",

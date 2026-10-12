@@ -23,6 +23,13 @@ if TYPE_CHECKING:
 #: narrowed levels, after 010 seeds it and later migrations move untouched rows.
 #: Migration 019 lets every stage write its output by policy.
 ROSTER: Final[dict[str, tuple[str, tuple[str, ...], int, tuple[str, ...]]]] = {
+    # Migration 030's explainer takes the news scanner's model.
+    "market-explainer": (
+        "claude-haiku-5-5",
+        ("read_feed", "read_file", "list_dir", "search_knowledge", "write_file"),
+        12,
+        ("low", "medium"),
+    ),
     "news-scanner": (
         "claude-haiku-5-5",
         ("read_market", "read_company_reports"),
@@ -136,7 +143,7 @@ def test_nothing_seeded_can_run_a_shell_and_only_collectors_fetch(db: Database) 
         if {"http_get", "read_feed", "read_market", "read_company_reports"}
         & set(json.loads(str(row["allowed_tools"])))
     }
-    assert fetchers == {"news-scanner", "event-calendar"}
+    assert fetchers == {"news-scanner", "event-calendar", "market-explainer"}
     price_fetchers = {
         name
         for name, row in roster.items()

@@ -112,6 +112,10 @@ class UpdateSettingsRequest(BaseModel):
     # means the default space and is stored as null.
     channel_space_id: str | None = None
 
+    # Market-alert channel; an empty string clears it, as above.
+    discord_alert_channel_id: str | None = None
+    alert_desktop_notifications: bool | None = None
+
     onboarding_completed: bool | None = None
 
 
@@ -232,6 +236,12 @@ async def update_settings(request: Request, body: UpdateSettingsRequest) -> Sett
                     f"{space.name!r} is archived; a chat command cannot start a run there.",
                     "channel_space_id",
                 )
+
+    if (
+        "discord_alert_channel_id" in changes
+        and not changes["discord_alert_channel_id"].strip()
+    ):
+        changes["discord_alert_channel_id"] = None
 
     try:
         updated = await _settings_store(request).update(changes)

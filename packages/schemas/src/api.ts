@@ -45,6 +45,11 @@ export interface AgentMove {
   to_model: string | null;
 }
 
+export interface AlertsResponse {
+  alerts: MarketAlert[];
+  unseen: number;
+}
+
 /** Approval data rendered by the dialog. */
 export interface ApprovalResponse {
   id: string;
@@ -136,7 +141,7 @@ export interface CreateAgentRequest {
 export interface CreateRunRequest {
   goal: string;
   space_id?: string | null;
-  origin?: "ui" | "discord" | "schedule" | "automation";
+  origin?: "ui" | "discord" | "schedule" | "automation" | "monitor";
   origin_ref?: string | null;
   excluded_citations?: string[];
   supervised?: boolean;
@@ -346,6 +351,32 @@ export interface KnowledgeStats {
   unresolved_link_count?: number;
 }
 
+export interface MarketAlert {
+  id: string;
+  space_id: string;
+  batch_id: string;
+  symbol: string;
+  name: string | null;
+  instrument: "stock" | "index";
+  kind: "move" | "jump";
+  direction: "up" | "down";
+  change_pct: number;
+  level_pct: number;
+  price: number;
+  reference_price: number;
+  reference: "previous_close" | "regular_close" | "window";
+  window_minutes: number | null;
+  session: "pre" | "regular" | "post";
+  market_date: string;
+  quoted_at: string;
+  created_at: string;
+  explanation_status: "queued" | "running" | "done" | "failed" | "skipped" | "off";
+  explanation_run_id: string | null;
+  explanation_path: string | null;
+  explanation: string | null;
+  seen_at: string | null;
+}
+
 export interface MemoryIndex {
   items: MemoryItem[];
   proposed: number;
@@ -399,6 +430,30 @@ export interface ModelEntry {
   input_micros_per_million: number;
   output_micros_per_million: number;
   available?: boolean | null;
+}
+
+/** What the window shows about one space's watch. */
+export interface MonitorStatus {
+  enabled: boolean;
+  error?: string | null;
+  symbols?: string[];
+  check_every_minutes?: number;
+  market_open?: boolean;
+  last_checked_at?: string | null;
+  next_check_at?: string | null;
+  problems?: string[];
+  explain?: boolean;
+  explanations_today?: number;
+  max_explanations_per_day?: number;
+  stock_move_pct?: number;
+  stock_jump_pct?: number;
+  index_move_pct?: number;
+  index_jump_pct?: number;
+  jump_window_minutes?: number;
+}
+
+export interface MonitorSwitchRequest {
+  enabled: boolean;
 }
 
 export interface MoveNoteRequest {
@@ -467,7 +522,7 @@ export interface Run {
   space_id: string;
   goal: string;
   status: "pending" | "running" | "paused" | "completed" | "failed" | "cancelled";
-  origin: "ui" | "discord" | "schedule" | "automation";
+  origin: "ui" | "discord" | "schedule" | "automation" | "monitor";
   origin_ref?: string | null;
   created_at: string;
   finished_at?: string | null;
@@ -526,6 +581,14 @@ export interface SearchKnowledgeRequest {
   query: string;
   limit?: number;
   filters?: SearchFilters;
+}
+
+export interface SeenRequest {
+  space_id?: string | null;
+}
+
+export interface SeenResponse {
+  marked: number;
 }
 
 /** Workspace settings plus UI read-only facts. */
@@ -654,6 +717,8 @@ export interface UpdateSettingsRequest {
   channel_identities?: ChannelIdentity[] | null;
   channel_approvals?: "dashboard_only" | "originator" | null;
   channel_space_id?: string | null;
+  discord_alert_channel_id?: string | null;
+  alert_desktop_notifications?: boolean | null;
   onboarding_completed?: boolean | null;
 }
 
@@ -768,6 +833,8 @@ export interface WorkspaceSettings {
   channel_identities?: ChannelIdentity[];
   channel_approvals?: "dashboard_only" | "originator";
   channel_space_id?: string | null;
+  discord_alert_channel_id?: string | null;
+  alert_desktop_notifications?: boolean;
   onboarding_completed?: boolean;
 }
 

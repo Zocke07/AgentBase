@@ -104,3 +104,11 @@ describe("dates", () => {
     expect(shortDay("2026-10")).toContain("All of");
   });
 });
+
+describe("market alerts in the journal", () => {
+  it("names an alert's explanation for what it is", () => {
+    const [entry] = journalEntries([noteAt("alerts/2026-10-13-1100.md", "2026-10-13T15:03:00Z")]);
+    expect(entry?.kind).toBe("Market alert");
+    expect(entry?.date).toBe("2026-10-13");
+  });
+});

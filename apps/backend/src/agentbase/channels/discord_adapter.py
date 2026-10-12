@@ -82,6 +82,25 @@ class DiscordAdapter:
         if not self._client.is_closed():
             await self._client.close()
 
+    # --- notices -------------------------------------------------------------
+
+    async def send_notice(self, channel_id: str, text: str) -> None:
+        """Post a market alert to the configured channel, mentioning nobody.
+
+        A headline quoted in an alert could hold ``@everyone``; with mentions
+        off it is only text. A long notice goes in parts below Discord's limit.
+        """
+        wanted = int(channel_id)
+        channel = self._client.get_channel(wanted) or await self._client.fetch_channel(wanted)
+        if not isinstance(channel, discord.abc.Messageable):
+            msg = f"Discord channel {channel_id} cannot receive messages."
+            raise TypeError(msg)
+        for start in range(0, len(text), DISCORD_MESSAGE_LIMIT):
+            await channel.send(
+                text[start : start + DISCORD_MESSAGE_LIMIT],
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+
     # --- triggers ------------------------------------------------------------
 
     def _register(self) -> None:

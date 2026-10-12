@@ -134,7 +134,7 @@ def test_a_populated_v5_database_upgrades_with_every_row_in_the_default_space(
         assert ("poet", DEFAULT_SPACE_ID, 0, 0) in rows
         assert not {name for name, *_ in rows} & {"researcher", "reviewer", "writer"}
         assert all(row[1:] == (DEFAULT_SPACE_ID, 1, 1) for row in rows if row[0] != "poet")
-        assert len(rows) == 11
+        assert len(rows) == 12
     finally:
         upgraded.close()
 

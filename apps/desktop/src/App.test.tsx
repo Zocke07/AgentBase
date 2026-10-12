@@ -6,11 +6,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import * as api from "./lib/api";
 import * as events from "./lib/events";
+import * as notify from "./lib/notify";
 import * as sidecar from "./lib/sidecar";
 import { useRoster } from "./state/roster";
 import { useRunList } from "./state/runList";
 import { useRunStore } from "./state/runStore";
 import { useSpaces } from "./state/spaces";
+import { marketAlert } from "./test/alerts";
 
 /**
  * The shell: which section is showing, what survives switching, and when the
@@ -19,6 +21,10 @@ import { useSpaces } from "./state/spaces";
 
 vi.mock("./lib/sidecar", () => ({
   connectWithRetry: vi.fn(),
+}));
+
+vi.mock("./lib/notify", () => ({
+  notifyDesktop: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock("./lib/api", () => ({
@@ -42,6 +48,10 @@ vi.mock("./lib/api", () => ({
   listProviders: vi.fn(),
   listFiles: vi.fn(),
   listSchedules: vi.fn(),
+  listAlerts: vi.fn(),
+  markAlertsSeen: vi.fn(),
+  getMonitor: vi.fn(),
+  setMonitor: vi.fn(),
   baseUrl: vi.fn(() => Promise.resolve("http://x")),
 }));
 
@@ -107,6 +117,9 @@ beforeEach(() => {
   mocked.listSchedules.mockResolvedValue([]);
   mocked.listProviders.mockResolvedValue({ providers: [], models: {}, catalog: {} });
   mocked.listFiles.mockResolvedValue({ files: [] });
+  mocked.listAlerts.mockResolvedValue({ alerts: [], unseen: 0 });
+  mocked.markAlertsSeen.mockResolvedValue({ marked: 0 });
+  mocked.getMonitor.mockResolvedValue({ enabled: false });
   mocked.getRunHistory.mockResolvedValue([]);
   mocked.listRuns.mockResolvedValue([row("running")]);
 });
@@ -536,5 +549,55 @@ describe("the first-run tour", () => {
     render(<App />);
     await screen.findByRole("button", { name: /Space: Main/ });
     expect(screen.queryByTestId("tour-card")).toBeNull();
+  });
+});
+
+describe("market alerts", () => {
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  it("marks the space's alerts seen when Home shows them, and badges Home from elsewhere", async () => {
+    const user = userEvent.setup();
+    mocked.listAlerts.mockResolvedValue({ alerts: [marketAlert()], unseen: 1 });
+    render(<App />);
+
+    await waitFor(() => {
+      expect(mocked.markAlertsSeen).toHaveBeenCalledWith("space-main");
+    });
+    expect(await screen.findByTestId("market-alerts")).toBeTruthy();
+    expect(screen.getByText("New")).toBeTruthy();
+
+    // Still unseen as far as the list knows, so away from Home it is counted.
+    await user.click(screen.getByRole("button", { name: "Agents" }));
+    expect(screen.getByRole("button", { name: /Home/ }).textContent).toContain("1");
+  });
+
+  it("raises a desktop notice for a new alert, not for those already there", async () => {
+    mocked.listAlerts.mockResolvedValue({
+      alerts: [marketAlert({ id: "old", batch_id: "old-batch", seen_at: "2026-10-13T15:01:00Z" })],
+      unseen: 0,
+    });
+    render(<App />);
+    await waitFor(() => {
+      expect(mocked.listAlerts).toHaveBeenCalled();
+    });
+    expect(notify.notifyDesktop).not.toHaveBeenCalled();
+
+    mocked.listAlerts.mockResolvedValue({
+      alerts: [
+        marketAlert({ id: "new", batch_id: "new-batch", symbol: "AVGO", seen_at: "2026-10-13T15:06:00Z" }),
+        marketAlert({ id: "old", batch_id: "old-batch", seen_at: "2026-10-13T15:01:00Z" }),
+      ],
+      unseen: 0,
+    });
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    await waitFor(() => {
+      expect(notify.notifyDesktop).toHaveBeenCalledWith("Market alert", "AVGO down 5.5%. Looking for the reason.");
+    });
+    expect(notify.notifyDesktop).toHaveBeenCalledTimes(1);
   });
 });

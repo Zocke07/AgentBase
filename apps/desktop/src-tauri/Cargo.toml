@@ -24,6 +24,9 @@ keyring = { version = "3.6", features = ["apple-native", "windows-native", "sync
 # BUILD_SPEC §5 Phase 11: Rust-only `reveal_folder` checks paths remain in the
 # data directory before calling this plugin; the webview gets no JS command.
 tauri-plugin-opener = "2"
+# BUILD_SPEC Phase 18: Rust-only `notify_alert` raises market-alert notices;
+# the webview is granted no notification permission of its own.
+tauri-plugin-notification = "2"
 tauri-plugin-shell = "2"
 percent-encoding = "2.3"
 serde = { version = "1", features = ["derive"] }

@@ -80,6 +80,7 @@ MIGRATION_FILES: tuple[tuple[int, str], ...] = (
     (27, "027_decision_sources.sql"),
     (28, "028_market_forecast_workbooks.sql"),
     (29, "029_current_efficient_models.sql"),
+    (30, "030_market_watch.sql"),
 )
 
 #: Migrations requiring deferred foreign-key checks.

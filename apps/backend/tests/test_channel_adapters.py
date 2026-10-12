@@ -259,3 +259,47 @@ async def test_a_high_risk_question_offers_only_a_one_call_answer() -> None:
     assert _labels(view) == ["Allow", "Deny"]
     # Without a known window, the platform default applies.
     assert view.timeout == 900
+
+
+# --- market-alert notices --------------------------------------------------------
+
+
+class _Channel(discord.abc.Messageable):
+    """Enough of a text channel to receive notices, recorded instead of sent."""
+
+    def __init__(self) -> None:
+        self.sent: list[tuple[str, discord.AllowedMentions | None]] = []
+
+    async def _get_channel(self) -> discord.abc.MessageableChannel:  # pragma: no cover
+        raise NotImplementedError
+
+    async def send(  # type: ignore[override]
+        self, content: str, *, allowed_mentions: discord.AllowedMentions | None = None
+    ) -> None:
+        self.sent.append((content, allowed_mentions))
+
+
+async def test_a_notice_mentions_nobody_and_long_ones_go_in_parts() -> None:
+    """A headline quoted in an alert could hold @everyone; it stays text."""
+    from unittest.mock import MagicMock
+
+    from agentbase.channels.discord_adapter import DiscordAdapter
+    from agentbase.channels.render import DISCORD_MESSAGE_LIMIT
+
+    channel = _Channel()
+    adapter = DiscordAdapter(MagicMock(), token="")  # never started, so never sent
+    asked: list[int] = []
+
+    def get_channel(wanted: int) -> _Channel:
+        asked.append(wanted)
+        return channel
+
+    adapter._client = SimpleNamespace(get_channel=get_channel)  # type: ignore[assignment]
+
+    await adapter.send_notice("123456789012345678", "@everyone " + "x" * DISCORD_MESSAGE_LIMIT)
+
+    assert asked == [123456789012345678]
+    assert [len(text) for text, _ in channel.sent] == [DISCORD_MESSAGE_LIMIT, 10]
+    for _, mentions in channel.sent:
+        assert mentions is not None
+        assert (mentions.everyone, mentions.users, mentions.roles) == (False, False, False)

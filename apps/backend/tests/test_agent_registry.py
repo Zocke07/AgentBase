@@ -45,13 +45,15 @@ if TYPE_CHECKING:
 
 anyio_tests = pytest.mark.anyio
 
-#: Migration 010's investment pipeline, ordered as ``GET /agents`` returns it.
-#: The ``agents`` fixture adds three starter roles for scripted runs; the API does not.
+#: Migration 010's investment pipeline and 030's market explainer, ordered as
+#: ``GET /agents`` returns them. The ``agents`` fixture adds three starter roles
+#: for scripted runs; the API does not.
 BUILTINS = (
     "bear-architect",
     "bull-architect",
     "decision",
     "event-calendar",
+    "market-explainer",
     "market-movers",
     "news-scanner",
     "portfolio-review",
@@ -113,7 +115,13 @@ def test_seeded_agents_never_run_a_shell_and_only_collectors_fetch(
         if {"http_get", "read_feed", "read_prices", "read_market", "read_company_reports"}
         & set(agent["allowed_tools"])
     ]
-    assert sorted(fetchers) == ["event-calendar", "market-movers", "news-scanner"]
+    # The explainer reads headlines too, and writes only the note its run names.
+    assert sorted(fetchers) == [
+        "event-calendar",
+        "market-explainer",
+        "market-movers",
+        "news-scanner",
+    ]
 
 
 def test_a_builtin_edited_before_the_upgrade_keeps_its_allowlist(db: Database) -> None:

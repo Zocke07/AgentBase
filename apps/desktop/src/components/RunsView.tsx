@@ -267,6 +267,7 @@ export function RunsView({
             <option value="automation">Run now</option>
             <option value="schedule">Scheduled</option>
             <option value="discord">From Discord</option>
+            <option value="monitor">Market alerts</option>
           </select>
         </label>
 

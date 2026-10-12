@@ -179,6 +179,22 @@ describe("loading", () => {
 });
 
 describe("saving", () => {
+  it("saves where market alerts go: a Discord channel, and desktop notices off", async () => {
+    const user = userEvent.setup();
+    view();
+    await loaded();
+
+    expect(screen.getByTestId<HTMLInputElement>("setting-alert-desktop").checked).toBe(true);
+    await user.type(screen.getByTestId("setting-alert-channel"), " 123456789012345678 ");
+    await user.click(screen.getByTestId("setting-alert-desktop"));
+    await user.click(screen.getByRole("button", { name: "Save settings" }));
+
+    expect(mocked.updateSettings).toHaveBeenCalledWith({
+      discord_alert_channel_id: "123456789012345678",
+      alert_desktop_notifications: false,
+    });
+  });
+
   it("sends only the fields that changed, as a PATCH", async () => {
     const user = userEvent.setup();
     const { onSaved } = view();

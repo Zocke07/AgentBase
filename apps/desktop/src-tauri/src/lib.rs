@@ -137,6 +137,31 @@ fn open_workbook(app: AppHandle, path: String) -> Result<(), String> {
         .map_err(|error| error.to_string())
 }
 
+/// Show a market alert as a desktop notification (BUILD_SPEC Phase 18). The
+/// webview names only the words; title and body are bounded so a long
+/// explanation cannot become a wall of text on the screen.
+#[tauri::command]
+fn notify_alert(app: AppHandle, title: String, body: String) -> Result<(), String> {
+    use tauri_plugin_notification::NotificationExt;
+
+    app.notification()
+        .builder()
+        .title(bounded(&title, 80))
+        .body(bounded(&body, 300))
+        .show()
+        .map_err(|error| error.to_string())
+}
+
+/// At most `limit` characters, ending in an ellipsis when cut.
+fn bounded(text: &str, limit: usize) -> String {
+    if text.chars().count() <= limit {
+        return text.to_string();
+    }
+    let mut cut: String = text.chars().take(limit - 1).collect();
+    cut.push('\u{2026}');
+    cut
+}
+
 /// A canonical path that is a visible `.xlsx` file under `root`.
 fn workbook_inside(root: &Path, wanted: &Path) -> Result<PathBuf, String> {
     let Ok(relative) = wanted.strip_prefix(root) else {
@@ -422,6 +447,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_keyring::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(SidecarState::default())
         .manage(Instance::mint())
         .invoke_handler(tauri::generate_handler![
@@ -431,6 +457,7 @@ pub fn run() {
             legacy_keychain_service,
             reveal_folder,
             open_workbook,
+            notify_alert,
             obsidian_available,
             open_obsidian_vault,
             open_auth_url,
@@ -455,9 +482,18 @@ mod tests {
     use std::path::Path;
 
     use super::{
-        auth_url_is_allowed, obsidian_candidates, obsidian_vault_url, secret_for_name,
+        auth_url_is_allowed, bounded, obsidian_candidates, obsidian_vault_url, secret_for_name,
         workbook_inside, KeychainLookup, KEYCHAIN_SERVICE, LEGACY_KEYCHAIN_SERVICE,
     };
+
+    #[test]
+    fn a_notice_is_cut_to_its_bound_with_an_ellipsis() {
+        assert_eq!(bounded("MU down 5.5%", 80), "MU down 5.5%");
+        let long = "x".repeat(400);
+        let cut = bounded(&long, 300);
+        assert_eq!(cut.chars().count(), 300);
+        assert!(cut.ends_with('\u{2026}'));
+    }
 
     #[test]
     fn only_a_visible_workbook_inside_the_data_directory_opens() {

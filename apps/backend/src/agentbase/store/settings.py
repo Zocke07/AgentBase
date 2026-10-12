@@ -166,6 +166,15 @@ class WorkspaceSettings(BaseModel):
     #: API checks the space exists; a stored id since deleted falls back at launch.
     channel_space_id: str | None = None
 
+    # --- market watch (Phase 18) -------------------------------------------------
+
+    #: The Discord channel, by its numeric id, that receives market alerts.
+    #: ``None`` posts nothing; commands are still accepted only from allowed senders.
+    discord_alert_channel_id: str | None = None
+
+    #: Whether the window raises a desktop notification for each market alert.
+    alert_desktop_notifications: bool = True
+
     # --- the window -------------------------------------------------------------
 
     #: Whether the first-run tour has been finished or skipped. Kept here rather
@@ -217,6 +226,20 @@ class WorkspaceSettings(BaseModel):
         return {
             name: policy for name, policy in policies.items() if policy is not ToolPolicy.ASK
         }
+
+    @field_validator("discord_alert_channel_id")
+    @classmethod
+    def _channel_is_a_discord_id(cls, value: str | None) -> str | None:
+        """Discord ids are numbers; anything else would only fail when an alert fires."""
+        if value is None or not value.strip():
+            return None
+        if not value.strip().isdigit() or not 15 <= len(value.strip()) <= 25:
+            msg = (
+                "the alert channel is a Discord channel id, a long number: in Discord, "
+                "turn on Developer Mode, then right-click the channel and choose Copy Channel ID."
+            )
+            raise ValueError(msg)
+        return value.strip()
 
     @field_validator("channel_identities")
     @classmethod

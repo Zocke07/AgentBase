@@ -23,7 +23,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Final
 
 from agentbase.api.stream import run_events
-from agentbase.channels.base import CHANNEL_NAMES, ChannelName, InboundMessage
+from agentbase.channels.base import CHANNEL_NAMES, ChannelName, InboundMessage, NoticeSender
 from agentbase.channels.identity import IdentityDirectory, refusal_text
 from agentbase.channels.render import DISCORD_MESSAGE_LIMIT, fold, render
 from agentbase.channels.throttle import DISCORD_EDIT_INTERVAL, Throttle
@@ -391,6 +391,22 @@ class ChannelService:
 
     def status(self) -> list[ChannelStatus]:
         return [self._status[channel] for channel in CHANNEL_NAMES if channel in self._status]
+
+    async def announce(self, text: str) -> bool:
+        """Post a notice to the market-alert channel; ``False`` when none is set up.
+
+        Outbound only: nothing is read from the channel (constraint 6), and the
+        notice mentions nobody. A disconnected or unset channel is not an error.
+        """
+        settings = await self._deps.settings.get()
+        channel_id = settings.discord_alert_channel_id
+        adapter = self._adapters.get("discord")
+        if channel_id is None or adapter is None or not self._is_running("discord"):
+            return False
+        if not isinstance(adapter, NoticeSender):
+            return False
+        await adapter.send_notice(channel_id, text)
+        return True
 
     def note_refusal(self, channel: ChannelName, who: str) -> None:
         """Record a refused sender for `GET /channels`.

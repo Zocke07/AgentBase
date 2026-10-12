@@ -46,6 +46,7 @@ def test_a_fresh_install_has_one_space_with_the_shipped_roster(client: TestClien
         "bull-architect",
         "decision",
         "event-calendar",
+        "market-explainer",
         "market-movers",
         "news-scanner",
         "portfolio-review",
@@ -68,7 +69,7 @@ def test_a_new_space_starts_with_copies_of_the_starter_roles_by_default(
     assert client.delete(f"/agents/{roster[0]['id']}").status_code == 204
     # And the default space's built-ins are untouched.
     originals = client.get("/agents", params={"space_id": DEFAULT_SPACE_ID}).json()
-    assert len(originals) == 10
+    assert len(originals) == 11
 
 
 def test_a_space_may_start_empty_or_as_a_copy_of_another(client: TestClient) -> None:
@@ -196,7 +197,9 @@ def test_a_switch_preview_lists_the_agents_left_on_the_old_provider(client: Test
     assert moves["bull-architect"] == "gpt-6.1-sol"
     # Opus has no GPT-6 counterpart; Sol, by the maintainer's choice.
     assert moves["decision"] == "gpt-6.1-sol"
-    assert len(moves) == 10
+    # The explainer is fast, like the collectors whose model it took.
+    assert moves["market-explainer"] == "gpt-6-luna"
+    assert len(moves) == 11
 
     assert client.get(f"/spaces/{DEFAULT_SPACE_ID}").json()["provider"] == "anthropic"
     assert client.get(url, params={"provider": "anthropic"}).json()["agents"] == []

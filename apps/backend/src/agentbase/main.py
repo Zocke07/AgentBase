@@ -19,6 +19,7 @@ import threading
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Final
 
+import httpx2
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +27,7 @@ from pydantic import BaseModel
 
 from agentbase import __version__
 from agentbase.api.agents import router as agents_router
+from agentbase.api.alerts import router as alerts_router
 from agentbase.api.approvals import router as approvals_router
 from agentbase.api.auth import router as auth_router
 from agentbase.api.channels import router as channels_router
@@ -49,11 +51,13 @@ from agentbase.events.bus import EventBus
 from agentbase.events.store import EventStore
 from agentbase.knowledge.store import KnowledgeStore
 from agentbase.orchestrator.launcher import RunLauncher
+from agentbase.orchestrator.monitor import MarketMonitor
 from agentbase.orchestrator.scheduler import Scheduler
 from agentbase.providers.chatgpt import ChatGPTRuntime, CodexAppServerRuntime
 from agentbase.providers.codex_runtime import CodexRuntimeInstaller
 from agentbase.secrets import SecretStore, parse_secrets_line
 from agentbase.store.agents import AgentDefStore
+from agentbase.store.alerts import AlertStore
 from agentbase.store.db import Database
 from agentbase.store.schedules import ScheduleStore
 from agentbase.store.settings import SettingsStore
@@ -63,7 +67,7 @@ from agentbase.tools.runtime import ToolRuntime
 from agentbase.tools.sandbox import Sandbox
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Iterator
+    from collections.abc import AsyncIterator, Callable, Iterator
 
 __all__ = ["SHUTDOWN_COMMAND", "create_app", "resolve_port", "run"]
 
@@ -89,11 +93,17 @@ class HealthResponse(BaseModel):
     instance: str | None
 
 
+def market_client() -> httpx2.AsyncClient:
+    """The market watch's quote client; tests replace it with an offline one."""
+    return httpx2.AsyncClient(timeout=20)
+
+
 def create_app(
     paths: AppPaths | None = None,
     secrets: SecretStore | None = None,
     instance: str | None = None,
     chatgpt_runtime: ChatGPTRuntime | None = None,
+    monitor_client_factory: Callable[[], httpx2.AsyncClient] | None = None,
 ) -> FastAPI:
     """Build the ASGI application without starting a server.
 
@@ -104,6 +114,8 @@ def create_app(
     :param secrets: API keys delivered over stdin; the reader thread updates
         this instance.
     :param instance: the shell's tag for this launch, echoed by `/health`.
+    :param monitor_client_factory: the market watch's quote client; omitted,
+        :func:`market_client`.
     """
     resolved = paths if paths is not None else resolve_app_paths()
     secret_store = secrets if secrets is not None else SecretStore()
@@ -193,13 +205,35 @@ def create_app(
         app.state.scheduler = Scheduler(
             app.state.schedules, app.state.launcher, interrupted=frozenset(interrupted)
         )
-        app.state.launcher.on_finished = app.state.scheduler.follow
         await app.state.scheduler.start()
+
+        # The market watch posts to the channels above and starts runs through
+        # the launcher, so it starts after both (BUILD_SPEC Phase 18).
+        app.state.alerts = AlertStore(database)
+        app.state.monitor = MarketMonitor(
+            spaces=app.state.spaces,
+            alerts=app.state.alerts,
+            launcher=app.state.launcher,
+            events=app.state.store,
+            announce=app.state.channels.announce,
+            client_factory=monitor_client_factory or market_client,
+        )
+        scheduler, monitor = app.state.scheduler, app.state.monitor
+
+        async def finished(run_id: str) -> None:
+            # Each hook logs and swallows its own failures.
+            await scheduler.follow(run_id)
+            await monitor.follow(run_id)
+
+        app.state.launcher.on_finished = finished
+        await app.state.monitor.start()
 
         try:
             yield
         finally:
-            # Stop scheduler first; then channels, before they use a closed DB.
+            # Stop the watch and scheduler first; then channels, before they
+            # use a closed DB.
+            await app.state.monitor.aclose()
             await app.state.scheduler.aclose()
             await app.state.channels.aclose()
             for task in tuple(app.state.background_tasks):
@@ -232,6 +266,7 @@ def create_app(
         return HealthResponse(ok=True, instance=instance)
 
     app.include_router(agents_router)
+    app.include_router(alerts_router)
     app.include_router(approvals_router)
     app.include_router(auth_router)
     app.include_router(channels_router)

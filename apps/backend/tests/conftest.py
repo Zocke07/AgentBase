@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
+import httpx2
 import pytest
 
 from agentbase.budget.ledger import BudgetLedger
@@ -43,6 +44,24 @@ def _isolate_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     it explicitly; this only decides where the *unconfigured* path leads.
     """
     monkeypatch.setenv("AGENTBASE_DATA_DIR", str(tmp_path / "data-dir-fallback"))
+
+
+@pytest.fixture(autouse=True)
+def _offline_market_watch(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No test app may read live quotes, whatever the hour.
+
+    A test that switches a watch on wakes the loop, which reads quotes during
+    US trading hours. Tests that need quotes pass their own client factory.
+    """
+
+    def refuse(request: httpx2.Request) -> httpx2.Response:
+        msg = f"a test tried to reach {request.url}"
+        raise httpx2.ConnectError(msg, request=request)
+
+    monkeypatch.setattr(
+        "agentbase.main.market_client",
+        lambda: httpx2.AsyncClient(transport=httpx2.MockTransport(refuse)),
+    )
 
 
 @pytest.fixture

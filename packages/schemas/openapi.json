@@ -177,6 +177,27 @@
         "title": "AgentMove",
         "type": "object"
       },
+      "AlertsResponse": {
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/MarketAlert"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
+          "unseen": {
+            "title": "Unseen",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "alerts",
+          "unseen"
+        ],
+        "title": "AlertsResponse",
+        "type": "object"
+      },
       "ApprovalResponse": {
         "description": "Approval data rendered by the dialog.",
         "properties": {
@@ -648,7 +669,8 @@
               "ui",
               "discord",
               "schedule",
-              "automation"
+              "automation",
+              "monitor"
             ],
             "title": "Origin",
             "type": "string"
@@ -1505,6 +1527,201 @@
         "title": "KnowledgeStats",
         "type": "object"
       },
+      "MarketAlert": {
+        "properties": {
+          "batch_id": {
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "change_pct": {
+            "title": "Change Pct",
+            "type": "number"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "direction": {
+            "enum": [
+              "up",
+              "down"
+            ],
+            "title": "Direction",
+            "type": "string"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation"
+          },
+          "explanation_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation Path"
+          },
+          "explanation_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation Run Id"
+          },
+          "explanation_status": {
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "failed",
+              "skipped",
+              "off"
+            ],
+            "title": "Explanation Status",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "instrument": {
+            "enum": [
+              "stock",
+              "index"
+            ],
+            "title": "Instrument",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "move",
+              "jump"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "level_pct": {
+            "title": "Level Pct",
+            "type": "number"
+          },
+          "market_date": {
+            "title": "Market Date",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "price": {
+            "title": "Price",
+            "type": "number"
+          },
+          "quoted_at": {
+            "title": "Quoted At",
+            "type": "string"
+          },
+          "reference": {
+            "enum": [
+              "previous_close",
+              "regular_close",
+              "window"
+            ],
+            "title": "Reference",
+            "type": "string"
+          },
+          "reference_price": {
+            "title": "Reference Price",
+            "type": "number"
+          },
+          "seen_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seen At"
+          },
+          "session": {
+            "enum": [
+              "pre",
+              "regular",
+              "post"
+            ],
+            "title": "Session",
+            "type": "string"
+          },
+          "space_id": {
+            "title": "Space Id",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "window_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Minutes"
+          }
+        },
+        "required": [
+          "id",
+          "space_id",
+          "batch_id",
+          "symbol",
+          "name",
+          "instrument",
+          "kind",
+          "direction",
+          "change_pct",
+          "level_pct",
+          "price",
+          "reference_price",
+          "reference",
+          "window_minutes",
+          "session",
+          "market_date",
+          "quoted_at",
+          "created_at",
+          "explanation_status",
+          "explanation_run_id",
+          "explanation_path",
+          "explanation",
+          "seen_at"
+        ],
+        "title": "MarketAlert",
+        "type": "object"
+      },
       "MemoryIndex": {
         "properties": {
           "approved": {
@@ -1810,6 +2027,131 @@
           "output_micros_per_million"
         ],
         "title": "ModelEntry",
+        "type": "object"
+      },
+      "MonitorStatus": {
+        "description": "What the window shows about one space's watch.",
+        "properties": {
+          "check_every_minutes": {
+            "default": 5,
+            "title": "Check Every Minutes",
+            "type": "integer"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "explain": {
+            "default": true,
+            "title": "Explain",
+            "type": "boolean"
+          },
+          "explanations_today": {
+            "default": 0,
+            "title": "Explanations Today",
+            "type": "integer"
+          },
+          "index_jump_pct": {
+            "default": 1,
+            "title": "Index Jump Pct",
+            "type": "number"
+          },
+          "index_move_pct": {
+            "default": 1.5,
+            "title": "Index Move Pct",
+            "type": "number"
+          },
+          "jump_window_minutes": {
+            "default": 15,
+            "title": "Jump Window Minutes",
+            "type": "integer"
+          },
+          "last_checked_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Checked At"
+          },
+          "market_open": {
+            "default": false,
+            "title": "Market Open",
+            "type": "boolean"
+          },
+          "max_explanations_per_day": {
+            "default": 10,
+            "title": "Max Explanations Per Day",
+            "type": "integer"
+          },
+          "next_check_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Check At"
+          },
+          "problems": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Problems",
+            "type": "array"
+          },
+          "stock_jump_pct": {
+            "default": 2.5,
+            "title": "Stock Jump Pct",
+            "type": "number"
+          },
+          "stock_move_pct": {
+            "default": 5,
+            "title": "Stock Move Pct",
+            "type": "number"
+          },
+          "symbols": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Symbols",
+            "type": "array"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "MonitorStatus",
+        "type": "object"
+      },
+      "MonitorSwitchRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "MonitorSwitchRequest",
         "type": "object"
       },
       "MoveNoteRequest": {
@@ -2130,7 +2472,8 @@
               "ui",
               "discord",
               "schedule",
-              "automation"
+              "automation",
+              "monitor"
             ],
             "title": "Origin",
             "type": "string"
@@ -2491,6 +2834,37 @@
           "query"
         ],
         "title": "SearchKnowledgeRequest",
+        "type": "object"
+      },
+      "SeenRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "space_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Space Id"
+          }
+        },
+        "title": "SeenRequest",
+        "type": "object"
+      },
+      "SeenResponse": {
+        "properties": {
+          "marked": {
+            "title": "Marked",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "marked"
+        ],
+        "title": "SeenResponse",
         "type": "object"
       },
       "SettingsResponse": {
@@ -3057,6 +3431,17 @@
         "additionalProperties": false,
         "description": "Partial update; omitted fields stay unchanged.\n\nReject unknown fields: Pydantic would otherwise return ``200 OK`` for a\nmisspelling. Mirror every :class:`~agentbase.store.settings.WorkspaceSettings`\nfield here; bounds and optionality differ, and the paired test detects drift.",
         "properties": {
+          "alert_desktop_notifications": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert Desktop Notifications"
+          },
           "auto_approve": {
             "anyOf": [
               {
@@ -3124,6 +3509,17 @@
               }
             ],
             "title": "Channel Space Id"
+          },
+          "discord_alert_channel_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discord Alert Channel Id"
           },
           "discord_enabled": {
             "anyOf": [
@@ -3846,6 +4242,11 @@
       "WorkspaceSettings": {
         "description": "Everything the user can configure that is not a secret.",
         "properties": {
+          "alert_desktop_notifications": {
+            "default": true,
+            "title": "Alert Desktop Notifications",
+            "type": "boolean"
+          },
           "auto_approve": {
             "items": {
               "$ref": "#/components/schemas/RiskLevel"
@@ -3886,6 +4287,17 @@
               }
             ],
             "title": "Channel Space Id"
+          },
+          "discord_alert_channel_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discord Alert Channel Id"
           },
           "discord_enabled": {
             "default": false,
@@ -4280,6 +4692,103 @@
         "summary": "Copy Agent"
       }
     },
+    "/alerts": {
+      "get": {
+        "description": "Newest alerts first, in one space or all of them, and how many are unseen.",
+        "operationId": "list_alerts_alerts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "space_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Space Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Alerts"
+      }
+    },
+    "/alerts/seen": {
+      "post": {
+        "operationId": "mark_alerts_seen_alerts_seen_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark Alerts Seen"
+      }
+    },
     "/approvals": {
       "get": {
         "description": "List unanswered approvals, oldest first.",
@@ -4670,7 +5179,8 @@
                     "ui",
                     "discord",
                     "schedule",
-                    "automation"
+                    "automation",
+                    "monitor"
                   ],
                   "type": "string"
                 },
@@ -6399,6 +6909,93 @@
           }
         },
         "summary": "Search Knowledge"
+      }
+    },
+    "/spaces/{space_id}/monitor": {
+      "get": {
+        "operationId": "monitor_status_spaces__space_id__monitor_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonitorStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Monitor Status"
+      },
+      "put": {
+        "description": "Turn the watch on or off by its file, writing the starter file the first time.",
+        "operationId": "switch_monitor_spaces__space_id__monitor_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MonitorSwitchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonitorStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Switch Monitor"
       }
     },
     "/spaces/{space_id}/provider-switch": {

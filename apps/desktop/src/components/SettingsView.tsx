@@ -68,6 +68,9 @@ interface Form {
   channel_approvals: "dashboard_only" | "originator";
   /** Chat-command run space; empty string selects default. */
   channel_space_id: string;
+  /** The Discord channel id for market alerts, as typed; empty sends none. */
+  discord_alert_channel_id: string;
+  alert_desktop_notifications: boolean;
 }
 
 /** Levels a policy may answer; high risk (run_shell) always asks a person. */
@@ -129,6 +132,8 @@ function fromSettings(settings: WorkspaceSettings): Form {
     channel_identities: [...(settings.channel_identities ?? [])],
     channel_approvals: settings.channel_approvals ?? "originator",
     channel_space_id: settings.channel_space_id ?? "",
+    discord_alert_channel_id: settings.discord_alert_channel_id ?? "",
+    alert_desktop_notifications: settings.alert_desktop_notifications ?? true,
   };
 }
 
@@ -177,6 +182,13 @@ function diff(opened: Form, form: Form): UpdateSettingsRequest {
   if (form.channel_approvals !== opened.channel_approvals) patch.channel_approvals = form.channel_approvals;
   // Empty selects default; PATCH cannot send null.
   if (form.channel_space_id !== opened.channel_space_id) patch.channel_space_id = form.channel_space_id;
+  // Empty clears the alert channel, as above.
+  if (form.discord_alert_channel_id.trim() !== opened.discord_alert_channel_id) {
+    patch.discord_alert_channel_id = form.discord_alert_channel_id.trim();
+  }
+  if (form.alert_desktop_notifications !== opened.alert_desktop_notifications) {
+    patch.alert_desktop_notifications = form.alert_desktop_notifications;
+  }
   return patch;
 }
 
@@ -852,6 +864,43 @@ function SettingsForm({
               ))}
           </select>
           <FieldError field="channel_space_id" message={errorFor("channel_space_id")} />
+        </label>
+      </section>
+
+      {/* --- market alerts ---------------------------------------------------- */}
+      <section className="settings__section" id="settings-alerts">
+        <h2>Market alerts</h2>
+        <p className="settings__hint">
+          A space's market watch, switched on in Automations, alerts you to sudden moves while AgentBase is open.
+        </p>
+        <label className="editor__checkbox">
+          <input
+            type="checkbox"
+            checked={form.alert_desktop_notifications}
+            onChange={(changed) => {
+              set("alert_desktop_notifications", changed.target.checked);
+            }}
+            data-testid="setting-alert-desktop"
+          />
+          <span>Show a desktop notification for each alert and its explanation</span>
+        </label>
+        <label className="editor__field editor__field--narrow">
+          <span>Discord channel for alerts</span>
+          <input
+            value={form.discord_alert_channel_id}
+            inputMode="numeric"
+            placeholder="Channel ID, such as 123456789012345678"
+            onChange={(changed) => {
+              set("discord_alert_channel_id", changed.target.value);
+            }}
+            data-testid="setting-alert-channel"
+          />
+          <span className="settings__hint">
+            In Discord, turn on Developer Mode under Advanced, then right-click the channel and choose Copy Channel
+            ID. The bot needs permission to send messages there, and Discord must be enabled above. Leave it blank to
+            send none.
+          </span>
+          <FieldError field="discord_alert_channel_id" message={errorFor("discord_alert_channel_id")} />
         </label>
       </section>
 

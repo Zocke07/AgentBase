@@ -392,6 +392,7 @@ def test_upgrade_preserves_an_existing_populated_database(app_paths: AppPaths) -
             "bull-architect",
             "decision",
             "event-calendar",
+            "market-explainer",
             "market-movers",
             "news-scanner",
             "portfolio-review",

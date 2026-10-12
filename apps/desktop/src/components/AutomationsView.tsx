@@ -5,6 +5,7 @@ import * as api from "../lib/api";
 import { pipelineNotice } from "../lib/pipeline";
 import { useFetched } from "../state/useFetched";
 
+import { MarketWatch } from "./MarketWatch";
 import { PipelineOffer } from "./PipelineOffer";
 import { Schedules } from "./Schedules";
 
@@ -25,6 +26,8 @@ export interface AutomationsViewProps {
   schedulesNonce?: number | undefined;
   /** This page changed the schedules; Home rereads its strip. */
   onSchedulesChanged?: (() => void) | undefined;
+  /** Open a space file, such as the market watch's settings, in Knowledge. */
+  onOpenFile?: ((path: string) => void) | undefined;
 }
 
 const NONE: never[] = [];
@@ -36,6 +39,7 @@ export function AutomationsView({
   draftRequest,
   schedulesNonce = 0,
   onSchedulesChanged,
+  onOpenFile,
 }: AutomationsViewProps) {
   const load = useCallback(() => api.listSchedules(space.id), [space.id]);
   const schedules = useFetched(load, NONE);
@@ -78,6 +82,7 @@ export function AutomationsView({
           reloadNonce={schedulesNonce}
           onChanged={onSchedulesChanged}
         />
+        <MarketWatch key={`watch-${space.id}`} spaceId={space.id} onOpenFile={onOpenFile} />
       </div>
     </div>
   );

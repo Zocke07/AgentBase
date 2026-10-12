@@ -88,6 +88,8 @@ export function runOriginLabel(origin: string | null): string | null {
       return "started with Run now";
     case "discord":
       return "from Discord";
+    case "monitor":
+      return "explaining a market alert";
     default:
       return `from ${origin}`;
   }

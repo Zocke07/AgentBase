@@ -51,6 +51,7 @@ describe("labels a person reads", () => {
   it("distinguishes timed schedules from the Run now button", () => {
     expect(runOriginLabel("schedule")).toBe("from schedule");
     expect(runOriginLabel("automation")).toBe("started with Run now");
+    expect(runOriginLabel("monitor")).toBe("explaining a market alert");
     expect(runOriginLabel("ui")).toBeNull();
   });
 });
