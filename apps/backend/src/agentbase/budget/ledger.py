@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import AsyncGenerator
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Final
@@ -348,19 +349,24 @@ class BudgetedProvider:
         else:
             await self._ledger.check("", self._inner.model, projected)
 
-        async for event in self._inner.stream(
-            messages, tools, system=system, max_tokens=max_tokens
-        ):
-            if isinstance(event, Completion):
-                cost = await self._ledger.record(
-                    run_id=self._run_id,
-                    provider=event.provider,
-                    model=event.model,
-                    usage=event.usage,
-                )
-                yield replace(event, cost_micros=cost)
-                continue
-            yield event
+        events = self._inner.stream(messages, tools, system=system, max_tokens=max_tokens)
+        try:
+            async for event in events:
+                if isinstance(event, Completion):
+                    cost = await self._ledger.record(
+                        run_id=self._run_id,
+                        provider=event.provider,
+                        model=event.model,
+                        usage=event.usage,
+                    )
+                    yield replace(event, cost_micros=cost)
+                    continue
+                yield event
+        finally:
+            # Propagate early closure through wrappers so the transport can
+            # release its connection and its shared ChatGPT request permit.
+            if isinstance(events, AsyncGenerator):
+                await events.aclose()
 
 
 # Re-exported so callers catching budget failures need one import.

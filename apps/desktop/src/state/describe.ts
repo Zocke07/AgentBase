@@ -61,6 +61,26 @@ export function callPhrase(tool: string, args: Payload): CallPhrase {
         past: `read prices for ${symbols}`,
       };
     }
+    case "read_market":
+      return {
+        infinitive: "collect market movers and headlines",
+        progressive: "collecting market movers and headlines",
+        past: "collected market movers and headlines",
+      };
+    case "read_company_reports": {
+      const symbols = strings(args, "symbols").join(", ") || "the research stocks";
+      return {
+        infinitive: `read company reports for ${symbols}`,
+        progressive: `reading company reports for ${symbols}`,
+        past: `read company reports for ${symbols}`,
+      };
+    }
+    case "track_forecasts":
+      return {
+        infinitive: "update forecasts and actual prices",
+        progressive: "updating forecasts and actual prices",
+        past: "updated forecasts and actual prices",
+      };
     case "compute_portfolio":
       return {
         infinitive: "compute the portfolio",
@@ -175,6 +195,9 @@ export function sentenceFor(event: Event): string {
       return `The model answered ${who} (${tokens}).`;
     }
     case "llm.error":
+      if (flag(payload, "will_retry")) {
+        return `${who}'s model was rate limited. Waiting ${shown("retry_after_seconds")} seconds before retrying.`;
+      }
       return `${who}'s model call failed: ${ellipsise(read("error") ?? "", 140)}`;
 
     // --- tools --------------------------------------------------------------
@@ -351,7 +374,9 @@ export function policySentence(policy: RunApprovalPolicy): string {
     policy.levels.includes("medium") ||
     policy.allowTools.includes("http_get") ||
     policy.allowTools.includes("read_feed") ||
-    policy.allowTools.includes("read_prices");
+    policy.allowTools.includes("read_prices") ||
+    policy.allowTools.includes("read_market") ||
+    policy.allowTools.includes("read_company_reports");
   const parts = [
     policy.levels.length > 0
       ? `${list(policy.levels)} risk ran on its own`

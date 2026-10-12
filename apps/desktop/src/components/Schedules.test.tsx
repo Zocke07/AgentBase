@@ -174,14 +174,14 @@ describe("Schedules", () => {
     expect(note).not.toContain("http_get");
   });
 
-  it("treats an always-allowed price read as a host-bounded fetch", async () => {
+  it.each(["read_prices", "read_market", "read_company_reports"])("treats an always-allowed %s as a host-bounded fetch", async (tool) => {
     const settings = settingsWith([]);
-    settings.settings.tool_policies = { read_prices: "allow" };
+    settings.settings.tool_policies = { [tool]: "allow" };
     render(<Schedules space={lab} settings={settings} />);
     await screen.findByTestId("schedule-sched-1");
 
     const note = screen.getByTestId("schedules-policy").textContent;
-    expect(note).toContain("runs read_prices without asking whatever the level");
+    expect(note).toContain(`runs ${tool} without asking whatever the level`);
     expect(note).toContain("fetches from news.google.com and stooq.com without asking");
   });
 

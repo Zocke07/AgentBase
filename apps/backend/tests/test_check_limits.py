@@ -75,6 +75,34 @@ def _inputs(sandbox: Sandbox, *, day_change_pct: int | float = -2.25) -> None:
     )
 
 
+async def test_sourced_discovery_sector_can_be_checked_without_rewriting_watchlist(
+    sandbox: Sandbox,
+) -> None:
+    _inputs(sandbox)
+    _write(
+        sandbox,
+        "raw/market/universe.json",
+        json.dumps(
+            {
+                "universe": [
+                    {"ticker": "CRWV", "sector": "Technology", "origins": ["day_gainers"]},
+                    {"ticker": "AAPL", "sector": "Untrusted conflicting sector"},
+                ]
+            }
+        ),
+    )
+    _write(sandbox, "theses/bull-2026-09-30.jsonl", '{"ticker":"CRWV"}\n')
+    tool = CheckLimitsTool()
+    result = json.loads(
+        await tool.execute(tool.prepare({"date": "2026-09-30"}, sandbox), sandbox)
+    )
+    rows = {row["ticker"]: row for row in result["items"]}
+    assert rows["CRWV"]["sector"] == "Technology"
+    assert rows["CRWV"]["checks"][1]["headroom_pct"] == 2
+    assert rows["AAPL"]["sector"] == "Technology"
+    assert "CRWV" not in (sandbox.root / "config/watchlist.json").read_text(encoding="utf-8")
+
+
 async def test_check_limits_writes_exact_checks_and_headroom(sandbox: Sandbox) -> None:
     _inputs(sandbox)
     tool = CheckLimitsTool()
@@ -286,3 +314,20 @@ def test_check_limits_validates_and_resolves_its_date(sandbox: Sandbox) -> None:
     assert prepared.payload["output_path"] == (
         sandbox.root / "risk/rule-checks-2026-09-30.json"
     )
+
+
+async def test_held_stock_does_not_need_to_be_repeated_in_the_watchlist(
+    sandbox: Sandbox,
+) -> None:
+    _inputs(sandbox)
+    _write(sandbox, "theses/bull-2026-09-30.jsonl", '{"ticker":"JNJ"}\n')
+    _write(
+        sandbox, "raw/market/universe.json", '{"universe":[{"ticker":"JNJ","sector":"Other"}]}'
+    )
+    tool = CheckLimitsTool()
+    result = json.loads(
+        await tool.execute(tool.prepare({"date": "2026-09-30"}, sandbox), sandbox)
+    )
+    rows = {row["ticker"]: row for row in result["items"]}
+    assert rows["JNJ"]["sector"] == "Healthcare"
+    assert rows["JNJ"]["sources"] == ["portfolio", "bull"]

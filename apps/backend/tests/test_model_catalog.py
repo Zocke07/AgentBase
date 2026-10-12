@@ -46,16 +46,18 @@ def test_a_new_space_starts_where_an_unknown_model_would_map(provider: str) -> N
     [
         ("claude-haiku-4-5", "anthropic", "openai", "gpt-6-luna"),
         ("claude-haiku-4-5-20251001", "anthropic", "openai", "gpt-6-luna"),
-        ("claude-sonnet-5", "anthropic", "openai", "gpt-6-sol"),
+        ("claude-haiku-5-5", "anthropic", "openai", "gpt-6-luna"),
+        ("claude-sonnet-5", "anthropic", "openai", "gpt-6.1-sol"),
         ("claude-fable-5-1", "anthropic", "openai", "gpt-6-astra"),
         # GPT-6 has nothing between Astra and Sol; a tie goes to the cheaper.
-        ("claude-opus-5-5", "anthropic", "openai", "gpt-6-sol"),
-        ("claude-opus-4-6", "anthropic", "openai", "gpt-6-sol"),
-        ("gpt-6-luna", "openai", "anthropic", "claude-haiku-4-5"),
+        ("claude-opus-5-5", "anthropic", "openai", "gpt-6.1-sol"),
+        ("claude-opus-4-6", "anthropic", "openai", "gpt-6.1-sol"),
+        ("gpt-6-luna", "openai", "anthropic", "claude-haiku-5-5"),
+        ("gpt-6.1-sol", "openai", "anthropic", "claude-sonnet-5-5"),
         ("gpt-6-sol", "openai", "anthropic", "claude-sonnet-5-5"),
         ("gpt-6-astra", "openai", "anthropic", "claude-fable-5-1"),
         ("gpt-5.5", "openai", "anthropic", "claude-opus-5-5"),
-        ("gpt-4o-mini", "openai", "anthropic", "claude-haiku-4-5"),
+        ("gpt-4o-mini", "openai", "anthropic", "claude-haiku-5-5"),
         ("qwen3:4b", "ollama", "anthropic", "claude-sonnet-5-5"),
         ("claude-sonnet-5", "anthropic", "anthropic", "claude-sonnet-5"),
     ],
@@ -92,6 +94,7 @@ PLAN = frozenset({"gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna",
         ("claude-opus-5-5", "anthropic", "gpt-5.6-sol"),
         ("claude-haiku-4-5", "anthropic", "gpt-5.6-luna"),
         ("gpt-6-sol", "openai", "gpt-5.6-terra"),
+        ("gpt-6.1-sol", "openai", "gpt-5.6-terra"),
         ("gpt-6-luna", "openai", "gpt-5.6-luna"),
         ("gpt-6-astra", "openai", "gpt-6-astra"),
     ],
@@ -104,34 +107,52 @@ def test_a_plan_limits_the_mapping_to_models_it_includes(
     assert equivalent(model, source, "openai", PLAN) == expected
 
 
-def test_a_space_on_gpt_6_sol_is_offered_the_plan_s_model_for_complex_work() -> None:
+@pytest.mark.parametrize("model", ["gpt-6-sol", "gpt-6.1-sol"])
+def test_a_space_on_gpt_6_sol_is_offered_the_plan_s_model_for_complex_work(
+    model: str,
+) -> None:
     """GPT-6 has nothing at the strong tier, so new spaces and Opus 5.5 landed
     on Sol: a space there wants a strong model, and the plan has GPT-5.6 Sol.
     An agent on Sol may have come from Sonnet 5, so it keeps Sol's own tier."""
-    assert equivalent("gpt-6-sol", "openai", "openai", PLAN, space=True) == "gpt-5.6-sol"
-    assert equivalent("gpt-6-sol", "openai", "openai", PLAN) == "gpt-5.6-terra"
+    assert equivalent(model, "openai", "openai", PLAN, space=True) == "gpt-5.6-sol"
+    assert equivalent(model, "openai", "openai", PLAN) == "gpt-5.6-terra"
     # Only the plan's repair: an API key keeps Sol, and a provider switch
     # still maps by Sol's own tier.
-    assert equivalent("gpt-6-sol", "openai", "openai", space=True) == "gpt-6-sol"
-    assert equivalent("gpt-6-sol", "openai", "anthropic", space=True) == "claude-sonnet-5-5"
+    assert equivalent(model, "openai", "openai", space=True) == model
+    assert equivalent(model, "openai", "anthropic", space=True) == "claude-sonnet-5-5"
     assert equivalent("gpt-6-luna", "openai", "openai", PLAN, space=True) == "gpt-5.6-luna"
 
 
 def test_without_a_plan_the_mapping_is_unchanged() -> None:
-    assert equivalent("claude-opus-5-5", "anthropic", "openai") == "gpt-6-sol"
+    assert equivalent("claude-opus-5-5", "anthropic", "openai") == "gpt-6.1-sol"
     assert equivalent("gpt-6-sol", "openai", "openai") == "gpt-6-sol"
 
 
-def test_shipped_agents_keep_their_intended_level_when_sol_stands_in_for_two() -> None:
+@pytest.mark.parametrize("model", ["gpt-6-sol", "gpt-6.1-sol"])
+def test_shipped_agents_keep_their_intended_level_when_sol_stands_in_for_two(
+    model: str,
+) -> None:
     decision = "3ea7f62a-6177-43c2-9367-3631dea22798"
     bull = "6dcd4865-b830-42fe-b005-cca3f9d1057a"
 
-    assert equivalent_for_agent(decision, "gpt-6-sol", "openai", "openai", PLAN) == (
-        "gpt-5.6-sol"
-    )
-    assert equivalent_for_agent(bull, "gpt-6-sol", "openai", "openai", PLAN) == (
+    assert equivalent_for_agent(decision, model, "openai", "openai", PLAN) == ("gpt-5.6-sol")
+    assert equivalent_for_agent(bull, model, "openai", "openai", PLAN) == ("gpt-5.6-terra")
+    assert equivalent_for_agent("person-made", model, "openai", "openai", PLAN) == (
         "gpt-5.6-terra"
     )
-    assert equivalent_for_agent("person-made", "gpt-6-sol", "openai", "openai", PLAN) == (
-        "gpt-5.6-terra"
-    )
+
+
+def test_updated_current_models_keep_previous_versions_selectable() -> None:
+    anthropic = {entry.model: entry for entry in catalog_for("anthropic")}
+    openai = {entry.model: entry for entry in catalog_for("openai")}
+    assert anthropic["claude-haiku-5-5"].current
+    assert not anthropic["claude-haiku-4-5"].current
+    assert openai["gpt-6.1-sol"].current
+    assert not openai["gpt-6-sol"].current
+
+
+@pytest.mark.parametrize("model", ["gpt-6-sol", "gpt-6.1-sol"])
+def test_an_available_selected_sol_is_preserved_for_an_agent(model: str) -> None:
+    decision = "3ea7f62a-6177-43c2-9367-3631dea22798"
+    assert equivalent_for_agent(decision, model, "openai", "openai") == model
+    assert equivalent_for_agent(decision, model, "openai", "openai", {*PLAN, model}) == model

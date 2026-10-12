@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from agentbase.store import db as db_module
 from agentbase.store.db import LATEST_SCHEMA_VERSION, Database
-from agentbase.store.settings import SettingsStore
+from agentbase.store.settings import DEFAULT_AUTO_APPROVE_HOSTS, SettingsStore
 from agentbase.store.spaces import DEFAULT_SPACE_ID
 
 if TYPE_CHECKING:
@@ -51,9 +51,10 @@ def _at_version(app_paths: AppPaths, version: int) -> Database:
 
 
 def _upgraded(app_paths: AppPaths) -> Database:
-    database = Database(app_paths.db_path)
-    database.connect()
-    assert database.schema_version == LATEST_SCHEMA_VERSION == 27
+    # This suite checks the historical 021-027 contract. Migration 028 has
+    # its own upgrade tests and deliberately changes the shipped pipeline.
+    database = _at_version(app_paths, 27)
+    assert database.schema_version == 27 <= LATEST_SCHEMA_VERSION
     return database
 
 
@@ -119,11 +120,9 @@ def test_a_fresh_database_wires_the_tools_goals_and_new_host_default(
         assert "score_predictions" in goals["Weekly review"]
 
         assert _saved_hosts(database) is None
-        assert SettingsStore(database)._get_sync().auto_approve_hosts == [
-            "news.google.com",
-            "query1.finance.yahoo.com",
-            "api.fiscaldata.treasury.gov",
-        ]
+        assert SettingsStore(database)._get_sync().auto_approve_hosts == list(
+            DEFAULT_AUTO_APPROVE_HOSTS
+        )
     finally:
         database.close()
 
@@ -144,10 +143,9 @@ def test_an_unused_database_created_since_019_gets_the_new_hosts(
     after = _upgraded(app_paths)
     try:
         assert _saved_hosts(after) is None
-        assert SettingsStore(after)._get_sync().auto_approve_hosts[-2:] == [
-            "query1.finance.yahoo.com",
-            "api.fiscaldata.treasury.gov",
-        ]
+        assert SettingsStore(after)._get_sync().auto_approve_hosts == list(
+            DEFAULT_AUTO_APPROVE_HOSTS
+        )
     finally:
         after.close()
 

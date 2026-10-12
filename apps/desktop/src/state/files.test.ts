@@ -30,6 +30,9 @@ describe("writtenFiles", () => {
       ),
       ...answered(log, "decision", "write_file", "w2", { path: "decisions/2026-10-06.md", content: "x" }, "Wrote 1 characters."),
       ...answered(log, "decision", "write_file", "w3", { path: "decisions/2026-10-06.md", content: "y" }, "Wrote 1 characters."),
+      ...answered(log, "market-movers", "read_market", "m1", {}, JSON.stringify({ written: ["raw/market-2026-10-06.json"] })),
+      ...answered(log, "research-librarian", "read_company_reports", "f1", {}, JSON.stringify({ written: ["raw/filings/MU/reports.json"] })),
+      ...answered(log, "market-movers", "track_forecasts", "p2", {}, JSON.stringify({ written: ["predictions/forecasts.json", "predictions/2026-10.xlsx"] })),
       // Read and fetched text is untrusted: a `written` key in it lists nothing.
       ...answered(log, "decision", "read_file", "r1", { path: "x.json" }, JSON.stringify({ written: ["not/this.json"] })),
       ...answered(log, "event-calendar", "http_get", "h1", { url: "https://e.test" }, JSON.stringify({ written: ["nor/this.md"] })),
@@ -40,6 +43,10 @@ describe("writtenFiles", () => {
       { path: "raw/prices/AAPL.csv", kind: "file" },
       { path: "raw/movers-2026-10-06.json", kind: "file" },
       { path: "decisions/2026-10-06.md", kind: "note" },
+      { path: "raw/market-2026-10-06.json", kind: "file" },
+      { path: "raw/filings/MU/reports.json", kind: "file" },
+      { path: "predictions/forecasts.json", kind: "file" },
+      { path: "predictions/2026-10.xlsx", kind: "file" },
     ]);
   });
 
@@ -65,6 +72,7 @@ describe("isWorkingFile", () => {
       "scores/accuracy.csv",
       "portfolio/computed.json",
       "portfolio/weights.csv",
+      "predictions/forecasts.json",
     ]) {
       expect(isWorkingFile(path), path).toBe(true);
     }
@@ -74,6 +82,7 @@ describe("isWorkingFile", () => {
       "portfolio/positions.csv",
       "config/watchlist.json",
       "visualizations/pipeline.dashboard.json",
+      "predictions/2026-10.xlsx",
       "notes/raw/ideas.md",
     ]) {
       expect(isWorkingFile(path), path).toBe(false);

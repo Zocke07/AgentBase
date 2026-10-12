@@ -2,20 +2,26 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
 
 import pytest
-from openai_codex import ApprovalMode, AsyncCodex, Sandbox
+from openai_codex import ApprovalMode, AsyncCodex, CodexError, Sandbox, ServerBusyError
+from openai_codex.generated.v2_all import TurnError
 
 from agentbase.providers.base import (
     Completion,
     Message,
     Provider,
+    ProviderAuthError,
     ProviderModelUnavailableError,
+    ProviderRateLimitedError,
+    ProviderUnavailableError,
     Role,
+    StreamEvent,
     TextDelta,
     TokenUsage,
     ToolCall,
@@ -33,7 +39,7 @@ from agentbase.providers.chatgpt import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncGenerator, AsyncIterator
     from pathlib import Path
 
 pytestmark = pytest.mark.anyio
@@ -231,9 +237,25 @@ class _FakeAccount:
 class _FakeThread:
     def __init__(self) -> None:
         self.run_kwargs: dict[str, Any] = {}
+        self.run_calls = 0
+        self.turn_calls = 0
+        self.run_error: Exception | None = None
+        self.turn_error: TurnError | None = None
+        self.run_started = asyncio.Event()
+        self.turn_started = asyncio.Event()
+        self.run_release: asyncio.Event | None = None
+        self.stream_release: asyncio.Event | None = None
+        self.response: str | None = None
+        self.turns: list[_FakeTurn] = []
 
     async def run(self, prompt: str, **kwargs: Any) -> Any:
+        self.run_calls += 1
         self.run_kwargs = {"prompt": prompt, **kwargs}
+        self.run_started.set()
+        if self.run_release is not None:
+            await self.run_release.wait()
+        if self.run_error is not None:
+            raise self.run_error
         usage = SimpleNamespace(last=SimpleNamespace(input_tokens=31, output_tokens=9))
         return SimpleNamespace(
             final_response=(
@@ -245,16 +267,57 @@ class _FakeThread:
         )
 
     async def turn(self, prompt: str, **kwargs: Any) -> Any:
+        self.turn_calls += 1
         self.run_kwargs = {"prompt": prompt, **kwargs}
-        return _FakeTurn()
+        self.turn_started.set()
+        if self.run_error is not None:
+            raise self.run_error
+        turn = _FakeTurn(self.turn_error, self.stream_release, self.response)
+        self.turns.append(turn)
+        return turn
 
 
 class _FakeTurn:
     id = "turn_43"
 
+    def __init__(
+        self,
+        error: TurnError | None = None,
+        release: asyncio.Event | None = None,
+        response: str | None = None,
+    ) -> None:
+        self.error = error
+        self.release = release
+        self.response = response
+        self.interrupts = 0
+        self.interrupt_error: Exception | None = None
+
+    async def interrupt(self) -> None:
+        self.interrupts += 1
+        if self.interrupt_error is not None:
+            raise self.interrupt_error
+
     async def stream(self) -> AsyncIterator[Any]:
+        if self.release is not None:
+            await self.release.wait()
+        if self.error is not None:
+            yield SimpleNamespace(
+                method="turn/completed",
+                payload=SimpleNamespace(
+                    turn=SimpleNamespace(
+                        status=SimpleNamespace(value="failed"), error=self.error
+                    )
+                ),
+            )
+            return
         encoded = '{"text":"Hello \\uD83D\\uDC4B","tool_calls":[]}'
-        for delta in ('{"text":"Hel', "lo \\uD83D", '\\uDC4B","tool_calls":[]}'):
+        encoded = self.response or encoded
+        deltas = (
+            (encoded,)
+            if self.response
+            else ('{"text":"Hel', "lo \\uD83D", '\\uDC4B","tool_calls":[]}')
+        )
+        for delta in deltas:
             yield SimpleNamespace(
                 method="item/agentMessage/delta",
                 payload=SimpleNamespace(item_id="item_1", delta=delta),
@@ -319,6 +382,14 @@ class _FakeCodex:
 
 async def test_codex_runtime_is_a_single_restricted_model_turn(tmp_path: Path) -> None:
     fake = _FakeCodex()
+    fake.thread.response = json.dumps(
+        {
+            "text": "Reading.",
+            "tool_calls": [
+                {"name": "read_file", "arguments_json": json.dumps({"path": "q3.md"})}
+            ],
+        }
+    )
     runtime = CodexAppServerRuntime(tmp_path / "codex", codex=cast(AsyncCodex, fake))
 
     response = await runtime.infer(
@@ -342,8 +413,8 @@ async def test_codex_runtime_is_a_single_restricted_model_turn(tmp_path: Path) -
     assert fake.thread.run_kwargs["approval_mode"] is ApprovalMode.deny_all
     assert fake.thread.run_kwargs["sandbox"] is Sandbox.read_only
     assert "Second system rule." not in fake.thread.run_kwargs["prompt"]
-    assert response.usage == TokenUsage(31, 9)
-    assert response.tool_calls == (ToolCall("codex_turn_42_1", "read_file", {"path": "q3.md"}),)
+    assert response.usage == TokenUsage(44, 11)
+    assert response.tool_calls == (ToolCall("codex_turn_43_1", "read_file", {"path": "q3.md"}),)
     status = await runtime.status()
     assert (status.state, status.email, status.plan) == (
         "connected",
@@ -426,3 +497,337 @@ def test_a_model_the_plan_lacks_reads_as_a_sentence_not_json() -> None:
     assert isinstance(mapped, ProviderModelUnavailableError)
     assert "does not include gpt-6-sol" in str(mapped)
     assert "{" not in str(mapped)
+
+
+async def test_failed_stream_turn_exposes_429_and_recovery_action(tmp_path: Path) -> None:
+    fake = _FakeCodex()
+    detail = "exceeded retry limit, last status: 429 Too Many Requests"
+    fake.thread.turn_error = TurnError(message=detail)
+    runtime = CodexAppServerRuntime(tmp_path / "codex", codex=cast(AsyncCodex, fake))
+
+    with pytest.raises(ProviderRateLimitedError) as caught:
+        async for _ in runtime.stream_infer(
+            "gpt-6-sol", [Message(Role.USER, "Read prices")], None, system=None, max_tokens=100
+        ):
+            pytest.fail("A failed turn must not emit a completion.")
+
+    assert "ChatGPT limited requests for gpt-6-sol" in str(caught.value)
+    assert "Wait before retrying" in str(caught.value)
+    assert "temporary throttling or a subscription usage limit" in str(caught.value)
+    assert detail in str(caught.value)
+    assert caught.value.retryable is True
+    assert fake.thread.turn_calls == 1
+    assert (await runtime.status()).state == "connected"
+
+
+async def test_nonstream_codex_429_uses_the_same_classification(tmp_path: Path) -> None:
+    fake = _FakeCodex()
+    detail = "HTTP 429 Too Many Requests"
+    fake.thread.run_error = CodexError(detail)
+    runtime = CodexAppServerRuntime(tmp_path / "codex", codex=cast(AsyncCodex, fake))
+
+    with pytest.raises(ProviderRateLimitedError, match="Wait before retrying") as caught:
+        await runtime.infer(
+            "gpt-6-sol", [Message(Role.USER, "Read prices")], None, system=None, max_tokens=100
+        )
+
+    assert detail in str(caught.value)
+    assert fake.thread.turn_calls == 1
+    assert (await runtime.status()).state == "connected"
+
+
+async def test_stream_preserves_confirmed_sdk_usage_limit_metadata(tmp_path: Path) -> None:
+    fake = _FakeCodex()
+    fake.thread.turn_error = TurnError.model_validate(
+        {"message": "Request cannot proceed.", "codexErrorInfo": "usageLimitExceeded"}
+    )
+    runtime = CodexAppServerRuntime(tmp_path / "codex", codex=cast(AsyncCodex, fake))
+
+    with pytest.raises(ProviderRateLimitedError, match="ChatGPT usage limit reached") as caught:
+        async for _ in runtime.stream_infer(
+            "gpt-6-sol", [Message(Role.USER, "Read prices")], None, system=None, max_tokens=100
+        ):
+            pytest.fail("A failed turn must not emit a completion.")
+
+    assert "retry after the limit resets" in str(caught.value)
+    assert "Request cannot proceed." in str(caught.value)
+    assert "temporary throttling" not in str(caught.value)
+    assert caught.value.retryable is False
+    assert fake.thread.turn_calls == 1
+
+
+@pytest.mark.parametrize("exception_type", [CodexError, RuntimeError])
+@pytest.mark.parametrize("detail", ["HTTP 429", "Too Many Requests", "Rate limit exceeded"])
+def test_rate_limit_messages_from_either_sdk_failure_type(
+    exception_type: type[CodexError] | type[RuntimeError], detail: str
+) -> None:
+    mapped = _mapped_provider_error(exception_type(detail), "gpt-6-sol")
+
+    assert isinstance(mapped, ProviderRateLimitedError)
+    assert "gpt-6-sol" in str(mapped)
+    assert detail in str(mapped)
+    assert mapped.retryable is True
+
+
+def test_error_numbers_containing_429_are_not_http_rate_limits() -> None:
+    mapped = _mapped_provider_error(RuntimeError("Transport error 4290"), "gpt-6-sol")
+
+    assert isinstance(mapped, ProviderUnavailableError)
+    assert str(mapped) == "Transport error 4290"
+
+
+def test_codex_auth_and_busy_failures_keep_their_classification() -> None:
+    auth = _mapped_provider_error(CodexError("HTTP 401: login expired"), "gpt-6-sol")
+    busy = _mapped_provider_error(ServerBusyError(-32000, "Server is busy"), "gpt-6-sol")
+
+    assert isinstance(auth, ProviderAuthError)
+    assert str(auth) == "HTTP 401: login expired"
+    assert isinstance(busy, ProviderRateLimitedError)
+    assert "Server is busy" in str(busy)
+
+
+def test_rpc_usage_metadata_is_specific_even_when_the_message_is_generic() -> None:
+    mapped = _mapped_provider_error(
+        ServerBusyError(
+            -32000,
+            "Request cannot proceed.",
+            {"codex_error_info": "usage_limit_reached"},
+        ),
+        "gpt-6-sol",
+    )
+
+    assert isinstance(mapped, ProviderRateLimitedError)
+    assert "ChatGPT usage limit reached" in str(mapped)
+    assert "retry after the limit resets" in str(mapped)
+    assert mapped.retryable is False
+
+
+@pytest.mark.parametrize("exception_type", [CodexError, RuntimeError])
+@pytest.mark.parametrize(
+    "detail", ["You've hit your usage limit", "usage_limit_reached", "usage_limit_exceeded"]
+)
+def test_explicit_usage_exhaustion_does_not_recommend_automatic_retries(
+    exception_type: type[CodexError] | type[RuntimeError], detail: str
+) -> None:
+    mapped = _mapped_provider_error(exception_type(detail), "gpt-6-sol")
+
+    assert isinstance(mapped, ProviderRateLimitedError)
+    assert mapped.retryable is False
+    assert "retry after the limit resets" in str(mapped)
+    assert detail in str(mapped)
+
+
+class _PacingClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+        self.delays: list[float] = []
+        self.sleep_started = asyncio.Event()
+        self.sleep_release: asyncio.Event | None = None
+
+    def __call__(self) -> float:
+        return self.now
+
+    async def sleep(self, delay: float) -> None:
+        self.delays.append(delay)
+        self.sleep_started.set()
+        if self.sleep_release is not None:
+            await self.sleep_release.wait()
+        self.now += delay
+
+
+class _PacingCodex(_FakeCodex):
+    def __init__(self, clock: _PacingClock) -> None:
+        super().__init__()
+        self.clock = clock
+        self.starts: list[tuple[str, float]] = []
+
+    async def thread_start(self, **kwargs: Any) -> Any:
+        self.starts.append((kwargs["model"], self.clock()))
+        return await super().thread_start(**kwargs)
+
+
+async def _infer(runtime: CodexAppServerRuntime, model: str) -> ChatGPTModelResponse:
+    return await runtime.infer(
+        model, [Message(Role.USER, "Read prices")], None, system=None, max_tokens=100
+    )
+
+
+async def _consume_stream(
+    runtime: CodexAppServerRuntime, model: str
+) -> list[ChatGPTModelDelta | ChatGPTModelResponse]:
+    return [
+        event
+        async for event in runtime.stream_infer(
+            model, [Message(Role.USER, "Read prices")], None, system=None, max_tokens=100
+        )
+    ]
+
+
+async def test_shared_runtime_serializes_infer_and_stream_with_start_spacing(
+    tmp_path: Path,
+) -> None:
+    clock = _PacingClock()
+    fake = _PacingCodex(clock)
+    fake.thread.stream_release = release = asyncio.Event()
+    runtime = CodexAppServerRuntime(
+        tmp_path / "codex", codex=cast(AsyncCodex, fake), clock=clock, sleep=clock.sleep
+    )
+
+    first = asyncio.create_task(_infer(runtime, "first-model"))
+    await fake.thread.turn_started.wait()
+    second = asyncio.create_task(_consume_stream(runtime, "second-model"))
+    await asyncio.sleep(0)
+    third = asyncio.create_task(_infer(runtime, "third-model"))
+    await asyncio.sleep(0)
+
+    assert fake.starts == [("first-model", 0.0)]
+    assert fake.thread.turn_calls == 1
+    fake.thread.stream_release = None
+    release.set()
+    results = await asyncio.gather(first, second, third)
+
+    assert fake.starts == [("first-model", 0.0), ("second-model", 5.0), ("third-model", 10.0)]
+    assert clock.delays == [5.0, 5.0]
+    assert isinstance(results[1][-1], ChatGPTModelResponse)
+    assert all(turn.interrupts == 0 for turn in fake.thread.turns)
+
+
+async def test_completed_request_duration_counts_towards_start_spacing(tmp_path: Path) -> None:
+    clock = _PacingClock()
+    fake = _PacingCodex(clock)
+    fake.thread.stream_release = release = asyncio.Event()
+    runtime = CodexAppServerRuntime(
+        tmp_path / "codex", codex=cast(AsyncCodex, fake), clock=clock, sleep=clock.sleep
+    )
+
+    first = asyncio.create_task(_infer(runtime, "first-model"))
+    await fake.thread.turn_started.wait()
+    second = asyncio.create_task(_infer(runtime, "second-model"))
+    await asyncio.sleep(0)
+    clock.now = 8.0
+    fake.thread.stream_release = None
+    release.set()
+    await asyncio.gather(first, second)
+
+    assert fake.starts == [("first-model", 0.0), ("second-model", 8.0)]
+    assert clock.delays == []
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+async def test_cancelled_active_request_releases_the_shared_permit(
+    tmp_path: Path, streaming: bool
+) -> None:
+    clock = _PacingClock()
+    fake = _PacingCodex(clock)
+    fake.thread.stream_release = asyncio.Event()
+    runtime = CodexAppServerRuntime(
+        tmp_path / "codex", codex=cast(AsyncCodex, fake), clock=clock, sleep=clock.sleep
+    )
+
+    first: (
+        asyncio.Task[ChatGPTModelResponse]
+        | asyncio.Task[list[ChatGPTModelDelta | ChatGPTModelResponse]]
+    )
+    if streaming:
+        first = asyncio.create_task(_consume_stream(runtime, "first-model"))
+        await fake.thread.turn_started.wait()
+    else:
+        first = asyncio.create_task(_infer(runtime, "first-model"))
+        await fake.thread.turn_started.wait()
+    second = asyncio.create_task(_infer(runtime, "second-model"))
+    await asyncio.sleep(0)
+    assert fake.starts == [("first-model", 0.0)]
+    fake.thread.stream_release = None
+    first.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await first
+    await second
+
+    assert fake.starts == [("first-model", 0.0), ("second-model", 5.0)]
+    assert fake.thread.turns[0].interrupts == 1
+    assert fake.thread.turns[1].interrupts == 0
+
+
+async def test_closing_provider_stream_between_deltas_releases_runtime_permit(
+    tmp_path: Path,
+) -> None:
+    clock = _PacingClock()
+    fake = _PacingCodex(clock)
+    runtime = CodexAppServerRuntime(
+        tmp_path / "codex", codex=cast(AsyncCodex, fake), clock=clock, sleep=clock.sleep
+    )
+    provider = ChatGPTSubscriptionProvider(runtime, "stream-model")
+    stream = cast(
+        "AsyncGenerator[StreamEvent, None]", provider.stream([Message(Role.USER, "hi")])
+    )
+
+    assert await anext(stream) == TextDelta("Hel")
+    second = asyncio.create_task(_infer(runtime, "next-model"))
+    await asyncio.sleep(0)
+    assert fake.starts == [("stream-model", 0.0)]
+    await stream.aclose()
+    await second
+
+    assert fake.starts == [("stream-model", 0.0), ("next-model", 5.0)]
+    assert fake.thread.turns[0].interrupts == 1
+    assert fake.thread.turns[1].interrupts == 0
+
+
+async def test_cancellation_during_spacing_does_not_block_the_next_request(
+    tmp_path: Path,
+) -> None:
+    clock = _PacingClock()
+    fake = _PacingCodex(clock)
+    runtime = CodexAppServerRuntime(
+        tmp_path / "codex", codex=cast(AsyncCodex, fake), clock=clock, sleep=clock.sleep
+    )
+    await _infer(runtime, "first-model")
+    clock.sleep_release = release = asyncio.Event()
+
+    cancelled = asyncio.create_task(_infer(runtime, "cancelled-model"))
+    await clock.sleep_started.wait()
+    next_request = asyncio.create_task(_infer(runtime, "next-model"))
+    await asyncio.sleep(0)
+    cancelled.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await cancelled
+    release.set()
+    await next_request
+
+    assert fake.starts == [("first-model", 0.0), ("next-model", 5.0)]
+    assert clock.delays == [5.0, 5.0]
+
+
+async def test_interrupt_cleanup_failure_preserves_request_cancellation(tmp_path: Path) -> None:
+    fake = _FakeCodex()
+    fake.thread.stream_release = asyncio.Event()
+    runtime = CodexAppServerRuntime(
+        tmp_path / "codex", codex=cast(AsyncCodex, fake), min_interval_seconds=0
+    )
+    pending = asyncio.create_task(_infer(runtime, "test-model"))
+    await fake.thread.turn_started.wait()
+    fake.thread.turns[0].interrupt_error = RuntimeError("App server closed")
+    pending.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await pending
+    assert fake.thread.turns[0].interrupts == 1
+    fake.thread.stream_release = None
+    assert isinstance(await _infer(runtime, "next-model"), ChatGPTModelResponse)
+
+
+async def test_failed_terminal_turn_is_not_interrupted(tmp_path: Path) -> None:
+    fake = _FakeCodex()
+    fake.thread.turn_error = TurnError.model_validate(
+        {"message": "Too many requests", "codexErrorInfo": "rateLimitExceeded"}
+    )
+    runtime = CodexAppServerRuntime(tmp_path / "codex", codex=cast(AsyncCodex, fake))
+    with pytest.raises(ProviderRateLimitedError):
+        await _infer(runtime, "test-model")
+    assert fake.thread.turns[0].interrupts == 0
+
+
+def test_rate_limit_exception_remains_retryable_by_default() -> None:
+    error = ProviderRateLimitedError("Retry later.", 12.5)
+
+    assert error.retry_after_seconds == 12.5
+    assert error.retryable is True

@@ -16,6 +16,10 @@ dependencies = [
     # and resume protocol need a gateway library, unlike raw provider HTTP.
     "discord-py>=2.4.0",
     "openai-codex>=0.154.0",
+    # `zoneinfo` reads the OS time-zone database, which Windows lacks; without
+    # this, `ZoneInfo("America/New_York")` fails at import and the sidecar
+    # cannot start. PyInstaller's `zoneinfo` hook freezes it into the binary.
+    "tzdata>=2025.2",
 ]
 
 [dependency-groups]

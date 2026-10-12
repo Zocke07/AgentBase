@@ -28,3 +28,10 @@ export async function openInObsidian(path: string): Promise<void> {
   const core = await import("@tauri-apps/api/core");
   await core.invoke("open_obsidian_vault", { path });
 }
+
+/** Open a generated Excel workbook in the default spreadsheet app. The shell
+    refuses anything but a visible `.xlsx` inside AgentBase's data folder. */
+export async function openWorkbook(path: string): Promise<void> {
+  const core = await import("@tauri-apps/api/core");
+  await core.invoke("open_workbook", { path });
+}

@@ -78,9 +78,12 @@ def test_the_application_builds_a_tool_runtime(client: TestClient) -> None:
         "http_get",
         "read_feed",
         "read_prices",
+        "read_market",
+        "read_company_reports",
         "compute_portfolio",
         "check_limits",
         "score_predictions",
+        "track_forecasts",
         "run_shell",
     }
 

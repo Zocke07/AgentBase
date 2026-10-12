@@ -90,7 +90,7 @@ class _Calculated:
     price: _Price
     value: Decimal
     previous_value: Decimal
-    unrealised: Decimal
+    unrealised: Decimal | None
     weight: Decimal
 
 
@@ -232,20 +232,22 @@ def _compute(payload: dict[str, Any]) -> dict[str, Any]:
         (position for position in positions if position.ticker == "CASH"), None
     )
     cash = cash_position.shares if cash_position is not None else Decimal(0)
-    provisional: list[tuple[_Position, _Price, Decimal, Decimal, Decimal]] = []
+    provisional: list[tuple[_Position, _Price, Decimal, Decimal, Decimal | None]] = []
     for ticker in sorted(by_ticker):
         position = by_ticker[ticker]
         price = prices[ticker]
-        if position.opened is None or position.cost_per_share is None:  # pragma: no cover
-            raise AssertionError("validated position is incomplete")
-        if position.opened > as_of:
+        if position.opened is not None and position.opened > as_of:
             raise ToolExecutionError(
                 f"{_POSITIONS_PATH} says {ticker} opened on "
                 f"{position.opened.isoformat()}, after as_of {as_of.isoformat()}."
             )
         value = position.shares * price.close
         previous_value = position.shares * price.previous
-        unrealised = value - (position.shares * position.cost_per_share)
+        unrealised = (
+            None
+            if position.cost_per_share is None
+            else value - (position.shares * position.cost_per_share)
+        )
         provisional.append((position, price, value, previous_value, unrealised))
 
     invested = sum((row[2] for row in provisional), start=Decimal(0))
@@ -266,7 +268,12 @@ def _compute(payload: dict[str, Any]) -> dict[str, Any]:
     )
     day_change = total - previous_total
     day_change_pct = _percent(day_change, previous_total)
-    unrealised = sum((position.unrealised for position in calculated), start=Decimal(0))
+    cost_complete = all(position.unrealised is not None for position in calculated)
+    unrealised = (
+        sum((position.unrealised or Decimal(0) for position in calculated), start=Decimal(0))
+        if cost_complete
+        else None
+    )
     cost_basis = sum(
         (
             position.position.shares * (position.position.cost_per_share or Decimal(0))
@@ -274,7 +281,7 @@ def _compute(payload: dict[str, Any]) -> dict[str, Any]:
         ),
         start=Decimal(0),
     )
-    unrealised_pct = _percent(unrealised, cost_basis)
+    unrealised_pct = None if unrealised is None else _percent(unrealised, cost_basis)
 
     sector_values: dict[str, Decimal] = {}
     for calculated_position in calculated:
@@ -304,7 +311,7 @@ def _compute(payload: dict[str, Any]) -> dict[str, Any]:
         "invested": _json_number(invested, _MONEY),
         "day_change": _json_number(day_change, _MONEY),
         "day_change_pct": _json_optional(day_change_pct, _PERCENT),
-        "unrealised": _json_number(unrealised, _MONEY),
+        "unrealised": _json_optional(unrealised, _MONEY),
         "unrealised_pct": _json_optional(unrealised_pct, _PERCENT),
         "realised": None,
         "realised_reason": reason,
@@ -321,6 +328,11 @@ def _compute(payload: dict[str, Any]) -> dict[str, Any]:
             "limit_crossings": crossings,
         },
     }
+    if not cost_complete:
+        result["unrealised_reason"] = (
+            "Purchase cost is unknown for some holdings. Fill cost_per_share in "
+            "portfolio/positions.csv to calculate total unrealised P&L."
+        )
     if empty:
         result["note"] = (
             f"{_POSITIONS_PATH} records no holdings or cash, so every value is 0. "
@@ -372,19 +384,21 @@ def _read_positions(path: Path) -> list[_Position]:
             raise ToolExecutionError(
                 f"{_POSITIONS_PATH} row {number} needs a sector for {ticker}."
             )
-        cost = _decimal(
-            row.get("cost_per_share"),
-            _POSITIONS_PATH,
-            number,
-            "cost_per_share",
+        cost_text = (row.get("cost_per_share") or "").strip()
+        cost = (
+            _decimal(cost_text, _POSITIONS_PATH, number, "cost_per_share")
+            if cost_text
+            else None
         )
-        if cost <= 0:
+        if cost is not None and cost <= 0:
             raise ToolExecutionError(
                 f"{_POSITIONS_PATH} row {number} cost_per_share must be positive."
             )
-        opened = _parse_date(
-            (row.get("opened") or "").strip(),
-            f"{_POSITIONS_PATH} row {number} opened",
+        opened_text = (row.get("opened") or "").strip()
+        opened = (
+            _parse_date(opened_text, f"{_POSITIONS_PATH} row {number} opened")
+            if opened_text
+            else None
         )
         positions.append(_Position(ticker, shares, cost, opened, sector, currency))
 
@@ -582,19 +596,21 @@ def _percent(numerator: Decimal, denominator: Decimal) -> Decimal | None:
 def _position_result(position: _Calculated, as_of: date) -> dict[str, Any]:
     cost = position.position.cost_per_share
     opened = position.position.opened
-    if cost is None or opened is None:  # pragma: no cover: CASH is excluded
-        raise AssertionError("calculated position is incomplete")
-    unrealised_pct = _percent(position.unrealised, position.position.shares * cost)
+    unrealised_pct = (
+        None
+        if cost is None or position.unrealised is None
+        else _percent(position.unrealised, position.position.shares * cost)
+    )
     return {
         "ticker": position.position.ticker,
         "shares": _json_number(position.position.shares),
         "weight_pct": _json_number(position.weight, _PERCENT),
-        "cost_per_share": _json_number(cost),
+        "cost_per_share": None if cost is None else _json_number(cost),
         "close": _json_number(position.price.close),
         "value": _json_number(position.value, _MONEY),
-        "unrealised": _json_number(position.unrealised, _MONEY),
+        "unrealised": _json_optional(position.unrealised, _MONEY),
         "unrealised_pct": _json_optional(unrealised_pct, _PERCENT),
-        "days_held": (as_of - opened).days,
+        "days_held": None if opened is None else (as_of - opened).days,
         "sector": position.position.sector,
     }
 

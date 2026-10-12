@@ -203,6 +203,9 @@ def test_a_fresh_install_starts_autonomous(app_paths: AppPaths) -> None:
         assert settings.auto_approve_hosts == [
             "news.google.com",
             "query1.finance.yahoo.com",
+            "feeds.finance.yahoo.com",
+            "www.sec.gov",
+            "data.sec.gov",
             "api.fiscaldata.treasury.gov",
         ]
         assert settings.channel_approvals == "originator"
@@ -214,7 +217,7 @@ def test_a_fresh_install_starts_autonomous(app_paths: AppPaths) -> None:
 # --- migration 019: the shipped examples run as a pipeline ----------------------
 
 _PIPELINE: dict[str, dict[str, Any]] = {
-    "Morning collection": {"kind": "weekly", "at": "07:00", "weekdays": [0, 1, 2, 3, 4]},
+    "Morning collection": {"kind": "weekly", "at": "07:00", "weekdays": [1, 2, 3, 4, 5]},
     "Theses and risk": {"kind": "after", "follows": "Morning collection"},
     "Daily decision": {"kind": "after", "follows": "Theses and risk"},
     "Weekly knowledge": {"kind": "weekly", "at": "09:00", "weekdays": [5]},

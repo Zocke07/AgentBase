@@ -34,6 +34,9 @@ __all__ = [
     "MAX_FEED_ENTRIES",
     "HttpGetTool",
     "ReadFeedTool",
+    "deduplicate_entries",
+    "feed_document",
+    "plain_text",
 ]
 
 #: How much of a response body reaches the model and the event log.
@@ -314,13 +317,13 @@ class ReadFeedTool:
                 await client.aclose()
 
         return json.dumps(
-            _feed_document(b"".join(chunks), url=url, limit=limit),
+            feed_document(b"".join(chunks), url=url, limit=limit),
             ensure_ascii=False,
             separators=(",", ":"),
         )
 
 
-def _feed_document(body: bytes, *, url: str, limit: int) -> dict[str, Any]:
+def feed_document(body: bytes, *, url: str, limit: int) -> dict[str, Any]:
     try:
         root = SafeElementTree.fromstring(body)
     except (DefusedXmlException, ParseError) as exc:
@@ -342,7 +345,7 @@ def _feed_document(body: bytes, *, url: str, limit: int) -> dict[str, Any]:
         for element in raw_items
         if (entry := _feed_entry(element, feed_url=url)) is not None
     ]
-    deduplicated = _deduplicate_entries(parsed_items)
+    deduplicated = deduplicate_entries(parsed_items)
     selected = deduplicated[:limit]
     return {
         "feed_url": url,
@@ -358,7 +361,7 @@ def _feed_document(body: bytes, *, url: str, limit: int) -> dict[str, Any]:
 
 
 def _feed_entry(element: Element, *, feed_url: str) -> dict[str, str | None] | None:
-    title = _clip(_plain_text(_child_text(element, ("title",))), MAX_FEED_TITLE_CHARS)
+    title = _clip(plain_text(_child_text(element, ("title",))), MAX_FEED_TITLE_CHARS)
     link = _absolute_http_url(_entry_link(element), base=feed_url)
     if title == "" or link == "":
         return None
@@ -368,7 +371,7 @@ def _feed_entry(element: Element, *, feed_url: str) -> dict[str, str | None] | N
     source_url = "" if source_element is None else source_element.attrib.get("url", "")
     source_name = "" if source_element is None else _element_text(source_element)
     description = _child_text(element, ("description", "summary", "content", "encoded"))
-    summary = _clip(_plain_text(description), MAX_FEED_SUMMARY_CHARS)
+    summary = _clip(plain_text(description), MAX_FEED_SUMMARY_CHARS)
     identifier = _sha1(f"{link}{title}")
     return {
         "id": identifier,
@@ -410,7 +413,7 @@ def _absolute_http_url(value: str, *, base: str) -> str:
     return joined
 
 
-def _deduplicate_entries(
+def deduplicate_entries(
     entries: list[dict[str, str | None]],
 ) -> list[dict[str, str | None]]:
     kept: list[dict[str, str | None]] = []
@@ -473,7 +476,7 @@ def _source_domain(source_url: str, link: str, source_name: str) -> str:
         host = urlparse(candidate).hostname
         if host:
             return host.removeprefix("www.").lower()
-    return _clip(_plain_text(source_name), 200)
+    return _clip(plain_text(source_name), 200)
 
 
 def _normal_title(value: str) -> str:
@@ -540,7 +543,7 @@ class _PlainTextParser(HTMLParser):
             self.parts.append(data)
 
 
-def _plain_text(value: str) -> str:
+def plain_text(value: str) -> str:
     parser = _PlainTextParser()
     parser.feed(value)
     parser.close()

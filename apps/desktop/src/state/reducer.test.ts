@@ -396,6 +396,9 @@ describe("agents", () => {
     /* The node is tinted while this is set: an agent that hit an error and
        is thinking about it looked exactly like one that was merely thinking. */
     const log = new LogBuilder();
+    const waiting = reduceAll([log.add("llm.error", { error: "rate limited", will_retry: true }, "w")]);
+    expect(waiting.errors).toHaveLength(0);
+    expect(waiting.agents.w?.lastError).toBeNull();
     const errored = reduceAll([log.add("llm.error", { error: "rate limited" }, "w")]);
     expect(errored.agents.w?.lastError).toBe("rate limited");
 

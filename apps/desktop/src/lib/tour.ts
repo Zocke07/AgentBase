@@ -37,6 +37,8 @@ export const TOUR_STEPS: readonly TourStep[] = [
     body:
       "What a space does on its own: a goal at set times, or right after another schedule's run " +
       "completes. The Main space ships an investment pipeline switched off; one click on Home turns it on. " +
+      "Its sample follows six US technology holdings and daily market movers, and tracks forecasts in monthly Excel files. " +
+      "Keep AgentBase open for scheduled runs and later actual-price updates. " +
       "Each run stops at its time and spending limits, and the monthly cap always holds.",
     target: "rail-automations",
     section: "automations",

@@ -38,9 +38,14 @@ def _at_version_19(app_paths: AppPaths) -> Database:
 
 
 def _upgraded(app_paths: AppPaths) -> Database:
+    original = db_module.MIGRATIONS
+    db_module.MIGRATIONS = tuple(migration for migration in original if migration.version <= 20)
     database = Database(app_paths.db_path)
-    database.connect()
-    assert database.schema_version == LATEST_SCHEMA_VERSION
+    try:
+        database.connect()
+    finally:
+        db_module.MIGRATIONS = original
+    assert database.schema_version == 20
     assert LATEST_SCHEMA_VERSION >= 20
     return database
 
@@ -86,11 +91,11 @@ def test_each_provider_has_its_own_space_default_and_untiered_models_use_it() ->
     assert DEFAULT_MODEL == "claude-sonnet-5-5"
     assert DEFAULT_MODELS == {
         "anthropic": "claude-sonnet-5-5",
-        "openai": "gpt-6-sol",
+        "openai": "gpt-6.1-sol",
         "ollama": None,
     }
     assert equivalent("unlisted", "ollama", "anthropic") == "claude-sonnet-5-5"
-    assert equivalent("unlisted", "ollama", "openai") == "gpt-6-sol"
+    assert equivalent("unlisted", "ollama", "openai") == "gpt-6.1-sol"
 
 
 def test_a_fresh_database_starts_on_sonnet_5_5_without_pinning_the_old_default(

@@ -191,6 +191,43 @@ async def test_compute_portfolio_supports_the_zero_cash_only_starter(
     assert result["concentration"]["limit_crossings"] == []
 
 
+async def test_unknown_purchase_cost_and_date_still_value_and_check_holdings(
+    sandbox: Sandbox,
+) -> None:
+    _write(
+        sandbox,
+        "portfolio/positions.csv",
+        (
+            "ticker,shares,cost_per_share,opened,sector,currency\n"
+            "CASH,2500,,,Cash,USD\n"
+            "MU,1,,,Technology,USD\n"
+            "MSFT,1,200,2026-09-01,Technology,USD\n"
+        ),
+    )
+    _write(
+        sandbox,
+        "raw/prices/summary.csv",
+        (
+            "ticker,date,close,prev_close,currency\n"
+            "MU,2026-09-30,150,145,USD\n"
+            "MSFT,2026-09-30,450,440,USD\n"
+        ),
+    )
+    _limits(sandbox)
+    tool = ComputePortfolioTool()
+    result = json.loads(await tool.execute(tool.prepare({}, sandbox), sandbox))
+    assert result["total_value"] == 3100
+    assert result["day_change"] == 15
+    assert result["unrealised"] is None
+    assert "Purchase cost is unknown" in result["unrealised_reason"]
+    positions = {row["ticker"]: row for row in result["positions"]}
+    assert positions["MU"]["cost_per_share"] is None
+    assert positions["MU"]["days_held"] is None
+    assert positions["MU"]["unrealised"] is None
+    assert positions["MSFT"]["unrealised"] == 250
+    assert result["concentration"]["limit_crossings"][0]["subject"] == "MSFT"
+
+
 async def test_a_cash_only_book_is_computed_for_the_newest_saved_session(
     sandbox: Sandbox,
 ) -> None:

@@ -461,7 +461,11 @@ async def test_catch_up_treats_a_time_that_just_passed_as_ordinary(
 
 
 async def test_a_schedule_whose_previous_run_is_still_going_is_skipped(
-    schedules: ScheduleStore, scheduler: Scheduler, launcher: FakeLauncher, clock: Clock
+    schedules: ScheduleStore,
+    scheduler: Scheduler,
+    launcher: FakeLauncher,
+    clock: Clock,
+    store: EventStore,
 ) -> None:
     created = await schedules.create(_fields(cadence={"kind": "interval", "every_hours": 1}))
     clock.now += timedelta(hours=1, seconds=1)
@@ -476,6 +480,8 @@ async def test_a_schedule_whose_previous_run_is_still_going_is_skipped(
     assert (await schedules.require(created.id)).last_run_id == first[0].run_id
 
     launcher.driving.clear()
+    await _finish(store, first[0].run_id, "completed")
+    await scheduler.on_run_finished(first[0].run_id)
     clock.now += timedelta(hours=1, seconds=1)
     assert (await scheduler.tick())[0].run_id is not None
 
@@ -559,13 +565,15 @@ async def test_run_now_is_bounded_like_a_timed_start_and_leaves_the_next_time(
 
 
 async def test_a_scheduled_run_the_app_closed_on_runs_again_once_at_launch(
-    schedules: ScheduleStore, launcher: FakeLauncher, clock: Clock
+    schedules: ScheduleStore, launcher: FakeLauncher, clock: Clock, spaces: SpaceStore
 ) -> None:
     """A restart, even the one a new API key asks for, must not lose a pipeline
     stage until its next time; the missed-time policy decides, as for a missed time."""
     again = await schedules.create(_fields(name="Again", missed="run_on_launch"))
-    leave = await schedules.create(_fields(name="Leave", missed="skip"))
-    finished = await schedules.create(_fields(name="Finished"))
+    other = await spaces.create({"name": "Other"})
+    last = await spaces.create({"name": "Last"})
+    leave = await schedules.create(_fields(name="Leave", missed="skip", space_id=other.id))
+    finished = await schedules.create(_fields(name="Finished", space_id=last.id))
     clock.now = _utc(2026, 9, 18, 7, 0, 5)
     first = Scheduler(schedules, launcher)  # type: ignore[arg-type]
     started = {entry.schedule_id: entry.run_id for entry in await first.tick()}
@@ -663,6 +671,202 @@ async def _finish(store: EventStore, run_id: str, status: str) -> None:
     await store.set_run_status(run_id, status)  # type: ignore[arg-type]
 
 
+async def test_startup_queues_same_space_roots_until_the_active_chain_finishes(
+    schedules: ScheduleStore,
+    scheduler: Scheduler,
+    launcher: FakeLauncher,
+    clock: Clock,
+    store: EventStore,
+    spaces: SpaceStore,
+) -> None:
+    head = await schedules.create(_fields(name="Morning collection"))
+    middle = await schedules.create(_after(head.id, name="Analyse"))
+    tail = await schedules.create(_after(middle.id, name="Decide"))
+    weekly = await schedules.create(
+        _fields(name="Weekly knowledge", cadence={"kind": "daily", "at": "09:01"})
+    )
+    review = await schedules.create(
+        _fields(name="Weekly review", cadence={"kind": "daily", "at": "09:02"})
+    )
+    other = await spaces.create({"name": "Independent"})
+    independent = await schedules.create(_fields(name="Other space", space_id=other.id))
+    clock.now = _local(2026, 9, 21, 12, 0).astimezone(UTC)
+
+    started = {entry.schedule_id: entry for entry in await scheduler.catch_up()}
+    assert started[head.id].run_id is not None
+    assert started[independent.id].run_id is not None
+    assert started[weekly.id].run_id is None
+    assert started[review.id].run_id is None
+    for deferred in (weekly, review):
+        waiting = await schedules.require(deferred.id)
+        assert waiting.next_run_at == deferred.next_run_at
+        assert waiting.last_run_id is None
+        assert waiting.last_outcome == (
+            "Waiting: another automation in this space has not finished."
+        )
+    assert await scheduler._seconds_until_next() == scheduler.poll_seconds
+
+    # Removing driving before the completion hook must not let a timed pass
+    # take the space from the continuation, even if both are ready together.
+    await _finish(store, started[head.id].run_id or "", "completed")
+    await asyncio.gather(
+        scheduler.tick(), scheduler.on_run_finished(started[head.id].run_id or "")
+    )
+    assert [entry["origin_ref"] for entry in launcher.launched] == [
+        head.id,
+        independent.id,
+        middle.id,
+    ]
+    await _finish(store, launcher.launched[-1]["run_id"], "completed")
+    await scheduler.on_run_finished(launcher.launched[-1]["run_id"])
+    assert launcher.launched[-1]["origin_ref"] == tail.id
+    await _finish(store, launcher.launched[-1]["run_id"], "completed")
+    await scheduler.on_run_finished(launcher.launched[-1]["run_id"])
+    assert launcher.launched[-1]["origin_ref"] == weekly.id
+    assert (await schedules.require(weekly.id)).last_outcome == (
+        "Started a run: the app was closed at 09:01 on Friday 18 September, "
+        "so it ran at launch."
+    )
+    assert (await schedules.require(review.id)).next_run_at == review.next_run_at
+
+    # A failed root releases the queue, while its dependent stage stays stopped.
+    blocked = await schedules.create(_after(weekly.id, name="Weekly follow-up"))
+    await _finish(store, launcher.launched[-1]["run_id"], "failed")
+    await scheduler.on_run_finished(launcher.launched[-1]["run_id"])
+    assert launcher.launched[-1]["origin_ref"] == review.id
+    assert (await schedules.require(blocked.id)).last_run_id is None
+    assert "did not finish" in ((await schedules.require(blocked.id)).last_outcome or "")
+    for minute, root in enumerate((head, weekly, review)):
+        assert (await schedules.require(root.id)).next_run_at == _utc(2026, 9, 22, 7, minute)
+    await _finish(store, launcher.launched[-1]["run_id"], "completed")
+    await scheduler.on_run_finished(launcher.launched[-1]["run_id"])
+    assert await scheduler.tick() == []
+    assert [entry["origin_ref"] for entry in launcher.launched] == [
+        head.id,
+        independent.id,
+        middle.id,
+        tail.id,
+        weekly.id,
+        review.id,
+    ]
+
+
+async def test_interrupted_roots_and_stages_wait_for_the_same_space_queue_once(
+    schedules: ScheduleStore,
+    launcher: FakeLauncher,
+    clock: Clock,
+    store: EventStore,
+) -> None:
+    blocker = await schedules.create(_fields(name="Earlier due root"))
+    head = await schedules.create(
+        _fields(name="Interrupted head", cadence={"kind": "daily", "at": "10:00"})
+    )
+    stage = await schedules.create(_after(head.id, name="Interrupted stage"))
+    previous: list[str] = []
+    for schedule in (head, stage):
+        old = await store.create_run(
+            schedule.goal,
+            origin="schedule",
+            origin_ref=schedule.id,
+            space_id=DEFAULT_SPACE_ID,
+        )
+        await schedules.note_run(
+            schedule.id, now=clock.now, run_id=old.id, outcome="Interrupted."
+        )
+        await _finish(store, old.id, "failed")
+        previous.append(old.id)
+    relaunched = Scheduler(schedules, launcher, interrupted=frozenset(previous))  # type: ignore[arg-type]
+    clock.now = _utc(2026, 9, 18, 7, 0, 5)
+
+    fired = {entry.schedule_id: entry for entry in await relaunched.catch_up()}
+    assert fired[blocker.id].run_id is not None
+    assert fired[head.id].run_id is None
+    assert fired[stage.id].outcome == "Will run after Interrupted head completes."
+    assert (await schedules.require(head.id)).next_run_at == head.next_run_at
+
+    await _finish(store, fired[blocker.id].run_id or "", "failed")
+    await relaunched.on_run_finished(fired[blocker.id].run_id or "")
+    assert launcher.launched[-1]["origin_ref"] == head.id
+    assert (await schedules.require(head.id)).last_outcome == (
+        "Started a run: the app closed during its last run, so it ran again."
+    )
+    await _finish(store, launcher.launched[-1]["run_id"], "completed")
+    await relaunched.on_run_finished(launcher.launched[-1]["run_id"])
+    assert launcher.launched[-1]["origin_ref"] == stage.id
+    assert await relaunched.catch_up() == []
+    await _finish(store, launcher.launched[-1]["run_id"], "completed")
+    await relaunched.on_run_finished(launcher.launched[-1]["run_id"])
+    assert await relaunched.catch_up() == []
+    assert [entry["origin_ref"] for entry in launcher.launched] == [
+        blocker.id,
+        head.id,
+        stage.id,
+    ]
+
+
+async def test_after_branches_are_serialized_before_other_due_roots(
+    schedules: ScheduleStore,
+    scheduler: Scheduler,
+    launcher: FakeLauncher,
+    clock: Clock,
+    store: EventStore,
+) -> None:
+    head = await schedules.create(_fields(name="Head"))
+    first = await schedules.create(_after(head.id, name="A first branch"))
+    second = await schedules.create(_after(head.id, name="B second branch"))
+    tail = await schedules.create(_after(first.id, name="Tail of first branch"))
+    other = await schedules.create(
+        _fields(name="Other root", cadence={"kind": "daily", "at": "09:01"})
+    )
+    clock.now = _utc(2026, 9, 18, 7, 1, 5)
+    await scheduler.tick()
+    for expected in (first, tail, second, other):
+        await _finish(store, launcher.launched[-1]["run_id"], "completed")
+        await scheduler.on_run_finished(launcher.launched[-1]["run_id"])
+        assert launcher.launched[-1]["origin_ref"] == expected.id
+    assert len(launcher.launched) == 5
+
+
+async def test_concurrent_run_now_requests_cannot_launch_two_automations_in_one_space(
+    schedules: ScheduleStore, scheduler: Scheduler, launcher: FakeLauncher
+) -> None:
+    first = await schedules.create(_fields(name="First"))
+    second = await schedules.create(_fields(name="Second"))
+    outcomes = await asyncio.gather(
+        scheduler.run_now(first), scheduler.run_now(second), return_exceptions=True
+    )
+    assert len(launcher.launched) == 1
+    assert sum(isinstance(outcome, ScheduleBusyError) for outcome in outcomes) == 1
+    assert (await schedules.require(second.id)).next_run_at == second.next_run_at
+
+
+async def test_deferred_roots_use_current_edits_and_ignore_disabled_schedules(
+    schedules: ScheduleStore,
+    scheduler: Scheduler,
+    launcher: FakeLauncher,
+    clock: Clock,
+    store: EventStore,
+) -> None:
+    head = await schedules.create(_fields(name="Head"))
+    edited = await schedules.create(
+        _fields(name="Edited", cadence={"kind": "daily", "at": "09:01"})
+    )
+    disabled = await schedules.create(
+        _fields(name="Disabled", cadence={"kind": "daily", "at": "09:02"})
+    )
+    clock.now = _utc(2026, 9, 18, 7, 2, 5)
+    await scheduler.tick()
+    await schedules.update(edited.id, {"goal": "Use the user's updated goal."})
+    await schedules.update(disabled.id, {"enabled": False})
+    await _finish(store, launcher.launched[-1]["run_id"], "completed")
+    await scheduler.on_run_finished(launcher.launched[-1]["run_id"])
+    assert launcher.launched[-1]["origin_ref"] == edited.id
+    assert launcher.launched[-1]["goal"] == "Use the user's updated goal."
+    await _finish(store, launcher.launched[-1]["run_id"], "completed")
+    await scheduler.on_run_finished(launcher.launched[-1]["run_id"])
+    assert [entry["origin_ref"] for entry in launcher.launched] == [head.id, edited.id]
+
+
 async def test_a_completed_run_starts_the_stages_that_follow_it_down_a_chain_of_three(
     schedules: ScheduleStore,
     scheduler: Scheduler,
@@ -756,6 +960,33 @@ async def test_a_non_pipeline_chain_keeps_its_existing_completed_run_semantics(
     (fired,) = await scheduler.on_run_finished(run.id)
 
     assert fired.schedule_id == next_stage.id and fired.run_id is not None
+    assert len(launcher.launched) == 2
+
+
+async def test_a_recovered_model_cooldown_does_not_block_the_investment_chain(
+    schedules: ScheduleStore, scheduler: Scheduler, launcher: FakeLauncher, store: EventStore
+) -> None:
+    morning = await schedules.update("a7e2c1d0-5b3f-4c6a-9e81-0f4d2b7c9a11", {"enabled": True})
+    theses = await schedules.update("b8f3d2e1-6c4a-4d7b-8f92-1a5e3c8dab22", {"enabled": True})
+    run = await scheduler.run_now(morning)
+    await store.append(run.id, EventType.LLM_ERROR, {"error": "Slow down", "will_retry": True})
+    await store.append(run.id, EventType.LLM_RESPONSE, {"text": "Recovered"})
+    await store.append(
+        run.id,
+        EventType.TOOL_RESULT,
+        {
+            "tool": "read_prices",
+            "result": json.dumps(
+                {"new_session": True, "summary": [{"ticker": "MU"}], "required_failures": []}
+            ),
+        },
+    )
+    await store.append(
+        run.id, EventType.TOOL_RESULT, {"tool": "compute_portfolio", "result": "{}"}
+    )
+    await _finish(store, run.id, "completed")
+    (next_stage,) = await scheduler.on_run_finished(run.id)
+    assert next_stage.schedule_id == theses.id and next_stage.run_id is not None
     assert len(launcher.launched) == 2
 
 
@@ -974,3 +1205,38 @@ async def test_an_interrupted_stage_waits_for_its_chain_when_the_head_runs_at_la
     await _finish(store, fired[head.id].run_id or "", "completed")
     (follow,) = await relaunched.on_run_finished(fired[head.id].run_id or "")
     assert follow.schedule_id == stage.id and follow.run_id is not None
+
+
+async def test_seeded_chain_can_resume_same_session_with_candidate_price_gap(
+    schedules: ScheduleStore,
+    scheduler: Scheduler,
+    launcher: FakeLauncher,
+    store: EventStore,
+) -> None:
+    morning = await schedules.update("a7e2c1d0-5b3f-4c6a-9e81-0f4d2b7c9a11", {"enabled": True})
+    theses = await schedules.update("b8f3d2e1-6c4a-4d7b-8f92-1a5e3c8dab22", {"enabled": True})
+    run = await scheduler.run_now(morning)
+    await store.append(
+        run.id,
+        EventType.TOOL_RESULT,
+        {
+            "tool": "read_prices",
+            "result": json.dumps(
+                {
+                    "new_session": False,
+                    "research_needed": True,
+                    "as_of": "2026-10-01",
+                    "summary": [{"ticker": "MU"}],
+                    "failures": [{"ticker": "IPO", "error": "insufficient history"}],
+                    "required_failures": [],
+                }
+            ),
+        },
+    )
+    await store.append(
+        run.id, EventType.TOOL_RESULT, {"tool": "compute_portfolio", "result": "{}"}
+    )
+    await _finish(store, run.id, "completed")
+    (fired,) = await scheduler.on_run_finished(run.id)
+    assert fired.schedule_id == theses.id and fired.run_id is not None
+    assert len(launcher.launched) == 2

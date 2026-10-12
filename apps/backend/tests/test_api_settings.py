@@ -448,7 +448,7 @@ def test_the_app_wide_model_follows_the_provider(client: TestClient) -> None:
     never name another provider's model. A model sent explicitly still wins."""
     moved = client.patch("/settings", json={"provider": "openai"})
     assert moved.status_code == 200, moved.text
-    assert moved.json()["settings"]["model"] == "gpt-6-sol"
+    assert moved.json()["settings"]["model"] == "gpt-6.1-sol"
 
     explicit = client.patch(
         "/settings", json={"provider": "anthropic", "model": "claude-sonnet-5"}
@@ -486,7 +486,7 @@ def test_a_provider_change_moves_no_space(client: TestClient) -> None:
     defaults = {entry["name"]: entry["default_model"] for entry in catalogue["providers"]}
     assert defaults == {
         "anthropic": "claude-sonnet-5-5",
-        "openai": "gpt-6-sol",
+        "openai": "gpt-6.1-sol",
         "ollama": None,
     }
 
@@ -502,7 +502,7 @@ def test_the_catalogue_lists_the_current_lineup_first_with_tier_and_price(
         "claude-fable-5-1",
         "claude-opus-5-5",
         "claude-sonnet-5-5",
-        "claude-haiku-4-5",
+        "claude-haiku-5-5",
     ]
     assert all(entry["current"] for entry in anthropic[:4])
     assert not any(entry["current"] for entry in anthropic[4:])
@@ -516,7 +516,7 @@ def test_the_catalogue_lists_the_current_lineup_first_with_tier_and_price(
         4_000_000,
         20_000_000,
     )
-    assert catalogue["models"]["openai"][:3] == ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna"]
+    assert catalogue["models"]["openai"][:3] == ["gpt-6-astra", "gpt-6.1-sol", "gpt-6-luna"]
     assert catalogue["catalog"]["ollama"] == []
 
 
@@ -564,6 +564,9 @@ def test_the_host_list_round_trips_normalized_and_refuses_a_url(client: TestClie
     assert client.get("/settings").json()["settings"]["auto_approve_hosts"] == [
         "news.google.com",
         "query1.finance.yahoo.com",
+        "feeds.finance.yahoo.com",
+        "www.sec.gov",
+        "data.sec.gov",
         "api.fiscaldata.treasury.gov",
     ]
 

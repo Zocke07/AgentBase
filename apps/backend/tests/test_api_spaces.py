@@ -154,14 +154,14 @@ def test_a_space_names_its_own_provider_and_model(client: TestClient) -> None:
     assert client.patch("/settings", json={"provider": "openai"}).status_code == 200
     assert client.get(f"/spaces/{lab['id']}").json()["provider"] == "anthropic"
     later = _create(client, "Later")
-    assert (later["provider"], later["model"]) == ("openai", "gpt-6-sol")
+    assert (later["provider"], later["model"]) == ("openai", "gpt-6.1-sol")
 
     cleared = client.patch(f"/spaces/{lab['id']}", json={"provider": None})
     assert cleared.status_code == 400
     assert cleared.json()["detail"]["field"] == "provider"
 
     reset = client.patch(f"/spaces/{own['id']}", json={"model": None})
-    assert reset.json()["model"] == "gpt-6-sol"
+    assert reset.json()["model"] == "gpt-6.1-sol"
 
     # Ollama's model is typed.
     typed = client.patch(
@@ -179,7 +179,7 @@ def test_a_provider_switch_keeps_the_models_tier(client: TestClient) -> None:
     assert moved.json()["model"] == "gpt-6-luna"
 
     back = client.patch(f"/spaces/{lab['id']}", json={"provider": "anthropic"})
-    assert back.json()["model"] == "claude-haiku-4-5"
+    assert back.json()["model"] == "claude-haiku-5-5"
 
 
 def test_a_switch_preview_lists_the_agents_left_on_the_old_provider(client: TestClient) -> None:
@@ -190,12 +190,12 @@ def test_a_switch_preview_lists_the_agents_left_on_the_old_provider(client: Test
     plan = client.get(url, params={"provider": "openai"})
     assert plan.status_code == 200, plan.text
     body = plan.json()
-    assert body["model"] == "gpt-6-sol"
+    assert body["model"] == "gpt-6.1-sol"
     moves = {agent["name"]: agent["to_model"] for agent in body["agents"]}
     assert moves["news-scanner"] == "gpt-6-luna"
-    assert moves["bull-architect"] == "gpt-6-sol"
+    assert moves["bull-architect"] == "gpt-6.1-sol"
     # Opus has no GPT-6 counterpart; Sol, by the maintainer's choice.
-    assert moves["decision"] == "gpt-6-sol"
+    assert moves["decision"] == "gpt-6.1-sol"
     assert len(moves) == 10
 
     assert client.get(f"/spaces/{DEFAULT_SPACE_ID}").json()["provider"] == "anthropic"

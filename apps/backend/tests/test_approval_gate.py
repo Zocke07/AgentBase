@@ -572,6 +572,9 @@ async def test_a_fresh_workspace_answers_low_and_medium_itself_and_asks_about_th
     assert fresh.auto_approve_hosts == [
         "news.google.com",
         "query1.finance.yahoo.com",
+        "feeds.finance.yahoo.com",
+        "www.sec.gov",
+        "data.sec.gov",
         "api.fiscaldata.treasury.gov",
     ]
 
@@ -1174,6 +1177,43 @@ async def test_a_wildcard_host_list_keeps_todays_behavior(
     )
 
     assert decision.allowed and decision.automatic
+
+
+@pytest.mark.parametrize("secondary_allowed", [False, True])
+async def test_market_collection_checks_every_destination_host(
+    store: EventStore, db: Database, workspace: Path, secondary_allowed: bool
+) -> None:
+    _, service = tool_runtime(store, db, workspace)
+    run = await store.create_run(goal="market", origin="ui")
+    prepared = Prepared(
+        tool_name="read_market",
+        summary="read market lists and headlines",
+        payload={
+            "host": "query1.finance.yahoo.com",
+            "hosts": ["query1.finance.yahoo.com", "feeds.finance.yahoo.com"],
+        },
+        raw_arguments={},
+    )
+    allowed = ["query1.finance.yahoo.com"]
+    if secondary_allowed:
+        allowed.append("feeds.finance.yahoo.com")
+    task = asyncio.create_task(
+        service.request(
+            run_id=run.id,
+            agent="collector",
+            prepared=prepared,
+            risk=RiskLevel.MEDIUM,
+            auto_approve=[RiskLevel.MEDIUM],
+            hosts=allowed,
+            deadline=5,
+        )
+    )
+    if not secondary_allowed:
+        pending = await _wait_for_approval(service)
+        await service.resolve(pending, approved=False)
+    decision = await asyncio.wait_for(task, timeout=5)
+    assert decision.allowed is secondary_allowed
+    assert decision.automatic is secondary_allowed
 
 
 # --- a question nobody is there to answer --------------------------------------

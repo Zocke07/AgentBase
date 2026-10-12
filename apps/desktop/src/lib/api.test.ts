@@ -6,6 +6,7 @@ import {
   cancelRun,
   deleteAgent,
   deleteRun,
+  downloadFile,
   getChatGPTAuth,
   listRuns,
   logoutChatGPT,
@@ -77,6 +78,18 @@ describe("requests", () => {
     fetchStub.mockResolvedValue(new Response(null, { status: 204 }));
 
     await expect(deleteAgent("def-1")).resolves.toBeUndefined();
+  });
+
+  it("fetches workbook bytes without decoding them as JSON", async () => {
+    const bytes = new Uint8Array([80, 75, 3, 4, 0, 255]);
+    fetchStub.mockResolvedValue(new Response(bytes, {
+      headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+    }));
+
+    const blob = await downloadFile("space-lab", "predictions/2026-10.xlsx");
+
+    expect(fetchStub.mock.calls[0]?.[0]).toBe("http://127.0.0.1:8787/spaces/space-lab/knowledge/download?path=predictions%2F2026-10.xlsx");
+    expect(new Uint8Array(await blob.arrayBuffer())).toEqual(bytes);
   });
 
   it("uses the ChatGPT auth lifecycle routes without sending credential data", async () => {

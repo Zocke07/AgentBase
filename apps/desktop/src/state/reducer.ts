@@ -444,6 +444,9 @@ export function reduce(state: RunView, event: Event): RunView {
     }
 
     case "llm.error": {
+      if (payload.will_retry === true) {
+        return agent === null ? next : withAgent(next, agent, seq, thinkingAgain);
+      }
       const message = text(payload, "error") ?? "";
       const recorded: RunView = {
         ...next,

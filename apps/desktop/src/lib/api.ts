@@ -241,11 +241,15 @@ export const saveKnowledgeNote = (
 export const deleteKnowledgeNote = (spaceId: string, path: string): Promise<void> =>
   requestNoContent(`/spaces/${spaceId}/knowledge/note${query({ path })}`, { method: "DELETE" });
 
-/** The plain-text files beside the notes, for the Files view. */
+/** Editable text files and downloadable Excel workbooks beside the notes. */
 export const listFiles = (spaceId: string): Promise<TextFileIndex> => request<TextFileIndex>(`/spaces/${spaceId}/knowledge/files`);
 
 export const getFile = (spaceId: string, path: string): Promise<TextFile> =>
   request<TextFile>(`/spaces/${spaceId}/knowledge/file${query({ path })}`);
+
+/** Keep workbook bytes intact; the download route uses the space's file rules. */
+export const downloadFile = async (spaceId: string, path: string): Promise<Blob> =>
+  (await send(`/spaces/${spaceId}/knowledge/download${query({ path })}`)).blob();
 
 export const writeFile = (spaceId: string, path: string, content: string): Promise<TextFile> =>
   request<TextFile>(`/spaces/${spaceId}/knowledge/file`, { method: "PUT", ...asJson({ path, content }) });

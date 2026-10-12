@@ -14,6 +14,8 @@ at launch, or noted and left, by the same policy.
 A stage with an ``after`` cadence has no time of its own. When a scheduled
 run finishes, :meth:`Scheduler.follow` starts the stages that follow its
 schedule if it completed, and records why not if it failed or was cancelled.
+Automations in one space share a queue: the next stage takes priority over
+other due schedules, which keep their due time until the space is available.
 """
 
 from __future__ import annotations
@@ -76,7 +78,8 @@ def _pipeline_block_reason(schedule_id: str, events: list[Event]) -> str | None:
     if schedule_id not in _PIPELINE_PARENTS:
         return None
     if any(
-        event.type in {EventType.TOOL_ERROR, EventType.TOOL_DENIED, EventType.LLM_ERROR}
+        event.type in {EventType.TOOL_ERROR, EventType.TOOL_DENIED}
+        or (event.type == EventType.LLM_ERROR and event.payload.get("will_retry") is not True)
         for event in events
     ):
         return "had tool or model errors."
@@ -85,9 +88,12 @@ def _pipeline_block_reason(schedule_id: str, events: list[Event]) -> str | None:
         prices = _result_objects(events, "read_prices")
         if not prices:
             return "had no verified read_prices result."
-        if any(result.get("failures") for result in prices):
+        if any(result.get("required_failures", result.get("failures")) for result in prices):
             return "had incomplete price data."
-        if not any(result.get("new_session") is True for result in prices):
+        if not any(
+            result.get("new_session") is True or result.get("research_needed") is True
+            for result in prices
+        ):
             return "had no new verified market session."
         if not any(
             isinstance(result.get("summary"), list) and bool(result["summary"])
@@ -144,6 +150,13 @@ class Scheduler:
     _wake: asyncio.Event = field(default_factory=asyncio.Event, init=False)
     #: Set on close, so a run finishing during shutdown starts no stage.
     _closed: bool = field(default=False, init=False)
+    #: Launches and completion hooks must not race a timed pass or Run now.
+    _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False)
+    #: Reserve the space through the completion hook, even after driving ends.
+    _active_spaces: dict[str, str] = field(default_factory=dict, init=False)
+    #: Includes untimed stages and interrupted runs whose next time is still ahead.
+    _pending: dict[str, tuple[Schedule, str | None]] = field(default_factory=dict, init=False)
+    _settled_interrupted: set[str] = field(default_factory=set, init=False)
 
     # --- lifecycle ---------------------------------------------------------
 
@@ -171,8 +184,8 @@ class Scheduler:
         except Exception:
             logger.exception("the scheduler's catch-up pass failed")
         while True:
-            delay = await self._seconds_until_next()
             self._wake.clear()
+            delay = await self._seconds_until_next()
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(self._wake.wait(), timeout=delay)
             try:
@@ -182,7 +195,16 @@ class Scheduler:
                 logger.exception("a scheduler pass failed")
 
     async def _seconds_until_next(self) -> float:
-        soonest = await self.schedules.earliest()
+        # An overdue schedule waiting for this space must not cause a busy loop
+        # or hide a future due time in another space. Completion wakes the loop.
+        available = [
+            schedule.next_run_at
+            for schedule in await self.schedules.list_all()
+            if schedule.enabled
+            and schedule.next_run_at is not None
+            and schedule.space_id not in self._active_spaces
+        ]
+        soonest = min(available, default=None)
         if soonest is None:
             return self.poll_seconds
         remaining = (soonest - self.schedules.now()).total_seconds()
@@ -192,9 +214,16 @@ class Scheduler:
 
     async def catch_up(self) -> list[Fired]:
         """Startup pass: settle work due while the app was closed."""
+        async with self._lock:
+            return await self._catch_up()
+
+    async def _catch_up(self) -> list[Fired]:
         now = self.schedules.now()
-        fired: list[Fired] = []
+        fired = await self._drain_pending(now)
+        settled = {entry.schedule_id for entry in fired}
         for schedule in await self.schedules.due(now):
+            if schedule.id in settled:
+                continue
             due_at = schedule.next_run_at
             if due_at is None or now - due_at <= MISSED_AFTER:
                 fired.append(await self._fire(schedule, now))
@@ -231,11 +260,14 @@ class Scheduler:
             for schedule in every
             if schedule.enabled
             and schedule.id not in settled
+            and schedule.id not in self._settled_interrupted
             and schedule.last_run_id in self.interrupted
         ]
-        will_run = {entry.schedule_id for entry in earlier if entry.run_id is not None} | {
-            schedule.id for schedule in candidates if schedule.missed == "run_on_launch"
-        }
+        will_run = {
+            entry.schedule_id
+            for entry in earlier
+            if entry.run_id is not None or entry.schedule_id in self._pending
+        } | {schedule.id for schedule in candidates if schedule.missed == "run_on_launch"}
         fired: list[Fired] = []
         for schedule in candidates:
             ahead = _ahead_in_chain(schedule, by_id, will_run)
@@ -243,30 +275,77 @@ class Scheduler:
                 outcome = f"Will run after {ahead.name} completes."
                 await self.schedules.note_outcome(schedule.id, now=now, outcome=outcome)
                 fired.append(Fired(schedule.id, None, outcome))
+                self._settled_interrupted.add(schedule.id)
                 continue
             if schedule.missed == "skip":
                 outcome = "Not run again: the app closed during its last run."
                 await self.schedules.note_outcome(schedule.id, now=now, outcome=outcome)
                 fired.append(Fired(schedule.id, None, outcome))
+                self._settled_interrupted.add(schedule.id)
                 continue
             fired.append(
                 await self._fire(
                     schedule, now, note="the app closed during its last run, so it ran again"
                 )
             )
+            self._settled_interrupted.add(schedule.id)
         return fired
 
     async def tick(self) -> list[Fired]:
         """Ordinary pass: launch all currently due schedules."""
-        now = self.schedules.now()
-        return [await self._fire(schedule, now) for schedule in await self.schedules.due(now)]
+        async with self._lock:
+            return await self._tick(self.schedules.now())
+
+    async def _tick(self, now: datetime, settled: set[str] | None = None) -> list[Fired]:
+        fired = await self._drain_pending(now, settled)
+        seen = (settled or set()) | {entry.schedule_id for entry in fired}
+        for schedule in await self.schedules.due(now):
+            if schedule.id not in seen:
+                fired.append(await self._fire(schedule, now))
+        return fired
+
+    async def _drain_pending(
+        self, now: datetime, settled: set[str] | None = None
+    ) -> list[Fired]:
+        """Continue chains first, then queued roots, using current schedule edits."""
+        fired: list[Fired] = []
+        pending = sorted(
+            self._pending.values(),
+            key=lambda entry: not isinstance(entry[0].cadence, AfterCadence),
+        )
+        for previous, note in pending:
+            if settled is not None and previous.id in settled:
+                continue
+            schedule = await self.schedules.get(previous.id)
+            if (
+                schedule is None
+                or not schedule.enabled
+                or schedule.cadence != previous.cadence
+                or schedule.next_run_at != previous.next_run_at
+            ):
+                self._pending.pop(previous.id, None)
+                continue
+            fired.append(await self._fire(schedule, now, note))
+        return fired
 
     async def _fire(self, schedule: Schedule, now: datetime, note: str | None = None) -> Fired:
         if self._still_running(schedule):
+            self._pending.pop(schedule.id, None)
             outcome = "Skipped: the previous run had not finished."
             await self.schedules.advance(schedule.id, now=now, outcome=outcome, run_id=None)
             logger.info("schedule %s: %s", schedule.name, outcome)
             return Fired(schedule.id, None, outcome)
+
+        if schedule.space_id in self._active_spaces:
+            self._pending.setdefault(schedule.id, (schedule, note))
+            outcome = "Waiting: another automation in this space has not finished."
+            if schedule.last_outcome != outcome:
+                await self.schedules.note_outcome(schedule.id, now=now, outcome=outcome)
+            return Fired(schedule.id, None, outcome)
+
+        # Retain the catch-up or continuation explanation on later timed passes.
+        if schedule.id in self._pending:
+            _, note = self._pending[schedule.id]
 
         try:
             run = await self.launcher.launch(
@@ -277,6 +356,7 @@ class Scheduler:
                 max_run_seconds=schedule.max_run_seconds,
             )
         except SpaceArchivedError:
+            self._pending.pop(schedule.id, None)
             outcome = "Turned off: its space is archived."
             await self.schedules.advance(
                 schedule.id, now=now, outcome=outcome, run_id=None, enabled=False
@@ -284,6 +364,7 @@ class Scheduler:
             logger.info("schedule %s: %s", schedule.name, outcome)
             return Fired(schedule.id, None, outcome)
         except SpaceNotFoundError:
+            self._pending.pop(schedule.id, None)
             outcome = "Turned off: its space no longer exists."
             await self.schedules.advance(
                 schedule.id, now=now, outcome=outcome, run_id=None, enabled=False
@@ -291,6 +372,8 @@ class Scheduler:
             logger.warning("schedule %s: %s", schedule.name, outcome)
             return Fired(schedule.id, None, outcome)
 
+        self._active_spaces[schedule.space_id] = run.id
+        self._pending.pop(schedule.id, None)
         outcome = "Started a run" + (f": {note}." if note is not None else ".")
         await self.schedules.advance(schedule.id, now=now, outcome=outcome, run_id=run.id)
         logger.info("schedule %s started run %s", schedule.name, run.id)
@@ -305,6 +388,10 @@ class Scheduler:
 
     async def on_run_finished(self, run_id: str) -> list[Fired]:
         """Start, or record why not, the stages that follow an automation run."""
+        async with self._lock:
+            return await self._on_run_finished(run_id)
+
+    async def _on_run_finished(self, run_id: str) -> list[Fired]:
         if self._closed:
             return []
         run = await self.launcher.store.get_run(run_id)
@@ -314,9 +401,9 @@ class Scheduler:
             or run.origin_ref is None
         ):
             return []
+        if self._active_spaces.get(run.space_id) == run_id:
+            del self._active_spaces[run.space_id]
         followers = await self.schedules.followers(run.origin_ref)
-        if not followers:
-            return []
         parent = await self.schedules.get(run.origin_ref)
         name = parent.name if parent is not None else "the schedule before it"
         now = self.schedules.now()
@@ -338,6 +425,8 @@ class Scheduler:
             await self.schedules.note_outcome(follower.id, now=now, outcome=outcome)
             logger.info("schedule %s: %s", follower.name, outcome)
             fired.append(Fired(follower.id, None, outcome))
+        fired.extend(await self._tick(now, {entry.schedule_id for entry in fired}))
+        self.wake()
         return fired
 
     async def run_now(self, schedule: Schedule) -> RunRow:
@@ -346,12 +435,19 @@ class Scheduler:
         The same overlap guard and time limit apply, and the next time is left
         where it was.
 
-        :raises ScheduleBusyError: while its previous run is still going.
+        :raises ScheduleBusyError: while this space has an automation running.
         :raises SpaceNotFoundError: if its space no longer exists.
         :raises SpaceArchivedError: if its space is archived.
         """
+        async with self._lock:
+            return await self._run_now(await self.schedules.require(schedule.id))
+
+    async def _run_now(self, schedule: Schedule) -> RunRow:
         if self._still_running(schedule):
             msg = f"{schedule.name}'s previous run has not finished yet."
+            raise ScheduleBusyError(msg)
+        if schedule.space_id in self._active_spaces:
+            msg = "Another automation in this space has not finished yet."
             raise ScheduleBusyError(msg)
         run = await self.launcher.launch(
             schedule.goal,
@@ -360,6 +456,7 @@ class Scheduler:
             origin_ref=schedule.id,
             max_run_seconds=schedule.max_run_seconds,
         )
+        self._active_spaces[schedule.space_id] = run.id
         await self.schedules.note_run(
             schedule.id, now=self.schedules.now(), run_id=run.id, outcome="Started by hand."
         )

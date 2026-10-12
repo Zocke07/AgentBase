@@ -12,6 +12,10 @@ import { KNOWN_EVENT_TYPES, reduceAll } from "./reducer";
  */
 
 describe("a sentence for every event", () => {
+  it("describes a recoverable rate limit as a cooldown", () => {
+    const event = new LogBuilder().add("llm.error", { error: "Too many requests", will_retry: true, retry_after_seconds: 60 }, "worker");
+    expect(sentenceFor(event)).toBe("worker's model was rate limited. Waiting 60 seconds before retrying.");
+  });
   it("renders every known event type as something other than its raw name", () => {
     /* A type that fell through to the default would show its raw name, which
        is what the chip beside it already shows. */
@@ -250,6 +254,12 @@ describe("a sentence for every event", () => {
     expect(phrase.past).toBe("computed the portfolio");
   });
 
+  it("names market research, company reports and forecast updates in the run log", () => {
+    expect(callPhrase("read_market", {}).infinitive).toBe("collect market movers and headlines");
+    expect(callPhrase("read_company_reports", { symbols: ["MU", "ORCL"] }).progressive).toBe("reading company reports for MU, ORCL");
+    expect(callPhrase("track_forecasts", {}).past).toBe("updated forecasts and actual prices");
+  });
+
   it("describes deterministic limit checks for their date", () => {
     const phrase = callPhrase("check_limits", { date: "2026-09-30" });
 
@@ -345,9 +355,12 @@ describe("the approval policy a run acted under", () => {
     expect(policySentence({ ...base, denyTools: ["run_shell"] })).not.toContain("always asked");
   });
 
-  it("recognises read_prices as a network call when its tool answer allows it", () => {
-    expect(policySentence({ ...base, levels: [], allowTools: ["read_prices"] })).toContain(
-      "fetches from news.google.com and stooq.com only",
-    );
+  it("recognises investment data collectors as host-bounded network calls", () => {
+    for (const tool of ["read_prices", "read_market", "read_company_reports"]) {
+      expect(policySentence({ ...base, levels: [], allowTools: [tool] })).toContain(
+        "fetches from news.google.com and stooq.com only",
+      );
+    }
+    expect(policySentence({ ...base, levels: [], allowTools: ["track_forecasts"] })).not.toContain("fetches from");
   });
 });

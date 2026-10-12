@@ -32,7 +32,7 @@ _CALIBRATION_PATH: Final[str] = "scores/calibration.csv"
 _MONTH: Final[re.Pattern[str]] = re.compile(r"^\d{4}-(?:0[1-9]|1[0-2])$")
 _THESIS_FILE: Final[re.Pattern[str]] = re.compile(r"^(bull|bear)-(\d{4}-\d{2}-\d{2})\.jsonl$")
 _TICKER: Final[re.Pattern[str]] = re.compile(r"^[A-Z0-9^=._-]{1,20}$")
-_HORIZONS: Final[frozenset[int]] = frozenset({1, 3, 5, 7})
+_HORIZONS: Final[frozenset[int]] = frozenset({1, 2, 3, 5, 7, 21})
 _BANDS: Final[frozenset[str]] = frozenset({"0-1%", "1-3%", "3-5%", "5%+"})
 _AGENTS: Final[tuple[str, ...]] = ("bull", "bear")
 _FOUR_PLACES: Final[Decimal] = Decimal("0.0001")
@@ -364,7 +364,7 @@ def _parse_thesis(row: dict[str, Any], expected_agent: str, label: str) -> _Thes
         raise ValueError(f"{label} ticker {ticker!r} is invalid")
     horizon = _integer(row.get("horizon_days"), f"{label} horizon_days")
     if horizon not in _HORIZONS:
-        raise ValueError(f"{label} horizon_days must be 1, 3, 5, or 7")
+        raise ValueError(f"{label} horizon_days must be 1, 2, 3, 5, 21, or legacy 7")
     direction = _text(row.get("direction"), f"{label} direction")
     wanted_direction = "up" if agent == "bull" else "down"
     if direction != wanted_direction:

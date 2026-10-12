@@ -46,25 +46,32 @@ export function PipelineOffer({ spaceId, schedules, runCapMicros, onTurnedOn }: 
       <h2 className="card__title">Set up the investment pipeline</h2>
       <p>
         {stages.length} schedules are set up and switched off: {stages.map((row) => row.name).join(", ")}.
-        Turned on, the morning collection runs on weekdays, the theses and the daily decision follow it
+        Turned on, the morning collection runs on its chosen local days, the theses and the daily decision follow it
         as soon as each stage completes, and the knowledge and review stages run weekly. The decision is
         a recommendation for you to review; nothing is bought or sold.
       </p>
       <div className="pipeline-offer__details">
         <p>
           <strong>What this creates:</strong> starter files for your watchlist and positions, plus risk
-          limits, keyless sources and a four-chart dashboard. Existing files are never replaced.
+          limits, public data sources and a four-chart dashboard. Existing files are never replaced.
         </p>
         <p>
-          <strong>Before the first run:</strong> review the illustrative six-company watchlist and replace
-          any ticker you do not want followed. The zero-cash row is not your real portfolio; enter your
-          actual positions and cash. Find both under Knowledge, then Agent files. The risk limits are
-          defaults, not your personal policy.
+          <strong>Sample portfolio:</strong> one share each of MU, ORCL, CRWV, MSFT, NOW and AVGO, with
+          $2,500 USD cash. Purchase prices and dates are blank because they are unknown. Review the sample
+          in Knowledge, then Agent files, and replace it with your real holdings before relying on the results.
+          Limits start at 10% per stock, 70% per sector and 3% daily loss; technology subsectors share the sector limit.
         </p>
         <p>
-          <strong>Coverage:</strong> Google News, Yahoo daily prices and US Treasury auctions. It does not
-          collect Reddit or other social sources, SEC filings, keyed APIs, market-wide screeners,
-          earnings dates, or FOMC and BLS calendars. You can add filing text and calendar data as files.
+          <strong>Daily research:</strong> your holdings plus Yahoo Finance top gainers, losers, high-volume
+          stocks and headlines, with company news and annual or quarterly financial figures from Yahoo.
+          Missing sources are recorded in the run. Optional SEC company facts and filing excerpts require
+          your identifying contact in the source settings.
+        </p>
+        <p>
+          <strong>Forecast workbook:</strong> one Excel file per month, with a sheet for each market session
+          and forecasts for 1, 2, 3, 5 and 21 trading days ahead, approximately one week and one month for the last two.
+          The baseline repeats the latest close and is labeled as such; conditional research scenarios carry their evidence and assumptions.
+          Later runs fill actual prices when those sessions arrive. Keep AgentBase open for scheduled runs and updates.
         </p>
       </div>
       <p className="settings__hint pipeline-offer__limits">

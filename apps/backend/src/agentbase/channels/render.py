@@ -203,7 +203,10 @@ def _apply(state: _Accumulator, event: Event) -> None:
             pass
 
         case EventType.LLM_ERROR | EventType.TOOL_ERROR:
-            state.errors.append(_ellipsise(_text(payload, "error"), 140))
+            if payload.get("will_retry") is True:
+                state.note(f"{agent} is waiting for the model's rate limit to clear")
+            else:
+                state.errors.append(_ellipsise(_text(payload, "error"), 140))
 
         case EventType.TOOL_REQUESTED | EventType.TOOL_APPROVED:
             pass

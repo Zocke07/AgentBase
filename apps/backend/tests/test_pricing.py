@@ -13,6 +13,7 @@ from agentbase.providers.base import TokenUsage
 from agentbase.providers.pricing import (
     MICROS_PER_DOLLAR,
     PRICES,
+    LongContextPrice,
     ModelPrice,
     UnknownModelError,
     cost_micros,
@@ -216,3 +217,53 @@ def test_price_table_covers_the_default_models() -> None:
 def test_model_price_rejects_negative_prices() -> None:
     with pytest.raises(ValueError, match="negative"):
         ModelPrice(input_micros_per_million=-1, output_micros_per_million=0)
+
+
+@pytest.mark.parametrize(
+    ("input_tokens", "output_tokens", "expected"),
+    [
+        (100_000, 1_000, 10_500),
+        (100_001, 1_000, 52_501),
+        (200_000, 10_000, 125_000),
+        # The prompt length alone chooses the tier, not prompt plus output.
+        (100_000, 100_000, 60_000),
+    ],
+)
+def test_haiku_5_5_prices_the_whole_call_at_its_prompt_tier(
+    input_tokens: int, output_tokens: int, expected: int
+) -> None:
+    usage = TokenUsage(input_tokens=input_tokens, output_tokens=output_tokens)
+    assert cost_micros("claude-haiku-5-5", usage) == expected
+    assert cost_micros("claude-haiku-5-5-20261007", usage) == expected
+
+
+@pytest.mark.parametrize(
+    ("model", "short_cost", "long_cost"),
+    [
+        ("gpt-6-astra", 2_770_000, 5_515_020),
+        ("gpt-6.1-sol", 554_000, 1_103_004),
+        ("gpt-6-sol", 554_000, 1_103_004),
+        ("gpt-6-luna", 27_700, 55_151),
+        ("gpt-5.6-sol", 1_108_000, 2_206_008),
+    ],
+)
+def test_openai_long_prompts_charge_the_whole_request(
+    model: str, short_cost: int, long_cost: int
+) -> None:
+    assert cost_micros(model, TokenUsage(input_tokens=272_000, output_tokens=1_000)) == (
+        short_cost
+    )
+    assert cost_micros(model, TokenUsage(input_tokens=272_001, output_tokens=1_000)) == (
+        long_cost
+    )
+
+
+@pytest.mark.parametrize(
+    ("threshold", "input_rate", "output_rate"),
+    [(0, 1, 1), (-1, 1, 1), (100_000, -1, 1), (100_000, 1, -1)],
+)
+def test_long_context_price_rejects_invalid_data(
+    threshold: int, input_rate: int, output_rate: int
+) -> None:
+    with pytest.raises(ValueError):
+        LongContextPrice(threshold, input_rate, output_rate)

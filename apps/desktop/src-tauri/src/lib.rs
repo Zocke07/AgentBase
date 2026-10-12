@@ -5,7 +5,7 @@
 //! it would orphan port 8787. Send `shutdown` and close stdin instead; `kill` is
 //! a timeout backstop.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -119,6 +119,40 @@ fn reveal_folder(app: AppHandle, path: String) -> Result<(), String> {
     app.opener()
         .open_path(wanted.to_string_lossy(), None::<&str>)
         .map_err(|error| error.to_string())
+}
+
+/// Open a generated Excel workbook in the person's spreadsheet app. Only a
+/// visible `.xlsx` file inside AgentBase's data directory qualifies; the
+/// webview cannot name any other file.
+#[tauri::command]
+fn open_workbook(app: AppHandle, path: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+
+    let root = data_dir(&app).map_err(|error| error.to_string())?;
+    let root = std::fs::canonicalize(&root).map_err(|error| error.to_string())?;
+    let wanted = std::fs::canonicalize(&path).map_err(|_| format!("{path} does not exist"))?;
+    let workbook = workbook_inside(&root, &wanted)?;
+    app.opener()
+        .open_path(workbook.to_string_lossy(), None::<&str>)
+        .map_err(|error| error.to_string())
+}
+
+/// A canonical path that is a visible `.xlsx` file under `root`.
+fn workbook_inside(root: &Path, wanted: &Path) -> Result<PathBuf, String> {
+    let Ok(relative) = wanted.strip_prefix(root) else {
+        return Err(format!("{} is not inside AgentBase's data directory", wanted.display()));
+    };
+    let hidden = relative
+        .components()
+        .any(|part| part.as_os_str().to_string_lossy().starts_with('.'));
+    let workbook = wanted
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("xlsx"));
+    if hidden || !workbook || !wanted.is_file() {
+        return Err(format!("{} is not an Excel workbook AgentBase wrote", wanted.display()));
+    }
+    Ok(wanted.to_path_buf())
 }
 
 fn obsidian_vault_url(path: &std::path::Path) -> Result<tauri::Url, String> {
@@ -396,6 +430,7 @@ pub fn run() {
             keychain_service,
             legacy_keychain_service,
             reveal_folder,
+            open_workbook,
             obsidian_available,
             open_obsidian_vault,
             open_auth_url,
@@ -421,8 +456,35 @@ mod tests {
 
     use super::{
         auth_url_is_allowed, obsidian_candidates, obsidian_vault_url, secret_for_name,
-        KeychainLookup, KEYCHAIN_SERVICE, LEGACY_KEYCHAIN_SERVICE,
+        workbook_inside, KeychainLookup, KEYCHAIN_SERVICE, LEGACY_KEYCHAIN_SERVICE,
     };
+
+    #[test]
+    fn only_a_visible_workbook_inside_the_data_directory_opens() {
+        let root = std::env::temp_dir().join(format!("agentbase-workbook-{}", std::process::id()));
+        let predictions = root.join("spaces/main/predictions");
+        let hidden = root.join("spaces/main/.agentbase");
+        std::fs::create_dir_all(&predictions).unwrap();
+        std::fs::create_dir_all(&hidden).unwrap();
+        for file in [
+            predictions.join("2026-10.xlsx"),
+            predictions.join("forecasts.json"),
+            hidden.join("2026-10.xlsx"),
+        ] {
+            std::fs::write(file, b"x").unwrap();
+        }
+        let outside = std::env::temp_dir().join("agentbase-outside.xlsx");
+        std::fs::write(&outside, b"x").unwrap();
+
+        assert!(workbook_inside(&root, &predictions.join("2026-10.xlsx")).is_ok());
+        assert!(workbook_inside(&root, &predictions.join("forecasts.json")).is_err());
+        assert!(workbook_inside(&root, &hidden.join("2026-10.xlsx")).is_err());
+        assert!(workbook_inside(&root, &predictions).is_err());
+        assert!(workbook_inside(&root, &outside).is_err());
+
+        std::fs::remove_dir_all(&root).unwrap();
+        std::fs::remove_file(&outside).unwrap();
+    }
 
     #[test]
     fn agentbase_keychain_entry_wins_without_reading_legacy() {

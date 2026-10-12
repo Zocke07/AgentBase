@@ -90,6 +90,7 @@ class CheckLimitsTool:
                 "computed_path": sandbox.resolve_path(_COMPUTED_PATH),
                 "limits_path": sandbox.resolve_path(_LIMITS_PATH),
                 "watchlist_path": sandbox.resolve_path(_WATCHLIST_PATH),
+                "universe_path": sandbox.resolve_path("raw/market/universe.json"),
                 "bull_path": sandbox.resolve_path(bull_path),
                 "bear_path": sandbox.resolve_path(bear_path),
                 "output_path": sandbox.resolve_write_path(output_path),
@@ -116,6 +117,19 @@ def _check(payload: dict[str, Any]) -> dict[str, Any]:
     )
     limits = _read_limits(payload["limits_path"])
     watchlist = _read_watchlist(payload["watchlist_path"])
+    configured_tickers = set(watchlist)
+    universe_path: Path = payload["universe_path"]
+    if universe_path.exists():
+        universe = _read_object(universe_path, "raw/market/universe.json", "Run read_market.")
+        rows = universe.get("universe", [])
+        if not isinstance(rows, list):
+            raise ToolExecutionError("raw/market/universe.json needs a universe array.")
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            ticker, sector = row.get("ticker"), row.get("sector")
+            if isinstance(ticker, str) and isinstance(sector, str) and sector.strip():
+                watchlist.setdefault(ticker, sector.strip())
     bull_path: Path = payload["bull_path"]
     bear_path: Path = payload["bear_path"]
     bull = _read_theses(bull_path, f"theses/bull-{checked_date}.jsonl")
@@ -132,6 +146,11 @@ def _check(payload: dict[str, Any]) -> dict[str, Any]:
         )
 
     positions = _read_positions(computed)
+    for ticker, held_position in positions.items():
+        if ticker not in configured_tickers:
+            # A holding need not also be on the watchlist. The person's book
+            # supplies its sector ahead of optional discovered metadata.
+            watchlist[ticker] = held_position["sector"]
     sector_weights = _read_sector_weights(computed)
     daily_change = _optional_decimal(
         computed.get("day_change_pct"),

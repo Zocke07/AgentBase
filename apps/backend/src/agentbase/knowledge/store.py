@@ -553,7 +553,7 @@ class KnowledgeStore:
                     continue
                 if candidate.is_symlink() or not candidate.is_file():
                     continue
-                if candidate.suffix.casefold() not in TEXT_FILE_SUFFIXES:
+                if candidate.suffix.casefold() not in TEXT_FILE_SUFFIXES | {".xlsx"}:
                     continue
                 stat = candidate.stat()
                 found.append(
@@ -568,6 +568,22 @@ class KnowledgeStore:
             return found
 
         return TextFileIndex(files=await asyncio.to_thread(scan))
+
+    async def workbook_path(self, space_id: str, path: str) -> Path:
+        """Download generated workbooks without treating binary files as editable text."""
+        root = await self._root(space_id)
+        try:
+            resolved = Sandbox(root).resolve_path(path)
+        except SandboxViolationError as exc:
+            raise KnowledgePathError(str(exc)) from exc
+        relative = resolved.relative_to(root)
+        if relative.suffix.casefold() != ".xlsx" or any(
+            part.startswith(".") for part in relative.parts
+        ):
+            raise KnowledgePathError("Only visible Excel workbooks can be downloaded here.")
+        if resolved.is_symlink() or not resolved.is_file():
+            raise NoteNotFoundError(f"There is no workbook at {relative.as_posix()}.")
+        return resolved
 
     async def get_file(self, space_id: str, path: str) -> TextFile:
         _, resolved, shown = await self._resolve_file(space_id, path)

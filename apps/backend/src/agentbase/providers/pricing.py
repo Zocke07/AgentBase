@@ -19,6 +19,7 @@ __all__ = [
     "MICROS_PER_DOLLAR",
     "MODELS_BY_PROVIDER",
     "PRICES",
+    "LongContextPrice",
     "ModelPrice",
     "UnknownModelError",
     "cost_micros",
@@ -54,11 +55,29 @@ class UnknownModelError(LookupError):
 
 
 @dataclass(frozen=True, slots=True)
+class LongContextPrice:
+    """Whole-request rates when input exceeds the given token threshold."""
+
+    over_input_tokens: int
+    input_micros_per_million: int
+    output_micros_per_million: int
+
+    def __post_init__(self) -> None:
+        if self.over_input_tokens <= 0:
+            msg = "a long-context threshold must be positive"
+            raise ValueError(msg)
+        if self.input_micros_per_million < 0 or self.output_micros_per_million < 0:
+            msg = f"a price cannot be negative: {self!r}"
+            raise ValueError(msg)
+
+
+@dataclass(frozen=True, slots=True)
 class ModelPrice:
-    """Input/output micros cost per million tokens."""
+    """Input/output micros per million tokens, with an optional prompt tier."""
 
     input_micros_per_million: int
     output_micros_per_million: int
+    long_context: LongContextPrice | None = None
 
     def __post_init__(self) -> None:
         if self.input_micros_per_million < 0 or self.output_micros_per_million < 0:
@@ -74,6 +93,25 @@ def _usd(dollars_per_million_input: str, dollars_per_million_output: str) -> Mod
     )
 
 
+def _long_usd(
+    input_price: str,
+    output_price: str,
+    over_input_tokens: int,
+    long_input_price: str,
+    long_output_price: str,
+) -> ModelPrice:
+    """Published short/long dollar rates; the selected rate prices the full call."""
+    return ModelPrice(
+        input_micros_per_million=_dollars_to_micros(input_price),
+        output_micros_per_million=_dollars_to_micros(output_price),
+        long_context=LongContextPrice(
+            over_input_tokens=over_input_tokens,
+            input_micros_per_million=_dollars_to_micros(long_input_price),
+            output_micros_per_million=_dollars_to_micros(long_output_price),
+        ),
+    )
+
+
 def _dollars_to_micros(dollars: str) -> int:
     """Parse decimal dollar string to micros exactly, without floats."""
     whole, _, fraction = dollars.partition(".")
@@ -82,9 +120,10 @@ def _dollars_to_micros(dollars: str) -> int:
 
 
 #: List prices per million tokens by provider, used by settings. Both checked
-#: 2026-09-30, Anthropic against platform.claude.com/docs/en/models/overview
+#: 2026-10-12, Anthropic against platform.claude.com/docs/en/models/overview
 #: and OpenAI against developers.openai.com/api/docs/pricing. Standard-tier,
-#: short-context, non-batch. `catalog.py` gives each one a tier; a model
+#: non-batch; applicable prompt-length premiums count against caps. `catalog.py`
+#: gives each one a tier; a model
 #: priced here and missing there fails a test.
 _ANTHROPIC: Final[dict[str, ModelPrice]] = {
     "claude-fable-5-1": _usd("10.00", "50.00"),
@@ -97,14 +136,16 @@ _ANTHROPIC: Final[dict[str, ModelPrice]] = {
     "claude-sonnet-5-5": _usd("2.00", "10.00"),
     "claude-sonnet-5": _usd("2.00", "10.00"),
     "claude-sonnet-4-6": _usd("3.00", "15.00"),
+    "claude-haiku-5-5": _long_usd("0.10", "0.50", 100_000, "0.50", "2.50"),
     "claude-haiku-4-5": _usd("1.00", "5.00"),
 }
 
 _OPENAI: Final[dict[str, ModelPrice]] = {
-    "gpt-6-astra": _usd("10.00", "50.00"),
-    "gpt-6-sol": _usd("2.00", "10.00"),
-    "gpt-6-luna": _usd("0.10", "0.50"),
-    "gpt-5.6-sol": _usd("4.00", "20.00"),
+    "gpt-6-astra": _long_usd("10.00", "50.00", 272_000, "20.00", "75.00"),
+    "gpt-6.1-sol": _long_usd("2.00", "10.00", 272_000, "4.00", "15.00"),
+    "gpt-6-sol": _long_usd("2.00", "10.00", 272_000, "4.00", "15.00"),
+    "gpt-6-luna": _long_usd("0.10", "0.50", 272_000, "0.20", "0.75"),
+    "gpt-5.6-sol": _long_usd("4.00", "20.00", 272_000, "8.00", "30.00"),
     "gpt-5.6-terra": _usd("2.00", "12.00"),
     "gpt-5.6-luna": _usd("0.20", "1.20"),
     "gpt-5.5": _usd("5.00", "30.00"),
@@ -171,9 +212,16 @@ def cost_micros(model: str, usage: TokenUsage) -> int:
     if price is None:
         raise UnknownModelError(model)
 
+    rates: ModelPrice | LongContextPrice = price
+    if (
+        price.long_context is not None
+        and usage.input_tokens > price.long_context.over_input_tokens
+    ):
+        rates = price.long_context
+
     total = (
-        usage.input_tokens * price.input_micros_per_million
-        + usage.output_tokens * price.output_micros_per_million
+        usage.input_tokens * rates.input_micros_per_million
+        + usage.output_tokens * rates.output_micros_per_million
     )
 
     # Integer-only ceiling division: ``-(-a // b)``.

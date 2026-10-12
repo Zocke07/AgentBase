@@ -1225,6 +1225,7 @@ export function KnowledgeView({
         {browserMode === "files" ? (
           <FilesPanel
             spaceId={space.id}
+            folder={space.folder}
             part="editor"
             open={openFile}
             onOpen={setOpenFile}

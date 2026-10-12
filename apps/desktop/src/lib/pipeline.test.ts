@@ -15,7 +15,8 @@ const starter = (path: string): string => {
 };
 
 describe("investment pipeline starters", () => {
-  it("ships the person-supplied inputs and the current keyless sources", () => {
+
+  it("starts with the requested US holdings, cash and explicit unknown purchase data", () => {
     expect(STARTERS.map((entry) => entry.path)).toEqual([
       "config/watchlist.json",
       "config/sources.json",
@@ -28,28 +29,38 @@ describe("investment pipeline starters", () => {
       "visualizations/pipeline.dashboard.json",
     ]);
 
-    expect(JSON.parse(starter("config/watchlist.json"))).toEqual({
-      watchlist: [
-        { ticker: "AAPL", company_name: "Apple Inc.", sector: "Information Technology" },
-        { ticker: "JPM", company_name: "JPMorgan Chase & Co.", sector: "Financials" },
-        { ticker: "JNJ", company_name: "Johnson & Johnson", aliases: ["J&J"], sector: "Health Care" },
-        { ticker: "XOM", company_name: "Exxon Mobil Corporation", aliases: ["ExxonMobil"], sector: "Energy" },
-        { ticker: "PG", company_name: "The Procter & Gamble Company", aliases: ["P&G"], sector: "Consumer Staples" },
-        { ticker: "CAT", company_name: "Caterpillar Inc.", sector: "Industrials" },
-      ],
+    const tickers = ["MU", "ORCL", "CRWV", "MSFT", "NOW", "AVGO"];
+    const watchlist = JSON.parse(starter("config/watchlist.json")) as {
+      watchlist: { ticker: string; company_name: string; aliases: string[]; sector: string; industry: string; exchange: string }[];
+    };
+    expect(watchlist.watchlist.map((entry) => entry.ticker)).toEqual(tickers);
+    expect(watchlist.watchlist.map((entry) => entry.aliases)).toEqual([
+      ["Micron"], ["Oracle"], ["CoreWeave"], ["Microsoft"], ["ServiceNow"], ["Broadcom"],
+    ]);
+    for (const entry of watchlist.watchlist) {
+      expect(entry.company_name).not.toBe("");
+      expect(entry.sector).toBe("Technology");
+      expect(entry.industry).not.toBe("");
+      expect(entry.exchange).toBe("US");
+    }
+    const rows = starter("portfolio/positions.csv").trim().split("\n").slice(1).map((row) => row.split(","));
+    expect(rows.slice(0, 6)).toEqual(tickers.map((ticker) => [ticker, "1", "", "", "Technology", "USD"]));
+    expect(rows[6]).toEqual(["CASH", "2500", "", "", "Cash", "USD"]);
+    expect(JSON.parse(starter("config/limits.json"))).toEqual({
+      max_position_pct: 10,
+      max_sector_pct: 70,
+      max_daily_loss_pct: 3,
     });
-    expect(starter("portfolio/positions.csv")).toBe(
-      "ticker,shares,cost_per_share,opened,sector,currency\nCASH,0,,,Cash,USD\n",
-    );
+  });
 
+  it("configures market discovery, Yahoo headlines and company-report coverage", () => {
     const sources: unknown = JSON.parse(starter("config/sources.json"));
-    expect(sources).toEqual({
-      news: {
-        google_news_rss: {
-          url_template:
-            "https://news.google.com/rss/search?q={ticker}+when:1d&hl=en-US&gl=US&ceid=US:en",
-          auth: "none",
-        },
+    expect(sources).toMatchObject({
+      market: {
+        provider: "yahoo",
+        screeners: ["day_gainers", "day_losers", "most_actives"],
+        limit_per_list: 5,
+        headlines: "https://feeds.finance.yahoo.com/rss/2.0/headline?s={symbols}&region=US&lang=en-US",
       },
       prices: {
         yahoo_chart: {
@@ -59,6 +70,7 @@ describe("investment pipeline starters", () => {
           unofficial: true,
         },
       },
+      reports: { provider: "yahoo", sec_user_agent: "" },
       events: {
         treasury_auctions: {
           url: "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/od/auctions_query",

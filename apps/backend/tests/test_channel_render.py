@@ -47,6 +47,24 @@ def test_the_goal_and_the_run_status_are_rendered() -> None:
     assert "running" in text
 
 
+def test_a_model_cooldown_is_progress_instead_of_a_terminal_error() -> None:
+    view = fold(
+        [
+            *started(),
+            event(
+                4,
+                EventType.LLM_ERROR,
+                {"error": "Too many requests", "will_retry": True, "retry_after_seconds": 60},
+                "supervisor",
+            ),
+        ]
+    )
+    assert view.errors == ()
+    assert "waiting for the model's rate limit to clear" in render(
+        view, limit=DISCORD_MESSAGE_LIMIT
+    )
+
+
 def test_each_spawned_agent_appears_with_its_role() -> None:
     events = [*started(), event(4, EventType.AGENT_SPAWNED, {"role": "Gathers sources"}, "rex")]
 

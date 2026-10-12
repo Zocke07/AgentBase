@@ -82,40 +82,60 @@ const PIPELINE_DASHBOARD: DashboardSpec = {
   columns: 2,
 };
 
-/** An illustrative research universe across six sectors, not a holding list. */
+/** The requested US technology sample; source metadata also aids news matching. */
 const WATCHLIST_TEMPLATE = `${JSON.stringify({
   watchlist: [
-    { ticker: "AAPL", company_name: "Apple Inc.", sector: "Information Technology" },
-    { ticker: "JPM", company_name: "JPMorgan Chase & Co.", sector: "Financials" },
-    { ticker: "JNJ", company_name: "Johnson & Johnson", aliases: ["J&J"], sector: "Health Care" },
-    { ticker: "XOM", company_name: "Exxon Mobil Corporation", aliases: ["ExxonMobil"], sector: "Energy" },
-    { ticker: "PG", company_name: "The Procter & Gamble Company", aliases: ["P&G"], sector: "Consumer Staples" },
-    { ticker: "CAT", company_name: "Caterpillar Inc.", sector: "Industrials" },
+    { ticker: "MU", company_name: "Micron Technology, Inc.", aliases: ["Micron"], sector: "Technology", industry: "Semiconductors", exchange: "US" },
+    { ticker: "ORCL", company_name: "Oracle Corporation", aliases: ["Oracle"], sector: "Technology", industry: "Software - Infrastructure", exchange: "US" },
+    { ticker: "CRWV", company_name: "CoreWeave, Inc.", aliases: ["CoreWeave"], sector: "Technology", industry: "Cloud Infrastructure", exchange: "US" },
+    { ticker: "MSFT", company_name: "Microsoft Corporation", aliases: ["Microsoft"], sector: "Technology", industry: "Software - Infrastructure", exchange: "US" },
+    { ticker: "NOW", company_name: "ServiceNow, Inc.", aliases: ["ServiceNow"], sector: "Technology", industry: "Software - Application", exchange: "US" },
+    { ticker: "AVGO", company_name: "Broadcom Inc.", aliases: ["Broadcom"], sector: "Technology", industry: "Semiconductors", exchange: "US" },
   ],
 }, null, 2)}\n`;
 
-/** The files the investment pipeline starts with, without inventing a holding. */
+/** Starter research inputs; existing user files always take precedence. */
 export const STARTERS: readonly { path: string; content: string; why: string }[] = [
   {
     path: "config/watchlist.json",
-    why: "An illustrative six-company research list across sectors, not a holding list or investment advice. The daily collectors follow these tickers; replace them with companies you actually want followed. Every entry needs a ticker and sector; company_name and aliases improve news matching.",
+    why: "The sample follows MU, ORCL, CRWV, MSFT, NOW and AVGO, plus your saved holdings and daily market candidates. Every entry needs a ticker and sector; company_name and aliases improve news matching. Industry describes subsectors while Technology remains the shared concentration limit.",
     content: WATCHLIST_TEMPLATE,
   },
   {
     path: "config/sources.json",
-    why: "Lists news feeds and event URLs for the collectors. The Yahoo entry documents the price source; read_prices uses its own fixed Yahoo endpoint. Add only a feed or event format an agent understands.",
-    content:
-      '{\n  "news": {\n    "google_news_rss": {\n      "url_template": "https://news.google.com/rss/search?q={ticker}+when:1d&hl=en-US&gl=US&ceid=US:en",\n      "auth": "none"\n    }\n  },\n  "prices": {\n    "yahoo_chart": {\n      "url_template": "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=1y&interval=1d",\n      "auth": "none",\n      "unofficial": true\n    }\n  },\n  "events": {\n    "treasury_auctions": {\n      "url": "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/od/auctions_query",\n      "auth": "none"\n    }\n  }\n}\n',
+    why: "Yahoo Finance supplies daily gainers, losers, high-volume stocks, headlines, prices and annual or quarterly financial figures. Yahoo figures are a secondary source. Optional SEC filings metadata, company facts and bounded filing excerpts require an identifying contact in sec_user_agent; unavailable sources are recorded as coverage gaps.",
+    content: `${JSON.stringify({
+      market: {
+        provider: "yahoo",
+        screeners: ["day_gainers", "day_losers", "most_actives"],
+        limit_per_list: 5,
+        headlines: "https://feeds.finance.yahoo.com/rss/2.0/headline?s={symbols}&region=US&lang=en-US",
+      },
+      prices: {
+        yahoo_chart: {
+          url_template: "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=1y&interval=1d",
+          auth: "none",
+          unofficial: true,
+        },
+      },
+      reports: { provider: "yahoo", sec_user_agent: "" },
+      events: {
+        treasury_auctions: {
+          url: "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/od/auctions_query",
+          auth: "none",
+        },
+      },
+    }, null, 2)}\n`,
   },
   {
     path: "config/limits.json",
     why: "Sets the deterministic guardrails checked before a recommendation: maximum position weight, sector weight and daily loss, all as percentages. Extra keys are not used.",
-    content: '{\n  "max_position_pct": 10,\n  "max_sector_pct": 30,\n  "max_daily_loss_pct": 3\n}\n',
+    content: '{\n  "max_position_pct": 10,\n  "max_sector_pct": 70,\n  "max_daily_loss_pct": 3\n}\n',
   },
   {
     path: "portfolio/positions.csv",
-    why: "Holds the current positions and cash snapshot used for value, P&L, weights and concentration. Keep every holding in one currency and update it yourself.",
-    content: "ticker,shares,cost_per_share,opened,sector,currency\nCASH,0,,,Cash,USD\n",
+    why: "The sample has one share each of MU, ORCL, CRWV, MSFT, NOW and AVGO and $2,500 cash, all USD. Cost and purchase date are unknown and left blank; value and risk still calculate, while cost-based P&L stays unavailable. Replace the sample with your actual holdings and keep one currency per portfolio.",
+    content: "ticker,shares,cost_per_share,opened,sector,currency\nMU,1,,,Technology,USD\nORCL,1,,,Technology,USD\nCRWV,1,,,Technology,USD\nMSFT,1,,,Technology,USD\nNOW,1,,,Technology,USD\nAVGO,1,,,Technology,USD\nCASH,2500,,,Cash,USD\n",
   },
   {
     path: "visualizations/daily-change.viz.json",

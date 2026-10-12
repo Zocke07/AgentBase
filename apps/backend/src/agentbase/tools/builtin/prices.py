@@ -22,6 +22,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import httpx2
 
 from agentbase.tools.base import Prepared, ToolArgumentError, ToolExecutionError
+from agentbase.tools.builtin.forecasts import FORECAST_HORIZONS
 from agentbase.tools.catalogue import RiskLevel, lookup
 
 if TYPE_CHECKING:
@@ -37,6 +38,7 @@ PRICE_URL: Final[str] = (
     "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=1y&interval=1d"
 )
 MAX_PRICE_SYMBOLS: Final[int] = 50
+MAX_TRACKED_SYMBOLS: Final[int] = 500
 MAX_PRICE_BYTES: Final[int] = 1_000_000
 REQUEST_TIMEOUT_SECONDS: Final[float] = 30.0
 _SYMBOL: Final[re.Pattern[str]] = re.compile(r"^[A-Z0-9^=._-]{1,20}$")
@@ -102,21 +104,27 @@ class ReadPricesTool:
                     "minItems": 1,
                     "maxItems": MAX_PRICE_SYMBOLS,
                     "description": (
-                        "One to 50 ticker symbols from config/watchlist.json, "
-                        "such as AAPL or 2330.TW."
+                        "Optional one to 50 symbols. Omit to follow holdings, "
+                        "watchlist, discovered market candidates and refresh "
+                        "every pending forecast's price history."
                     ),
                 }
             },
-            "required": ["symbols"],
+            "required": [],
         }
 
     def prepare(self, arguments: dict[str, Any], sandbox: Sandbox) -> Prepared:
         raw = arguments.get("symbols")
+        active: list[str] | None = None
+        held: list[str] | None = None
+        if raw is None:
+            active, raw, held = _automatic_symbols(sandbox)
         if not isinstance(raw, list) or not raw:
             msg = f"{self.name} needs a non-empty 'symbols' array."
             raise ToolArgumentError(msg)
-        if len(raw) > MAX_PRICE_SYMBOLS:
-            msg = f"{self.name} accepts at most {MAX_PRICE_SYMBOLS} symbols."
+        maximum = MAX_PRICE_SYMBOLS if active is None else MAX_TRACKED_SYMBOLS
+        if len(raw) > maximum:
+            msg = f"{self.name} accepts at most {maximum} symbols."
             raise ToolArgumentError(msg)
 
         symbols: list[str] = []
@@ -160,6 +168,8 @@ class ReadPricesTool:
                 "requests": requests,
                 "summary_path": summary_path,
                 "movers_dir": movers_probe.parent,
+                "active_symbols": active,
+                "held_symbols": held,
             },
             raw_arguments=dict(arguments),
         )
@@ -203,7 +213,25 @@ class ReadPricesTool:
             await asyncio.to_thread(_write_history, request["path"], history)
             written.append(sandbox.relative(request["path"]))
 
-        rows = _mover_rows(histories)
+        active_symbols = prepared.payload.get("active_symbols")
+        active_histories = (
+            histories
+            if active_symbols is None
+            else [history for history in histories if history.ticker in active_symbols]
+        )
+        rows = _mover_rows(active_histories)
+        history_failures = (
+            []
+            if active_symbols is None
+            else [failure for failure in failures if failure["ticker"] not in active_symbols]
+        )
+        failures = [failure for failure in failures if failure not in history_failures]
+        held_symbols = prepared.payload.get("held_symbols")
+        required_failures = (
+            failures
+            if held_symbols is None
+            else [failure for failure in failures if failure["ticker"] in held_symbols]
+        )
         summary_path: Path = prepared.payload["summary_path"]
         await asyncio.to_thread(_write_summary, summary_path, rows)
         written.append(sandbox.relative(summary_path))
@@ -221,13 +249,102 @@ class ReadPricesTool:
         returned = {
             "as_of": as_of,
             "new_session": new_session,
+            "research_needed": _research_needed(sandbox, as_of, rows, now),
             "summary_path": sandbox.relative(summary_path),
             "movers_path": None if movers_path is None else sandbox.relative(movers_path),
             "summary": rows,
             "failures": failures,
+            "required_failures": required_failures,
+            "history_failures": history_failures,
+            "refreshed_histories": len(histories),
             "written": written,
         }
         return json.dumps(returned, ensure_ascii=False, separators=(",", ":"))
+
+
+def _research_needed(
+    sandbox: Sandbox, as_of: str | None, rows: list[dict[str, Any]], now: datetime
+) -> bool:
+    """A same-session retry may finish an interrupted decision and workbook."""
+    if as_of is None or (now.date() - datetime.fromisoformat(as_of).date()).days > 7:
+        return False
+    decision = sandbox.resolve_path(f"decisions/{as_of}.md")
+    ledger = sandbox.resolve_path("predictions/forecasts.json")
+    if not decision.is_file() or not ledger.is_file():
+        return True
+    try:
+        document = json.loads(ledger.read_text(encoding="utf-8"))
+        forecasts = document.get("forecasts", []) if isinstance(document, dict) else []
+        if not isinstance(forecasts, list):
+            return True
+        covered = {
+            (row.get("ticker"), row.get("horizon_days"))
+            for row in forecasts
+            if isinstance(row, dict) and row.get("as_of") == as_of
+        }
+        return any(
+            (row["ticker"], horizon) not in covered
+            for row in rows
+            if row["date"] == as_of and row["currency"] == "USD"
+            for horizon in FORECAST_HORIZONS
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError, TypeError):
+        return True
+
+
+def _automatic_symbols(sandbox: Sandbox) -> tuple[list[str], list[str], list[str]]:
+    """Holdings always participate; retired discoveries stay until scored."""
+    active: list[str] = []
+    tracked: list[str] = []
+    held: list[str] = []
+
+    def add(value: object, target: list[str]) -> None:
+        if not isinstance(value, str) or _SYMBOL.fullmatch(value.strip().upper()) is None:
+            raise ToolArgumentError("Configured market tickers must be valid symbols.")
+        symbol = value.strip().upper()
+        if symbol != "CASH" and symbol not in target:
+            target.append(symbol)
+
+    try:
+        positions = sandbox.resolve_path("portfolio/positions.csv")
+        if positions.exists():
+            for row in csv.DictReader(StringIO(positions.read_text(encoding="utf-8-sig"))):
+                if (row.get("ticker") or "").strip():
+                    add(row["ticker"], active)
+                    add(row["ticker"], held)
+        for shown, key in (
+            ("config/watchlist.json", "watchlist"),
+            ("raw/market/universe.json", "universe"),
+        ):
+            path = sandbox.resolve_path(shown)
+            if not path.exists():
+                continue
+            document = json.loads(path.read_text(encoding="utf-8"))
+            entries = document.get(key, []) if isinstance(document, dict) else document
+            if not isinstance(entries, list):
+                raise ToolArgumentError(f"{shown} needs a {key} array.")
+            for entry in entries:
+                add(entry.get("ticker") if isinstance(entry, dict) else entry, active)
+        if len(active) > MAX_PRICE_SYMBOLS:
+            raise ToolArgumentError(
+                "The active market universe may contain at most 50 symbols."
+            )
+        tracked.extend(active)
+        ledger = sandbox.resolve_path("predictions/forecasts.json")
+        if ledger.exists():
+            document = json.loads(ledger.read_text(encoding="utf-8"))
+            if not isinstance(document, dict) or not isinstance(
+                document.get("forecasts"), list
+            ):
+                raise ToolArgumentError("predictions/forecasts.json needs a forecasts array.")
+            for row in document["forecasts"]:
+                if isinstance(row, dict) and row.get("actual_close") is None:
+                    add(row.get("ticker"), tracked)
+    except (OSError, UnicodeError, json.JSONDecodeError, csv.Error) as exc:
+        raise ToolArgumentError(f"The market universe could not be read: {exc}") from exc
+    if not active:
+        raise ToolArgumentError("Add holdings or a watchlist, or run read_market first.")
+    return active, tracked, held
 
 
 async def _fetch(client: httpx2.AsyncClient, request: dict[str, Any]) -> bytes:

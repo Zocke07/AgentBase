@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
 import { VIEW_LABELS, VISUAL_TEMPLATES, viewsFor, type FileView } from "../lib/fileViews";
+import { openWorkbook, revealAvailable, revealFolder } from "../lib/folder";
 import { STARTERS } from "../lib/pipeline";
 import { scrollToActive } from "../lib/scroll";
 import { fileKind, uniquePath, type FileKind } from "../lib/visualization";
@@ -13,14 +14,16 @@ import { useFetched } from "../state/useFetched";
 import { ChartFile, DashboardFile, DataChart, DiagramFile } from "./FileViews";
 
 /**
- * Space-folder plain-text config/data files (for example, watchlist JSON, raw
- * JSON, positions CSV). The editor validates JSON before saving and uses
- * sidecar note-equivalent path rules. A data file can be drawn as a chart,
- * and a saved chart, dashboard or diagram opens drawn.
+ * Space-folder config/data files and generated Excel workbooks. The text
+ * editor validates JSON before saving and uses sidecar note-equivalent path
+ * rules; workbooks stay binary and are downloaded. A data file can be drawn
+ * as a chart, and a saved chart, dashboard or diagram opens drawn.
  */
 
 export interface FilesPanelProps {
   spaceId: string;
+  /** The space's folder on disk, where the shell opens a workbook from. */
+  folder?: string | undefined;
   /** Render browser list or workspace editor. */
   part: "list" | "editor";
   /** Parent-shared editor file. */
@@ -72,7 +75,12 @@ const DRAWN_TYPES: Partial<Record<FileKind, string>> = {
 };
 
 function typeLabel(path: string): string {
+  if (isWorkbook(path)) return "Excel workbook";
   return DRAWN_TYPES[fileKind(path)] ?? fileType(path);
+}
+
+function isWorkbook(path: string): boolean {
+  return path.toLowerCase().endsWith(".xlsx");
 }
 
 /** The editor's small heading over the file name. */
@@ -106,7 +114,7 @@ function groupLabel(group: string): string {
   return group === "" ? "Space root" : group;
 }
 
-export function FilesPanel({ spaceId, part, open, onOpen, onChanged, reloadNonce = 0 }: FilesPanelProps) {
+export function FilesPanel({ spaceId, folder, part, open, onOpen, onChanged, reloadNonce = 0 }: FilesPanelProps) {
   const load = useCallback(() => api.listFiles(spaceId), [spaceId]);
   const files = useFetched(load, null);
   const list = files.data?.files ?? NO_FILES;
@@ -305,9 +313,23 @@ export function FilesPanel({ spaceId, part, open, onOpen, onChanged, reloadNonce
         </p>
         <p>
           A CSV or JSON file can be drawn as a chart, and a saved chart, dashboard or diagram opens drawn. New ones
-          start from the template list.
+          start from the template list. Generated Excel workbooks offer a download.
         </p>
       </div>
+    );
+  }
+
+  if (isWorkbook(open.path) && !open.fresh) {
+    return (
+      <Workbook
+        key={`${spaceId}:${open.path}`}
+        spaceId={spaceId}
+        folder={folder}
+        path={open.path}
+        onClose={() => {
+          onOpen(null);
+        }}
+      />
     );
   }
 
@@ -331,6 +353,106 @@ export function FilesPanel({ spaceId, part, open, onOpen, onChanged, reloadNonce
         onOpen(null);
       }}
     />
+  );
+}
+
+/**
+ * Workbooks stay binary. In the app the shell opens one in the person's
+ * spreadsheet app, or shows its folder; a browser tab downloads a copy.
+ */
+function Workbook({
+  spaceId,
+  folder,
+  path,
+  onClose,
+}: {
+  spaceId: string;
+  folder: string | undefined;
+  path: string;
+  onClose: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const identity = pathParts(path);
+  const onDisk = revealAvailable() && folder !== undefined ? `${folder}/${path}` : null;
+
+  const act = async (action: () => Promise<void>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await action();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : String(failure));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const download = async () => {
+    const blob = await api.downloadFile(spaceId, path);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = identity.name;
+    link.click();
+    // Revoking at once can cancel the download before it starts.
+    window.setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 60_000);
+  };
+
+  return (
+    <div className="file-editor" data-testid="files-editor">
+      <div className="file-editor__head">
+        <div className="file-editor__identity">
+          <span className="file-editor__eyebrow">Excel workbook</span>
+          <h2>{identity.name}</h2>
+          <p>{identity.directory === "" ? "Space root" : `${identity.directory}/`}</p>
+        </div>
+        <div className="file-editor__actions">
+          <button type="button" className="button button--small" onClick={onClose}>
+            Close
+          </button>
+          {onDisk === null ? (
+            <button type="button" className="button button--small button--primary" disabled={busy} onClick={() => void act(download)}>
+              {busy ? "Downloading…" : "Download Excel workbook"}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="button button--small"
+                disabled={busy}
+                onClick={() => void act(() => revealFolder(onDisk.slice(0, onDisk.lastIndexOf("/"))))}
+              >
+                Show in folder
+              </button>
+              <button
+                type="button"
+                className="button button--small button--primary"
+                disabled={busy}
+                onClick={() => void act(() => openWorkbook(onDisk))}
+              >
+                Open in spreadsheet app
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+      <p className="file-editor__purpose">
+        Each month has its own workbook. Every market session gets a sheet with one row per stock: the prediction
+        for 1 day, 2 days, 3 days, 1 week and 1 month ahead, and the actual closing price beside it once that day
+        has traded. The last sheet lists every forecast with its method, assumptions and sources.
+      </p>
+      <p className="file-editor__hint">
+        Later runs fill in actual prices, so reopen the workbook after a run to see them.
+      </p>
+      {error !== null && (
+        <p className="field-error" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 

@@ -8,6 +8,9 @@ a ``--onefile`` binary create hidden-import freeze issues. Never log bodies
 from __future__ import annotations
 
 import json
+import math
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from typing import TYPE_CHECKING, Any, Final
 
 import httpx2
@@ -32,6 +35,48 @@ __all__ = [
 #: Allow large completions minutes, but bound hung requests that wedge runs.
 DEFAULT_TIMEOUT_SECONDS: Final[float] = 120.0
 
+_QUOTA_CODES: Final[frozenset[str]] = frozenset(
+    {
+        "insufficient_quota",
+        "credit_balance_exhausted",
+        "usage_limit_reached",
+        "organization_usage_limit_exceeded",
+        "billing_hard_limit_reached",
+    }
+)
+
+
+def _retry_after(response: httpx2.Response) -> float | None:
+    value = response.headers.get("retry-after")
+    if not value:
+        return None
+    try:
+        seconds = float(value)
+    except ValueError:
+        try:
+            date = parsedate_to_datetime(value)
+            if date.tzinfo is None:
+                date = date.replace(tzinfo=UTC)
+            seconds = (date - datetime.now(UTC)).total_seconds()
+        except (ValueError, TypeError, OverflowError):
+            return None
+    return max(0.0, seconds) if math.isfinite(seconds) else None
+
+
+def _quota_exhausted(response: httpx2.Response) -> bool:
+    try:
+        body = response.json()
+    except ValueError:
+        return False
+    error = body.get("error") if isinstance(body, dict) else None
+    if not isinstance(error, dict):
+        return False
+    return any(
+        isinstance(code, str)
+        and (code in _QUOTA_CODES or code.endswith("_spend_limit_exceeded"))
+        for code in (error.get("code"), error.get("type"))
+    )
+
 
 def _raise_for_status(response: httpx2.Response, provider: str) -> None:
     """Map HTTP status to retryable/nonretryable provider errors without vendor types."""
@@ -46,15 +91,13 @@ def _raise_for_status(response: httpx2.Response, provider: str) -> None:
         raise ProviderAuthError(msg)
 
     if status == 429:
-        retry_after = response.headers.get("retry-after")
-        seconds: float | None = None
-        if retry_after:
-            try:
-                seconds = float(retry_after)
-            except ValueError:
-                seconds = None
+        quota = _quota_exhausted(response)
         msg = f"{provider} rate limited the request: {detail}"
-        raise ProviderRateLimitedError(msg, retry_after_seconds=seconds)
+        if quota:
+            msg = f"{provider} has reached its usage or billing limit: {detail}"
+        raise ProviderRateLimitedError(
+            msg, retry_after_seconds=_retry_after(response), retryable=not quota
+        )
 
     if status >= 500:
         msg = f"{provider} is unavailable ({status}): {detail}"

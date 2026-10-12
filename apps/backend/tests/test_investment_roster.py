@@ -24,9 +24,9 @@ if TYPE_CHECKING:
 #: Migration 019 lets every stage write its output by policy.
 ROSTER: Final[dict[str, tuple[str, tuple[str, ...], int, tuple[str, ...]]]] = {
     "news-scanner": (
-        "claude-haiku-4-5",
-        ("read_feed", "read_file", "write_file"),
-        20,
+        "claude-haiku-5-5",
+        ("read_market", "read_company_reports"),
+        12,
         ("low", "medium"),
     ),
     "research-librarian": (
@@ -36,33 +36,33 @@ ROSTER: Final[dict[str, tuple[str, tuple[str, ...], int, tuple[str, ...]]]] = {
         ("low", "medium"),
     ),
     "market-movers": (
-        "claude-haiku-4-5",
-        ("read_prices", "read_file"),
+        "claude-haiku-5-5",
+        ("read_prices", "track_forecasts", "read_file"),
         12,
         ("low", "medium"),
     ),
     "event-calendar": (
-        "claude-haiku-4-5",
+        "claude-haiku-5-5",
         ("http_get", "read_file", "write_file"),
         12,
         ("low", "medium"),
     ),
     "portfolio-review": (
-        "claude-haiku-4-5",
+        "claude-haiku-5-5",
         ("compute_portfolio", "read_file", "list_dir", "write_file"),
-        8,
+        12,
         ("low", "medium"),
     ),
     "bull-architect": (
         "claude-sonnet-5-5",
         ("read_file", "list_dir", "search_knowledge", "write_file"),
-        12,
+        20,
         ("low", "medium"),
     ),
     "bear-architect": (
         "claude-sonnet-5-5",
         ("read_file", "list_dir", "search_knowledge", "write_file"),
-        12,
+        20,
         ("low", "medium"),
     ),
     "risk-manager": (
@@ -74,20 +74,21 @@ ROSTER: Final[dict[str, tuple[str, tuple[str, ...], int, tuple[str, ...]]]] = {
     # Seeded on Opus 5; migration 016 moves the untouched row to Opus 5.5.
     "decision": (
         "claude-opus-5-5",
-        ("read_file", "list_dir", "write_file"),
-        8,
+        ("read_file", "list_dir", "write_file", "track_forecasts"),
+        20,
         ("low", "medium"),
     ),
     "review-analyst": (
         "claude-sonnet-5-5",
         (
             "score_predictions",
+            "track_forecasts",
             "read_file",
             "list_dir",
             "write_file",
             "propose_memory",
         ),
-        15,
+        20,
         ("low", "medium"),
     ),
 }
@@ -132,7 +133,8 @@ def test_nothing_seeded_can_run_a_shell_and_only_collectors_fetch(db: Database) 
     fetchers = {
         name
         for name, row in roster.items()
-        if {"http_get", "read_feed"} & set(json.loads(str(row["allowed_tools"])))
+        if {"http_get", "read_feed", "read_market", "read_company_reports"}
+        & set(json.loads(str(row["allowed_tools"])))
     }
     assert fetchers == {"news-scanner", "event-calendar"}
     price_fetchers = {
@@ -152,8 +154,8 @@ def test_the_bear_mirrors_the_bull(db: Database) -> None:
     bull = str(roster["bull-architect"]["system_prompt"])
     bear = str(roster["bear-architect"]["system_prompt"])
 
-    assert "RISE over 1, 3, 5 and 7 trading days" in bull
-    assert "FALL over 1, 3, 5 and 7 trading days" in bear
+    assert "RISE over 1, 2, 3, 5 and 21 trading sessions" in bull
+    assert "FALL over 1, 2, 3, 5 and 21 trading sessions" in bear
     assert '"direction": "up"' in bull and '"direction": "down"' in bear
     assert "theses/bull-{YYYY-MM-DD}.jsonl" in bull and "theses/bear-{YYYY-MM-DD}.jsonl" in bear
     assert "Do not read theses/bear-*" in bull and "Do not read theses/bull-*" in bear
@@ -337,8 +339,7 @@ def test_migration_015_moves_the_untouched_scanner_to_complete_feeds(
     before = _at_version_fourteen(app_paths)
     before.close()
 
-    after = Database(app_paths.db_path)
-    after.connect()
+    after = _at_version_fifteen(app_paths)
     try:
         scanner = _roster(after)["news-scanner"]
     finally:

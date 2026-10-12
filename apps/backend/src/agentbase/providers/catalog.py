@@ -7,7 +7,7 @@ model instead of that provider's default. Pickers list models in this order:
 the current lineup first, then older models that are still sold.
 
 Tiers are a judgement from each provider's own descriptions and prices, not a
-benchmark. Checked 2026-09-30 against platform.claude.com's models overview
+benchmark. Checked 2026-10-12 against platform.claude.com's models overview
 and developers.openai.com's models page.
 """
 
@@ -45,7 +45,7 @@ DEFAULT_TIERS: Final[dict[str, Tier]] = {
     "openai": "balanced",
 }
 
-#: The intended level of each shipped investment agent. GPT-6 Sol stands in
+#: The intended level of each shipped investment agent. GPT-6 and 6.1 Sol stand in
 #: for balanced and strong, so fixed IDs retain their distinction when it is
 #: later repaired to a ChatGPT plan model.
 SHIPPED_AGENT_TIERS: Final[dict[str, Tier]] = {
@@ -83,7 +83,7 @@ _CATALOG: Final[dict[str, tuple[CatalogEntry, ...]]] = {
             "claude-fable-5-1": "frontier",
             "claude-opus-5-5": "strong",
             "claude-sonnet-5-5": "balanced",
-            "claude-haiku-4-5": "fast",
+            "claude-haiku-5-5": "fast",
         },
         {
             "claude-fable-5": "frontier",
@@ -93,18 +93,20 @@ _CATALOG: Final[dict[str, tuple[CatalogEntry, ...]]] = {
             "claude-opus-4-6": "strong",
             "claude-sonnet-5": "balanced",
             "claude-sonnet-4-6": "balanced",
+            "claude-haiku-4-5": "fast",
         },
     ),
-    # GPT-6 has no model between Astra ($10/$50) and Sol ($2/$10), so nothing
+    # GPT-6 has no model between Astra ($10/$50) and Sol 6.1 ($2/$10), so nothing
     # current is "strong": Opus 5.5 moves to Sol, the model OpenAI describes
     # for complex coding and agentic work (maintainer's choice, 2026-09-27).
     "openai": _entries(
         {
             "gpt-6-astra": "frontier",
-            "gpt-6-sol": "balanced",
+            "gpt-6.1-sol": "balanced",
             "gpt-6-luna": "fast",
         },
         {
+            "gpt-6-sol": "balanced",
             "gpt-5.6-sol": "strong",
             "gpt-5.6-terra": "balanced",
             "gpt-5.6-luna": "fast",
@@ -134,7 +136,10 @@ _CATALOG: Final[dict[str, tuple[CatalogEntry, ...]]] = {
 #: plan's strong model, GPT-5.6 Sol, which OpenAI describes for complex work
 #: (maintainer's choice, 2026-09-29). An agent on Sol may have come from
 #: Sonnet 5, so agents keep Sol's own tier.
-_SPACE_STANDS_IN: Final[dict[tuple[str, str], Tier]] = {("openai", "gpt-6-sol"): "strong"}
+_SPACE_STANDS_IN: Final[dict[tuple[str, str], Tier]] = {
+    ("openai", "gpt-6-sol"): "strong",
+    ("openai", "gpt-6.1-sol"): "strong",
+}
 
 #: Anthropic's dated snapshots share their alias's place.
 _SNAPSHOT: Final[re.Pattern[str]] = re.compile(r"^(claude-[a-z0-9-]+?)-\d{8}$")
@@ -227,8 +232,10 @@ def equivalent_for_agent(
     decision agent's strong model. Other models, including a model a person
     chose, continue to map by their catalogue tier.
     """
-    if (source, model) != ("openai", "gpt-6-sol"):
+    if source != "openai" or model not in {"gpt-6-sol", "gpt-6.1-sol"}:
         return equivalent(model, source, target, available)
+    if source == target and (available is None or model in available):
+        return model
     current = lineup(target, available)
     if not current:
         return None

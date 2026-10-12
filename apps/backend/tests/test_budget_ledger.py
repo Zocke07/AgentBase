@@ -194,6 +194,29 @@ async def test_record_writes_a_spend_row_with_integer_micros(
     assert row["period"] == current_period()
 
 
+async def test_long_context_pricing_binds_both_budget_projection_and_recording(
+    ledger: BudgetLedger, store: EventStore, settings: SettingsStore
+) -> None:
+    run_id = await _run_id(store)
+    await settings.update({"monthly_cap_micros": 40_000})
+    # Haiku 5.5 costs $0.0600 at the long-prompt tier. Its short tier would
+    # incorrectly accept this call at $0.0120 against a $0.0400 cap.
+    usage = TokenUsage(input_tokens=120_000)
+    with pytest.raises(BudgetExceededError, match="monthly budget"):
+        await ledger.check(run_id, "claude-haiku-5-5", usage)
+    assert await ledger.spent_micros() == 0
+
+    await settings.update({"monthly_cap_micros": 60_000})
+    await ledger.check(run_id, "claude-haiku-5-5", usage)
+    assert (
+        await ledger.record(
+            run_id=run_id, provider="anthropic", model="claude-haiku-5-5", usage=usage
+        )
+        == 60_000
+    )
+    assert await ledger.spent_micros() == 60_000
+
+
 async def test_spent_micros_sums_the_current_period(
     ledger: BudgetLedger, store: EventStore
 ) -> None:
@@ -683,4 +706,43 @@ async def test_an_abandoned_stream_records_nothing(
         if isinstance(event, TextDelta):
             break
 
+    assert await ledger.spent_micros() == 0
+
+
+async def test_closing_budget_wrapper_releases_the_underlying_stream(
+    ledger: BudgetLedger, store: EventStore
+) -> None:
+    from collections.abc import AsyncGenerator
+
+    class ClosingProvider(StubProvider):
+        closed = False
+
+        async def stream(
+            self,
+            messages: list[Message],
+            tools: list[ToolSpec] | None = None,
+            *,
+            system: str | None = None,
+            max_tokens: int = 4096,
+        ) -> AsyncIterator[StreamEvent]:
+            try:
+                async for event in super().stream(
+                    messages, tools, system=system, max_tokens=max_tokens
+                ):
+                    yield event
+            finally:
+                self.closed = True
+
+    run_id = await _run_id(store)
+    inner = ClosingProvider()
+    guarded = BudgetedProvider(inner, ledger, run_id)
+    stream = guarded.stream([Message(Role.USER, "hi")])
+
+    assert isinstance(stream, AsyncGenerator)
+    assert await anext(stream) == TextDelta("ok")
+    initially_closed = inner.closed
+    assert initially_closed is False
+    await stream.aclose()
+
+    assert inner.closed is True
     assert await ledger.spent_micros() == 0

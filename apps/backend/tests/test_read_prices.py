@@ -61,6 +61,30 @@ def _client() -> tuple[httpx2.AsyncClient, list[httpx2.Request]]:
     return httpx2.AsyncClient(transport=httpx2.MockTransport(handler)), seen
 
 
+async def test_automatic_price_universe_keeps_holdings_and_pending_forecasts(
+    sandbox: Sandbox,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _resolver(monkeypatch)
+    for name, content in {
+        "portfolio/positions.csv": "ticker,shares\nCASH,2500\nAAPL,1\n",
+        "config/watchlist.json": '{"watchlist":[]}',
+        "raw/market/universe.json": '{"universe":[{"ticker":"AAPL"}]}',
+        "predictions/forecasts.json": '{"forecasts":[{"ticker":"2330.TW","actual_close":null}]}',
+    }.items():
+        path = sandbox.root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    client, seen = _client()
+    tool = ReadPricesTool(client)
+    result = json.loads(await tool.execute(tool.prepare({}, sandbox), sandbox))
+    assert {request.url.path.rsplit("/", 1)[-1] for request in seen} == {"AAPL", "2330.TW"}
+    assert [row["ticker"] for row in result["summary"]] == ["AAPL"]
+    assert result["refreshed_histories"] == 2
+    assert (sandbox.root / "raw/prices/2330.TW.csv").is_file()
+    await client.aclose()
+
+
 async def test_read_prices_writes_bounded_history_movers_and_stable_summary(
     sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -211,4 +235,41 @@ async def test_read_prices_enforces_the_per_symbol_response_limit(
     assert result["summary"] == []
     assert "response limit" in result["failures"][0]["error"]
     assert not (sandbox.root / "raw/prices/AAPL.csv").exists()
+    await client.aclose()
+
+
+async def test_same_session_retry_can_finish_missing_forecasts_or_decision(
+    sandbox: Sandbox,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _resolver(monkeypatch)
+    client, _ = _client()
+    tool = ReadPricesTool(client, clock=lambda: datetime(2026, 9, 30, 7, tzinfo=UTC))
+    prepared = tool.prepare({"symbols": ["AAPL"]}, sandbox)
+    first = json.loads(await tool.execute(prepared, sandbox))
+    assert first["new_session"] is True
+    assert first["research_needed"] is True
+    decision = sandbox.root / f"decisions/{first['as_of']}.md"
+    decision.parent.mkdir()
+    decision.write_text("# Reviewed", encoding="utf-8")
+    ledger = sandbox.root / "predictions/forecasts.json"
+    ledger.parent.mkdir()
+    ledger.write_text(
+        json.dumps(
+            {
+                "forecasts": [
+                    {"as_of": first["as_of"], "ticker": "AAPL", "horizon_days": h}
+                    for h in [1, 2, 3, 5, 21]
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    complete = json.loads(await tool.execute(prepared, sandbox))
+    assert complete["new_session"] is False
+    assert complete["research_needed"] is False
+    decision.unlink()
+    interrupted = json.loads(await tool.execute(prepared, sandbox))
+    assert interrupted["new_session"] is False
+    assert interrupted["research_needed"] is True
     await client.aclose()

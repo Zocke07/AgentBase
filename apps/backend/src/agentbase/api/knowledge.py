@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from agentbase.knowledge.store import (
@@ -213,6 +214,24 @@ async def get_file(request: Request, space_id: str, path: str = Query(...)) -> T
         raise _bad_path(exc) from exc
     except NoteNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/download", response_class=FileResponse)
+async def download_workbook(
+    request: Request, space_id: str, path: str = Query(...)
+) -> FileResponse:
+    """Download a visible workbook from this space's folder."""
+    try:
+        resolved = await _store(request).workbook_path(space_id, path)
+    except (SpaceNotFoundError, NoteNotFoundError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KnowledgePathError as exc:
+        raise _bad_path(exc) from exc
+    return FileResponse(
+        resolved,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename=resolved.name,
+    )
 
 
 @router.put("/file")

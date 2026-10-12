@@ -1,9 +1,10 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../lib/api";
+import * as folder from "../lib/folder";
 import { VISUALIZATION_SCHEMA } from "../lib/visualization";
 
 import { FilesPanel, type OpenFile } from "./FilesPanel";
@@ -14,6 +15,13 @@ vi.mock("../lib/api", async (importOriginal) => ({
   getFile: vi.fn(),
   writeFile: vi.fn(),
   deleteFile: vi.fn(),
+  downloadFile: vi.fn(),
+}));
+
+vi.mock("../lib/folder", () => ({
+  revealAvailable: vi.fn(() => false),
+  revealFolder: vi.fn(),
+  openWorkbook: vi.fn(),
 }));
 
 vi.mock("mermaid", () => ({
@@ -40,6 +48,8 @@ beforeEach(() => {
   );
   mocked.deleteFile.mockResolvedValue(undefined);
 });
+
+afterEach(() => { vi.restoreAllMocks(); });
 
 /** Both halves at once, the way the Knowledge view mounts them, sharing the open file. */
 function Both({ onChanged }: { onChanged?: () => void }) {
@@ -132,7 +142,7 @@ describe("data files", () => {
 
     expect(screen.getByRole("heading", { name: "watchlist.json" })).toBeTruthy();
     expect(screen.getByText("config/ · JSON")).toBeTruthy();
-    expect(screen.getByText(/An illustrative six-company research list/)).toBeTruthy();
+    expect(screen.getByText(/The sample follows MU, ORCL, CRWV, MSFT, NOW and AVGO/)).toBeTruthy();
     expect(screen.getByText(/Every entry needs a ticker and sector/)).toBeTruthy();
     expect(screen.queryByText("Unsaved changes")).toBeNull();
 
@@ -147,7 +157,7 @@ describe("data files", () => {
 
     await user.selectOptions(await screen.findByLabelText("Create from template"), "config/sources.json");
     expect(screen.getByLabelText<HTMLInputElement>("File path").value).toBe("config/sources.json");
-    expect(screen.getByLabelText<HTMLTextAreaElement>("File contents").value).toContain("google_news_rss");
+    expect(screen.getByLabelText<HTMLTextAreaElement>("File contents").value).toContain("day_gainers");
     await user.click(screen.getByRole("button", { name: "Save file" }));
     await waitFor(() => {
       expect(mocked.writeFile).toHaveBeenCalledWith(
@@ -165,6 +175,66 @@ describe("data files", () => {
       expect(mocked.deleteFile).toHaveBeenCalledWith("space-lab", "config/sources.json");
     });
     expect(await screen.findByText(/Pick an agent file on the left/)).toBeDefined();
+  });
+
+  it("downloads a monthly workbook as binary without opening a text editor", async () => {
+    const user = userEvent.setup();
+    mocked.listFiles.mockResolvedValue({
+      files: [{ path: "predictions/2026-10.xlsx", size: 2048, updated_at: "2026-10-12T00:00:00Z" }],
+    });
+    const workbook = new Blob([new Uint8Array([80, 75, 3, 4])]);
+    mocked.downloadFile.mockResolvedValue(workbook);
+    const created = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:workbook");
+    const revoked = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    let downloadedName = "";
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      downloadedName = this.download;
+    });
+    render(<Both />);
+
+    await user.click(await screen.findByRole("button", { name: /predictions\/2026-10.xlsx, Excel workbook/ }));
+    expect(screen.queryByLabelText("File contents")).toBeNull();
+    expect(mocked.getFile).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Save file" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Download Excel workbook" }));
+
+    expect(mocked.downloadFile).toHaveBeenCalledWith("space-lab", "predictions/2026-10.xlsx");
+    expect(created).toHaveBeenCalledWith(workbook);
+    expect(downloadedName).toBe("2026-10.xlsx");
+    // Revoked later: at once, it can cancel the download before it starts.
+    expect(revoked).not.toHaveBeenCalled();
+  });
+
+  it("opens a workbook in the spreadsheet app, or shows its folder, inside the app", async () => {
+    vi.mocked(folder.revealAvailable).mockReturnValue(true);
+    vi.mocked(folder.openWorkbook).mockResolvedValue(undefined);
+    vi.mocked(folder.revealFolder).mockResolvedValue(undefined);
+    render(
+      <FilesPanel
+        spaceId="space-lab"
+        folder="/data/spaces/main"
+        part="editor"
+        open={{ path: "predictions/2026-10.xlsx", fresh: false }}
+        onOpen={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Download Excel workbook" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Open in spreadsheet app" }));
+    expect(folder.openWorkbook).toHaveBeenCalledWith("/data/spaces/main/predictions/2026-10.xlsx");
+    await userEvent.click(screen.getByRole("button", { name: "Show in folder" }));
+    expect(folder.revealFolder).toHaveBeenCalledWith("/data/spaces/main/predictions");
+    expect(mocked.downloadFile).not.toHaveBeenCalled();
+    vi.mocked(folder.revealAvailable).mockReturnValue(false);
+  });
+
+  it("shows a workbook download failure without offering text edits", async () => {
+    mocked.downloadFile.mockRejectedValue(new Error("Workbook not found"));
+    render(<FilesPanel spaceId="space-lab" part="editor" open={{ path: "predictions/2026-10.xlsx", fresh: false }} onOpen={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Download Excel workbook" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain("Workbook not found");
+    expect(mocked.getFile).not.toHaveBeenCalled();
   });
 });
 

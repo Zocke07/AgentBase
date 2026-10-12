@@ -53,7 +53,7 @@ DEFAULT_MODEL: Final[str] = "claude-sonnet-5-5"
 #: level; a ChatGPT plan starts on its included strong model. Ollama is typed.
 DEFAULT_MODELS: Final[dict[str, str | None]] = {
     "anthropic": DEFAULT_MODEL,
-    "openai": "gpt-6-sol",
+    "openai": "gpt-6.1-sol",
     "ollama": None,
 }
 
@@ -81,6 +81,9 @@ DEFAULT_AUTO_APPROVE: Final[tuple[RiskLevel, ...]] = (RiskLevel.LOW, RiskLevel.M
 DEFAULT_AUTO_APPROVE_HOSTS: Final[tuple[str, ...]] = (
     "news.google.com",
     "query1.finance.yahoo.com",
+    "feeds.finance.yahoo.com",
+    "www.sec.gov",
+    "data.sec.gov",
     "api.fiscaldata.treasury.gov",
 )
 

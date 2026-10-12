@@ -58,6 +58,32 @@ def test_crud_search_and_graph(client: TestClient) -> None:
     assert client.get(f"{prefix}/note", params={"path": "ideas/agents.md"}).status_code == 404
 
 
+def test_excel_download_is_binary_and_confined_to_visible_space_files(
+    client: TestClient,
+) -> None:
+    prefix = f"/spaces/{DEFAULT_SPACE_ID}/knowledge"
+    folder = client.app.state.spaces.folder_for(DEFAULT_SPACE_ID)  # type: ignore[attr-defined]
+    workbook = folder / "predictions/2026-10.xlsx"
+    workbook.parent.mkdir(parents=True, exist_ok=True)
+    content = b"PK\x03\x04\xff\x00Excel workbook"
+    workbook.write_bytes(content)
+    assert "predictions/2026-10.xlsx" in {
+        row["path"] for row in client.get(f"{prefix}/files").json()["files"]
+    }
+    result = client.get(f"{prefix}/download", params={"path": "predictions/2026-10.xlsx"})
+    assert result.status_code == 200
+    assert result.content == content
+    assert "spreadsheetml.sheet" in result.headers["content-type"]
+    assert "2026-10.xlsx" in result.headers["content-disposition"]
+    assert (
+        client.get(f"{prefix}/file", params={"path": "predictions/2026-10.xlsx"}).status_code
+        == 400
+    )
+    for path in ("../outside.xlsx", ".hidden/report.xlsx", "config/watchlist.json"):
+        assert client.get(f"{prefix}/download", params={"path": path}).status_code == 400
+    assert client.get(f"{prefix}/download", params={"path": "missing.xlsx"}).status_code == 404
+
+
 def test_a_folder_can_be_deleted_with_a_copy_kept_first(client: TestClient) -> None:
     """A folder goes with everything in it, after every file it held is copied
     under `.agentbase/backups/`; the root and hidden folders are refused."""

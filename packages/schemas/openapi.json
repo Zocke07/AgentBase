@@ -5580,6 +5580,48 @@
         "summary": "List Knowledge"
       }
     },
+    "/spaces/{space_id}/knowledge/download": {
+      "get": {
+        "description": "Download a visible workbook from this space's folder.",
+        "operationId": "download_workbook_spaces__space_id__knowledge_download_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Workbook"
+      }
+    },
     "/spaces/{space_id}/knowledge/evaluate": {
       "post": {
         "operationId": "evaluate_knowledge_spaces__space_id__knowledge_evaluate_post",

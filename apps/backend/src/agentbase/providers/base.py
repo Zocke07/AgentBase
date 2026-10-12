@@ -141,11 +141,18 @@ class ProviderAuthError(ProviderError):
 
 
 class ProviderRateLimitedError(ProviderError):
-    """429 or equivalent; retryable after delay."""
+    """429 or equivalent, with a cooldown hint and retry policy."""
 
-    def __init__(self, message: str, retry_after_seconds: float | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        retry_after_seconds: float | None = None,
+        *,
+        retryable: bool = True,
+    ) -> None:
         super().__init__(message)
         self.retry_after_seconds = retry_after_seconds
+        self.retryable = retryable
 
 
 class ProviderUnavailableError(ProviderError):

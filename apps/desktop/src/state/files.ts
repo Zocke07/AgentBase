@@ -14,6 +14,9 @@ export interface WrittenFile {
  */
 const REPORTS_WRITTEN: ReadonlySet<string> = new Set([
   "read_prices",
+  "read_market",
+  "read_company_reports",
+  "track_forecasts",
   "compute_portfolio",
   "check_limits",
   "score_predictions",
@@ -46,7 +49,7 @@ export function isNote(path: string): boolean {
 
 /** Folders the shipped pipeline's runs fill with working data, a day at a time. */
 const WORKING_FOLDERS: readonly string[] = ["raw/", "theses/", "risk/", "scores/"];
-const WORKING_FILES: ReadonlySet<string> = new Set(["portfolio/computed.json", "portfolio/weights.csv"]);
+const WORKING_FILES: ReadonlySet<string> = new Set(["portfolio/computed.json", "portfolio/weights.csv", "predictions/forecasts.json"]);
 
 /**
  * A data file runs write for each other rather than for a person to read: the

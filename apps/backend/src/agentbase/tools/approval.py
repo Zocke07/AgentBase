@@ -333,18 +333,29 @@ class ApprovalService:
             # A network tool names its host in the payload. Policy answers it
             # only for a listed host; any other is a question for a person.
             host = prepared.payload.get("host")
-            if not isinstance(host, str):
+            destinations = prepared.payload.get("hosts")
+            if destinations is None:
+                destinations = [host] if isinstance(host, str) else []
+            valid_destinations = isinstance(destinations, (list, tuple)) and all(
+                isinstance(destination, str) and bool(destination)
+                for destination in destinations
+            )
+            if valid_destinations and not destinations:
                 return await self._auto_approve(
                     run_id, agent, prepared, risk, rule="tool" if by_tool else "level"
                 )
-            if host_matches(host, hosts):
+            allowed_hosts = tuple(hosts)
+            if valid_destinations and all(
+                host_matches(destination, allowed_hosts) for destination in destinations
+            ):
                 return await self._auto_approve(
                     run_id,
                     agent,
                     prepared,
                     risk,
                     rule="tool" if by_tool else "level",
-                    host=host,
+                    host=host if isinstance(host, str) else None,
+                    destinations=destinations,
                 )
 
         # Reuse a denial for the same call so users are not asked twice. A
@@ -453,6 +464,7 @@ class ApprovalService:
         *,
         rule: str,
         host: str | None = None,
+        destinations: list[str] | tuple[str, ...] | None = None,
     ) -> ApprovalDecision:
         """Record and allow a pre-authorized call, naming the rule that answered.
 
@@ -476,6 +488,7 @@ class ApprovalService:
                 "automatic": True,
                 "rule": rule,
                 **({"host": host} if host is not None else {}),
+                **({"hosts": list(destinations)} if destinations else {}),
             },
             agent_id=agent,
         )

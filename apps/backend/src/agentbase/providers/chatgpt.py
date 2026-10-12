@@ -10,7 +10,9 @@ import asyncio
 import contextlib
 import json
 import os
+import re
 import time
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, Literal, Protocol, runtime_checkable
@@ -20,6 +22,7 @@ from openai_codex import (
     AsyncChatgptLoginHandle,
     AsyncCodex,
     AsyncThread,
+    AsyncTurnHandle,
     CodexConfig,
     CodexError,
     Sandbox,
@@ -48,7 +51,9 @@ from agentbase.providers.codex_runtime import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncIterator, Awaitable, Callable
+
+    from openai_codex.models import Notification
 
 __all__ = [
     "ChatGPTAuthStatus",
@@ -220,6 +225,7 @@ async def plan_models(
 
 #: How long an account's model list is trusted before it is asked again.
 _MODELS_TTL_SECONDS: Final[float] = 600.0
+_TURN_INTERRUPT_TIMEOUT_SECONDS: Final[float] = 5.0
 
 
 class CodexAppServerRuntime:
@@ -233,7 +239,13 @@ class CodexAppServerRuntime:
         codex_home: Path,
         installer: CodexRuntimeInstaller | None = None,
         codex: AsyncCodex | None = None,
+        *,
+        min_interval_seconds: float = 5.0,
+        clock: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
+        if min_interval_seconds < 0:
+            raise ValueError("The ChatGPT request interval cannot be negative.")
         self._home = codex_home.resolve()
         self._cwd = self._home / "transport"
         self._installer = installer or CodexRuntimeInstaller(
@@ -245,6 +257,13 @@ class CodexAppServerRuntime:
         self._login_task: asyncio.Task[None] | None = None
         self._login_error: str | None = None
         self._lock = asyncio.Lock()
+        # The sidecar shares one runtime across models and runs. Queue turns
+        # here so independent agents cannot burst requests through one account.
+        self._inference_lock = asyncio.Lock()
+        self._min_interval_seconds = min_interval_seconds
+        self._clock = clock
+        self._sleep = sleep
+        self._last_inference_start: float | None = None
         #: The account's model list and when it was read (monotonic seconds).
         self._models: frozenset[str] | None = None
         self._models_at = 0.0
@@ -451,47 +470,50 @@ class CodexAppServerRuntime:
         system: str | None,
         max_tokens: int,
     ) -> ChatGPTModelResponse:
-        auth = await self.status()
-        if auth.state != "connected":
-            detail = f" ({auth.error})" if auth.error else ""
-            raise ProviderAuthError(
-                f"ChatGPT is not signed in. Connect your subscription in settings{detail}."
-            )
-
-        self._ensure_directories()
-        conversation = [message for message in messages if message.role is not Role.SYSTEM]
-
-        try:
-            thread = await self._start_thread(
-                model,
-                messages,
-                system=system,
-            )
-            result = await thread.run(
-                _decision_prompt(conversation, tools, max_tokens=max_tokens),
-                approval_mode=ApprovalMode.deny_all,
-                output_schema=_OUTPUT_SCHEMA,
-                sandbox=Sandbox.read_only,
-            )
-        except ProviderError:
-            raise
-        except asyncio.CancelledError:
-            raise
-        except (CodexError, RuntimeError) as exc:
-            raise _mapped_provider_error(exc, model) from exc
-
-        if result.final_response is None:
+        # Both entry points observe terminal notifications directly. The SDK's
+        # collected run result otherwise hides a failed turn's limit metadata.
+        response: ChatGPTModelResponse | None = None
+        async for event in self.stream_infer(
+            model, messages, tools, system=system, max_tokens=max_tokens
+        ):
+            if isinstance(event, ChatGPTModelResponse):
+                response = event
+        if response is None:
             raise ProviderError("ChatGPT returned no structured response.")
+        return response
 
-        usage = TokenUsage()
-        if result.usage is not None:
-            usage = _usage(result.usage)
-        return _parse_decision(
-            result.final_response,
-            model=model,
-            turn_id=result.id,
-            usage=usage,
-        )
+    @contextlib.asynccontextmanager
+    async def _inference_slot(self) -> AsyncIterator[None]:
+        """Serialize turns and space their starts, releasing on cancellation."""
+        async with self._inference_lock:
+            if self._last_inference_start is not None:
+                delay = self._last_inference_start + self._min_interval_seconds - self._clock()
+                if delay > 0:
+                    await self._sleep(delay)
+            self._last_inference_start = self._clock()
+            yield
+
+    async def _turn_notifications(
+        self, turn: AsyncTurnHandle
+    ) -> AsyncGenerator[Notification, None]:
+        """Stop an abandoned remote turn before releasing the local permit."""
+        completed = False
+        notifications = turn.stream()
+        try:
+            async for event in notifications:
+                if event.method == "turn/completed":
+                    completed = True
+                yield event
+        finally:
+            if not completed:
+                # Cleanup must neither replace the original model failure nor
+                # leave cancellation waiting indefinitely on a closed server.
+                with contextlib.suppress(Exception):
+                    async with asyncio.timeout(_TURN_INTERRUPT_TIMEOUT_SECONDS):
+                        await turn.interrupt()
+            if isinstance(notifications, AsyncGenerator):
+                with contextlib.suppress(Exception):
+                    await notifications.aclose()
 
     async def _start_thread(
         self,
@@ -546,51 +568,61 @@ class CodexAppServerRuntime:
         turn_id = ""
 
         try:
-            thread = await self._start_thread(model, messages, system=system)
-            turn = await thread.turn(
-                _decision_prompt(conversation, tools, max_tokens=max_tokens),
-                approval_mode=ApprovalMode.deny_all,
-                output_schema=_OUTPUT_SCHEMA,
-                sandbox=Sandbox.read_only,
-            )
-            turn_id = turn.id
-            async for event in turn.stream():
-                # ``method`` discriminates the SDK's broad notification union.
-                payload: Any = event.payload
-                if event.method == "item/agentMessage/delta":
-                    item_id = str(payload.item_id)
-                    buffers[item_id] = buffers.get(item_id, "") + str(payload.delta)
-                    visible = _visible_structured_text(buffers[item_id])
-                    if visible is not None and streamed_item is None:
-                        streamed_item = item_id
-                    if streamed_item == item_id and visible is not None:
-                        delta = visible[len(emitted) :] if visible.startswith(emitted) else ""
-                        if delta:
-                            emitted = visible
-                            yield ChatGPTModelDelta(delta)
-                    continue
-                if event.method == "thread/tokenUsage/updated":
-                    usage = _usage(payload.token_usage)
-                    continue
-                if event.method == "item/completed":
-                    item = getattr(payload.item, "root", payload.item)
-                    text = getattr(item, "text", None)
-                    if not isinstance(text, str):
-                        continue
-                    phase = getattr(item, "phase", None)
-                    phase_value = getattr(phase, "value", phase)
-                    if phase_value == "final_answer":
-                        final_response = text
-                    elif phase is None:
-                        fallback_response = text
-                    continue
-                if event.method == "turn/completed":
-                    completed = payload.turn
-                    status = getattr(completed.status, "value", completed.status)
-                    if status == "failed":
-                        error = getattr(completed, "error", None)
-                        message = getattr(error, "message", None)
-                        raise RuntimeError(message or "ChatGPT model turn failed.")
+            async with self._inference_slot():
+                thread = await self._start_thread(model, messages, system=system)
+                turn = await thread.turn(
+                    _decision_prompt(conversation, tools, max_tokens=max_tokens),
+                    approval_mode=ApprovalMode.deny_all,
+                    output_schema=_OUTPUT_SCHEMA,
+                    sandbox=Sandbox.read_only,
+                )
+                turn_id = turn.id
+                async with contextlib.aclosing(self._turn_notifications(turn)) as notifications:
+                    async for event in notifications:
+                        # ``method`` discriminates the SDK's broad notification union.
+                        payload: Any = event.payload
+                        if event.method == "item/agentMessage/delta":
+                            item_id = str(payload.item_id)
+                            buffers[item_id] = buffers.get(item_id, "") + str(payload.delta)
+                            visible = _visible_structured_text(buffers[item_id])
+                            if visible is not None and streamed_item is None:
+                                streamed_item = item_id
+                            if streamed_item == item_id and visible is not None:
+                                delta = (
+                                    visible[len(emitted) :]
+                                    if visible.startswith(emitted)
+                                    else ""
+                                )
+                                if delta:
+                                    emitted = visible
+                                    yield ChatGPTModelDelta(delta)
+                            continue
+                        if event.method == "thread/tokenUsage/updated":
+                            usage = _usage(payload.token_usage)
+                            continue
+                        if event.method == "item/completed":
+                            item = getattr(payload.item, "root", payload.item)
+                            text = getattr(item, "text", None)
+                            if not isinstance(text, str):
+                                continue
+                            phase = getattr(item, "phase", None)
+                            phase_value = getattr(phase, "value", phase)
+                            if phase_value == "final_answer":
+                                final_response = text
+                            elif phase is None:
+                                fallback_response = text
+                            continue
+                        if event.method == "turn/completed":
+                            completed = payload.turn
+                            status = getattr(completed.status, "value", completed.status)
+                            if status == "failed":
+                                error = getattr(completed, "error", None)
+                                message = getattr(error, "message", None)
+                                raise _mapped_provider_error(
+                                    RuntimeError(message or "ChatGPT model turn failed."),
+                                    model,
+                                    codex_error_info=getattr(error, "codex_error_info", None),
+                                )
         except ProviderError:
             raise
         except asyncio.CancelledError:
@@ -666,24 +698,31 @@ class ChatGPTSubscriptionProvider:
             yield completion
             return
 
-        async for event in self._runtime.stream_infer(
+        events = self._runtime.stream_infer(
             self._model,
             messages,
             tools,
             system=system,
             max_tokens=max_tokens,
-        ):
-            if isinstance(event, ChatGPTModelDelta):
-                yield TextDelta(event.text)
-            else:
-                yield Completion(
-                    provider=self.name,
-                    model=event.model,
-                    text=event.text,
-                    usage=event.usage,
-                    tool_calls=event.tool_calls,
-                    stop_reason=event.stop_reason,
-                )
+        )
+        try:
+            async for event in events:
+                if isinstance(event, ChatGPTModelDelta):
+                    yield TextDelta(event.text)
+                else:
+                    yield Completion(
+                        provider=self.name,
+                        model=event.model,
+                        text=event.text,
+                        usage=event.usage,
+                        tool_calls=event.tool_calls,
+                        stop_reason=event.stop_reason,
+                    )
+        finally:
+            # A consumer may stop between deltas while the runtime holds its
+            # request permit. Closing the wrapper must release that permit too.
+            if isinstance(events, AsyncGenerator):
+                await events.aclose()
 
 
 def _decision_prompt(
@@ -863,25 +902,75 @@ def _visible_structured_text(encoded: str) -> str | None:
     return visible if isinstance(visible, str) else None
 
 
-def _mapped_provider_error(exc: CodexError | RuntimeError, model: str) -> ProviderError:
-    if isinstance(exc, ServerBusyError):
-        return ProviderRateLimitedError(_safe_error(exc))
+def _mapped_provider_error(
+    exc: CodexError | RuntimeError,
+    model: str,
+    *,
+    codex_error_info: Any = None,
+) -> ProviderError:
     message = _safe_error(exc)
+    lowered = message.lower()
     # The service answers a model the plan lacks with raw JSON; say what it
     # means and what to do. The model is never swapped for another.
-    if "not supported when using codex with a chatgpt account" in message.lower():
+    if "not supported when using codex with a chatgpt account" in lowered:
         return ProviderModelUnavailableError(
             f"Your ChatGPT subscription does not include {model}. Choose a model your "
             f"plan includes in Space settings (or the agent's own model), or use an "
             f"OpenAI API key in Settings."
         )
-    if isinstance(exc, CodexError):
-        lowered = message.lower()
-        if "auth" in lowered or "login" in lowered or "401" in lowered:
-            return ProviderAuthError(message)
-        if "rate limit" in lowered or "usage limit" in lowered:
-            return ProviderRateLimitedError(message)
+    if isinstance(exc, CodexError) and (
+        "auth" in lowered or "login" in lowered or "401" in lowered
+    ):
+        return ProviderAuthError(message)
+    limit_kind = _codex_limit_kind(codex_error_info) or _codex_limit_kind(
+        getattr(exc, "data", None)
+    )
+    confirmed_usage_text = re.search(
+        r"\byou['\u2019]ve hit your usage limit\b|\busage[_-]limit[_-](?:reached|exceeded)\b",
+        lowered,
+    )
+    if limit_kind == "usage" or confirmed_usage_text:
+        return ProviderRateLimitedError(
+            f"ChatGPT usage limit reached for {model}. Check your ChatGPT/Codex usage "
+            f"limits and retry after the limit resets. Details: {message}",
+            retryable=False,
+        )
+    if limit_kind == "rate" or re.search(
+        r"\b429\b|\btoo\s+many\s+requests\b|\b(?:rate|usage)[\s_-]+limit\b", lowered
+    ):
+        # App Server already retries a model turn. AgentBase may apply a bounded
+        # cooldown, with this original failure retained if that also fails.
+        return ProviderRateLimitedError(
+            f"ChatGPT limited requests for {model}. Wait before retrying; check your "
+            f"ChatGPT/Codex usage limits if this continues. This may be temporary "
+            f"throttling or a subscription usage limit. Details: {message}"
+        )
+    if isinstance(exc, ServerBusyError):
+        return ProviderRateLimitedError(message)
     return ProviderUnavailableError(message)
+
+
+def _codex_limit_kind(info: Any) -> Literal["usage", "rate"] | None:
+    """Read SDK RootModel/enum flags and JSON-RPC error metadata."""
+    value = getattr(info, "root", info)
+    value = getattr(value, "value", value)
+    if isinstance(value, str):
+        normalized = value.replace("_", "").lower()
+        if normalized in {
+            "usagelimitexceeded",
+            "usagelimitreached",
+            "workspaceownerusagelimitreached",
+            "workspacememberusagelimitreached",
+        }:
+            return "usage"
+        if normalized == "ratelimitexceeded":
+            return "rate"
+    if isinstance(value, dict):
+        for key in ("codex_error_info", "codexErrorInfo", "errorInfo", "error"):
+            kind = _codex_limit_kind(value.get(key))
+            if kind is not None:
+                return kind
+    return None
 
 
 def _safe_error(exc: BaseException) -> str:

@@ -492,10 +492,15 @@ describe("working on its own", () => {
     const offer = await screen.findByTestId("pipeline-offer");
     expect(offer.textContent).toContain("before spending $2.00");
     expect(offer.textContent).toContain("watchlist and positions");
-    expect(offer.textContent).toContain("illustrative six-company watchlist");
+    expect(offer.textContent).toContain("MU, ORCL, CRWV, MSFT, NOW and AVGO");
+    expect(offer.textContent).toContain("$2,500 USD cash");
+    expect(offer.textContent).toContain("Purchase prices and dates are blank");
+    expect(offer.textContent).toContain("70% per sector");
     expect(offer.textContent).toContain("Agent files");
-    expect(offer.textContent).toContain("Reddit");
-    expect(offer.textContent).toContain("SEC filings");
+    expect(offer.textContent).toContain("Yahoo Finance top gainers, losers");
+    expect(offer.textContent).toContain("one Excel file per month");
+    expect(offer.textContent).toContain("1, 2, 3, 5 and 21 trading days");
+    expect(offer.textContent).toContain("Keep AgentBase open");
     await user.click(screen.getByTestId("pipeline-turn-on"));
 
     await waitFor(() => {

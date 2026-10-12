@@ -708,6 +708,37 @@ async def test_rate_limit_carries_retry_after() -> None:
     assert excinfo.value.retry_after_seconds == 30.0
 
 
+@pytest.mark.parametrize(
+    "code",
+    ["insufficient_quota", "organization_usage_limit_exceeded", "project_spend_limit_exceeded"],
+)
+async def test_quota_errors_are_not_retryable(code: str) -> None:
+    provider = OpenAIProvider(
+        "k",
+        "gpt-5.4",
+        client=mock_client({"error": {"message": "Limit reached", "code": code}}, 429),
+    )
+    with pytest.raises(ProviderRateLimitedError) as excinfo:
+        await provider.complete([Message(role=Role.USER, content="hi")])
+    assert excinfo.value.retryable is False
+    assert "usage or billing limit" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("header", ["NaN", "inf", "invalid"])
+async def test_invalid_retry_after_is_ignored(header: str) -> None:
+    provider = OpenAIProvider(
+        "k",
+        "gpt-5.4",
+        client=mock_client(
+            {"error": {"message": "Slow down"}}, 429, headers={"retry-after": header}
+        ),
+    )
+    with pytest.raises(ProviderRateLimitedError) as excinfo:
+        await provider.complete([Message(role=Role.USER, content="hi")])
+    assert excinfo.value.retryable is True
+    assert excinfo.value.retry_after_seconds is None
+
+
 async def test_a_transport_failure_becomes_provider_unavailable() -> None:
     """An httpx2 exception escaping would couple every caller to this module's
     choice of HTTP client."""

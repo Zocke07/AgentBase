@@ -121,6 +121,16 @@ CATALOGUE: Final[tuple[ToolDeclaration, ...]] = (
         risk=RiskLevel.MEDIUM,
     ),
     ToolDeclaration(
+        name="read_market",
+        description="Discover Yahoo Finance gainers, losers, active stocks and company headlines.",
+        risk=RiskLevel.MEDIUM,
+    ),
+    ToolDeclaration(
+        name="read_company_reports",
+        description="Read cited annual and quarterly financial data for watched companies.",
+        risk=RiskLevel.MEDIUM,
+    ),
+    ToolDeclaration(
         name="read_prices",
         description=(
             "Fetch one year of daily prices for watchlist symbols, compute "
@@ -149,6 +159,14 @@ CATALOGUE: Final[tuple[ToolDeclaration, ...]] = (
         description=(
             "Resolve thesis predictions against saved trading sessions and write "
             "the append-only ledger, monthly scorecard, accuracy, and calibration files."
+        ),
+        risk=RiskLevel.MEDIUM,
+    ),
+    ToolDeclaration(
+        name="track_forecasts",
+        description=(
+            "Record five forecast horizons, fill actual completed closes and rebuild "
+            "monthly Excel workbooks with one sheet per market session."
         ),
         risk=RiskLevel.MEDIUM,
     ),

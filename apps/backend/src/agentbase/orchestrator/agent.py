@@ -12,8 +12,10 @@ constraint 5). Refuse out-of-workspace paths before composing an approval.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import random
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Final
@@ -28,6 +30,7 @@ from agentbase.providers.base import (
     Completion,
     Message,
     ProviderError,
+    ProviderRateLimitedError,
     Role,
     TextDelta,
 )
@@ -37,6 +40,8 @@ from agentbase.tools.catalogue import is_registered
 from agentbase.tools.sandbox import SandboxViolationError, UrlNotAllowedError
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
     from agentbase.orchestrator.run import Mailbox, Run
     from agentbase.providers.base import Provider, ToolCall, ToolSpec
     from agentbase.tools.catalogue import RiskLevel
@@ -69,6 +74,11 @@ _CUT_OFF_NUDGE: Final[str] = (
 #: Repeated identical failures or calls before stopping the agent; retries
 #: spend a full context window without learning.
 MAX_SAME_FAILURES: Final[int] = 3
+
+# Codex already retries internally. Allow only two additional cooldowns and
+# never replay a request whose streamed output has already reached the log.
+_RATE_COOLDOWNS: Final[tuple[float, ...]] = (60.0, 120.0)
+_MAX_RATE_COOLDOWN: Final[float] = 180.0
 
 #: All control calls distinguish denial from an unknown-tool error.
 _ALL_CONTROL_NAMES: Final[frozenset[str]] = SUPERVISOR_CONTROL_NAMES | WORKER_CONTROL_NAMES
@@ -164,6 +174,9 @@ class Agent:
         tools: list[ToolSpec],
         supervisor_name: str,
         runtime: ToolRuntime | None = None,
+        *,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        retry_jitter: Callable[[], float] = random.random,
     ) -> None:
         self._run = run
         self._mailbox = mailbox
@@ -174,6 +187,8 @@ class Agent:
         #: ``None`` permits no catalogue execution (supervisor); permitted
         #: calls then return ``tool.error``.
         self._runtime = runtime
+        self._sleep = sleep
+        self._retry_jitter = retry_jitter
 
     @property
     def name(self) -> str:
@@ -313,37 +328,103 @@ class Agent:
         return cost_micros(model, projected)
 
     async def _call_model(self, messages: list[Message], step: int) -> Completion:
-        """Make one streamed request and log every stage."""
+        """Retry temporary throttling within this step and the run's limits."""
+        for attempt in range(len(_RATE_COOLDOWNS) + 1):
+            self._run.check_deadline()
+            await self._run.check_cost(self._next_call_micros(messages))
+            try:
+                return await self._stream_model(messages, step, attempt)
+            except ProviderError as exc:
+                delay = (
+                    self._rate_delay(exc, attempt)
+                    if isinstance(exc, ProviderRateLimitedError)
+                    else None
+                )
+                await self._emit(
+                    EventType.LLM_ERROR,
+                    {
+                        "error": str(exc),
+                        "will_retry": delay is not None,
+                        "retry_after_seconds": delay,
+                        "attempt": attempt + 1,
+                    },
+                )
+                if delay is None:
+                    raise
+                # Poll cancellation during the cooldown instead of holding a
+                # stopped run open for a minute or more.
+                remaining = delay
+                while remaining > 0:
+                    self._run.check_deadline()
+                    interval = min(remaining, 1.0)
+                    await self._sleep(interval)
+                    remaining -= interval
+        raise AssertionError("rate retry loop exhausted without a result")
+
+    def _rate_delay(self, exc: ProviderRateLimitedError, attempt: int) -> float | None:
+        if not exc.retryable or attempt >= len(_RATE_COOLDOWNS):
+            return None
+        delay = max(
+            _RATE_COOLDOWNS[attempt] + 5.0 * self._retry_jitter(),
+            exc.retry_after_seconds or 0.0,
+        )
+        if delay > _MAX_RATE_COOLDOWN or delay + 5.0 >= self._run.remaining_seconds():
+            return None
+        return delay
+
+    async def _stream_model(
+        self, messages: list[Message], step: int, attempt: int
+    ) -> Completion:
+        """Make one streamed attempt and log every stage."""
         await self._emit(
             EventType.LLM_REQUEST,
             {
                 "provider": self._provider.name,
                 "model": self._provider.model,
                 "step": step,
+                "attempt": attempt + 1,
                 "messages": [message.as_payload() for message in messages],
             },
         )
 
         completion: Completion | None = None
+        visible_output = False
+        propagating_error = False
+        stream = self._provider.stream(
+            messages,
+            self._tools,
+            system=self._spec.system_prompt,
+            max_tokens=MAX_OUTPUT_TOKENS,
+        )
         try:
-            async for event in self._provider.stream(
-                messages,
-                self._tools,
-                system=self._spec.system_prompt,
-                max_tokens=MAX_OUTPUT_TOKENS,
-            ):
+            async for event in stream:
                 if isinstance(event, TextDelta):
+                    visible_output = visible_output or bool(event.text)
                     await self._emit(EventType.LLM_TOKEN, {"text": event.text})
                 else:
                     completion = event
-        except ProviderError as exc:
-            await self._emit(EventType.LLM_ERROR, {"error": str(exc)})
+        except BaseException as exc:
+            propagating_error = True
+            if isinstance(exc, ProviderRateLimitedError) and (
+                visible_output or completion is not None
+            ):
+                exc.retryable = False
             raise
+        finally:
+            close = getattr(stream, "aclose", None)
+            if close is not None:
+                try:
+                    await close()
+                except Exception:
+                    if not propagating_error:
+                        raise
+                    logger.warning(
+                        "Model stream cleanup failed while another error was propagating"
+                    )
 
         if completion is None:
             # Provider protocol guarantees terminal completion.
             msg = f"{self._provider.name} ended the stream with no completion"
-            await self._emit(EventType.LLM_ERROR, {"error": msg})
             raise ProviderError(msg)
 
         await self._emit(

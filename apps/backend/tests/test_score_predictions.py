@@ -101,7 +101,7 @@ def _theses(sandbox: Sandbox) -> None:
         "00000000-0000-4000-8000-000000000003",
         as_of="2026-09-01T22:00:00Z",
         agent="bull",
-        horizon=2,
+        horizon=4,
         direction="up",
         band="1-3%",
         confidence=0.70,

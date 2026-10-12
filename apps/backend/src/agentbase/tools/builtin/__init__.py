@@ -9,12 +9,15 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Final
 
 from agentbase.tools.builtin.filesystem import ListDirTool, ReadFileTool, WriteFileTool
+from agentbase.tools.builtin.forecasts import TrackForecastsTool
 from agentbase.tools.builtin.knowledge import SearchKnowledgeTool
 from agentbase.tools.builtin.limits import CheckLimitsTool
+from agentbase.tools.builtin.market import ReadMarketTool
 from agentbase.tools.builtin.memory import ProposeMemoryTool
 from agentbase.tools.builtin.network import HttpGetTool, ReadFeedTool
 from agentbase.tools.builtin.portfolio import ComputePortfolioTool
 from agentbase.tools.builtin.prices import ReadPricesTool
+from agentbase.tools.builtin.research import ReadCompanyReportsTool
 from agentbase.tools.builtin.scoring import ScorePredictionsTool
 from agentbase.tools.builtin.shell import RunShellTool
 
@@ -28,12 +31,15 @@ __all__ = [
     "HttpGetTool",
     "ListDirTool",
     "ProposeMemoryTool",
+    "ReadCompanyReportsTool",
     "ReadFeedTool",
     "ReadFileTool",
+    "ReadMarketTool",
     "ReadPricesTool",
     "RunShellTool",
     "ScorePredictionsTool",
     "SearchKnowledgeTool",
+    "TrackForecastsTool",
     "WriteFileTool",
     "build_registry",
 ]
@@ -47,10 +53,13 @@ BUILTIN_TOOLS: Final[tuple[type[Tool], ...]] = (
     WriteFileTool,
     HttpGetTool,
     ReadFeedTool,
+    ReadMarketTool,
+    ReadCompanyReportsTool,
     ReadPricesTool,
     ComputePortfolioTool,
     CheckLimitsTool,
     ScorePredictionsTool,
+    TrackForecastsTool,
     RunShellTool,
 )
 
