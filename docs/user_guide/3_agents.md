@@ -9,41 +9,46 @@ supervisor can delegate to; the orchestrator's supervisor is not editable here.
 
 ### The investment roster
 
-Fresh-install **Main** contains a ten-agent investment-research pipeline and
-five schedules that run it once you turn them on (see
+Fresh-install **Main** contains a ten-agent investment-research pipeline, the
+`market-explainer` for market alerts, and five schedules that run the pipeline
+once you turn them on (see
 [Automations](2_running_tasks.md#automations-work-on-its-own)). Built-ins are
 editable, disableable, and movable but not deletable. They exchange ordinary
 files in `config/`, `raw/`, `knowledge/`, `portfolio/`, `theses/`, `risk/`,
-`decisions/`, and `scores/`.
+`decisions/`, `predictions/`, and `scores/`.
 
 **Turn on the daily pipeline** creates nine missing starter files without
-replacing an existing file: an illustrative six-company watchlist, keyless
-sources, risk limits, a zero-cash positions template, four stable chart
-definitions, and the investment dashboard. The list is a research example,
-not a portfolio or a recommendation to buy those shares.
+replacing an existing file: the sample watchlist and positions, public data
+sources, risk limits, four stable chart definitions, and
+the investment dashboard. The sample holds one share each of MU, ORCL, CRWV,
+MSFT, NOW and AVGO and $2,500 USD cash. It is a research example; replace it
+with your real records before relying on the results. Unknown purchase costs
+and dates stay blank.
 
 | Agent | Shipped model | What it does | Distinctive tools |
 |---|---|---|---|
-| `news-scanner` | Claude Haiku 4.5 | Collects bounded news entries into `raw/news-*.json`. No analysis. | `read_feed` |
-| `research-librarian` | Claude Sonnet 5.5 | Maintains concept notes from local knowledge and company notes when you supplied filing text. | `search_knowledge`, `propose_memory` |
-| `market-movers` | Claude Haiku 4.5 | Collects and computes watchlist prices and movers into stable and dated files. | `read_prices` |
-| `event-calendar` | Claude Haiku 4.5 | Builds a 30-day calendar from the configured Treasury source only. | `http_get` |
-| `portfolio-review` | Claude Haiku 4.5 | Computes and describes the current book. Never recommends. | `compute_portfolio` |
+| `news-scanner` | Claude Haiku 5.5 | Discovers Yahoo movers and headlines, keeps holdings in the universe, and collects annual or quarterly financial facts and available SEC excerpts. No analysis. | `read_market`, `read_company_reports` |
+| `research-librarian` | Claude Sonnet 5.5 | Interprets saved financial facts and filing excerpts to maintain company and concept notes. | `search_knowledge`, `propose_memory` |
+| `market-movers` | Claude Haiku 5.5 | Collects complete prices for the research universe and updates actual prices in existing forecast workbooks. | `read_prices`, `track_forecasts` |
+| `event-calendar` | Claude Haiku 5.5 | Builds a 30-day calendar from the configured Treasury source only. | `http_get` |
+| `portfolio-review` | Claude Haiku 5.5 | Computes and describes the current book. Never recommends. | `compute_portfolio` |
 | `bull-architect` | Claude Sonnet 5.5 | Writes the strongest evidence-based rise cases as scored predictions. | file and knowledge tools |
 | `bear-architect` | Claude Sonnet 5.5 | Writes the strongest evidence-based fall cases as scored predictions. | file and knowledge tools |
 | `risk-manager` | Claude Sonnet 5.5 | Restates deterministic rule results, keeps its veto, then adds qualitative risks. | `check_limits` |
-| `decision` | Claude Opus 5.5 | Arbitrates the two cases and risk checks into a recommendation for you. | file tools |
-| `review-analyst` | Claude Sonnet 5.5 | Scores predictions and diagnoses misses without hindsight. | `score_predictions`, `propose_memory` |
+| `decision` | Claude Opus 5.5 | Arbitrates the two cases and risk checks into a recommendation and records conditional forecasts or labeled baselines. | `track_forecasts`, file tools |
+| `review-analyst` | Claude Sonnet 5.5 | Scores predictions, refreshes forecast actuals and diagnoses misses without hindsight. | `score_predictions`, `track_forecasts`, `propose_memory` |
+| `market-explainer` | the news scanner's model | Explains a market alert from the day's headlines and saved research, citing each source; never predicts or recommends. Started by [Market watch](2_running_tasks.md#market-watch-alerts-for-sudden-moves). | `read_feed`, file and knowledge tools |
 
 Definitions use fast, balanced, or strong models independently of the space's
 model. On OpenAI, collectors and portfolio review move to GPT-6 Luna, balanced
-agents move to GPT-6 Sol, and `decision` keeps its strong intended level even
-though GPT-6 Sol covers both levels. On a ChatGPT plan without GPT-6 Sol,
+agents move to GPT-6.1 Sol, and `decision` keeps its strong intended level even
+though GPT-6.1 Sol covers both levels. On a ChatGPT plan without that model,
 balanced shipped agents move to GPT-5.6 Terra and `decision` moves to GPT-5.6
-Sol automatically. A model you chose yourself maps by its catalog level.
+Sol when you apply the provider switch or plan repair. A model you chose yourself
+maps by its catalog level.
 
 Prompts treat fetched pages and `raw/` files as untrusted; no built-in uses
-shell. The four computation tools are medium risk. Under the default
+shell. The data and computation tools are medium risk. Under the default
 **Autonomous** policy, low- and medium-risk calls can run unattended when their
 host and tool are allowed. An upgraded install keeps its saved approval and
 host settings.
@@ -57,31 +62,69 @@ new scheduler and migration are loaded.
 
 Before the first collector run, review these under **Knowledge → Agent files**:
 
-- `config/watchlist.json`: the starter follows AAPL, JPM, JNJ, XOM, PG and CAT,
-  one from each of six sectors. Replace any you do not want followed, or add
-  others up to 50 entries. Each needs a `ticker` and non-empty `sector`;
-  `company_name` and `aliases` help news matching.
+- `config/watchlist.json`: the starter follows MU, ORCL, CRWV, MSFT, NOW and
+  AVGO in the US market. Holdings are followed even when absent from the
+  watchlist. Daily discovery adds Yahoo Finance's top gainers, losers and
+  most active stocks, up to five from each list. Each configured entry needs
+  a `ticker` and non-empty `sector`; `company_name` and `aliases` help news
+  matching, and `industry` describes its subsector.
 - `portfolio/positions.csv`: keep the header
   `ticker,shares,cost_per_share,opened,sector,currency`. Enter current holdings
-  plus a `CASH` row, use one ISO currency throughout, and maintain the snapshot
-  yourself.
+  plus a `CASH` row whose `shares` is the cash amount, use one ISO currency
+  throughout, and maintain the snapshot yourself. Blank `cost_per_share` and
+  `opened` mean unknown, so market value and weights still calculate while
+  cost-based P&L and holding age remain unavailable.
 
-The other starter inputs are ready to edit: `config/sources.json` names Google
-News, Yahoo's unofficial keyless chart endpoint, and the US Treasury auctions
-API; `config/limits.json` holds the position, sector, and daily-loss limits.
-Its 10%, 30%, and 3% values are software defaults, not a personal risk policy.
+The other starter inputs are ready to edit: `config/sources.json` names Yahoo
+Finance discovery, headlines, prices and annual or quarterly financial
+figures, and the US Treasury auctions
+API. Yahoo financial figures are a secondary source, not full filing text.
+For optional SEC filings metadata, company facts and bounded filing excerpts, put an identifying
+contact such as `Your Name your-email@example.com` in
+`reports.sec_user_agent`. Missing sources produce an explicit coverage gap.
+
+`config/limits.json` starts at 10% per stock, 70% per sector, and 3% daily
+loss. All six sample holdings belong to Technology; industry labels such as
+semiconductors and cloud infrastructure describe diversity but do not create
+separate sector allowances. Review these defaults as your own risk policy.
 No data-source key is stored in a file or exposed to a model.
 
-The news scanner reads the feed URL templates in `sources.json`, and the event
-collector reads its event URLs. `read_prices` uses a fixed, checked Yahoo URL;
-the Yahoo entry in `sources.json` describes that source but cannot switch the
-price tool to another host. The three limit keys are enforced by the portfolio
-and risk tools. Extra keys in either file do not add data or rules.
+The news scanner calls the Yahoo market and reports tools; unavailable Yahoo
+sources are reported as gaps. The event collector reads its event URLs.
+Deterministic market, prices and reports
+tools use checked public sources. The three limit keys are enforced by the
+portfolio and risk tools. An arbitrary source URL does not add a new parser
+or provider.
+
+The forecast tracker uses 1, 2, 3, 5 and 21 US trading sessions ahead;
+5 and 21 sessions approximate one week and one month. Weekends and market
+holidays are not forecast sessions. The baseline price repeats the latest
+close and is explicitly labeled `random_walk_baseline`. Analysts can add
+conditional scenarios with their price assumptions, rationale and cited
+evidence; an assumption is not a measured prediction skill.
+
+`track_forecasts` keeps the original predictions in
+`predictions/forecasts.json` and creates `predictions/YYYY-MM.xlsx`, one
+workbook per month. Each market session has a sheet with a row per stock:
+the prediction for 1 day, 2 days, 3 days, 1 week and 1 month ahead, each
+with its actual closing price and error beside it once that session has
+traded. The last sheet, **All forecasts**, lists every forecast of the month
+with its method, assumption band, rationale and evidence. Later runs fill
+actual prices as saved prices reach each target session, including
+predictions made in earlier months. In **Knowledge → Agent files**, select the
+workbook and choose **Open in spreadsheet app** (Excel, Numbers or LibreOffice,
+whichever opens `.xlsx` files) or **Show in folder**; in a browser tab it offers
+**Download Excel workbook** instead. Reopen it after a run to see new actual
+prices. Scheduled updates require AgentBase to be open.
+
+A forecast that cites evidence must cite a record saved before the forecast:
+a headline, a movers or screener row, or an annual or quarterly figure, which
+counts from when its report was fetched.
 
 More JSON does not by itself create richer research. Add data only where the
 pipeline has a defined consumer:
 
-- Replace the illustrative entries in `watchlist.json` with the real companies
+- Replace the sample entries in `watchlist.json` with the real companies
   you want followed.
   `company_name` and `aliases` improve news matching; `sector` is required for
   deterministic risk grouping. Do not add a sample ticker you would not want
@@ -97,16 +140,20 @@ pipeline has a defined consumer:
 
 #### The stage sequence
 
-1. **Morning collection** reads the watchlist and calls `read_prices` first.
+1. **Morning collection** discovers gainers, losers, high-volume stocks and
+   Yahoo headlines, merges them with the watchlist and holdings, then reads
+   prices and updates the forecast workbook's actual values.
    No new market session stops the chain without writing a false daily result.
-   A new session is followed by news, Treasury auctions, and
-   `compute_portfolio`.
+   A new session is followed by company news, available financial reports,
+   Treasury auctions, and `compute_portfolio`.
 2. **Theses and risk** runs only when a movers file exists. Its date is the
    market session's, which in an Asian morning is the day before your local
    date, and it dates the stage's files. Bull and bear read the newest news,
    movers and calendar files and the computed portfolio, and may cite a
    movers row by its `id`. Each writes a theses file for the session, left
-   empty when the evidence supports no call. Then `check_limits` produces the
+   empty when the evidence supports no call. Each may state supported
+   conditional return assumptions for the decision stage to consider.
+   Then `check_limits` produces the
    hard rule results before the risk manager adds judgement.
 3. **Daily decision** writes `decisions/{session date}.md`, a recommendation
    for human review. Its table's **Size (% of portfolio)** is the share of
@@ -114,13 +161,16 @@ pipeline has a defined consumer:
    included, has its reasoning. **SOURCES** names what each row rests on: the
    theses, the news headlines and movers figures they cite, and the risk
    checks. An empty theses file is listed too, because it means that analyst
-   found nothing worth a call. It never trades, submits an order, or connects
-   to a broker.
-4. **Weekly knowledge** updates concept notes from the space's own knowledge.
-   It updates a company note only when you placed filing text in
-   `raw/filings/{TICKER}/`; it does not fetch a filing.
+   found nothing worth a call. It records forecasts for the five horizons,
+   using conditional research scenarios where supported and labeled
+   unchanged-close baselines otherwise. It never trades, submits an order,
+   or connects to a broker.
+4. **Weekly knowledge** updates concept notes from the space's own knowledge
+   and company notes from available financial reports and any filing text
+   you supplied. Optional SEC research may include a bounded excerpt;
+   partial coverage is stated rather than described as a complete report.
 5. **Weekly review** calls `score_predictions` for the current UTC month. The
-   tool resolves 1-, 3-, 5-, and 7-session predictions once, appends the
+   tool resolves supported session-based predictions once, appends the
    ledger once, and refreshes stable accuracy and calibration files before the
    reviewer proposes durable methodology lessons.
 
@@ -137,17 +187,19 @@ model errors stop the chain, so a rate-limited Yahoo request cannot turn into
 empty theses or a decision presented as if the inputs were complete. Check
 the run's error details and tool results before trusting its summary.
 
-The shipped keyless scope does not include Reddit or other social sources,
-SEC fetching, keyed APIs, market-wide gainers and losers, earnings dates, FOMC
-or BLS calendars, a Taiwan-specific chain, per-schedule time zones, or a full
-market-holiday calendar. Yahoo's endpoint is unofficial. You may supply filing
-text and a calendar as local files.
+The shipped scope does not include Reddit or other social sources, complete
+SEC filing archives, keyed APIs, earnings calendars, FOMC or BLS calendars, a
+Taiwan-specific chain, or per-schedule time zones. Yahoo's endpoints are
+unofficial and can refuse or change; the run reports failed sources and
+partial coverage. You may supply filing text and a calendar as local files.
 
-**Timing from Asia.** The morning collection runs on weekdays at 07:00 your
+**Timing from Asia.** The new default morning collection runs Tuesday through
+Saturday at 07:00 your
 time, and the US market closes at 04:00 (summer) or 05:00 (winter) Taipei
-time. A weekday 07:00 run therefore sees the previous US session, so Monday's
-run sees Friday's. To match the US week, set that schedule to Tuesday through
-Saturday in Automations.
+time. A morning run therefore observes the previous US session. Existing
+edited schedules keep their days and time; review them in Automations for
+your local time zone. AgentBase must stay open for automatic collection and
+actual-price updates.
 
 This is a research and organising tool, not investment advice.
 

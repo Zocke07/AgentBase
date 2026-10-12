@@ -49,8 +49,9 @@ manages them; select it to unfold. The open note's folder always unfolds.
 **Journal** reads every dated report in the space as one page, newest first:
 each day's decision (`decisions/`), its portfolio review
 (`portfolio/review-*`), the weekly review of the month's predictions
-(`scores/review-*`), your daily notes, and any other note with a date in its
-file name. A month's review heads that month. The dates are listed down the
+(`scores/review-*`), each market alert's explanation (`alerts/`), your daily
+notes, and any other note with a date in its file name. A month's review heads
+that month. The dates are listed down the
 left, grouped by month; select one to jump to it. **Show** narrows the page to
 one kind, such as decisions only. The page draws a week of dates at a time,
 and **Show N older dates** adds the next. **Open note** opens a report in

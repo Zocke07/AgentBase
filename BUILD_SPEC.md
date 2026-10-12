@@ -329,6 +329,19 @@ credential storage and never reaches the local API. Subscription tokens use
 selected-model API-equivalent pricing for the same local safety cap, not an
 OpenAI API charge.
 
+Provider maintenance, 2026-10-12: GPT-6 API tool calls use stateless Responses
+with low reasoning and locally retained encrypted reasoning items. No native
+provider tools are enabled. Current model prices include whole-request
+long-context premiums in both projected and recorded usage. Migration 029
+updates untouched fast Anthropic examples to Haiku 5.5; new OpenAI API spaces
+default to GPT-6.1 Sol while used spaces retain their selected models.
+ChatGPT inference shares one queue across runs and models with five seconds
+between starts. Agents can retry temporary rate limits twice after bounded
+cooldowns, checking cancellation, duration and budget before resending.
+Confirmed usage limits and partially streamed requests never retry. An
+abandoned remote turn receives a bounded best-effort interrupt before the
+queue permit releases; retry waits remain visible in the append-only log.
+
 ChatGPT/API accounts can differ in entitlement and allowance. Preserve the
 requested model and surface access errors; never substitute. *(2026-09-29:
 a signed-in account's Codex `model/list` marks which priced models its plan
@@ -919,10 +932,12 @@ and seeds the pipeline as five disabled schedules in the default space.
 Not built, by the constraints: skipping the gate, auto-approving `run_shell`,
 triggers from ambient chat or webhooks, and agent-authored schedules or runs.
 Left for later: an outbound Discord notice channel
-for scheduled outcomes; a cap on scheduled runs going at once (each schedule
-still never overlaps itself, each run has its time and cost ceilings, and the
-monthly cap holds; deferring a due run safely needs a queue the scheduler does
-not have); forwarding the waiting-question count to the native window title.
+for scheduled outcomes; a global cap across spaces on scheduled runs going
+at once; forwarding the waiting-question count to the native window title.
+Since 2026-10-12, automations within a space queue behind its current run and
+chain, avoiding concurrent catch-up bursts. Deferred timed roots keep their
+next_run_at; untimed pending branches use a bounded process-local queue and
+normal interrupted-run recovery, not a new durable queue service.
 
 **Accept when:**
 
@@ -1245,13 +1260,89 @@ source and Phase 14's contract is unchanged:
 - hit rate by horizon and agent, from `scores/accuracy.csv`;
 - calibration, from `scores/calibration.csv`.
 
+### US market research and monthly forecasts, 2026-10-12
+
+The user explicitly requested this extension to Phase 17. It supersedes the
+original exclusions for market-wide screeners and report collection, and the
+older zero-cash starter. The hard constraints in section 1 remain unchanged.
+
+- First-use example: MU, ORCL, CRWV, MSFT, NOW and AVGO, one share each;
+  USD 2,500 cash; maximum stock/sector/daily-loss percentages 10/70/3.
+  Technology is the shared sector; industry describes subsectors. Purchase
+  cost and opened date may be blank: value/risk still compute, while unknown
+  P&L and holding duration are null. Existing files are never replaced.
+- `read_market` is a medium-risk tool. Fixed Yahoo US `day_gainers`,
+  `day_losers` and `most_actives` screeners supply discovery, and bounded
+  Yahoo RSS supplies headlines. Configured holdings/watchlist always stay in
+  the universe. Exact Yahoo equity matching verifies additional headline
+  ticker hints. Saved sector/industry metadata supports risk checks without
+  rewriting the person's watchlist. A missing sector is unknown, not guessed.
+  `market.limit_per_list` is validated from config/sources.json (default 5,
+  range 1-10). Live screener snapshots are separate from completed closes.
+- `read_company_reports` is medium risk. Yahoo financial time series supplies
+  annual/quarterly revenue and net-income facts with period/source provenance,
+  explicitly secondary data with unknown official publication time. Optional
+  `reports.sec_user_agent` identifies the app and a contact email for SEC
+  submissions, company facts and bounded filing excerpts. Absence or refusal
+  is a coverage warning. Full annual reports are not claimed to be read.
+  [SEC API documentation](https://www.sec.gov/search-filings/edgar-application-programming-interfaces)
+  describes the official submissions and XBRL sources.
+- `read_prices` without symbols follows held/watched/discovered stocks and
+  refreshes every older pending forecast ticker, even after it leaves the
+  current universe. At most 50 active and 500 total tracked symbols are
+  fetched with bounded concurrency. Missing held quotes stop valuation and
+  chaining; optional discovery/history gaps are reported and remain pending.
+  `research_needed` allows an unfinished same-session decision/workbook to
+  resume even when `new_session` is false.
+- `track_forecasts` is medium risk and local. It records immutable forecasts
+  in predictions/forecasts.json and exports predictions/YYYY-MM.xlsx, one
+  sheet per completed market session. Horizons 1, 2, 3, 5 and 21 count saved
+  complete trading sessions, so a week/month is a trading-session convention.
+  Submitted conditional assumptions (`scenario_return_pct` or target close)
+  require rationale and dated saved evidence available by issuance. The tool
+  computes targets with Decimal. Every omitted pair receives a labeled
+  unchanged-price random-walk benchmark with historical-volatility assumption
+  bands, not a news forecast or calibrated probability. Actual dates/closes
+  and errors are filled when complete sessions arrive, across earlier months.
+  Neither targets nor resolved actuals change on reruns. Text is literal in
+  XLSX cells. Workbook download is space-confined and binary; text-edit APIs
+  cannot modify it.
+- Migration 028 updates exact shipped prompts, allowlists and goals, raises
+  untouched step ceilings where research needs more reads, and preserves
+  chosen models, custom text/tools and saved network policy. Fresh host
+  defaults add feeds.finance.yahoo.com, www.sec.gov and data.sec.gov; used
+  unsaved policies are pinned to their previous hosts. Disabled, untouched
+  morning cadence becomes Tue-Sat 07:00 local time, following US closes in
+  the user's Taipei example. Active/custom cadence stays as chosen. Runs
+  still require the app to be open; forecasts execute no trades.
+
+*(Review of 2026-10-13, before the extension was committed:*
+- *A cited fact or screener row counts from when its document was fetched.
+  Yahoo's annual and quarterly facts carry no publication time, so a scenario
+  citing one, as the analysts are told to, was refused. A row without its
+  own time now inherits its document's `fetched_at` or `as_of`, still refused
+  when later than issuance, and `raw/market/screeners-*` is indexed.*
+- *The friend's sheet layout: each session's sheet is a row per ticker with,
+  for every horizon, the prediction, the actual close and the error side by
+  side; a final **All forecasts** sheet keeps every field for filtering.
+  LibreOffice converts it and openpyxl reads it without a warning; Excel
+  itself has not opened it yet.*
+- *In the desktop window a workbook opens in the spreadsheet app through
+  the shell's `open_workbook`, which accepts only a visible `.xlsx` inside
+  the data directory; a browser tab still downloads it.*
+- *Headlines are `claim_type: "unclassified"`, not "opinion", and the shared
+  checked-address helpers are the public `tools/builtin/fetching.py` instead
+  of private imports between tool modules.)*
+
 **Out of scope:**
 
 - Reddit and other social sources: OAuth, and their terms.
-- SEC filings: they need an identifying header.
+- Full SEC filings without an identifying contact header. The extension above
+  supports bounded facts and excerpts when that contact is configured.
 - Keyed data APIs. These wait for a keychain-held data-source key that the
   tool adds at execute time, outside the model's context and the log.
-- Market-wide screeners and earnings dates: no keyless source was verified.
+- Earnings calendars: no complete keyless source was verified. Market-wide
+  Yahoo screeners are supported by the extension above.
 - FOMC and BLS calendars. A person may keep such dates in a
   `config/calendar.json` that the calendar agent reads.
 - A Taiwan chain, and per-schedule time zones: schedules keep local
@@ -1366,6 +1457,70 @@ checklists, and commit each unit.
 8. The event contract, gate, sandbox, cost ceiling and replay are unchanged.
    Each new tool is medium risk and passes the gate, and a supervised run asks
    before each call.
+
+### Phase 18: Market watch
+
+*Added 2026-10-12 at the maintainer's request: a market monitoring agent that
+alerts the person to sudden price spikes or market shifts and, whenever
+possible, explains the reason.*
+
+*Maintainer choices, 2026-10-12: alerts appear inside AgentBase, as desktop
+notifications and as Discord messages; monitoring runs only while the app is
+open, like schedules (no tray or service mode); each alert's reason is
+researched automatically by a short run, at most a configured number a day.*
+
+A model is not needed to notice a move, and polling one every few minutes
+would cost far more than it finds. So the watch is two parts:
+
+- **The watcher** is app code in the sidecar, beside the scheduler. While a
+  space's `config/monitor.json` says `"enabled": true`, it reads quotes every
+  `check_every_minutes` (default 5) from US pre-market open to after-hours
+  close on weekdays (04:00 to 20:00 New York time), and sleeps otherwise. It
+  follows the space's holdings, its watchlist, any listed `symbols`, and the
+  `indexes` that show a market shift (default S&P 500, Nasdaq Composite and
+  Dow Jones). One request to Yahoo's keyless spark endpoint covers up to 20
+  symbols, at the checked public address, with no redirect and a byte limit.
+  No model and no agent chooses these reads, and nothing fetched is followed,
+  so they are app infrastructure like the model and Discord connections,
+  not tool calls: constraint 5 still governs every call an agent makes.
+- **An alert** fires when a price moves at least `stock_move_pct` (default 5)
+  from the reference close, or `stock_jump_pct` (2.5) within
+  `jump_window_minutes` (15); indexes use `index_move_pct` (1.5) and
+  `index_jump_pct` (1). The reference is the previous close, and in
+  after-hours the day's regular close. A move alert repeats only when it grows
+  by another `step_pct` (3) in the same direction that day; a jump alert waits
+  out its window. Stale quotes, as on a holiday, alert nothing. Alerts are rows
+  in `market_alerts` (migration 030); the thresholds are the person's file.
+- **The explanation** is an ordinary run, origin `monitor`, launched through
+  `RunLauncher` for all the alerts of one check, so the run's every tool call
+  passes the gate and its log can be replayed. The shipped `market-explainer`
+  reads the Yahoo and Google News feeds for those symbols and saved research,
+  and writes `alerts/{date}-{HHMM}.md`: the likely reason with cited
+  headlines, or a plain statement that none was found. It never predicts or
+  recommends. At most `max_explanations_per_day` (default 10) start in a
+  space each New York day; while another run in the space is going, the
+  explanation waits. With `"explain": false` alerts arrive without one.
+- **Delivery.** Home lists recent alerts with their explanations and badges
+  unseen ones. The window raises a desktop notification for each new alert and
+  for each finished explanation, unless Settings turns that off. When
+  `discord_alert_channel_id` names a channel, the running Discord adapter
+  posts each alert and explanation there, mentioning nobody; it still accepts
+  commands only from allowed senders (constraint 6).
+
+**Accept when:**
+
+1. With recorded quotes, a 5% move, a 2.5% jump within 15 minutes and a 1.5%
+   index move each create one alert; a second check at the same level
+   creates none, and a larger move past the next step creates one more.
+2. Outside 04:00 to 20:00 New York time on weekdays, or with stale quotes, the
+   watcher makes no alert, and outside those hours it makes no request.
+3. An alert starts one `monitor` run naming the note path, unless the day's
+   explanation cap is reached or explanations are off; a busy space delays it.
+   When the run ends, the alert shows the note's first lines or the failure.
+4. Discord receives the alert text with mentions disabled when a channel is
+   set, and nothing is sent when none is.
+5. The monitor never answers an approval, never changes a schedule, and
+   stops with the app.
 
 ---
 

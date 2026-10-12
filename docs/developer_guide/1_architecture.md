@@ -18,13 +18,17 @@ apps/backend/src/agentbase/    Python 3.12 FastAPI sidecar
   budget/usage.py               the usage report read from the same ledger
   knowledge/store.py            Markdown parser, links, graph, local vectors, RAG memory
   orchestrator/                 run lifecycle, supervisor, agent loop, limits,
-                                control tools, registry, launcher, scheduler
+                                control tools, registry, launcher, scheduler,
+                                monitor (the market watch: quotes, alert rules)
   tools/                        catalogue, Tool protocol, sandbox, approval gate,
-                                runtime, builtin/{filesystem,knowledge,network,shell}.py
+                                runtime, builtin/{filesystem,knowledge,network,shell}.py,
+                                the market tools (market, research, prices, portfolio,
+                                limits, scoring, forecasts) and fetching.py, their
+                                shared checked-address HTTPS reads
   channels/                     Discord adapter, identity allowlist,
                                 the chat renderer, throttle, service
   api/                          runs, stream (SSE), approvals, agents, spaces, knowledge,
-                                settings (and /usage), auth, channels, schedules
+                                settings (and /usage), auth, channels, schedules, alerts
   openapi.py                    builds the OpenAPI doc and emits the TS types
 apps/backend/tests/             pytest; support.py holds the shared doubles
 apps/desktop/src/               React 19 + Vite + TypeScript
@@ -33,15 +37,18 @@ apps/desktop/src/               React 19 + Vite + TypeScript
                                 fileViews.ts, fuzzy.ts, graphLayout.ts,
                                 sections.ts (rail order), tour.ts (the tour's script)
   state/                        reducer.ts: the fold; runStore, graph, spaces, hooks;
-                                files.ts and journal.ts for Knowledge's lists
+                                files.ts and journal.ts for Knowledge's lists;
+                                alerts.ts for market alerts and their notices
   components/                   Rail, SpaceSwitcher, HomeView, RunsView, AgentsView,
                                 SpaceSettingsView, SettingsView, RunGraph, EventLog,
                                 ApprovalPanel, AgentEditor, BudgetMeter, RunPanel,
                                 Markdown, KnowledgeView, NoteTree, NoteEditor,
                                 QuickSwitcher, MemoryInbox, KnowledgeEvaluation,
                                 RecentFiles, Journal, FilesPanel, FileViews,
-                                Schedules, UsageView, Chart, MermaidDiagram, Tour
-apps/desktop/src-tauri/         Rust shell: spawns the sidecar, reads the keychain
+                                Schedules, MarketWatch, MarketAlerts, UsageView,
+                                Chart, MermaidDiagram, Tour
+apps/desktop/src-tauri/         Rust shell: spawns the sidecar, reads the keychain,
+                                opens validated folders and workbooks, shows alerts
   binaries/                     the frozen sidecar lands here (git-ignored)
 packages/schemas/               openapi.json + src/api.ts, GENERATED and committed
 .github/                        workflows/build.yml + actions/toolchain

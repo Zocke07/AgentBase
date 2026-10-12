@@ -22,15 +22,24 @@ on:
 
 | Schedule | When | What it does |
 |---|---|---|
-| Morning collection | Weekdays at 07:00 | Prices first, then news, Treasury auctions and a computed description of the current book. No new session stops the daily chain. |
+| Morning collection | Tuesday through Saturday at 07:00 local time on new defaults | Yahoo market discovery and headlines, prices, forecast actuals, company news and financial reports, Treasury auctions and the current book. No new session stops the daily chain. |
 | Theses and risk | After Morning collection completes | The bull and bear cases, then the risk check against your limits. |
-| Daily decision | After Theses and risk completes | A dated recommendation table for you to review. Nothing is bought or sold. |
-| Weekly knowledge | Saturdays at 09:00 | Concept notes from local knowledge, plus company notes only where you supplied filing text. |
+| Daily decision | After Theses and risk completes | A dated recommendation table for you to review and evidence-backed forecast scenarios. Nothing is bought or sold. |
+| Weekly knowledge | Saturdays at 09:00 | Concept notes from local knowledge and company notes from available financial reports or supplied filing text. |
 | Weekly review | Sundays at 18:00 | Scores resolved predictions and proposes durable lessons for Saved context. |
 
-Review the illustrative `config/watchlist.json` and fill
-`portfolio/positions.csv` with your real holdings and cash in **Knowledge →
-Agent files** before the first run. [Agents](3_agents.md#the-investment-roster)
+Review the sample `config/watchlist.json` and `portfolio/positions.csv` in
+**Knowledge → Agent files** before the first run. They start with one share
+each of MU, ORCL, CRWV, MSFT, NOW and AVGO plus $2,500 USD cash; purchase
+prices and dates stay unknown. Replace this sample with your real holdings
+and cash. The sample limits are 10% per stock, 70% per sector and 3% daily
+loss.
+
+Monthly workbooks in `predictions/` keep one sheet per market session with
+1-, 2-, 3-, 5- and 21-session forecast prices and later actuals. Download them
+from **Knowledge → Agent files** after updates. AgentBase must be open when
+a scheduled run is due to collect data and update actual prices.
+[Agents](3_agents.md#the-investment-roster)
 describes their required fields and the files each deterministic tool writes.
 
 To add your own, click **New schedule**, give it a name and a goal, and choose
@@ -72,9 +81,51 @@ Three things to know before relying on one:
   overnight pipeline gets the hours it needs while runs you start in the same
   space keep the space's limit.
 
+Different automations in the same space wait for the active automation and
+its following stages to finish. This also applies when several missed jobs
+are due at launch. The waiting jobs keep their due time; a failed or cancelled
+run releases the space so the next job can continue. **Run now** is available when
+that space has no other automation running. Different spaces remain separate.
+
 A schedule whose previous run is still going skips that time, one whose space
 is archived turns itself off, and a stage whose schedule is deleted is
 switched off and says why.
+
+## Market watch: alerts for sudden moves
+
+**Market watch**, at the bottom of **Automations**, keeps an eye on prices
+between schedules. Choose **Turn on**. While AgentBase is open, from 04:00 to
+20:00 New York time on weekdays, it reads quotes every five minutes for your
+holdings, your watchlist and the S&P 500, Nasdaq Composite and Dow Jones. No
+model is used to watch, so watching costs nothing.
+
+An alert fires when a stock moves 5% from the previous close, or 2.5% within
+15 minutes; for an index, 1.5% and 1%. After hours, a move is measured from
+that day's close, so an earnings reaction is its own alert. The same move
+alerts again only when it grows by another 3% that day. **Change what raises an
+alert** opens `config/monitor.json` in Knowledge, where every number can be
+changed and other symbols added; quotes on a holiday alert nothing.
+
+Each alert reaches you three ways:
+
+- **Home** lists recent alerts, newest first, and the **Home** item in the
+  sidebar counts the ones you have not seen.
+- A **desktop notification**, unless Settings → Market alerts turns it off.
+- A **Discord message**, when Settings → Market alerts names a channel (see
+  [Integrations](4_integrations.md#market-alerts-in-a-channel)).
+
+Then a short run, the `market-explainer`, reads that day's headlines for the
+symbols and your saved research and writes `alerts/{date}-{time}.md`: the
+likely reason with its sources, or a plain "No clear reason found". Home
+shows the reason with **Read the sources** and **Open its run**, and a second
+notification and message carry it. At most ten explanations start a day,
+counted in New York time; past that, alerts arrive without one. An explanation
+waits while another run in the space is going, and like any run its calls pass
+your approval policy. It explains what happened; it never predicts or
+recommends. Runs it starts are listed in **Runs** under **Market alerts**.
+
+The watch stops when AgentBase closes: nothing is watched while the app is
+closed, and it does not catch up on moves that happened then.
 
 ## Run a task once
 
@@ -175,6 +226,9 @@ about everything until you choose **Autonomous** in Settings.
 | `http_get` | medium | Fetch a public URL; local and private network addresses are refused. |
 | `read_feed` | medium | Fetch public RSS or Atom and return bounded, complete entries; local and private network addresses are refused. |
 | `read_prices` | medium | Fetch one year of Yahoo daily prices for watchlist symbols and write stable price and mover files. |
+| `read_market` | medium | Collect Yahoo gainers, losers, high-volume stocks and headlines, keeping configured holdings and watchlist stocks in the research universe. |
+| `read_company_reports` | medium | Collect annual and quarterly Yahoo financial figures, with optional SEC filings metadata, company facts and bounded excerpts when an identifying contact is configured. |
+| `track_forecasts` | medium | Record immutable forecast prices, fill due actual prices from saved US trading sessions, and maintain monthly Excel workbooks. |
 | `compute_portfolio` | medium | Compute value, P&L, weights, concentration and limit crossings from saved positions and prices. |
 | `check_limits` | medium | Check the book and thesis tickers against saved position, sector and daily-loss limits. |
 | `score_predictions` | medium | Resolve predictions against saved trading sessions and write the ledger, scorecard, accuracy and calibration files. |
@@ -236,6 +290,15 @@ Spending uses this build's token prices; provider bills are authoritative.
 ChatGPT subscription usage is an API-equivalent safety estimate, not an API
 charge, enforcing the same AgentBase cap. Ollama costs zero. Changing space or
 deleting history does not reset spend.
+
+ChatGPT requests share a queue across all runs and models, with one request
+active at a time and at least five seconds between starts. Temporary model
+rate limits can retry twice after cooldowns of about 60 and 120 seconds,
+respecting a longer server wait up to 180 seconds and the remaining run time.
+The log shows the wait, and **Cancel run** also stops a cooldown. Requests
+that already produced visible output and confirmed account usage or billing
+limits do not retry. An account limit needs its allowance to reset or billing
+to be resolved; switching models cannot guarantee that it will clear.
 
 | Limit | What happens when it is reached |
 |---|---|

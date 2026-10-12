@@ -1,8 +1,189 @@
 # Verification and remaining work
 
-Updated 2026-10-08. This is the current record; [history](history/README.md)
+Updated 2026-10-13. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
+
+## Market watch, and the review of the research extension, 2026-10-13
+
+The maintainer resent the friend's answers with the 2026-10-12 work still
+uncommitted, asked for it to be finished to standard practice, then asked for
+a 24/7 market monitoring agent. They chose alerts inside AgentBase, as desktop
+notifications and on Discord; watching only while the app is open; and
+automatic explanations with a daily cap (BUILD_SPEC Phase 18).
+
+- **A forecast citing a report fact was refused.** Yahoo's annual and
+  quarterly facts have no publication time and their file name no date, so
+  `track_forecasts` rejected every scenario citing one, which the analysts are
+  told to do. Evidence without its own time now counts from its document's
+  `fetched_at`; screener rows are citable. A failing test came first; a fact
+  fetched after issuance is still refused.
+- **Workbook layout.** Each session's sheet is a row per ticker with every
+  horizon's prediction, actual close and error side by side, then an **All
+  forecasts** sheet. openpyxl read the generated workbook with warnings as
+  errors and LibreOffice converted both sheets; Excel was not tried.
+- **Opening it in the app.** The shell's `open_workbook` opens a visible
+  `.xlsx` inside the data directory in the spreadsheet app, and **Show in
+  folder** reveals it; a browser tab still downloads. A Rust test covers the
+  path check. The packaged window has not run it.
+- **Smaller fixes.** Headlines are `claim_type: "unclassified"` instead of
+  "opinion"; the HTTPS helpers shared by the market tools are the public
+  `tools/builtin/fetching.py`; the user agent names the package version;
+  `read_prices` uses the tracker's horizons.
+- **Market watch.** `orchestrator/monitor.py` reads Yahoo's keyless spark
+  quotes, 20 symbols a request, every `check_every_minutes` from 04:00 to
+  20:00 New York time on weekdays, for a space whose `config/monitor.json`
+  turns it on. Alerts are `market_alerts` rows (migration 030); one
+  `monitor` run per check, by the new shipped `market-explainer` on the news
+  scanner's model, writes `alerts/{date}-{HHMM}.md`, capped per day and
+  waiting while the space runs anything else. Home lists alerts with a badge,
+  the window raises desktop notices through the shell's `notify_alert`, and
+  Discord posts to `discord_alert_channel_id` with mentions disabled.
+- **Executed.** Backend **1,330 passed, 12 skipped**; desktop **609 passed in
+  59 files**; ruff, formatting, strict mypy on macOS and Windows, ESLint and
+  TypeScript passed; the shell's **9 Rust tests** and `clippy -D warnings`
+  passed. The monitor's 30 tests use a recorded spark response (MU and the
+  S&P 500, 2026-10-12) and an offline client. A browser check against a
+  scratch sidecar at schema 30, with the watch on, made a live spark request
+  for six symbols (HTTP 200 at the checked address); Home listed seeded
+  alerts with the reason and a **New** mark; Automations showed the watch
+  and its thresholds; **Change what raises an alert** opened
+  `config/monitor.json`; Settings showed the alert channel and notices. A
+  waiting alert started a `monitor` run that failed for want of a model key,
+  and the alert recorded the failure.
+- **Unverified.** No live move crossed a threshold, so no real alert, real
+  explanation, Discord post or desktop notification has happened; the
+  packaged window has run neither `notify_alert` nor `open_workbook`. The
+  running app needs a restart to apply migration 030; Main's watch starts
+  off until **Turn on** in Automations.
+
+## Current models and bounded rate-limit recovery, 2026-10-12
+
+The next Main retry at 17:01 Taipei failed on a generic ChatGPT HTTP 429
+after one morning run; the earlier same-space concurrency and headline-host
+problems were fixed. This error alone still does not distinguish a temporary
+throttle from account exhaustion.
+
+- Refreshed the catalogue against official provider documentation. Haiku 5.5
+  is the current fast Anthropic choice; GPT-6.1 Sol is the balanced/strong
+  OpenAI choice. Migration 029 updates exact untouched Anthropic fast example
+  definitions and unused defaults while retaining edited models and used
+  spaces. New OpenAI API spaces use GPT-6.1 Sol. Whole-request long-context
+  tiers are priced for Haiku 5.5 and GPT-6/GPT-5.6 Sol, including budget
+  projections. Legacy choices remain available, with documented retirements.
+  Default-agent matching uses exact shipped fields because migration 028
+  advances prompt timestamps even without user edits; regression coverage
+  includes older installations with distinct created/updated times.
+- GPT-6 API requests now use Responses with low reasoning, local function
+  tools, store:false, and encrypted reasoning replay scoped to the same
+  conversation. Retained GPT-5.4/5.5/5.6 Chat Completions tool requests disable
+  reasoning where required. Tests cover streamed and collected results,
+  continuation, malformed calls, cutoffs, usage and provider errors.
+- ChatGPT inference shares one FIFO queue across models and runs with five
+  seconds between starts. Abandoned turns receive a bounded best-effort
+  remote interrupt before the permit releases. Temporary throttling can
+  retry twice after about 60/120 seconds with jitter, respecting server hints,
+  remaining time and both budget checks. Confirmed usage/billing limits,
+  partial streamed output, excessive waits and exhausted attempts stop.
+  Cooldowns remain in the event log but do not block a recovered chain or
+  inflate the UI's failure count. Cancellation interrupts cooldowns promptly.
+- Read-only SDK model/list returned GPT-6 Astra, GPT-5.6 Sol/Terra/Luna and
+  GPT-5.5, but no GPT-6.1 Sol or GPT-6 Luna. Main retains its chosen GPT-5.6
+  supervisor and example agents rather than selecting an unlisted model.
+  This metadata check made no inference requests and does not prove quota
+  availability. Account limits cannot be reset by code.
+- Executed: **1,273 backend source tests passed, 12 skipped**, **593 desktop
+  tests passed in 56 files**, and **14 rebuilt frozen tests passed** at schema
+  029. Ruff/format, ESLint and strict mypy on macOS/Windows plus TypeScript
+  checks passed. The first unrestricted desktop run hit worker startup and
+  timing failures; rerunning with two workers passed the complete suite.
+- Removed **52 generated files** after backing up Main and its SQLite
+  database to .dev/backups/retry-fresh-20261012-224828/. Preserved all nine
+  current inputs, model/account settings and failed-run history; indexing
+  confirms zero generated notes. The cached debug sidecar matches the rebuilt
+  binary for the next restart, which applies migration 029. No paid model
+  request or live complete chain was run after these changes.
+
+## Failed-run diagnosis and fresh retry, 2026-10-12
+
+Read the real Main event log at schema 028. At 16:27 Taipei on October 12,
+startup caught up Morning collection, Weekly knowledge and Weekly review at
+once; their supervisor requests began within milliseconds. All three runs
+ultimately failed with ChatGPT's exhausted-retry HTTP 429. The log establishes
+neither a quota exhaustion nor a transient throttle as the specific cause.
+No budget, malformed price, duration or step limit caused the terminal failure.
+
+Separately, read_market asked for approval because the retained saved host
+policy excluded feeds.finance.yahoo.com. The scheduled request expired after
+120 seconds, so news/discovery and reports never ran. The active inputs still
+had the old AAPL-only watchlist, zero cash and 30% sector cap.
+
+- Fixed same-space schedule contention with a lock and queue. Continuation
+  stages run before other roots; queued timed roots retain their due date,
+  completion/failure rechecks them, and manual Run now rejects another active
+  automation in that space. Different spaces remain independent. Untimed
+  custom branches use process-local queue state with existing interrupted-run
+  recovery; a durable arbitrary-branch queue remains outside this fix.
+- ChatGPT errors now retain SDK rate/usage metadata and map HTTP 429 from both
+  SDK errors and failed stream notifications to clear model-specific guidance.
+  This initial repair added no extra retries above App Server; the bounded
+  recovery described above was added after the subsequent single-run failure.
+  [Official OpenAI error guidance](https://developers.openai.com/api/docs/guides/error-codes)
+  distinguishes throttling and usage errors; code cannot reset account limits.
+- Executed: **1,159 backend source tests passed, 12 skipped**; rebuilt sidecar
+  **14 frozen tests passed**; Ruff/format and strict mypy on both platforms
+  passed. No live model request was made after the fix.
+- Per the user's fresh-retry request, backed up the Main space and database to
+  .dev/backups/retry-fresh-20261012-165338/, cleared **17 generated files** and
+  generated context, and restored the current nine starter files: six
+  one-share holdings, USD 2,500 cash and 10/70/3 limits. Added only Yahoo's
+  requested headline host to the saved policy and restored the exact old
+  morning example cadence to Tue-Sat 07:00 local time. Run history, models,
+  account credentials and other policy answers were preserved. Native file
+  listing and note indexing confirmed nine inputs and zero generated notes.
+  The cached debug sidecar hash matches the rebuilt binary for the next
+  restart. The application currently running still needs that restart to load
+  the code changes. No predictions were generated after cleanup.
+
+## US market research and monthly Excel tracking, 2026-10-12
+
+Implemented the requested first-use sample and migration 028. The default
+follows six one-share holdings (MU, ORCL, CRWV, MSFT, NOW, AVGO), USD 2,500
+cash, and 10/70/3 risk percentages. Missing acquisition costs and dates stay
+unknown. Existing inputs and user-edited policies, prompts, tools, schedules
+and models are preserved.
+
+- Market discovery collects Yahoo gainers, losers, most-active stocks and
+  deduplicated company headlines, with sourced sector metadata and explicit
+  source gaps. Annual/quarterly Yahoo financial facts work by default;
+  optional SEC contact enables official facts and bounded report excerpts.
+- Forecasts use 1/2/3/5/21 complete trading sessions. Evidence-backed conditional
+  agent scenarios and clearly labeled unchanged-price benchmarks are stored
+  immutably. Later runs fill actual closes across every pending month.
+  Monthly XLSX workbooks have daily session sheets and a binary download in
+  Agent files. Every active ticker receives all five horizons, even when only
+  some scenarios are submitted. Pending tickers remain priced after leaving
+  discovery. Candidate quote gaps do not stop valid held-stock research.
+  An unfinished decision/workbook can resume during the same session.
+- Executed: **1,142 backend source tests passed, 12 skipped**; **592 desktop
+  tests passed in 56 files**; Ruff/format, strict mypy on macOS and Windows,
+  ESLint and TypeScript checks passed. OpenAPI was regenerated. The final
+  sidecar was rebuilt and passed all **14 frozen smoke tests**
+  for startup, schema 028, debug streaming and clean shutdown. The sandbox
+  cannot initialize PyInstaller's semaphore, so frozen tests ran with approved
+  system permissions rather than weakening the application sandbox.
+- Live, approval-gated data smoke in a temporary example workspace: all three
+  Yahoo lists returned five equities, six holdings remained included, and
+  verified headline stocks brought the universe to **24**. **36** headlines
+  were deduplicated. All six holdings returned latest annual/quarterly facts.
+  Completed prices for all 24 succeeded for session **2026-10-09**; portfolio
+  calculation preserved unknown P&L; the tracker created **120** baseline
+  forecasts in predictions/2026-10.xlsx. A rejected general-feed ticker hint
+  was reported explicitly. No model credentials or real portfolio were used.
+- Unverified: the complete new chain on a real model, full SEC extraction with
+  a real contact, and a packaged Tauri window. Forecast skill is not established
+  by tool tests. Automation still requires the app to stay open; it catches up
+  once after a missed schedule rather than inventing missed daily forecasts.
 
 ## Phase 17 and run-review UX, 2026-10-01, on `main`, not released
 

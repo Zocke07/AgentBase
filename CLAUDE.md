@@ -13,6 +13,56 @@ future changes do not relocate users' data or disconnect their stored keys.
 
 ## Current state
 
+- **Market watch, BUILD_SPEC Phase 18 (2026-10-13).** A sidecar task beside
+  the scheduler (`orchestrator/monitor.py`) reads Yahoo spark quotes for a
+  space's holdings, watchlist and indexes every few minutes, 04:00 to 20:00
+  New York time on weekdays, while `config/monitor.json` says
+  `"enabled": true`. Moves past the file's thresholds become `market_alerts`
+  rows (migration 030); one `monitor`-origin run per check, by the shipped
+  `market-explainer`, writes `alerts/{date}-{HHMM}.md`, at most
+  `max_explanations_per_day`, waiting while the space runs anything else.
+  Alerts reach Home (badge on the rail), desktop notifications through the
+  shell's `notify_alert` command, and a Discord channel set in
+  `discord_alert_channel_id`. Only while the app is open; no catch-up.
+- **Review of the 2026-10-12 extension (2026-10-13).** A forecast citing an
+  annual or quarterly fact was refused (facts carry no publication time), so
+  evidence now counts from its document's `fetched_at`, and screener rows are
+  citable. Each session's workbook sheet is a row per ticker with every
+  horizon's prediction beside its actual, plus an **All forecasts** sheet.
+  The shared HTTPS helpers moved to `tools/builtin/fetching.py`. In the app,
+  a workbook opens in the spreadsheet app through the shell's
+  `open_workbook` command.
+- **Failure repair, 2026-10-12.** Startup had launched three caught-up
+  automations in Main together, and ChatGPT returned HTTP 429. Schedules now
+  queue within a space, giving the chain priority and preserving due times;
+  other spaces remain independent. ChatGPT 429 and SDK usage-limit metadata
+  produce clear messages. One shared ChatGPT queue spaces requests by five
+  seconds; the agent permits two bounded cooldown retries for temporary
+  throttling, never for confirmed usage limits or partially streamed output.
+  The user's retained host policy lacked Yahoo's feed host; the requested
+  fresh retry adds that specific host and restores the six-stock example.
+  Generated outputs are backed up outside the active vault before removal;
+  credentials and failed-run history remain. Verification is recorded below.
+- **Model refresh, 2026-10-12.** Catalog includes Haiku 5.5 and GPT-6.1 Sol;
+  migration 029 upgrades untouched Anthropic fast example agents, and new
+  OpenAI API spaces use GPT-6.1 Sol. Used spaces and edited models remain.
+  GPT-6 API tool calling uses Responses with low reasoning and stateless
+  encrypted reasoning replay. Long-context prices feed projected budgets.
+  The user's ChatGPT model list still lacks GPT-6.1 Sol and GPT-6 Luna, so
+  Main stays on its supported GPT-5.6 models instead of forcing an upgrade.
+- **US research and forecast tracking extension, 2026-10-12.** Migration
+  028 gives untouched investment agents market-wide Yahoo gainers, losers,
+  volume leaders and headlines; cited annual/quarterly Yahoo financial data
+  and optional SEC facts/excerpts; and immutable 1/2/3/5/21-session forecasts
+  with daily sheets in monthly Excel workbooks. Nine first-use files now
+  contain the requested sample: MU, ORCL, CRWV, MSFT, NOW, AVGO, one share
+  each, USD 2,500 cash and limits 10/70/3. Unknown acquisition cost/date stay
+  blank and P&L/duration stay null. Source failures are explicit; optional
+  candidate quote gaps do not block valid holdings. Same-session retries can
+  finish an interrupted decision/workbook. Fresh schedules use Tue-Sat 07:00
+  local time, disabled until enabled; active/custom schedules, saved inputs,
+  models and network policies are preserved. XLSX files download through
+  Knowledge without entering the text editor. See docs/verification.md.
 - The product was renamed to **AgentBase** on 2026-09-24. New installs use the
   AgentBase package, bundle, sidecar, schema, data, keychain and browser-storage
   namespaces. On its first canonical launch, an empty AgentBase data directory
@@ -91,7 +141,8 @@ future changes do not relocate users' data or disconnect their stored keys.
   bundle has a complete code seal. Check the release page and tag workflow
   for publication status and cross-platform CI evidence.
 - The UI has a left rail, spaces, Home, Automations, Runs, Agents, Knowledge,
-  Usage, Space settings, and app-wide Settings. Knowledge separates Recent,
+  Usage, Space settings, and app-wide Settings. Home lists a space's recent
+  market alerts and Automations ends with its Market watch card. Knowledge separates Recent,
   Journal, Notes, Agent files, and Saved context, and rereads them when shown,
   when a run finishes and on window return (every section stays mounted). The
   Journal (`state/journal.ts`) is every note dated in its file name, outside
@@ -170,7 +221,8 @@ future changes do not relocate users' data or disconnect their stored keys.
   These are ordinary space files written through the existing gate; there is
   no visualization database or service, and no Visualize section since
   2026-10-08.
-- The latest recorded database migration is 027. Migration 020 adds Sonnet
+- The latest recorded database migration is 030 (market watch, above);
+  029 is the model refresh and 028 the research extension. Migration 020 adds Sonnet
   5.5, updates untouched shipped Sonnet roles, and applies fresh space
   defaults without moving used spaces. Migration 021 wires the four
   deterministic tools and corrected goals into untouched pipeline rows, gives
@@ -304,6 +356,14 @@ second chronological log here.
   tools (`scores/predictions.jsonl`, the price CSVs).
 - Discord accepts explicit commands/mentions from allowed senders only. Its
   supervised adapter runs in-process and uses the same approval gate as the UI.
+  Its one outbound path is `ChannelService.announce`, which posts market
+  alerts to the configured channel with mentions disabled and reads nothing.
+- The market watch's quote reads are app infrastructure, not tool calls: no
+  agent chooses them, they hit one fixed Yahoo endpoint at a checked public
+  address for symbols from the space's own files, and nothing fetched is
+  followed. Anything an agent does about an alert happens in an ordinary run
+  through the gate. The watch never answers an approval or edits a schedule,
+  and tests get an offline quote client (`conftest.py`).
 
 ## Commands and release checks
 

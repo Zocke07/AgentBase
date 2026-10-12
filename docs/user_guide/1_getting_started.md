@@ -73,8 +73,8 @@ brings it back.
 | Control | What it opens |
 |---|---|
 | Space name at the top of the left rail | Switch spaces, find archived spaces, or choose **New space…**. |
-| **Home** | What runs on its own (and, in Main, **Turn on the daily pipeline**), runs under **Now**, **Run once** for a single task, **Recent runs**, and enabling or disabling agents. |
-| **Automations** | What this space runs on its own: schedules at set times or one after another, and what an unattended run may do. |
+| **Home** | What runs on its own (and, in Main, **Turn on the daily pipeline**), recent **Market alerts**, runs under **Now**, **Run once** for a single task, **Recent runs**, and enabling or disabling agents. |
+| **Automations** | What this space runs on its own: schedules at set times or one after another, the market watch that alerts you to sudden price moves, and what an unattended run may do. |
 | **Runs** | Open a current run or replay a past one in this space. |
 | **Agents** | Create and edit this space's agent definitions. |
 | **Knowledge** | Everything in the space folder: **Recent** files, the **Journal** of dated reports read as one page, human-readable **Notes**, **Agent files** (data files can be drawn as charts, and saved charts, dashboards and diagrams open drawn), and automatically managed **Saved context**. |
@@ -125,7 +125,7 @@ start on, and its key.
    use**), then click **Save settings**. Anthropic is the default. Each space
    then keeps its own provider and model under **Space settings → Model**; a
    new one starts on its provider's default (`claude-sonnet-5-5` for
-   Anthropic, `gpt-6-sol` for OpenAI API access, and `gpt-5.6-sol` for a
+   Anthropic, `gpt-6.1-sol` for OpenAI API access, and `gpt-5.6-sol` for a
    ChatGPT plan; type an Ollama model). Changing this setting moves
    no existing space: to move one, change its provider in Space settings (see
    [Create and configure spaces](#create-and-configure-spaces)). An agent can
@@ -143,6 +143,38 @@ an Anthropic dated snapshot such as `claude-haiku-4-5-20251001` is priced as
 its alias `claude-haiku-4-5`, so either id works in a space or agent. Keys
 are shared by every space. AgentBase displays their names and whether they
 are set, never their stored values.
+
+The current API lineup was checked on October 12, 2026:
+
+| Provider | Level | Model | Input / output per million tokens |
+| --- | --- | --- | --- |
+| Anthropic | Flagship | Claude Fable 5.1 | $10 / $50 |
+| Anthropic | High | Claude Opus 5.5 | $4 / $20 |
+| Anthropic | Balanced | Claude Sonnet 5.5 | $2 / $10 |
+| Anthropic | Fast | Claude Haiku 5.5 | $0.10 / $0.50 |
+| OpenAI | Flagship | GPT-6 Astra | $10 / $50 |
+| OpenAI | Balanced | GPT-6.1 Sol | $2 / $10 |
+| OpenAI | Fast | GPT-6 Luna | $0.10 / $0.50 |
+
+Sources: [Anthropic lineup](https://platform.claude.com/docs/en/models/overview),
+[OpenAI pricing](https://developers.openai.com/api/docs/pricing).
+
+These are standard rates for shorter prompts. Haiku 5.5 prompts above
+100,000 input tokens cost $0.50 / $2.50 for the entire request.
+[Anthropic model documentation](https://platform.claude.com/docs/en/models/haiku-5-5/overview).
+GPT-6 models, including GPT-6.1 Sol, charge twice the input rate and 1.5 times
+the output rate above 272,000 input tokens for the entire request.
+AgentBase applies these tiers to both budget estimates and recorded costs.
+[OpenAI model pricing](https://developers.openai.com/api/docs/models/gpt-6.1-sol).
+GPT-5.6 Sol uses the same 272,000-input-token threshold, charging $8 / $30
+above it and $4 / $20 otherwise.
+[GPT-5.6 Sol pricing](https://developers.openai.com/api/docs/models/gpt-5.6-sol).
+
+Untouched example collectors now use Haiku 5.5. Older Haiku 4.5 and GPT-6 Sol
+remain selectable, and saved custom choices are preserved. OpenAI schedules
+retirement of `gpt-4.1-nano` and `o3-mini` for October 23, 2026; choose a
+current model before that date if you use either.
+[OpenAI deprecations](https://developers.openai.com/api/docs/deprecations).
 
 Key entry works in the desktop app. A browser showing the development UI can
 only display which keys the sidecar received at startup.
@@ -170,10 +202,10 @@ your ChatGPT plan**; a new space, or one switched to OpenAI, starts on a model
 the plan includes; Home says when a space's model is not one, and its button
 opens **Space settings**. There, a space on OpenAI offers **Use the closest
 models it includes** for its own model and for its agents that name one the
-plan lacks. A space on GPT-6 Sol is offered GPT-5.6 Sol, the plan's strong
-model. A shipped `decision` agent on GPT-6 Sol also keeps its intended strong
-level and moves to GPT-5.6 Sol. Other shipped balanced agents on GPT-6 Sol
-move to GPT-5.6 Terra. GPT-5.6 Sol counts at twice GPT-6 Sol's price against
+plan lacks. A space on GPT-6 Sol or GPT-6.1 Sol is offered GPT-5.6 Sol, the plan's strong
+model. A shipped `decision` agent on either Sol model keeps its intended strong
+level and moves to GPT-5.6 Sol. Other shipped balanced agents on those models
+move to GPT-5.6 Terra. GPT-5.6 Sol counts at twice their short-context price against
 the per-run limit, so raise the limit if runs stop there. An agent in a space
 on another provider that names an OpenAI model is
 changed in its own editor. AgentBase never swaps a model on its own: a run on

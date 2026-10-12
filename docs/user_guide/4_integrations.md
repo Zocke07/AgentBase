@@ -75,6 +75,17 @@ the wait in Discord and answer in AgentBase's approval panel.
 Chat and desktop runs share tool permissions, folder checks, and approval
 policies. Chat approval changes who can answer, not which calls auto-run.
 
+### Market alerts in a channel
+
+[Market watch](2_running_tasks.md#market-watch-alerts-for-sudden-moves) can
+post each alert, and the reason its run found, to one channel. In Discord,
+turn on Developer Mode under **Advanced**, right-click the channel and choose
+**Copy Channel ID**, then paste it into **Settings → Market alerts → Discord
+channel for alerts**. The bot must be running and allowed to send messages in
+that channel. Alerts mention nobody, so a quoted headline cannot ping
+`@everyone`. Posting alerts reads nothing from the channel: commands are still
+accepted only from the accounts you allowed.
+
 ## Telegram
 
 Telegram is unsupported in 0.2.0; its adapter and settings were removed. The

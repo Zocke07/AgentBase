@@ -103,6 +103,13 @@ its source, that card shows the missing file clearly; the other cards still
 render. Open `visualizations/pipeline.dashboard.json` in **Knowledge → Agent
 files** after the morning and review stages have created data.
 
+The price forecast workbook is separate from these charts. Select
+`predictions/YYYY-MM.xlsx` in **Knowledge → Agent files** and choose **Open in
+spreadsheet app** (in a browser tab, **Download Excel workbook**). Each session's
+sheet has a row per stock with every horizon's prediction beside its later
+actual close; [Agents](3_agents.md#the-investment-roster) describes it. Later
+runs update the original workbook, so reopen it to see new actual prices.
+
 ## Mermaid diagrams
 
 Choose **From template… → Mermaid diagram** or open a `.mmd` / `.mermaid`
