@@ -990,6 +990,40 @@ async def test_a_recovered_model_cooldown_does_not_block_the_investment_chain(
     assert len(launcher.launched) == 2
 
 
+async def test_a_lookup_the_agent_corrected_does_not_block_the_investment_chain(
+    schedules: ScheduleStore, scheduler: Scheduler, store: EventStore
+) -> None:
+    """2026-10-13: a model read a listed file without its folder and missed.
+    A failed lookup changes nothing; required results are checked on their own."""
+    morning = await schedules.update("a7e2c1d0-5b3f-4c6a-9e81-0f4d2b7c9a11", {"enabled": True})
+    theses = await schedules.update("b8f3d2e1-6c4a-4d7b-8f92-1a5e3c8dab22", {"enabled": True})
+    run = await scheduler.run_now(morning)
+    for tool, error in (
+        ("read_file", "There is no file at bull-2026-10-09.jsonl in the workspace."),
+        ("list_dir", "There is no directory at facts in the workspace."),
+        ("search_knowledge", "The index could not be read."),
+    ):
+        await store.append(run.id, EventType.TOOL_ERROR, {"tool": tool, "error": error})
+    await store.append(
+        run.id,
+        EventType.TOOL_RESULT,
+        {
+            "tool": "read_prices",
+            "result": json.dumps(
+                {"new_session": True, "summary": [{"ticker": "MU"}], "required_failures": []}
+            ),
+        },
+    )
+    await store.append(
+        run.id, EventType.TOOL_RESULT, {"tool": "compute_portfolio", "result": "{}"}
+    )
+    await _finish(store, run.id, "completed")
+
+    (next_stage,) = await scheduler.on_run_finished(run.id)
+
+    assert next_stage.schedule_id == theses.id and next_stage.run_id is not None
+
+
 async def test_the_seeded_investment_chain_requires_a_new_verified_price_session_and_portfolio(
     schedules: ScheduleStore, scheduler: Scheduler, launcher: FakeLauncher, store: EventStore
 ) -> None:

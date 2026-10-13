@@ -73,12 +73,18 @@ def _result_objects(events: list[Event], tool: str) -> list[dict[str, object]]:
     return results
 
 
+#: Tools that only look things up. A miss, such as a mistyped path the agent
+#: then corrects, changes nothing; the results a stage needs are checked below.
+_LOOKUPS: Final[frozenset[str]] = frozenset({"read_file", "list_dir", "search_knowledge"})
+
+
 def _pipeline_block_reason(schedule_id: str, events: list[Event]) -> str | None:
     """Do not turn a completed-but-broken investment run into a chain success."""
     if schedule_id not in _PIPELINE_PARENTS:
         return None
     if any(
-        event.type in {EventType.TOOL_ERROR, EventType.TOOL_DENIED}
+        (event.type == EventType.TOOL_ERROR and event.payload.get("tool") not in _LOOKUPS)
+        or event.type == EventType.TOOL_DENIED
         or (event.type == EventType.LLM_ERROR and event.payload.get("will_retry") is not True)
         for event in events
     ):

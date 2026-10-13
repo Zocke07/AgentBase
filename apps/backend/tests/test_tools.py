@@ -326,6 +326,23 @@ async def test_list_dir_lists_files_and_directories(sandbox: Sandbox) -> None:
     assert "sub/" in result
 
 
+async def test_list_dir_names_entries_by_the_path_read_file_takes(sandbox: Sandbox) -> None:
+    """A model listing theses/ read "bull-2026-10-09.jsonl" and missed: the
+    listing gave bare names, which read_file resolves from the space root."""
+    (sandbox.root / "theses" / "deep").mkdir(parents=True)
+    (sandbox.root / "theses" / "bull-2026-10-09.jsonl").write_text("{}", encoding="utf-8")
+    tool = ListDirTool()
+
+    result = await tool.execute(tool.prepare({"path": "theses"}, sandbox), sandbox)
+
+    assert result.splitlines() == ["theses/bull-2026-10-09.jsonl (2 bytes)", "theses/deep/"]
+    read = ReadFileTool()
+    read_result = await read.execute(
+        read.prepare({"path": result.splitlines()[0].split(" (")[0]}, sandbox), sandbox
+    )
+    assert "{}" in read_result
+
+
 async def test_list_dir_defaults_to_the_workspace_root(sandbox: Sandbox) -> None:
     """The obvious first call an agent makes. Requiring '.' would waste a step."""
     tool = ListDirTool()

@@ -153,7 +153,7 @@ class Sandbox:
             relative = path.resolve().relative_to(self.root)
         except (OSError, ValueError):
             return str(path)
-        return str(relative) if str(relative) != "." else "."
+        return relative.as_posix()
 
     # --- urls --------------------------------------------------------------
 

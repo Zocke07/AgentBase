@@ -198,17 +198,23 @@ class ListDirTool:
             if not entries:
                 return f"{shown} is empty."
 
+            # Each entry by its path from the space root, which is what
+            # read_file takes: a bare name read from a listed folder missed.
+            # Built from the checked folder, so a link is never resolved here.
+            folder = sandbox.relative(path)
+            prefix = "" if folder == "." else f"{folder.replace(chr(92), '/')}/"
             lines = []
             for entry in entries[:MAX_DIR_ENTRIES]:
+                named = f"{prefix}{entry.name}"
                 if entry.is_dir():
-                    lines.append(f"{entry.name}/")
+                    lines.append(f"{named}/")
                 else:
                     try:
                         size = entry.stat().st_size
                     except OSError:
-                        lines.append(entry.name)
+                        lines.append(named)
                     else:
-                        lines.append(f"{entry.name} ({size} bytes)")
+                        lines.append(f"{named} ({size} bytes)")
 
             if len(entries) > MAX_DIR_ENTRIES:
                 lines.append(f"[truncated: {len(entries)} entries, showing {MAX_DIR_ENTRIES}]")
