@@ -474,6 +474,19 @@ class Agent:
         details = {"tool": call.name, "args": call.arguments, "call_id": call.id}
         await self._emit(EventType.TOOL_REQUESTED, details)
 
+        if call.argument_error is not None:
+            # Said plainly so the model resends the call: run as an empty call,
+            # a read whose path was mis-encoded was told it named no file.
+            error = (
+                f"The arguments for this {call.name} call could not be read: "
+                f"{call.argument_error}. It did not run. Send it again with its "
+                f"arguments as one JSON object."
+            )
+            await self._emit(
+                EventType.TOOL_ERROR, {"tool": call.name, "call_id": call.id, "error": error}
+            )
+            return ToolReply(error, failed=True)
+
         match self._permit(call.name):
             case _Permission.DENIED:
                 return await self._denied(call)

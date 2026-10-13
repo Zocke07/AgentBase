@@ -208,6 +208,37 @@ def test_structured_codex_output_becomes_native_tool_calls() -> None:
     assert parsed.tool_calls == (ToolCall("codex_turn_123_1", "read_file", {"path": "q3.md"}),)
 
 
+def test_call_arguments_that_cannot_be_read_are_reported_not_emptied() -> None:
+    """2026-10-13: one read in a batch of ten arrived as ``{}`` and was told it
+    named no path, so the decision skipped the file. The model is now told its
+    arguments were unreadable, and the batch's other calls are unaffected."""
+    parsed = _parse_decision(
+        json.dumps(
+            {
+                "text": "",
+                "tool_calls": [
+                    {"name": "read_file", "arguments_json": '{"path": "raw/filings/MU.json"}'},
+                    {"name": "read_file", "arguments_json": '{"path": "raw/filings/MSFT.json"'},
+                    {"name": "read_file", "arguments_json": '["raw/filings/NOW.json"]'},
+                    {"name": "list_dir", "arguments_json": ""},
+                ],
+            }
+        ),
+        model="gpt-5.6-sol",
+        turn_id="turn_9",
+        usage=TokenUsage(),
+    )
+
+    good, cut_off, listed, bare = parsed.tool_calls
+    assert good.arguments == {"path": "raw/filings/MU.json"} and good.argument_error is None
+    assert cut_off.arguments == {}
+    assert cut_off.argument_error is not None
+    assert cut_off.argument_error.startswith("they are not valid JSON")
+    assert listed.argument_error == "they are a JSON list, not an object"
+    # No arguments at all is a call that takes none, not a mistake.
+    assert bare.arguments == {} and bare.argument_error is None
+
+
 def test_invalid_structured_output_is_a_provider_error() -> None:
     from agentbase.providers.base import ProviderError
 

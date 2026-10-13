@@ -491,6 +491,9 @@ async def test_openai_survives_unparseable_tool_arguments() -> None:
 
     assert result.tool_calls[0].name == "read_file"
     assert result.tool_calls[0].arguments == {}
+    # Said, so the agent tells the model why rather than running an empty call.
+    assert result.tool_calls[0].argument_error is not None
+    assert result.tool_calls[0].argument_error.startswith("they are not valid JSON")
 
 
 async def test_openai_sends_a_bearer_token() -> None:
@@ -1120,7 +1123,36 @@ async def test_anthropic_stream_reassembles_a_tool_call_from_json_fragments() ->
     assert call.id == "toolu_1"
     assert call.name == "read_file"
     assert call.arguments == {"path": "q3.md"}
+    assert call.argument_error is None
     assert completion.stop_reason == "tool_use"
+
+
+async def test_anthropic_stream_reports_tool_arguments_it_cannot_read() -> None:
+    body = "\n".join(
+        [
+            'data: {"type":"message_start","message":{"model":"claude-opus-5",'
+            '"usage":{"input_tokens":10,"output_tokens":0}}}',
+            "",
+            'data: {"type":"content_block_start","index":0,"content_block":'
+            '{"type":"tool_use","id":"toolu_1","name":"read_file","input":{}}}',
+            "",
+            'data: {"type":"content_block_delta","index":0,"delta":'
+            '{"type":"input_json_delta","partial_json":"{\\"path\\": \\"q3.md\\""}}',
+            "",
+            'data: {"type":"message_delta","delta":{"stop_reason":"tool_use"},'
+            '"usage":{"output_tokens":20}}',
+            "",
+        ]
+    )
+    provider = AnthropicProvider(
+        api_key="test-key", model="claude-opus-5", client=mock_stream_client(body)
+    )
+
+    _, completion = await collect(provider)
+
+    [call] = completion.tool_calls
+    assert call.arguments == {}
+    assert call.argument_error is not None and "not valid JSON" in call.argument_error
 
 
 async def test_anthropic_stream_matches_the_blocking_call() -> None:

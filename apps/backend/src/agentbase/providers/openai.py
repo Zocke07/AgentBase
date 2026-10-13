@@ -24,6 +24,7 @@ from agentbase.providers.base import (
     TokenUsage,
     ToolCall,
     ToolSpec,
+    decode_arguments,
 )
 from agentbase.providers.transport import (
     DEFAULT_TIMEOUT_SECONDS,
@@ -484,19 +485,6 @@ def _to_openai_messages(
     return turns
 
 
-def _decode_arguments(encoded: str) -> dict[str, Any]:
-    """Decode JSON-string tool arguments; invalid input becomes an empty mapping."""
-    if not encoded.strip():
-        return {}
-
-    try:
-        decoded: Any = json.loads(encoded)
-    except json.JSONDecodeError:
-        return {}
-
-    return decoded if isinstance(decoded, dict) else {}
-
-
 def _tool_calls(raw: Any) -> list[ToolCall]:
     """Parse ``tool_calls`` with JSON-string arguments."""
     if not isinstance(raw, list):
@@ -510,13 +498,14 @@ def _tool_calls(raw: Any) -> list[ToolCall]:
         function = function if isinstance(function, dict) else {}
 
         encoded = function.get("arguments")
-        arguments = _decode_arguments(encoded if isinstance(encoded, str) else "")
+        arguments, problem = decode_arguments(encoded if isinstance(encoded, str) else "")
 
         calls.append(
             ToolCall(
                 id=str(entry.get("id", "")),
                 name=str(function.get("name", "")),
                 arguments=arguments,
+                argument_error=problem,
             )
         )
 
@@ -619,9 +608,11 @@ class _StreamState:
             ToolCall(
                 id=str(call["id"]),
                 name=str(call["name"]),
-                arguments=_decode_arguments("".join(call["arguments"])),
+                arguments=arguments,
+                argument_error=problem,
             )
             for _, call in sorted(self._calls.items())
+            for arguments, problem in [decode_arguments("".join(call["arguments"]))]
         ]
 
         return Completion(

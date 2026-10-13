@@ -6,6 +6,7 @@ provider. Some providers, such as Ollama, have neither API keys nor cost.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
@@ -27,6 +28,7 @@ __all__ = [
     "TokenUsage",
     "ToolCall",
     "ToolSpec",
+    "decode_arguments",
 ]
 
 
@@ -79,6 +81,27 @@ class ToolCall:
     id: str
     name: str
     arguments: dict[str, Any] = field(default_factory=dict)
+    #: Why the provider could not read the model's arguments; such a call never
+    #: runs, and the model is told to send it again.
+    argument_error: str | None = None
+
+
+def decode_arguments(encoded: str) -> tuple[dict[str, Any], str | None]:
+    """A call's JSON-string arguments, and why they could not be read.
+
+    Blank means no arguments. Anything else that is not one JSON object is
+    reported rather than run as an empty call: on 2026-10-13 a call whose path
+    the model had mis-encoded ran as ``{}`` and was told it gave no path.
+    """
+    if not encoded.strip():
+        return {}, None
+    try:
+        decoded: Any = json.loads(encoded)
+    except json.JSONDecodeError as exc:
+        return {}, f"they are not valid JSON ({exc.msg} at character {exc.pos})"
+    if not isinstance(decoded, dict):
+        return {}, f"they are a JSON {type(decoded).__name__}, not an object"
+    return decoded, None
 
 
 @dataclass(frozen=True, slots=True)

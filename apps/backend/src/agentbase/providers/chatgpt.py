@@ -43,6 +43,7 @@ from agentbase.providers.base import (
     TokenUsage,
     ToolCall,
     ToolSpec,
+    decode_arguments,
 )
 from agentbase.providers.codex_runtime import (
     CodexRuntimeError,
@@ -777,15 +778,17 @@ def _parse_decision(
         if not isinstance(raw, dict) or not isinstance(raw.get("name"), str):
             raise ProviderError("ChatGPT returned an invalid structured response.")
         encoded_arguments = raw.get("arguments_json")
-        arguments: Any = {}
-        if isinstance(encoded_arguments, str):
-            with contextlib.suppress(json.JSONDecodeError):
-                arguments = json.loads(encoded_arguments)
+        arguments, problem = (
+            decode_arguments(encoded_arguments)
+            if isinstance(encoded_arguments, str)
+            else ({}, "no arguments_json string was given")
+        )
         calls.append(
             ToolCall(
                 id=f"codex_{turn_id}_{index}",
                 name=raw["name"],
-                arguments=arguments if isinstance(arguments, dict) else {},
+                arguments=arguments,
+                argument_error=problem,
             )
         )
 

@@ -5,7 +5,6 @@ Anthropic requires a top-level system prompt and ``max_tokens``.
 
 from __future__ import annotations
 
-import json
 from typing import TYPE_CHECKING, Any, Final
 
 import httpx2
@@ -21,6 +20,7 @@ from agentbase.providers.base import (
     TokenUsage,
     ToolCall,
     ToolSpec,
+    decode_arguments,
 )
 from agentbase.providers.transport import (
     DEFAULT_TIMEOUT_SECONDS,
@@ -376,9 +376,11 @@ class _StreamState:
             ToolCall(
                 id=str(block["id"]),
                 name=str(block["name"]),
-                arguments=_parse_arguments(block["json"]),
+                arguments=arguments,
+                argument_error=problem,
             )
             for _, block in sorted(self._blocks.items())
+            for arguments, problem in [decode_arguments("".join(block["json"]))]
         ]
 
         return Completion(
@@ -398,20 +400,6 @@ class _StreamState:
 def _index_of(frame: dict[str, Any]) -> int:
     value = frame.get("index")
     return value if isinstance(value, int) and not isinstance(value, bool) else 0
-
-
-def _parse_arguments(parts: list[str]) -> dict[str, Any]:
-    """Decode joined ``input_json_delta`` fragments; absent or invalid means ``{}``."""
-    joined = "".join(parts).strip()
-    if not joined:
-        return {}
-
-    try:
-        parsed: Any = json.loads(joined)
-    except ValueError:
-        return {}
-
-    return parsed if isinstance(parsed, dict) else {}
 
 
 def _error_message(frame: dict[str, Any]) -> str:
