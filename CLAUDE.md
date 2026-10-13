@@ -58,7 +58,10 @@ future changes do not relocate users' data or disconnect their stored keys.
   not said where facts live or not to hand the decision a date (migration
   033). `read_file` describes binary files, missing paths name their nearest
   folder's contents, and the run summary shows missed lookups apart from
-  failures. See docs/verification.md.
+  failures. A call refused before it ran (no `tool.called` for its
+  `call_id`) that the same agent then ran again is a call sent again, not a
+  failure, in the run summary and the chain gate alike. See
+  docs/verification.md.
 - **Market watch, BUILD_SPEC Phase 18 (2026-10-13).** A sidecar task beside
   the scheduler (`orchestrator/monitor.py`) reads Yahoo spark quotes for a
   space's holdings, watchlist and indexes every few minutes, 04:00 to 20:00

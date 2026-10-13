@@ -4,6 +4,37 @@ Updated 2026-10-13. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
+## A refused call sent again is not a failure, 2026-10-13
+
+After the capacity fix the maintainer pressed **Run now** on Daily decision
+at 15:39 Taipei. It completed in 4 minutes 10 seconds for about $1.20 and
+wrote the decision for the 2026-10-12 session and the October workbook:
+`track_forecasts` appended 130 forecasts, 25 of them analyst forecasts. The
+run reported one error. The supervisor's first `spawn_agent` arrived with
+arguments that were not one JSON object ("Extra data at character 605"), so
+`ToolCall.argument_error` refused it before it ran, and the supervisor sent
+the same request again 9 seconds later, which ran. The summary still said
+"1 error during this run" with "Review these before trusting the outcome",
+and in Morning collection or Theses and risk the chain gate would have
+stopped the next stage.
+
+- **The rule.** A tool error whose call never ran, with no `tool.called` for
+  its `call_id`, is forgiven once the same agent has run that tool after it.
+  The run summary lists it calmly as a call sent again, apart from failures
+  and without the warning, and the canvas's error count leaves it out
+  (`isResentRefusal` and `changedNothing` in `state/reducer.ts`). The chain
+  gate passes it (`_resent_refusals` in `scheduler.py`). A refusal never
+  followed up, a call that ran and failed, and a refusal followed only by
+  another agent's call still count as failures, since a worker the refused
+  call would have started may never have run.
+- **Executed.** Schedule tests for the resent call and the four cases that
+  still block, reducer tests for the three readings, and run summary tests
+  for the calm listing and the failure without a resend. `just ci`: backend
+  **1,399 passed, 12 skipped**; desktop **643 passed in 61 files**; lint,
+  formatting and both typecheckers clean.
+- **Unverified.** The running app shows the old summary until `just dev-app`
+  restarts. The refused call was replayed through tests, not a new run.
+
 ## Personal stock data can be edited on Home, 2026-10-13
 
 **Home → My portfolio → Edit portfolio** edits holdings, additional watched

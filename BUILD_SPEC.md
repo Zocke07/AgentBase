@@ -1421,6 +1421,15 @@ behind them:*
   apart from failures, with no "review before trusting" warning; the chain
   gate draws the same line.)*
 
+*(Third run of 2026-10-13, Daily decision alone: one `spawn_agent` call's
+arguments could not be read, extra data after the JSON object, so it was
+refused before it ran, and the supervisor sent it again. A tool error whose
+call never ran, with no `tool.called` for its `call_id`, is forgiven once the
+same agent has run that tool after it: the run summary lists it as a call
+sent again, and the chain gate passes it. A refusal never followed up still
+counts as a failure, since a worker it would have started may never have
+run.)*
+
 **Out of scope:**
 
 - Reddit and other social sources: OAuth, and their terms.

@@ -70,13 +70,17 @@ The supervisor summary is only its account. Check log `write_file` entries and
 results, then **Space settings → Open folder**. Coordination calls also count,
 so a summary or nonzero total does not prove a file was written.
 
-**A run lists missed lookups.**
+**A run lists missed lookups or calls sent again.**
 An agent looked for a file or folder that was not there, or sent a request
 to read without saying which file. Nothing was changed, the agent was told,
-and it can look again; a missed lookup does not stop a chain. Open the list to
-see what it looked for. A failed write, fetch, calculation or model call is
-listed as an error instead, and is worth reviewing before you trust the
-outcome.
+and it can look again; a missed lookup does not stop a chain. A call sent
+again is a request the app could not run as written, such as one whose
+details came out garbled, that the agent then sent again and the app ran.
+The first try ran nothing, so it does not stop a chain either. Open the list
+to see each one. A failed write, fetch, calculation or model call is listed
+as an error instead, and is worth reviewing before you trust the outcome, as
+is a request that could not be run and was never sent again: what it would
+have done may not have happened.
 
 **I denied a request and another question appeared.**
 Exact same-run tool/argument repeats are automatically denied. Different

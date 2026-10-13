@@ -197,7 +197,9 @@ The run view shows status and agent/tool/denial/token/error/cost counts; the
 sentence above the canvas gives current activity. Errors count failed tool
 and model calls. A lookup that found nothing, such as a folder that does not
 exist, is listed apart as a missed lookup: nothing was changed and the agent
-was told. Read the canvas left to
+was told. So is a request that could not be run as written, such as one with
+garbled details, once the agent has sent it again and it ran: the run lists
+it as a call sent again. Read the canvas left to
 right: **Goal**, supervisor, delegated workers, **Outcome**. Agent cards show
 state (ready, thinking, model, tool, approval, done), activity, model, and
 tool chips: green executions, red denials, pulsing active calls. Arrows label
