@@ -109,8 +109,22 @@ export interface Denial {
 export interface RunError {
   readonly agent: string | null;
   readonly kind: "llm" | "tool";
+  /** The tool that failed; null for a model error. */
+  readonly tool: string | null;
   readonly message: string;
   readonly seq: number;
+}
+
+/**
+ * Tools that only look something up. One that finds nothing, or is sent
+ * without what it needs, changes nothing, so a run reads it as a missed
+ * lookup rather than a failure. The chain gate (`scheduler.py`) draws the
+ * same line.
+ */
+const LOOKUP_TOOLS: ReadonlySet<string> = new Set(["read_file", "list_dir", "search_knowledge"]);
+
+export function isMissedLookup(error: RunError): boolean {
+  return error.kind === "tool" && error.tool !== null && LOOKUP_TOOLS.has(error.tool);
 }
 
 /**
@@ -450,7 +464,7 @@ export function reduce(state: RunView, event: Event): RunView {
       const message = text(payload, "error") ?? "";
       const recorded: RunView = {
         ...next,
-        errors: [...next.errors, { agent, kind: "llm", message, seq }],
+        errors: [...next.errors, { agent, kind: "llm", tool: null, message, seq }],
       };
       return agent === null
         ? recorded
@@ -500,7 +514,7 @@ export function reduce(state: RunView, event: Event): RunView {
       const message = text(payload, "error") ?? "";
       const failed: RunView = {
         ...next,
-        errors: [...next.errors, { agent, kind: "tool", message, seq }],
+        errors: [...next.errors, { agent, kind: "tool", tool: text(payload, "tool"), message, seq }],
       };
       return agent === null
         ? failed

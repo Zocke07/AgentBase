@@ -2,7 +2,7 @@ import { MarkerType, type Edge, type Node } from "@xyflow/react";
 
 import { ellipsise } from "../lib/format";
 
-import type { AgentNode, RunClaim, RunStatus, RunView } from "./reducer";
+import { isMissedLookup, type AgentNode, type RunClaim, type RunStatus, type RunView } from "./reducer";
 
 /**
  * Derive a workflow solely from `RunView`, making the canvas a log projection.
@@ -143,7 +143,7 @@ export function layout(view: RunView, selected: string | null): WorkflowNode[] {
       claim: view.claim,
       agents: view.agentOrder.length,
       toolCalls: view.toolCalls.length,
-      errors: view.errors.length,
+      errors: view.errors.filter((error) => !isMissedLookup(error)).length,
       memoryPath: view.memoryPath,
     },
   });

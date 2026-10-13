@@ -3917,6 +3917,22 @@ button.md__tag:hover {
   background: color-mix(in srgb, var(--bad) 3%, var(--surface));
 }
 
+/* Only missed lookups: nothing failed or changed, so no alarm colours. */
+.run-summary__problems--lookups {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+.run-summary__problems--lookups .run-summary__problem-mark {
+  background: color-mix(in srgb, var(--muted) 14%, var(--surface));
+  color: var(--muted);
+}
+
+.run-summary__problems--lookups .run-summary__problem-copy strong,
+.run-summary__problems--lookups .run-summary__error-who {
+  color: var(--text);
+}
+
 .run-summary__problems>summary {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;

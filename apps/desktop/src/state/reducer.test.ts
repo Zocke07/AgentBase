@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { LogBuilder, twoAgentRun } from "../test/log";
 
-import { EMPTY_RUN, pendingApprovals, reduce, reduceAll } from "./reducer";
+import { EMPTY_RUN, isMissedLookup, pendingApprovals, reduce, reduceAll } from "./reducer";
 
 
 
@@ -654,9 +654,11 @@ describe("errors", () => {
     ]);
 
     expect(state.errors).toEqual([
-      { agent: "w", kind: "llm", message: "provider refused", seq: 1 },
-      { agent: "w", kind: "tool", message: "no such file", seq: 2 },
+      { agent: "w", kind: "llm", tool: null, message: "provider refused", seq: 1 },
+      { agent: "w", kind: "tool", tool: "read_file", message: "no such file", seq: 2 },
     ]);
+    // The run summary calls a lookup that found nothing a missed lookup.
+    expect(state.errors.map(isMissedLookup)).toEqual([false, true]);
   });
 });
 

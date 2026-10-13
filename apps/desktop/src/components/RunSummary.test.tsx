@@ -103,6 +103,40 @@ describe("RunSummary", () => {
     expect(disclosure.textContent).toContain("timed out after 30s");
   });
 
+  it("lists a lookup that found nothing without calling it a failure", () => {
+    /* 2026-10-13: a decision listed a "facts" folder that never existed and
+       sent one read without its path. Nothing failed or changed, yet the run
+       said "2 tool failures. Review these before trusting the outcome." */
+    const log = new LogBuilder();
+    const lookups = [
+      ...twoAgentRun().slice(0, 4),
+      log.add("tool.error", { tool: "list_dir", error: "There is no directory at facts in the workspace." }, "supervisor"),
+      log.add("tool.error", { tool: "read_file", error: "The arguments for this read_file call could not be read." }, "supervisor"),
+    ];
+    const { unmount } = render(<RunSummary view={reduceAll(lookups)} />);
+
+    expect(screen.queryByTestId("run-issue-badge")).toBeNull();
+    expect(screen.getByTestId("fact-errors").textContent).toBe("0");
+    const disclosure = screen.getByTestId("run-errors");
+    expect(disclosure.className).toContain("run-summary__problems--lookups");
+    expect(disclosure.querySelector("summary")?.textContent).toContain("2 missed lookups");
+    expect(disclosure.textContent).not.toContain("Review these before trusting the outcome");
+    expect(disclosure.textContent).toContain("supervisor · lookup");
+    expect(disclosure.textContent).toContain("There is no directory at facts");
+    unmount();
+
+    // Beside a real failure, the lookups are counted with it, not hidden.
+    render(
+      <RunSummary
+        view={reduceAll([...lookups, log.add("tool.error", { tool: "write_file", error: "disk full" }, "supervisor")])}
+      />,
+    );
+    expect(screen.getByTestId("run-issue-badge").textContent).toBe("1 error");
+    expect(screen.getByTestId("run-errors").textContent).toContain(
+      "1 tool failure and 2 missed lookups. Review these before trusting the outcome.",
+    );
+  });
+
   it("says so when the run was stopped by the monthly cap", () => {
     const log = new LogBuilder();
     const view = reduceAll([
