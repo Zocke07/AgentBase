@@ -36,6 +36,7 @@ if TYPE_CHECKING:
     from agentbase.events.types import Event
     from agentbase.events.types import Run as RunRow
     from agentbase.orchestrator.launcher import RunLauncher
+    from agentbase.orchestrator.power import Wakefulness
     from agentbase.store.schedules import Schedule, ScheduleStore
 
 __all__ = ["DEFAULT_POLL_SECONDS", "Fired", "ScheduleBusyError", "Scheduler"]
@@ -163,6 +164,9 @@ class Scheduler:
     #: Includes untimed stages and interrupted runs whose next time is still ahead.
     _pending: dict[str, tuple[Schedule, str | None]] = field(default_factory=dict, init=False)
     _settled_interrupted: set[str] = field(default_factory=set, init=False)
+    #: Starts wait while the computer has only just woken: a few seconds of a
+    #: lid-closed maintenance wake once started a five-hour crawl (2026-10-13).
+    wakefulness: Wakefulness | None = None
 
     # --- lifecycle ---------------------------------------------------------
 
@@ -201,6 +205,9 @@ class Scheduler:
                 logger.exception("a scheduler pass failed")
 
     async def _seconds_until_next(self) -> float:
+        # Look again once the computer has been awake long enough to start.
+        if self.wakefulness is not None and not self.wakefulness.settled():
+            return max(1.0, min(self.wakefulness.seconds_until_settled(), self.poll_seconds))
         # An overdue schedule waiting for this space must not cause a busy loop
         # or hide a future due time in another space. Completion wakes the loop.
         available = [
@@ -345,6 +352,13 @@ class Scheduler:
         if schedule.space_id in self._active_spaces:
             self._pending.setdefault(schedule.id, (schedule, note))
             outcome = "Waiting: another automation in this space has not finished."
+            if schedule.last_outcome != outcome:
+                await self.schedules.note_outcome(schedule.id, now=now, outcome=outcome)
+            return Fired(schedule.id, None, outcome)
+
+        if self.wakefulness is not None and not self.wakefulness.settled():
+            self._pending.setdefault(schedule.id, (schedule, note))
+            outcome = "Waiting: the computer has just woken; starts once it has been awake two minutes."
             if schedule.last_outcome != outcome:
                 await self.schedules.note_outcome(schedule.id, now=now, outcome=outcome)
             return Fired(schedule.id, None, outcome)

@@ -990,6 +990,41 @@ async def test_a_recovered_model_cooldown_does_not_block_the_investment_chain(
     assert len(launcher.launched) == 2
 
 
+class _JustWoken:
+    """A Wakefulness double: unsettled until the test says otherwise."""
+
+    def __init__(self) -> None:
+        self.awake = False
+
+    def settled(self) -> bool:
+        return self.awake
+
+    def seconds_until_settled(self) -> float:
+        return 0.0 if self.awake else 120.0
+
+
+async def test_nothing_starts_in_the_seconds_after_the_computer_wakes(
+    schedules: ScheduleStore, launcher: FakeLauncher, clock: Clock
+) -> None:
+    """2026-10-13: a lid-closed maintenance wake of nine seconds started the
+    morning collection, which then crawled through such wakes for five hours."""
+    woken = _JustWoken()
+    scheduler = Scheduler(schedules, launcher, poll_seconds=0.05, wakefulness=woken)  # type: ignore[arg-type]
+    due = await schedules.create(_fields(name="Morning collection"))
+    clock.now = _utc(2026, 9, 18, 7, 52, 45)
+
+    (waiting,) = await scheduler.tick()
+    assert waiting.run_id is None and "has just woken" in waiting.outcome
+    assert launcher.launched == []
+    # It looks again soon, but never spins on the waiting schedule.
+    assert await scheduler._seconds_until_next() == 1.0
+
+    woken.awake = True
+    clock.now = _utc(2026, 9, 18, 7, 55, 0)
+    (started,) = await scheduler.tick()
+    assert started.schedule_id == due.id and started.run_id is not None
+
+
 async def test_a_lookup_the_agent_corrected_does_not_block_the_investment_chain(
     schedules: ScheduleStore, scheduler: Scheduler, store: EventStore
 ) -> None:

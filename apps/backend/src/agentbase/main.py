@@ -52,6 +52,7 @@ from agentbase.events.store import EventStore
 from agentbase.knowledge.store import KnowledgeStore
 from agentbase.orchestrator.launcher import RunLauncher
 from agentbase.orchestrator.monitor import MarketMonitor
+from agentbase.orchestrator.power import KeepAwake, Wakefulness
 from agentbase.orchestrator.scheduler import Scheduler
 from agentbase.providers.chatgpt import ChatGPTRuntime, CodexAppServerRuntime
 from agentbase.providers.codex_runtime import CodexRuntimeInstaller
@@ -96,6 +97,11 @@ class HealthResponse(BaseModel):
 def market_client() -> httpx2.AsyncClient:
     """The market watch's quote client; tests replace it with an offline one."""
     return httpx2.AsyncClient(timeout=20)
+
+
+def keep_awake() -> KeepAwake:
+    """Holds the computer out of idle sleep during runs; tests get a no-op."""
+    return KeepAwake()
 
 
 def create_app(
@@ -200,10 +206,20 @@ def create_app(
         )
         await app.state.channels.start()
 
+        # A run keeps the computer from idle sleep; automations wait out the
+        # first minutes after it wakes (orchestrator/power.py).
+        app.state.keep_awake = keep_awake()
+        app.state.launcher.keep_awake = app.state.keep_awake
+        app.state.wakefulness = Wakefulness()
+        await app.state.wakefulness.start()
+
         # Start last: its first pass launches jobs due while closed, not orphans.
         app.state.schedules = ScheduleStore(database)
         app.state.scheduler = Scheduler(
-            app.state.schedules, app.state.launcher, interrupted=frozenset(interrupted)
+            app.state.schedules,
+            app.state.launcher,
+            interrupted=frozenset(interrupted),
+            wakefulness=app.state.wakefulness,
         )
         await app.state.scheduler.start()
 
@@ -217,6 +233,7 @@ def create_app(
             events=app.state.store,
             announce=app.state.channels.announce,
             client_factory=monitor_client_factory or market_client,
+            wakefulness=app.state.wakefulness,
         )
         scheduler, monitor = app.state.scheduler, app.state.monitor
 
@@ -235,12 +252,14 @@ def create_app(
             # use a closed DB.
             await app.state.monitor.aclose()
             await app.state.scheduler.aclose()
+            await app.state.wakefulness.aclose()
             await app.state.channels.aclose()
             for task in tuple(app.state.background_tasks):
                 task.cancel()
             if app.state.background_tasks:
                 await asyncio.gather(*app.state.background_tasks, return_exceptions=True)
             await app.state.chatgpt_runtime.aclose()
+            app.state.keep_awake.close()
             database.close()
 
     app = FastAPI(

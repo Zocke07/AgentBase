@@ -64,6 +64,14 @@ def _offline_market_watch(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+@pytest.fixture(autouse=True)
+def _no_keep_awake(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test apps start runs; none may start the real caffeinate."""
+    from agentbase.orchestrator.power import KeepAwake
+
+    monkeypatch.setattr("agentbase.main.keep_awake", lambda: KeepAwake(platform="test"))
+
+
 @pytest.fixture
 def anyio_backend() -> str:
     """Run `@pytest.mark.anyio` tests on asyncio only; we do not ship trio."""

@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from agentbase.config import AppPaths
     from agentbase.events.types import Run
     from agentbase.orchestrator.launcher import RunLauncher
+    from agentbase.orchestrator.power import Wakefulness
     from agentbase.store.db import Database
 
 anyio_tests = pytest.mark.anyio
@@ -537,3 +538,20 @@ async def test_switching_on_writes_the_starter_file_and_keeps_the_persons_edits(
     with pytest.raises(MonitorConfigError, match="left alone"):
         h.monitor.set_enabled(space, enabled=True)
     assert path.read_text(encoding="utf-8") == "{broken"
+
+
+@anyio_tests
+async def test_nothing_is_checked_or_explained_just_after_the_computer_wakes(
+    db: Database, app_paths: AppPaths, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class JustWoken:
+        def settled(self) -> bool:
+            return False
+
+    h = _harness(db, app_paths, monkeypatch)
+    h.monitor.wakefulness = cast("Wakefulness", JustWoken())
+
+    await h.monitor.tick()
+
+    assert h.yahoo.requests == []
+    assert await h.alerts.recent(DEFAULT_SPACE_ID, 10) == []

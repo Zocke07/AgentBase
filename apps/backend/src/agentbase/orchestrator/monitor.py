@@ -50,6 +50,7 @@ if TYPE_CHECKING:
 
     from agentbase.events.store import EventStore
     from agentbase.orchestrator.launcher import RunLauncher
+    from agentbase.orchestrator.power import Wakefulness
     from agentbase.store.alerts import AlertStore, MarketAlert
     from agentbase.store.spaces import Space, SpaceStore
 
@@ -516,6 +517,8 @@ class MarketMonitor:
         default=lambda: httpx2.AsyncClient(timeout=20)
     )
     poll_seconds: float = POLL_SECONDS
+    #: Nothing is checked or explained while the computer has only just woken.
+    wakefulness: Wakefulness | None = None
     _status: dict[str, MonitorStatus] = field(default_factory=dict, init=False)
     _checked: dict[str, datetime] = field(default_factory=dict, init=False)
     _task: asyncio.Task[None] | None = field(default=None, init=False)
@@ -552,6 +555,8 @@ class MarketMonitor:
     # --- one pass -----------------------------------------------------------
 
     async def tick(self) -> None:
+        if self.wakefulness is not None and not self.wakefulness.settled():
+            return
         async with self._lock:
             for space in await self.spaces.list_all(include_archived=False):
                 try:

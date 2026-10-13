@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from agentbase.events.types import Run as RunRow
     from agentbase.events.types import RunOrigin
     from agentbase.knowledge.store import KnowledgeStore
+    from agentbase.orchestrator.power import KeepAwake
     from agentbase.orchestrator.run import Run
     from agentbase.providers.base import Provider
     from agentbase.providers.chatgpt import ChatGPTInferenceRuntime
@@ -70,6 +71,8 @@ class RunLauncher:
     #: Told each run id once its orchestrator has written a terminal event;
     #: the scheduler uses it to start the stages that follow a scheduled run.
     on_finished: Callable[[str], Coroutine[Any, Any, None]] | None = None
+    #: Holds the computer out of idle sleep while any run is going.
+    keep_awake: KeepAwake | None = None
 
     async def launch(
         self,
@@ -105,6 +108,8 @@ class RunLauncher:
             await prologue(run)
 
         self.driving.add(run.id)
+        if self.keep_awake is not None:
+            self.keep_awake.hold()
         task = self.spawn(
             self._drive(
                 run.id, goal, space, excluded_citations, max_run_seconds, origin, supervised
@@ -115,6 +120,8 @@ class RunLauncher:
         def finished(_task: asyncio.Task[None]) -> None:
             self.driving.discard(run_id)
             self.pending_cancellations.pop(run_id, None)
+            if self.keep_awake is not None:
+                self.keep_awake.release()
             if self.on_finished is not None:
                 self.spawn(self.on_finished(run_id))
 
