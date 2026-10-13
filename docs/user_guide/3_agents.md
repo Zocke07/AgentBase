@@ -195,10 +195,12 @@ guessed. The decision remains a recommendation for you to review.
 For the shipped daily chain, a run marked **completed** is not enough to start
 the next stage. Morning collection must have verified new-session price rows
 with no failed ticker and a successful portfolio calculation. Theses and risk
-must have successful hard-rule checks and the dated risk review file. Tool or
-model errors stop the chain, so a rate-limited Yahoo request cannot turn into
-empty theses or a decision presented as if the inputs were complete. Check
-the run's error details and tool results before trusting its summary.
+must have successful hard-rule checks and the dated risk review file. A
+failed tool or model call stops the chain, so a rate-limited Yahoo request
+cannot turn into empty theses or a decision presented as if the inputs were
+complete. A lookup that found nothing does not: the agent is told and can
+look again, and the run lists it as a missed lookup. Check the run's error
+details and tool results before trusting its summary.
 
 The shipped scope does not include Reddit or other social sources, complete
 SEC filing archives, keyed APIs, earnings calendars, FOMC or BLS calendars, a

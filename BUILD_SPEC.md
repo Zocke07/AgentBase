@@ -1375,6 +1375,26 @@ older zero-cash starter. The hard constraints in section 1 remain unchanged.
   failed lookup (`read_file`, `list_dir`, `search_knowledge`) no longer stops
   a chain; a failed write, fetch or computation still does.)*
 
+*(Second run of 2026-10-13: the chain ran in 16 minutes and recorded 30
+analyst and 100 baseline forecasts. The decision's two errors, and what was
+behind them:*
+- *One read in a batch of ten arrived as `{}`: the ChatGPT adapter, like the
+  OpenAI chat and Anthropic ones, turned arguments it could not parse into
+  an empty call, which was told it gave no path. A call whose arguments
+  cannot be read now carries `ToolCall.argument_error`, and the agent answers
+  it with the reason and a request to resend; it never runs.*
+- *It listed a "facts" folder that never existed: the goal named annual and
+  quarterly facts but not `raw/filings/`. Migration 033 names the place in
+  the goal and the decision's input, restores 026's warning against giving
+  the decision a date (the supervisor had named the file for the local date,
+  2026-10-13, not the session's), and asks for no second pass to read the
+  workbook, which one had read as text at about 29,000 tokens.*
+- *`read_file` describes a binary file instead of decoding it, and a missing
+  file or folder's error names what exists nearest it.*
+- *The run summary counts a lookup that found nothing as a missed lookup,
+  apart from failures, with no "review before trusting" warning; the chain
+  gate draws the same line.)*
+
 **Out of scope:**
 
 - Reddit and other social sources: OAuth, and their terms.

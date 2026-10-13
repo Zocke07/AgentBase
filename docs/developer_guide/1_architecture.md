@@ -258,7 +258,15 @@ approvals denied and Codex tools disabled, supplies the AgentBase conversation
 and tool schemas as data, and requests one structured decision. A requested
 tool is converted to the normal `ToolCall`; the hand-written AgentBase loop
 decides whether and how to execute it. This preserves the approval and event
-boundaries even though the wire protocol differs from an API-key request. The
+boundaries even though the wire protocol differs from an API-key request.
+Here the model writes each call's arguments as a JSON string inside JSON, and
+on 2026-10-13 one of ten reads arrived mis-encoded. Every adapter decodes
+arguments through `providers/base.py`'s `decode_arguments`: blank means none,
+and anything that is not one JSON object sets `ToolCall.argument_error`
+instead of becoming `{}`. The agent logs such a call as requested, answers it
+with that reason and a request to resend, and never prepares or runs it, so
+the model is not told it "gave no path". OpenAI's Responses path still fails
+the model call on malformed arguments. The
 App Server's structured JSON stream is incrementally decoded so only its
 top-level user-facing `text` reaches normal `llm.token` events; JSON framing
 and tool arguments never appear as display text.

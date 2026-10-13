@@ -4,6 +4,45 @@ Updated 2026-10-13. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
+## The fresh retry's decision run, 2026-10-13
+
+After restarting `just dev-app` the maintainer pressed **Run now** on Morning
+collection at 13:40 Taipei (01:40 New York). The chain ran unattended in 16
+minutes: collection 2.5, theses and risk 8, decision 5. `track_forecasts`
+recorded 130 forecasts for the 2026-10-12 session, 30 `analyst_thesis` (AAOI,
+AVGO, INTC, META, MU, PLUG) and 100 baselines, with no conflicts, problems or
+skips. The run titles showed in Runs. The decision reported two errors.
+
+- **"There is no directory at facts."** Four listings went out at once, one
+  for a "facts" folder the goal implied; the decision then listed
+  `raw/filings/` and read the facts there. Migration 033 names that folder in
+  the goal and the decision's input. A missing path's error now names what
+  exists nearest it.
+- **"read_file needs a 'path' argument."** One read in a batch of ten arrived
+  as `{}`; MSFT's facts, the one holding missing from the batch, were never
+  read. The ChatGPT adapter swallowed unparseable `arguments_json`, as did
+  the OpenAI chat and Anthropic decoders. Unreadable arguments now set
+  `ToolCall.argument_error`, and the agent answers with the reason and a
+  request to resend, never running the call. Tests cover all three adapters
+  and the loop, where the batch's readable call still runs.
+- **Found while tracing.** The supervisor named the file
+  `decisions/2026-10-13.md` for the 2026-10-12 session: 028's goal had lost
+  026's warning not to give the decision a date, which 033 restores. A
+  second pass the supervisor added read `predictions/2026-10.xlsx` as text,
+  78,630 bytes of event and about 29,000 input tokens; `read_file` now
+  describes a binary file instead, and 033 asks for no such pass.
+- **The run summary.** A lookup that found nothing (`read_file`, `list_dir`,
+  `search_knowledge`) is a missed lookup, listed calmly and apart from
+  failures; the badge, Errors figure and warning count failures only.
+- **Executed.** `just ci`: backend **1,357 passed, 12 skipped**; desktop
+  **613 passed in 59 files**; ruff, formatting, strict mypy on macOS and
+  Windows, ESLint and TypeScript passed. A copy of the live database upgraded
+  to schema 33 with the new goal and prompt passages and kept its runs.
+- **Unverified.** The running app still has the code from before these
+  fixes; they apply on the next restart of `just dev-app`. The dated file
+  `decisions/2026-10-13.md` from this run was left as written. The summary's
+  new styling was checked by component tests, not in the window.
+
 ## Unattended chain repair and run titles, 2026-10-13
 
 The maintainer ran the chain again (**Run now** at 01:47 Taipei, then the

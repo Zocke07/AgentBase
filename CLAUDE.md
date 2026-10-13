@@ -26,7 +26,13 @@ future changes do not relocate users' data or disconnect their stored keys.
   a same-day collection keeps earlier headlines; `list_dir` returns
   space-relative paths; a failed lookup no longer stops a chain. Runs lists
   an automation's run by its title (migration 032). Generated outputs were
-  backed up and removed for a fresh retry. See docs/verification.md.
+  backed up and removed for a fresh retry. The retry's decision showed two
+  lookup slips: an adapter had turned unreadable call arguments into `{}`
+  (now `ToolCall.argument_error`, answered and never run), and the goal had
+  not said where facts live or not to hand the decision a date (migration
+  033). `read_file` describes binary files, missing paths name their nearest
+  folder's contents, and the run summary shows missed lookups apart from
+  failures. See docs/verification.md.
 - **Market watch, BUILD_SPEC Phase 18 (2026-10-13).** A sidecar task beside
   the scheduler (`orchestrator/monitor.py`) reads Yahoo spark quotes for a
   space's holdings, watchlist and indexes every few minutes, 04:00 to 20:00
@@ -236,9 +242,10 @@ future changes do not relocate users' data or disconnect their stored keys.
   These are ordinary space files written through the existing gate; there is
   no visualization database or service, and no Visualize section since
   2026-10-08.
-- The latest recorded database migration is 032 (run titles); 031 has the
-  decision let `track_forecasts` read the theses, 030 is the market watch,
-  029 the model refresh and 028 the research extension. Migration 020 adds Sonnet
+- The latest recorded database migration is 033 (the decision's date, facts
+  and workbook); 032 adds run titles, 031 has the decision let
+  `track_forecasts` read the theses, 030 is the market watch, 029 the model
+  refresh and 028 the research extension. Migration 020 adds Sonnet
   5.5, updates untouched shipped Sonnet roles, and applies fresh space
   defaults without moving used spaces. Migration 021 wires the four
   deterministic tools and corrected goals into untouched pipeline rows, gives
@@ -313,6 +320,9 @@ second chronological log here.
   every provider adapter resends them in its own shape with each result linked
   to its call. Without them, results looked unrequested and models repeated
   calls already answered until the stuck guard stopped them (2026-10-01).
+  Adapters decode a call's arguments with `decode_arguments`; arguments that
+  are not one JSON object set `ToolCall.argument_error`, which the agent
+  answers and never runs as an empty call (2026-10-13).
 - API keys, ChatGPT OAuth tokens and the Discord token live in the OS keychain.
   API keys reach the sidecar over stdin at launch; ChatGPT OAuth is owned by the
   pinned Codex runtime, which is fetched from the wheel `uv.lock` pins on the
