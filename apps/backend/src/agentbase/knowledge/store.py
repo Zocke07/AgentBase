@@ -487,12 +487,20 @@ class KnowledgeStore:
             raise NoteNotFoundError(f"There is no knowledge note at {wanted}.")
         return KnowledgeNote(**self._summary(note).model_dump(), content=note.content)
 
-    async def write_note(self, space_id: str, path: str, content: str) -> KnowledgeNote:
+    async def write_note(
+        self, space_id: str, path: str, content: str, *, create: bool = False
+    ) -> KnowledgeNote:
+        """Write a note; with ``create``, refuse a path that is taken rather
+        than replace a note the person never opened."""
         if len(content) > MAX_NOTE_CHARS:
             raise KnowledgePathError(f"A note may contain at most {MAX_NOTE_CHARS} characters.")
         _, resolved, shown = await self._resolve(space_id, path)
 
         def write() -> None:
+            if create and resolved.exists():
+                raise KnowledgeConflictError(
+                    f"There is already a note at {shown}. Choose another name, or open that note."
+                )
             resolved.parent.mkdir(parents=True, exist_ok=True)
             temporary = resolved.with_suffix(resolved.suffix + ".agentbase-tmp")
             temporary.write_text(content, encoding="utf-8")
@@ -503,11 +511,14 @@ class KnowledgeStore:
         return await self.get_note(space_id, shown)
 
     async def delete_note(self, space_id: str, path: str) -> None:
-        _, resolved, shown = await self._resolve(space_id, path)
+        """Delete a note after copying it under `.agentbase/backups/`, as a
+        deleted file, folder, move or merge is."""
+        root, resolved, shown = await self._resolve(space_id, path)
 
         def delete() -> None:
             if not resolved.is_file():
                 raise NoteNotFoundError(f"There is no knowledge note at {shown}.")
+            _backup_files(root, [resolved], "delete-note")
             resolved.unlink()
 
         await asyncio.to_thread(delete)
@@ -604,9 +615,12 @@ class KnowledgeStore:
 
         return await asyncio.to_thread(read)
 
-    async def write_file(self, space_id: str, path: str, content: str) -> TextFile:
+    async def write_file(
+        self, space_id: str, path: str, content: str, *, create: bool = False
+    ) -> TextFile:
         """Write a plain-text file. JSON is parsed first, so a config the
-        agents read cannot be saved broken."""
+        agents read cannot be saved broken; with ``create``, a taken path is
+        refused rather than replaced."""
         if len(content) > MAX_TEXT_FILE_CHARS:
             raise KnowledgePathError(
                 f"A file may contain at most {MAX_TEXT_FILE_CHARS} characters."
@@ -621,6 +635,10 @@ class KnowledgeStore:
         def write() -> None:
             if resolved.is_symlink():
                 raise KnowledgePathError(f"{shown} is a symlink and is not written through.")
+            if create and resolved.exists():
+                raise KnowledgeConflictError(
+                    f"There is already a file at {shown}. Choose another name, or open that file."
+                )
             resolved.parent.mkdir(parents=True, exist_ok=True)
             _atomic_write(resolved, content)
 

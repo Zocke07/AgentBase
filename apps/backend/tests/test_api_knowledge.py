@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -304,3 +305,81 @@ def test_memories_merge_and_any_note_can_be_pinned(client: TestClient) -> None:
     assert pinned.json()["pinned"] is True
     assert refused.status_code == 409
     assert missing.status_code == 404
+
+
+def _space_folder(client: TestClient) -> Path:
+    spaces = client.get("/spaces").json()
+    return Path(next(space["folder"] for space in spaces if space["id"] == DEFAULT_SPACE_ID))
+
+
+def test_a_new_note_or_file_never_replaces_one_already_there(client: TestClient) -> None:
+    """Knowledge starts every new note at knowledge/untitled.md; saving a second
+    one there replaced the first without a word."""
+    prefix = f"/spaces/{DEFAULT_SPACE_ID}/knowledge"
+    client.put(
+        f"{prefix}/note", json={"path": "knowledge/untitled.md", "content": "# Mine\n\nKeep."}
+    )
+
+    refused = client.put(
+        f"{prefix}/note",
+        json={"path": "knowledge/untitled.md", "content": "# New", "create": True},
+    )
+
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == (
+        "There is already a note at knowledge/untitled.md. Choose another name, or open that note."
+    )
+    kept = client.get(f"{prefix}/note", params={"path": "knowledge/untitled.md"}).json()
+    assert kept["content"].endswith("Keep.")
+    # Saving the note that is open still replaces it, as before.
+    saved = client.put(
+        f"{prefix}/note", json={"path": "knowledge/untitled.md", "content": "# Mine\n\nEdited."}
+    )
+    assert saved.status_code == 200
+
+    client.put(f"{prefix}/file", json={"path": "config/limits.json", "content": "{}"})
+    taken = client.put(
+        f"{prefix}/file",
+        json={"path": "config/limits.json", "content": '{"a": 1}', "create": True},
+    )
+    assert taken.status_code == 409
+    assert "already a file at config/limits.json" in taken.json()["detail"]
+    fresh = client.put(
+        f"{prefix}/file", json={"path": "config/new.json", "content": "{}", "create": True}
+    )
+    assert fresh.status_code == 200
+
+
+def test_a_deleted_note_is_copied_first(client: TestClient) -> None:
+    prefix = f"/spaces/{DEFAULT_SPACE_ID}/knowledge"
+    client.put(f"{prefix}/note", json={"path": "decisions/2026-10-12.md", "content": "# Hold"})
+
+    assert (
+        client.delete(f"{prefix}/note", params={"path": "decisions/2026-10-12.md"}).status_code
+        == 204
+    )
+
+    copies = list((_space_folder(client) / ".agentbase/backups").glob("*-delete-note-*"))
+    assert [
+        (copy / "decisions/2026-10-12.md").read_text(encoding="utf-8") for copy in copies
+    ] == ["# Hold"]
+
+
+def test_a_refusal_from_the_disk_is_said_in_words(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A workbook open in Excel on Windows, a full disk: not a bare HTTP 500."""
+    prefix = f"/spaces/{DEFAULT_SPACE_ID}/knowledge"
+
+    def refuse(_path: Path, _content: str) -> None:
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr("agentbase.knowledge.store._atomic_write", refuse)
+
+    failed = client.put(f"{prefix}/file", json={"path": "config/limits.json", "content": "{}"})
+
+    assert failed.status_code == 500
+    assert failed.json()["detail"] == (
+        "Could not save config/limits.json: Permission denied. If it is open in another app, "
+        "close it and try again."
+    )

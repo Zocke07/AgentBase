@@ -842,9 +842,11 @@ export interface WorkspaceSettings {
 export interface WriteFileRequest {
   path: string;
   content: string;
+  create?: boolean;
 }
 
 export interface WriteNoteRequest {
   path: string;
   content: string;
+  create?: boolean;
 }

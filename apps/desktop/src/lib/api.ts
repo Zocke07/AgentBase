@@ -64,6 +64,20 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * A request that got no answer at all: the engine is starting, restarting or
+ * gone. The browser's own words for this ("Failed to fetch", "Load failed")
+ * reached people as the reason a save or a delete did not happen.
+ */
+export class ConnectionError extends Error {
+  constructor(options?: ErrorOptions) {
+    super("AgentBase's engine did not answer. It may be starting or restarting; try again in a moment.", options);
+    this.name = "ConnectionError";
+  }
+}
+
+export { failureMessage, isMissing } from "./errors";
+
 let cachedBaseUrl: Promise<string> | null = null;
 
 /** Cached sidecar origin, resolved once per page load. */
@@ -134,7 +148,7 @@ async function send(path: string, init?: RequestInit): Promise<Response> {
   } catch (failure) {
     // `fetch` rejects only when no response arrives.
     for (const listener of transportListeners) listener();
-    throw failure;
+    throw new ConnectionError({ cause: failure });
   }
 
   if (!response.ok) {
@@ -231,14 +245,16 @@ export const listKnowledge = (spaceId: string): Promise<KnowledgeIndex> =>
 export const getKnowledgeNote = (spaceId: string, path: string): Promise<KnowledgeNote> =>
   request<KnowledgeNote>(`/spaces/${spaceId}/knowledge/note${query({ path })}`);
 
+/** `create` refuses a path that is taken, rather than replacing a note nobody opened. */
 export const saveKnowledgeNote = (
   spaceId: string,
   path: string,
   content: string,
+  options: { create?: boolean } = {},
 ): Promise<KnowledgeNote> =>
   request<KnowledgeNote>(`/spaces/${spaceId}/knowledge/note`, {
     method: "PUT",
-    ...asJson({ path, content }),
+    ...asJson({ path, content, ...(options.create === true ? { create: true } : {}) }),
   });
 
 export const deleteKnowledgeNote = (spaceId: string, path: string): Promise<void> =>
@@ -254,8 +270,17 @@ export const getFile = (spaceId: string, path: string): Promise<TextFile> =>
 export const downloadFile = async (spaceId: string, path: string): Promise<Blob> =>
   (await send(`/spaces/${spaceId}/knowledge/download${query({ path })}`)).blob();
 
-export const writeFile = (spaceId: string, path: string, content: string): Promise<TextFile> =>
-  request<TextFile>(`/spaces/${spaceId}/knowledge/file`, { method: "PUT", ...asJson({ path, content }) });
+/** `create` refuses a path that is taken, rather than replacing a file nobody opened. */
+export const writeFile = (
+  spaceId: string,
+  path: string,
+  content: string,
+  options: { create?: boolean } = {},
+): Promise<TextFile> =>
+  request<TextFile>(`/spaces/${spaceId}/knowledge/file`, {
+    method: "PUT",
+    ...asJson({ path, content, ...(options.create === true ? { create: true } : {}) }),
+  });
 
 export const deleteFile = (spaceId: string, path: string): Promise<void> =>
   requestNoContent(`/spaces/${spaceId}/knowledge/file${query({ path })}`, { method: "DELETE" });

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { failureMessage } from "../lib/errors";
+
 /**
  * Load sidecar data on mount and demand. `load` must be `useCallback`-stable;
  * `token` drives `reload()`. Derive loading from token to avoid stale flags.
@@ -27,7 +29,7 @@ export function useFetched<T>(
         }
       })
       .catch((failure: unknown) => {
-        if (live) setError(failure instanceof Error ? failure.message : String(failure));
+        if (live) setError(failureMessage(failure));
       })
       .finally(() => {
         if (live) setSettledToken(mine);

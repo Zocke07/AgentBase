@@ -4407,6 +4407,11 @@
             "title": "Content",
             "type": "string"
           },
+          "create": {
+            "default": false,
+            "title": "Create",
+            "type": "boolean"
+          },
           "path": {
             "minLength": 1,
             "title": "Path",
@@ -4426,6 +4431,11 @@
             "maxLength": 200000,
             "title": "Content",
             "type": "string"
+          },
+          "create": {
+            "default": false,
+            "title": "Create",
+            "type": "boolean"
           },
           "path": {
             "maxLength": 500,

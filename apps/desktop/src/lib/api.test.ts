@@ -2,11 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   ApiError,
+  ConnectionError,
   cancelChatGPTLogin,
   cancelRun,
   deleteAgent,
   deleteRun,
   downloadFile,
+  failureMessage,
+  isMissing,
   getChatGPTAuth,
   listRuns,
   logoutChatGPT,
@@ -178,11 +181,32 @@ describe("losing the sidecar", () => {
     expect(listener).not.toHaveBeenCalled();
 
     fetchStub.mockRejectedValue(new TypeError("Failed to fetch"));
-    await expect(listRuns()).rejects.toThrow("Failed to fetch");
+    // Said in words, with the browser's own error kept as its cause.
+    const failure: unknown = await listRuns().catch((caught: unknown) => caught);
+    expect(failure).toBeInstanceOf(ConnectionError);
+    expect((failure as ConnectionError).message).toBe(
+      "AgentBase's engine did not answer. It may be starting or restarting; try again in a moment.",
+    );
+    expect((failure as ConnectionError).cause).toBeInstanceOf(TypeError);
     expect(listener).toHaveBeenCalledTimes(1);
 
     stop();
     await listRuns().catch(() => undefined);
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("saying why an action failed", () => {
+  it("keeps the engine's words and explains a bare status", () => {
+    expect(failureMessage(new ApiError(409, "There is already a note at knowledge/untitled.md."))).toBe(
+      "There is already a note at knowledge/untitled.md.",
+    );
+    expect(failureMessage(new ApiError(500, "HTTP 500"))).toBe(
+      "AgentBase could not finish this (error 500). Try again; if it keeps happening, restart AgentBase.",
+    );
+    expect(failureMessage(new ApiError(413, "HTTP 413"))).toBe("AgentBase did not accept this (error 413).");
+    expect(failureMessage("plain")).toBe("plain");
+    expect(isMissing(new ApiError(404, "There is no file at a.json."))).toBe(true);
+    expect(isMissing(new ApiError(409, "taken"))).toBe(false);
   });
 });

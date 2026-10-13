@@ -42,6 +42,8 @@ router = APIRouter(prefix="/spaces/{space_id}/knowledge")
 class WriteNoteRequest(BaseModel):
     path: str = Field(min_length=1, max_length=500)
     content: str = Field(max_length=200_000)
+    #: A new note: refuse a path that is taken instead of replacing that note.
+    create: bool = False
 
 
 class SearchKnowledgeRequest(BaseModel):
@@ -96,6 +98,19 @@ def _bad_path(exc: KnowledgePathError) -> HTTPException:
     return HTTPException(status_code=400, detail={"message": str(exc), "field": "path"})
 
 
+def _disk_failure(exc: OSError, action: str, target: str) -> HTTPException:
+    """A refusal from the disk in words, not a bare 500: a workbook open in
+    Excel on Windows, a full disk, a folder without write permission."""
+    reason = exc.strerror or str(exc)
+    return HTTPException(
+        status_code=500,
+        detail=(
+            f"Could not {action} {target}: {reason}. If it is open in another app, "
+            "close it and try again."
+        ),
+    )
+
+
 @router.get("")
 async def list_knowledge(request: Request, space_id: str) -> KnowledgeIndex:
     try:
@@ -119,11 +134,17 @@ async def get_note(request: Request, space_id: str, path: str = Query(...)) -> K
 @router.put("/note")
 async def write_note(request: Request, space_id: str, body: WriteNoteRequest) -> KnowledgeNote:
     try:
-        return await _store(request).write_note(space_id, body.path, body.content)
+        return await _store(request).write_note(
+            space_id, body.path, body.content, create=body.create
+        )
     except SpaceNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except KnowledgePathError as exc:
         raise _bad_path(exc) from exc
+    except KnowledgeConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except OSError as exc:
+        raise _disk_failure(exc, "save", body.path) from exc
 
 
 @router.post("/move")
@@ -142,6 +163,8 @@ async def move_note(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except KnowledgeConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except OSError as exc:
+        raise _disk_failure(exc, "move", body.source) from exc
 
 
 @router.post("/import")
@@ -160,6 +183,8 @@ async def import_knowledge(
         raise _bad_path(exc) from exc
     except KnowledgeConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except OSError as exc:
+        raise _disk_failure(exc, "import", "the notes") from exc
 
 
 @router.delete("/note", status_code=204)
@@ -172,6 +197,8 @@ async def delete_note(request: Request, space_id: str, path: str = Query(...)) -
         raise _bad_path(exc) from exc
     except NoteNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except OSError as exc:
+        raise _disk_failure(exc, "delete", path) from exc
     return Response(status_code=204)
 
 
@@ -188,11 +215,15 @@ async def delete_folder(
         raise _bad_path(exc) from exc
     except NoteNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except OSError as exc:
+        raise _disk_failure(exc, "delete", f"{path}/") from exc
 
 
 class WriteFileRequest(BaseModel):
     path: str = Field(min_length=1)
     content: str
+    #: A new file: refuse a path that is taken instead of replacing that file.
+    create: bool = False
 
 
 @router.get("/files")
@@ -214,6 +245,8 @@ async def get_file(request: Request, space_id: str, path: str = Query(...)) -> T
         raise _bad_path(exc) from exc
     except NoteNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except OSError as exc:
+        raise _disk_failure(exc, "read", path) from exc
 
 
 @router.get("/download", response_class=FileResponse)
@@ -238,11 +271,17 @@ async def download_workbook(
 async def write_file(request: Request, space_id: str, body: WriteFileRequest) -> TextFile:
     """Create or overwrite a text file; reject malformed JSON."""
     try:
-        return await _store(request).write_file(space_id, body.path, body.content)
+        return await _store(request).write_file(
+            space_id, body.path, body.content, create=body.create
+        )
     except SpaceNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except KnowledgePathError as exc:
         raise _bad_path(exc) from exc
+    except KnowledgeConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except OSError as exc:
+        raise _disk_failure(exc, "save", body.path) from exc
 
 
 @router.delete("/file", status_code=204)
@@ -255,6 +294,8 @@ async def delete_file(request: Request, space_id: str, path: str = Query(...)) -
         raise _bad_path(exc) from exc
     except NoteNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except OSError as exc:
+        raise _disk_failure(exc, "delete", path) from exc
     return Response(status_code=204)
 
 
@@ -294,6 +335,8 @@ async def update_memory(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except KnowledgeConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except OSError as exc:
+        raise _disk_failure(exc, "update", body.path) from exc
 
 
 @router.post("/memories/merge")
@@ -310,6 +353,8 @@ async def merge_memories(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except KnowledgeConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except OSError as exc:
+        raise _disk_failure(exc, "merge", "the selected memories") from exc
 
 
 @router.patch("/pin")
@@ -322,6 +367,8 @@ async def pin_note(request: Request, space_id: str, body: PinNoteRequest) -> Kno
         raise _bad_path(exc) from exc
     except NoteNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except OSError as exc:
+        raise _disk_failure(exc, "pin" if body.pinned else "unpin", body.path) from exc
 
 
 @router.post("/evaluate")
