@@ -743,6 +743,24 @@ move/rename link rewrite, import, pin, unresolved/orphan counts,
 templates/daily notes, **Save as note** from an event, and MRR/recall
 evaluation. Defer local embeddings, attachments, PDFs, and web clipping.
 
+*(Maintainer request of 2026-10-13, relayed from the pipeline's end user: the
+files were still not friendly. Knowledge now has two sections. **User
+Summary**, where it opens, lists what was written to be read, grouped and
+newest first: decisions, portfolio and weekly reviews, market alerts, the
+monthly forecast workbook, charts and dashboards, daily notes and other notes,
+with every dated report readable as one page. **Technical Details** holds the
+raw data, settings and records (`raw/`, `theses/`, `risk/`, the computed
+portfolio, the forecast ledger, `config/`, run summaries, templates) and the
+vault's tools: Recent, the note tree, Agent files and Saved context.
+`state/sections.ts` places each file in exactly one section by its path.
+Every file opens in a reading view: a note in **Preview**, a data file as a
+table or indented JSON, a chart drawn. File actions fail gracefully. A new
+note or file is created with `create`, so a taken path is refused (409)
+rather than replaced. A file that fails to load offers Try again and cannot
+be saved. Deleting a note keeps a backup, as files and folders already did.
+Something already gone counts as done and refreshes the list. Leaving unsaved
+changes asks first. A disk refusal or a stopped engine is said in words.)*
+
 ### Phase 13: Scheduled runs, usage, and the first-run tour
 
 *Added 2026-09-19 at the maintainer's request.*

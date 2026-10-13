@@ -13,6 +13,15 @@ future changes do not relocate users' data or disconnect their stored keys.
 
 ## Current state
 
+- **Knowledge in two sections, 2026-10-13.** At the end user's request,
+  Knowledge opens on **User Summary**: decisions, reviews, alerts, the
+  forecast workbook, charts and notes, grouped and newest first, each in
+  Preview, with the Journal as one page. **Technical Details** keeps the raw
+  data, settings and records and the vault tools. `state/sections.ts` puts
+  each file in one section. Notes open in Preview and data files in a table
+  Preview. File actions fail gracefully, from the API down:
+  `lib/errors.ts`, `ConnectionError`, `create` writes and note-delete
+  backups. See docs/verification.md.
 - **Failure repair, 2026-10-13.** The first unattended chain crept for hours
   because the Mac slept: maintenance wakes of a few seconds started and fed
   the runs. Automations and the market watch now wait until the computer has
@@ -162,8 +171,10 @@ future changes do not relocate users' data or disconnect their stored keys.
   for publication status and cross-platform CI evidence.
 - The UI has a left rail, spaces, Home, Automations, Runs, Agents, Knowledge,
   Usage, Space settings, and app-wide Settings. Home lists a space's recent
-  market alerts and Automations ends with its Market watch card. Knowledge separates Recent,
-  Journal, Notes, Agent files, and Saved context, and rereads them when shown,
+  market alerts and Automations ends with its Market watch card. Knowledge
+  opens on User Summary (results by group, the Journal as one page) and keeps
+  Technical Details (Recent, Notes, Agent files, Saved context) apart, and
+  rereads them when shown,
   when a run finishes and on window return (every section stays mounted). The
   Journal (`state/journal.ts`) is every note dated in its file name, outside
   `memory/` and `templates/`, newest first, read a week of dates at a time. A run lists the files its
@@ -368,6 +379,12 @@ second chronological log here.
 - Spaces own rosters and app-managed folders. The default space cannot be
   archived or deleted; a space with runs must be archived or have those runs
   deleted first. Deleting a run leaves the files it wrote alone.
+- Knowledge's file actions never lose work: a new note or file is written
+  with `create`, so a taken path is refused rather than replaced; deleting a
+  note, file or folder backs it up first; a file that failed to load cannot
+  be saved; something already gone counts as done; leaving unsaved changes
+  asks. Errors reach people through `lib/errors.ts`, never as "HTTP 500" or
+  a browser's "Failed to fetch".
 - Markdown is the knowledge source of truth. Retrieval rebuilds from the space
   folder on use, reparsing only changed files, and excludes hidden paths and
   symlinks. It never edits `.obsidian`, calls a remote embedding service, runs

@@ -4,10 +4,11 @@
 
 ## Charts in Knowledge
 
-Charts live where their files do, in **Knowledge → Agent files**. Open a CSV,
-TSV, JSON or JSON-lines file and choose **Chart** above it to draw it; **Text**
-returns to its source. A saved chart, dashboard or Mermaid diagram opens
-drawn. Everything is an ordinary file in the selected space; nothing is
+Saved charts, dashboards and diagrams are listed in **Knowledge → User
+Summary** under **Charts and dashboards**, and open drawn; **New…** starts one.
+Their data files are under **Technical Details → Agent files**: open a CSV,
+TSV, JSON or JSON-lines file and choose **Chart** above it to draw it;
+**Preview** shows it as a table and **Text** returns to its source. Everything is an ordinary file in the selected space; nothing is
 uploaded, stored elsewhere, or converted into a proprietary format.
 
 Charts read `.csv`, `.tsv`, `.json`, `.jsonl`, and `.ndjson`. JSON arrays are
@@ -100,11 +101,12 @@ Turning on Main's investment pipeline creates
 The deterministic tools refresh those stable source paths, so the dashboard
 does not need a new definition each day or month. Before a stage has produced
 its source, that card shows the missing file clearly; the other cards still
-render. Open `visualizations/pipeline.dashboard.json` in **Knowledge → Agent
-files** after the morning and review stages have created data.
+render. Open **Pipeline** in **Knowledge → User Summary** after the morning
+and review stages have created data; a chart still waiting says **No data
+yet**.
 
-The price forecast workbook is separate from these charts. Select
-`predictions/YYYY-MM.xlsx` in **Knowledge → Agent files** and choose **Open in
+The price forecast workbook is separate from these charts. Select it under
+**Knowledge → User Summary → Forecast workbooks** and choose **Open in
 spreadsheet app** (in a browser tab, **Download Excel workbook**). Each session's
 sheet has a row per stock with every horizon's prediction beside its later
 actual close; [Agents](3_agents.md#the-investment-roster) describes it. Later

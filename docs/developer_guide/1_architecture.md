@@ -32,19 +32,21 @@ apps/backend/src/agentbase/    Python 3.12 FastAPI sidecar
   openapi.py                    builds the OpenAPI doc and emits the TS types
 apps/backend/tests/             pytest; support.py holds the shared doubles
 apps/desktop/src/               React 19 + Vite + TypeScript
-  lib/                          api.ts (typed calls), events.ts (SSE client), sidecar.ts,
+  lib/                          api.ts (typed calls), errors.ts (failures in words),
+                                events.ts (SSE client), sidecar.ts,
                                 markdown.ts (the Obsidian dialect), visualization.ts,
                                 fileViews.ts, fuzzy.ts, graphLayout.ts,
                                 sections.ts (rail order), tour.ts (the tour's script)
   state/                        reducer.ts: the fold; runStore, graph, spaces, hooks;
-                                files.ts and journal.ts for Knowledge's lists;
+                                files.ts, journal.ts and sections.ts for Knowledge's
+                                lists and its two sections;
                                 alerts.ts for market alerts and their notices
   components/                   Rail, SpaceSwitcher, HomeView, RunsView, AgentsView,
                                 SpaceSettingsView, SettingsView, RunGraph, EventLog,
                                 ApprovalPanel, AgentEditor, BudgetMeter, RunPanel,
                                 Markdown, KnowledgeView, NoteTree, NoteEditor,
                                 QuickSwitcher, MemoryInbox, KnowledgeEvaluation,
-                                RecentFiles, Journal, FilesPanel, FileViews,
+                                RecentFiles, Journal, SummaryList, FilesPanel, FileViews,
                                 Schedules, MarketWatch, MarketAlerts, UsageView,
                                 Chart, MermaidDiagram, Tour
 apps/desktop/src-tauri/         Rust shell: spawns the sidecar, reads the keychain,
@@ -312,6 +314,23 @@ approved or pinned memories by default, which is what makes the inbox a trust
 gate rather than a label. `memory_markdown` is the one writer for run
 memories, the `propose_memory` tool and merges, so the inbox can read every
 shape back. The event log remains authoritative for what happened.
+
+In the window, `KnowledgeView` has two sections. User Summary (`SummaryList`)
+lists results and opens each in a reading view. Technical Details holds the
+raw files and the vault tools. `state/sections.ts` places every path in
+exactly one: dated reports, other notes outside `memory/`, `templates/` and
+`raw/`, workbooks and charts are results; everything else is technical. The
+same function routes a run's file links. File actions keep their failures
+local and readable:
+
+- `api.ts` throws `ConnectionError` when no answer arrives.
+- `lib/errors.ts` turns a bare status into words and spots a 404. It is
+  free of `api.ts` so mocked API modules in tests keep it.
+- New notes and files are written with `create`, so the store refuses a taken
+  path with 409.
+- `FileEditor` cannot save until its file has loaded.
+- A note, file or folder delete backs up under `.agentbase/backups/`.
+- The knowledge routes turn an `OSError` into a sentence naming the file.
 
 ---
 

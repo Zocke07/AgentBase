@@ -77,7 +77,7 @@ brings it back.
 | **Automations** | What this space runs on its own: schedules at set times or one after another, the market watch that alerts you to sudden price moves, and what an unattended run may do. |
 | **Runs** | Open a current run or replay a past one in this space. |
 | **Agents** | Create and edit this space's agent definitions. |
-| **Knowledge** | Everything in the space folder: **Recent** files, the **Journal** of dated reports read as one page, human-readable **Notes**, **Agent files** (data files can be drawn as charts, and saved charts, dashboards and diagrams open drawn), and automatically managed **Saved context**. |
+| **Knowledge** | Everything in the space folder, in two sections. **User Summary** lists what was written for you to read (decisions, reviews, alerts, the forecast workbook, charts and notes), each opening in Preview, with every dated report also readable as one page. **Technical Details** holds the raw data and settings: **Recent**, all **Notes**, **Agent files** and automatically managed **Saved context**. |
 | **Usage** | This month's model-call costs, tokens, and carried context by day, model, space, and run. |
 | **Space settings** | Name, description, folder, model, limits and approval answers for this space. |
 | **Settings**, at the bottom | App defaults, keys, shared budget, Discord, theme and the About box. |

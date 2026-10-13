@@ -44,9 +44,36 @@ shows the file name too: an agent's `decisions/2026-10-06.md` can be titled
 `memory` folder of run summaries starts folded, since **Saved context**
 manages them; select it to unfold. The open note's folder always unfolds.
 
+## User Summary and Technical Details
+
+Knowledge opens on **User Summary**: what was written for you to read,
+grouped and newest first.
+
+- **Decisions**, **Portfolio reviews**, **Weekly reviews** and **Market
+  alerts**: the pipeline's dated reports.
+- **Forecast workbooks**: the monthly Excel workbook, named for its month,
+  such as **Forecasts for October 2026**.
+- **Charts and dashboards**, drawn when opened.
+- **Daily notes** and other **Notes**: yours and the research notes agents
+  write.
+
+Each opens in **Preview**, a reading view, so looking at a file cannot change
+it; **Write** or **Split** edits a note. **Find a result** narrows the list,
+**New…** starts a note, chart, dashboard or diagram, and **All reports as one
+page** opens the Journal.
+
+**Technical Details** holds what the agents work from: the raw collected data
+(`raw/`), the bull and bear theses, risk checks, the computed portfolio, the
+forecast ledger, your settings and inputs (`config/`, `portfolio/positions.csv`),
+run summaries and templates. Its tabs are **Recent**, **Notes** (the whole
+vault, with search, tags, links, **Graph** and **Evaluate**), **Agent files**
+and **Saved context**. A file appears in one section's list, never both; a
+note or file a run links to opens in the section it belongs to.
+
 ## Journal
 
-**Journal** reads every dated report in the space as one page, newest first:
+The Journal, under User Summary's **All reports as one page**, reads every
+dated report in the space as one page, newest first:
 each day's decision (`decisions/`), its portfolio review
 (`portfolio/review-*`), the weekly review of the month's predictions
 (`scores/review-*`), each market alert's explanation (`alerts/`), your daily
@@ -55,7 +82,8 @@ that month. The dates are listed down the
 left, grouped by month; select one to jump to it. **Show** narrows the page to
 one kind, such as decisions only. The page draws a week of dates at a time,
 and **Show N older dates** adds the next. **Open note** opens a report in
-**Notes** to edit it. Run summaries and templates never appear here.
+Preview; **‹ All results** returns to the list. Run summaries and templates
+never appear here.
 
 The Journal only reads. Each report stays its own file, because an agent can
 only rewrite a whole file and reads at most a file's first 20,000 characters:
@@ -65,7 +93,7 @@ past prediction before it is scored.
 
 ## Recent
 
-**Recent** lists notes and agent files together, newest first, under Today,
+Under Technical Details, **Recent** lists notes and agent files together, newest first, under Today,
 Yesterday and Earlier, whoever wrote them. Select one to open it in **Notes** or
 **Agent files**. Run summaries stay in **Saved context**. Each day shows its
 reports and the inputs you keep; the working data the runs write for each
@@ -76,10 +104,14 @@ when you return to the window, so a run's outputs appear without a restart.
 
 ## Agent files
 
-**Agent files** lists non-note plain-text space files: `.json`, `.jsonl`,
-`.csv`, `.txt`, `.yaml`, `.yml`, `.toml`, `.ndjson`, and `.tsv`, including
-`config/watchlist.json`, `raw/news-*.json`, and `portfolio/positions.csv`.
-Edit as text and **Save file**; invalid `.json` is refused before write.
+Under Technical Details, **Agent files** lists the raw data, settings and
+records in plain text: `.json`, `.jsonl`, `.csv`, `.txt`, `.yaml`, `.yml`,
+`.toml`, `.ndjson`, and `.tsv`, including `config/watchlist.json`,
+`raw/news-*.json`, and `portfolio/positions.csv`. Workbooks, charts and
+dashboards are listed in User Summary instead. A file opens in **Preview**: a
+table where it has rows (CSV, TSV, JSON-lines, or a JSON list of records,
+the first 200 rows), other JSON indented, anything else as written. **Text**
+edits it and **Save file** writes it; invalid `.json` is refused before write.
 **New file** accepts a space-relative path; an empty list offers three roster
 config templates. **Delete…** confirms and backs up to `.agentbase/backups/`.
 Hidden files, binaries, and out-of-space paths remain inaccessible. Agents use
@@ -87,11 +119,12 @@ the same `write_file` approval to modify them. A folder holding only the runs'
 working data (`raw/`, `theses/`, `risk/`, `scores/`) starts folded; select its
 name to unfold it. A search, or a file opened from a run, unfolds its folder.
 
-A CSV, TSV, JSON or JSON-lines file has a **Text** / **Chart** switch: **Chart**
-draws it and **Save chart** keeps that chart as a file of its own. A saved
+A CSV, TSV, JSON or JSON-lines file also has **Chart**, which draws it; **Save
+chart** keeps that chart as a file of its own, opened in User Summary. A saved
 chart (`.viz.json`), dashboard (`.dashboard.json`) or Mermaid diagram (`.mmd`)
-opens drawn, with **Text** for its source. **From template…** starts a new
-chart, dashboard or diagram. [Charts and dashboards](7_visualizations.md)
+opens drawn, with **Text** for its source; one whose data file a run has not
+written yet says **No data yet** rather than failing. User Summary's **New…**
+starts a new chart, dashboard or diagram. [Charts and dashboards](7_visualizations.md)
 covers them in full.
 
 ## Links, properties and preview
@@ -124,8 +157,9 @@ tags:
 Use SQLite in WAL mode. Related: [[research/sqlite]].
 ```
 
-Properties/tags appear below the path. **Split** pairs source with safe preview;
-**Write** and **Preview** use the full area; Ctrl/Cmd+E cycles modes. The
+Properties/tags appear below the path. A note opens in **Preview**; **Write**
+shows its source and **Split** pairs source with safe preview; Ctrl/Cmd+E
+cycles modes. A new note starts in **Split**. The
 formatting bar wraps selections in bold, italic, highlight, code, or links, or
 turns lines into headings, lists, tasks, quotes, or callouts. Note HTML never
 executes. Hidden folders, including `.obsidian`, are excluded and uneditable.
@@ -152,6 +186,25 @@ shows word count and last change.
   Existing notes skip unless **replace conflicts with backup** is selected,
   which backs them up. Limit: 10,000 notes per space; overage is reported and
   not fully indexed.
+- **Delete note…** confirms and keeps a copy under `.agentbase/backups/`, as
+  deleting a file or folder does.
+
+### When something does not work
+
+A file action that fails says why in words and changes nothing else:
+
+- A new note or file is never saved over one that already has its name: the
+  save stops, says the name is taken and keeps what you wrote.
+- A file that cannot be opened offers **Try again** and cannot be saved, so
+  nothing unread is ever written over.
+- Something a run or another window already removed is treated as gone: the
+  list refreshes, and deleting it again simply finishes.
+- Leaving a note or data file with unsaved changes, by opening another one or
+  switching section, asks first.
+- When the disk refuses, for instance because a workbook is open in Excel on
+  Windows, the message names the file and asks you to close it and try again.
+  If AgentBase's engine is restarting, the message says so instead of a
+  browser error.
 
 ## Local retrieval and citations
 

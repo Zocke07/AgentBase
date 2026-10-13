@@ -29,15 +29,15 @@ on:
 | Weekly review | Sundays at 18:00 | Scores resolved predictions and proposes durable lessons for Saved context. |
 
 Review the sample `config/watchlist.json` and `portfolio/positions.csv` in
-**Knowledge → Agent files** before the first run. They start with one share
+**Knowledge → Technical Details → Agent files** before the first run. They start with one share
 each of MU, ORCL, CRWV, MSFT, NOW and AVGO plus $2,500 USD cash; purchase
 prices and dates stay unknown. Replace this sample with your real holdings
 and cash. The sample limits are 10% per stock, 70% per sector and 3% daily
 loss.
 
 Monthly workbooks in `predictions/` keep one sheet per market session with
-1-, 2-, 3-, 5- and 21-session forecast prices and later actuals. Download them
-from **Knowledge → Agent files** after updates. AgentBase must be open when
+1-, 2-, 3-, 5- and 21-session forecast prices and later actuals. Open them
+from **Knowledge → User Summary → Forecast workbooks** after updates. AgentBase must be open when
 a scheduled run is due to collect data and update actual prices.
 [Agents](3_agents.md#the-investment-roster)
 describes their required fields and the files each deterministic tool writes.
@@ -196,7 +196,8 @@ remembers the choice.
 
 Under the run's totals, **Wrote N files** lists every file the run's tools
 wrote, from its log rather than from what an agent said. Select one to open it
-in Knowledge: a note in **Notes**, anything else in **Agent files**. A long
+in Knowledge where it belongs: a report, workbook or chart in **User Summary**,
+in Preview; raw data and settings in **Technical Details**. A long
 list shows six and folds the rest behind a count.
 
 At finish, **The supervisor's account of the run** renders its summary; long

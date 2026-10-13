@@ -60,7 +60,7 @@ that exact older shipped definition. It keeps your chosen model and leaves
 genuinely edited instructions alone. Restart the app after updating so the
 new scheduler and migration are loaded.
 
-Before the first collector run, review these under **Knowledge → Agent files**:
+Before the first collector run, review these under **Knowledge → Technical Details → Agent files**:
 
 - `config/watchlist.json`: the starter follows MU, ORCL, CRWV, MSFT, NOW and
   AVGO in the US market. Holdings are followed even when absent from the
@@ -124,8 +124,8 @@ with its actual closing price and error beside it once that session has
 traded. The last sheet, **All forecasts**, lists every forecast of the month
 with its method, assumption band, rationale and evidence. Later runs fill
 actual prices as saved prices reach each target session, including
-predictions made in earlier months. In **Knowledge → Agent files**, select the
-workbook and choose **Open in spreadsheet app** (Excel, Numbers or LibreOffice,
+predictions made in earlier months. In **Knowledge → User Summary**, select the
+workbook under **Forecast workbooks** and choose **Open in spreadsheet app** (Excel, Numbers or LibreOffice,
 whichever opens `.xlsx` files) or **Show in folder**; in a browser tab it offers
 **Download Excel workbook** instead. Reopen it after a run to see new actual
 prices. Scheduled updates require AgentBase to be open.

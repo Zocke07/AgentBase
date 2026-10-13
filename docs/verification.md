@@ -4,6 +4,58 @@ Updated 2026-10-13. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
+## Knowledge in two sections, and file actions that fail gracefully, 2026-10-13
+
+The end user found the files still unfriendly and asked for two sections,
+**User Summary** (non-technical results) and **Technical Details** (the raw
+or technical files), Preview as the default view, and file management that
+handles failure gracefully.
+
+- **Sections.** Knowledge opens on User Summary, grouped and newest first:
+  - decisions, portfolio and weekly reviews, and market alerts;
+  - forecast workbooks, named for their month;
+  - charts and dashboards;
+  - daily notes and other notes.
+
+  Every dated report is readable as one page. Technical Details keeps
+  Recent, the note tree, Agent files (now only raw data, settings and
+  records) and Saved context. `state/sections.ts` places each path in one
+  section, and a run's file links follow it.
+- **Preview.** Notes open in Preview, Write and Split a click away. Data
+  files open in a new Preview: CSV, TSV, JSON-lines or a JSON list as a
+  table, other JSON indented, text as written. Charts open drawn, and one
+  whose data a run has not written yet says **No data yet**.
+- **Failures.**
+  - Before: a file that failed to load left an editor whose Save would
+    write empty text over it, and a "new" note or file at a taken path
+    silently replaced it. Now the file cannot be saved until it loads, and
+    `create` writes are refused with 409.
+  - Deleting a note now keeps a backup.
+  - A 404 on open, delete or folder delete counts as gone and refreshes the
+    list.
+  - Leaving a data file with unsaved edits asks first.
+  - Disk errors name the file instead of a bare 500.
+  - A stopped engine reads as such, not as "Failed to fetch".
+- **Executed.**
+  - `just ci`: backend **1,360 passed, 12 skipped**; desktop **628 passed
+    in 60 files**; ruff, formatting, strict mypy on macOS and Windows,
+    ESLint and TypeScript passed.
+  - New backend tests cover `create` refusals, note-delete backups and a
+    disk refusal in words.
+  - New desktop tests cover classification, User Summary, the Preview
+    table, the load-failure Try again, taken names, already-gone deletes and
+    the unsaved-file guard.
+  - Headless Chrome against the dev server with a scratch sidecar (schema
+    33) and a copy of the current space: User Summary listed the decision,
+    the review, **Forecasts for October 2026**, five charts and the
+    dashboard, and no raw file. The decision opened in Preview, the
+    dashboard drawn with two **No data yet** cards, a raw movers file as a
+    26-row table and `config/limits.json` indented. Technical Details listed
+    no workbook or chart. At 900 px there was no horizontal scroll.
+- **Unverified.** The packaged window has not run it. The running dev
+  window hot-reloaded the new screens but keeps the old sidecar, without the
+  409 protection, until `just dev-app` restarts.
+
 ## The fresh retry's decision run, 2026-10-13
 
 After restarting `just dev-app` the maintainer pressed **Run now** on Morning
