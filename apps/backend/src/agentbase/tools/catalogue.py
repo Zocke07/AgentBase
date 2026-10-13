@@ -21,6 +21,7 @@ __all__ = [
     "ToolPolicy",
     "effective_auto_approve",
     "effective_tool_policies",
+    "is_default_space_only",
     "is_registered",
     "lookup",
     "policy_may_allow",
@@ -69,6 +70,10 @@ class ToolDeclaration:
     name: str
     description: str
     risk: RiskLevel
+    #: Built for the default space's investment pipeline, whose portfolio,
+    #: price and forecast files it reads and writes. At the maintainer's
+    #: request (2026-10-13) it stays there; other spaces use the general tools.
+    default_space_only: bool = False
 
 
 #: Built-ins agent definitions may allow. Sandboxed reads are low risk; writes
@@ -124,11 +129,13 @@ CATALOGUE: Final[tuple[ToolDeclaration, ...]] = (
         name="read_market",
         description="Discover Yahoo Finance gainers, losers, active stocks and company headlines.",
         risk=RiskLevel.MEDIUM,
+        default_space_only=True,
     ),
     ToolDeclaration(
         name="read_company_reports",
         description="Read cited annual and quarterly financial data for watched companies.",
         risk=RiskLevel.MEDIUM,
+        default_space_only=True,
     ),
     ToolDeclaration(
         name="read_prices",
@@ -137,6 +144,7 @@ CATALOGUE: Final[tuple[ToolDeclaration, ...]] = (
             "watchlist movers, and write stable price files."
         ),
         risk=RiskLevel.MEDIUM,
+        default_space_only=True,
     ),
     ToolDeclaration(
         name="compute_portfolio",
@@ -145,6 +153,7 @@ CATALOGUE: Final[tuple[ToolDeclaration, ...]] = (
             "crossings from the saved positions and prices."
         ),
         risk=RiskLevel.MEDIUM,
+        default_space_only=True,
     ),
     ToolDeclaration(
         name="check_limits",
@@ -153,6 +162,7 @@ CATALOGUE: Final[tuple[ToolDeclaration, ...]] = (
             "sector, and daily-loss limits."
         ),
         risk=RiskLevel.MEDIUM,
+        default_space_only=True,
     ),
     ToolDeclaration(
         name="score_predictions",
@@ -161,6 +171,7 @@ CATALOGUE: Final[tuple[ToolDeclaration, ...]] = (
             "the append-only ledger, monthly scorecard, accuracy, and calibration files."
         ),
         risk=RiskLevel.MEDIUM,
+        default_space_only=True,
     ),
     ToolDeclaration(
         name="track_forecasts",
@@ -169,6 +180,7 @@ CATALOGUE: Final[tuple[ToolDeclaration, ...]] = (
             "monthly Excel workbooks with one sheet per market session."
         ),
         risk=RiskLevel.MEDIUM,
+        default_space_only=True,
     ),
     ToolDeclaration(
         name="run_shell",
@@ -195,6 +207,12 @@ def is_registered(name: str) -> bool:
 
 def lookup(name: str) -> ToolDeclaration | None:
     return _BY_NAME.get(name)
+
+
+def is_default_space_only(name: str) -> bool:
+    """Whether ``name`` is one of the default space's investment pipeline tools."""
+    tool = _BY_NAME.get(name)
+    return tool is not None and tool.default_space_only
 
 
 #: Risk levels a policy may answer without a person. ``run_shell`` is the only

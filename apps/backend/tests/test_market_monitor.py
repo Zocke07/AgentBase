@@ -518,6 +518,31 @@ async def test_a_space_without_the_file_or_switched_off_is_not_watched(
 
 
 @anyio_tests
+async def test_only_the_default_space_is_watched(
+    db: Database, app_paths: AppPaths, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """2026-10-13: the market watch is part of the default space's investment
+    pipeline. Another space's file, even switched on, is never read."""
+    h = _harness(db, app_paths, monkeypatch, config={"enabled": False})
+    spaces = SpaceStore(db, app_paths.spaces_dir)
+    lab = await spaces.create({"name": "Lab"})
+    folder = spaces.folder_for(lab.id)
+    (folder / "config").mkdir(parents=True)
+    (folder / MONITOR_PATH).write_text('{"enabled": true, "indexes": []}', encoding="utf-8")
+    (folder / "portfolio").mkdir()
+    (folder / "portfolio/positions.csv").write_text(
+        "ticker,shares,cost_per_share,opened,sector,currency\nMU,1,,,Technology,USD\n",
+        encoding="utf-8",
+    )
+
+    await h.monitor.tick()
+
+    assert h.yahoo.requests == []
+    assert await h.alerts.recent(lab.id, 10) == []
+    assert h.monitor.status(lab.id) is None
+
+
+@anyio_tests
 async def test_switching_on_writes_the_starter_file_and_keeps_the_persons_edits(
     db: Database, app_paths: AppPaths, monkeypatch: pytest.MonkeyPatch
 ) -> None:

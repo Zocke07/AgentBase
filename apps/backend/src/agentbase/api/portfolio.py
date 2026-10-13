@@ -15,7 +15,7 @@ from agentbase.store.portfolio import (
     load_portfolio,
     save_portfolio,
 )
-from agentbase.store.spaces import SpaceNotFoundError
+from agentbase.store.spaces import DEFAULT_SPACE_ID, SpaceNotFoundError
 from agentbase.tools.sandbox import SandboxViolationError
 
 if TYPE_CHECKING:
@@ -33,6 +33,15 @@ async def _root(request: Request, space_id: str, *, write: bool = False) -> Path
         space = await spaces.require(space_id)
     except SpaceNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if space.id != DEFAULT_SPACE_ID:
+        # Part of the default space's investment pipeline, which stays there
+        # (2026-10-13); other spaces have no personal stock data.
+        home = await spaces.require(DEFAULT_SPACE_ID)
+        raise HTTPException(
+            status_code=404,
+            detail=f"Personal stock data is kept only in {home.name}, the space with the "
+            f"investment pipeline.",
+        )
     if write and space.archived:
         raise HTTPException(
             status_code=409, detail="Unarchive this space before changing its portfolio."

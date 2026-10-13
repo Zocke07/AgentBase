@@ -248,13 +248,14 @@ def test_other_space_inputs_and_related_sources_are_unchanged(
     client: TestClient, app_paths: AppPaths
 ) -> None:
     other = client.post("/spaces", json={"name": "Other", "seed": "empty"}).json()["id"]
-    other_url = f"/spaces/{other}/portfolio"
-    other_state = client.get(other_url).json()
+    # Personal stock data is the default space's alone (2026-10-13).
+    assert client.get(f"/spaces/{other}/portfolio").status_code == 404
     source = app_paths.spaces_dir / DEFAULT_SPACE_ID / "config/sources.json"
     source.parent.mkdir(parents=True)
     source.write_text('{"custom":"source"}')
     assert client.put(URL, json=body(client)).status_code == 200
-    assert client.get(other_url).json() == other_state
+    assert not (app_paths.spaces_dir / other / "portfolio").exists()
+    assert not (app_paths.spaces_dir / other / "config").exists()
     assert source.read_text() == '{"custom":"source"}'
     assert client.get("/spaces/nonexistent/portfolio").status_code == 404
 

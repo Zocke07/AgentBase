@@ -20,7 +20,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from agentbase.providers.factory import SUPPORTED_PROVIDERS
 from agentbase.store.builtins import STARTER_ROLES
 from agentbase.store.spaces import DEFAULT_SPACE_ID, SpaceNotFoundError
-from agentbase.tools.catalogue import RiskLevel, is_registered, tool_names
+from agentbase.tools.catalogue import (
+    RiskLevel,
+    is_default_space_only,
+    is_registered,
+    tool_names,
+)
 
 if TYPE_CHECKING:
     import sqlite3
@@ -204,6 +209,7 @@ class AgentDefStore:
 
         with self._db.write() as connection:
             _require_space(connection, space_id)
+            _refuse_pipeline_tools(connection, tools, space_id)
             if _name_taken(connection, name, space_id, excluding=None):
                 raise DuplicateAgentNameError(name)
             definition_id = _insert(
@@ -285,9 +291,11 @@ class AgentDefStore:
             if source is None:
                 raise AgentNotFoundError(definition_id)
             _require_space(connection, to_space_id)
+            definition = _row_to_def(source)
+            _refuse_leaving(connection, definition, to_space_id)
             if _name_taken(connection, source["name"], to_space_id, excluding=None):
                 raise DuplicateAgentNameError(source["name"])
-            new_id = _copy_row(connection, _row_to_def(source), to_space_id)
+            new_id = _copy_row(connection, definition, to_space_id)
             row = connection.execute(f"{_SELECT} WHERE id = ?", (new_id,)).fetchone()
         return _row_to_def(row)
 
@@ -331,7 +339,7 @@ class AgentDefStore:
 
         with self._db.write() as connection:
             existing = connection.execute(
-                "SELECT name, space_id FROM agent_defs WHERE id = ?", (definition_id,)
+                f"{_SELECT} WHERE id = ?", (definition_id,)
             ).fetchone()
             if existing is None:
                 raise AgentNotFoundError(definition_id)
@@ -339,6 +347,12 @@ class AgentDefStore:
             target_space = columns.get("space_id", existing["space_id"])
             if "space_id" in columns:
                 _require_space(connection, target_space)
+            if "allowed_tools" in columns:
+                _refuse_pipeline_tools(
+                    connection, json.loads(columns["allowed_tools"]), target_space
+                )
+            elif "space_id" in columns:
+                _refuse_leaving(connection, _row_to_def(existing), target_space)
             target_name = columns.get("name", existing["name"])
             if ("name" in columns or "space_id" in columns) and _name_taken(
                 connection, target_name, target_space, excluding=definition_id
@@ -458,6 +472,56 @@ def _require_space(connection: sqlite3.Connection, space_id: str) -> None:
     row = connection.execute("SELECT id FROM spaces WHERE id = ?", (space_id,)).fetchone()
     if row is None:
         raise SpaceNotFoundError(space_id)
+
+
+# The investment pipeline's tools stay in the default space, at the
+# maintainer's request (2026-10-13): agents anywhere else use the general
+# tools. The run's roster drops them as well (`AgentRegistry.load`).
+
+
+def _refuse_pipeline_tools(
+    connection: sqlite3.Connection, tools: Iterable[str], space_id: str
+) -> None:
+    held = [name for name in tools if is_default_space_only(name)]
+    if space_id == DEFAULT_SPACE_ID or not held:
+        return
+    home = _default_space_name(connection)
+    raise AgentValidationError(
+        f"{_listed(held)} only {_works(held)} in {home}, the space with the investment "
+        f"pipeline. Agents in other spaces use the general tools.",
+        field="allowed_tools",
+    )
+
+
+def _refuse_leaving(
+    connection: sqlite3.Connection, definition: AgentDef, space_id: str
+) -> None:
+    held = [name for name in definition.allowed_tools if is_default_space_only(name)]
+    if space_id == DEFAULT_SPACE_ID or not held:
+        return
+    home = _default_space_name(connection)
+    raise AgentValidationError(
+        f"{definition.name} uses {_listed(held)}, which only {_works(held)} in {home}, so "
+        f"it cannot be moved or copied to another space. Agents in other spaces use the "
+        f"general tools.",
+        field="space_id",
+    )
+
+
+def _default_space_name(connection: sqlite3.Connection) -> str:
+    row = connection.execute(
+        "SELECT name FROM spaces WHERE id = ?", (DEFAULT_SPACE_ID,)
+    ).fetchone()
+    return str(row["name"]) if row is not None else "the default space"
+
+
+def _listed(names: list[str]) -> str:
+    """One name, "a and b", or "a, b and c"."""
+    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
+
+
+def _works(names: list[str]) -> str:
+    return "works" if len(names) == 1 else "work"
 
 
 def _validated_space_id(value: Any) -> str:

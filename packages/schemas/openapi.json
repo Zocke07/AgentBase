@@ -7409,8 +7409,26 @@
     },
     "/tools": {
       "get": {
-        "description": "List tools and risk levels for editor checkboxes.",
+        "description": "List tools and risk levels for editor checkboxes.\n\nWith a ``space_id`` other than the default space's, only the general tools:\nthe investment pipeline's stay in the default space (2026-10-13).",
         "operationId": "list_tools_tools_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "space_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Space Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -7425,6 +7443,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "List Tools"

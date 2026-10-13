@@ -20,6 +20,7 @@ from agentbase.orchestrator.control import (
 )
 from agentbase.providers.factory import build_provider
 from agentbase.store.spaces import DEFAULT_SPACE_ID
+from agentbase.tools.catalogue import is_default_space_only
 
 if TYPE_CHECKING:
     import httpx2
@@ -73,8 +74,14 @@ class AgentRegistry:
         time_note: str = "",
     ) -> AgentRegistry:
         """Load one space's roster once at run start; exclude other-space rows."""
+        definitions = await agents.list_enabled(space_id)
+        if space_id != DEFAULT_SPACE_ID:
+            # The investment pipeline's tools work in the default space alone
+            # (2026-10-13). A row that still lists one is offered, told about
+            # and permitted the general tools only, whatever it says.
+            definitions = [_general_only(definition) for definition in definitions]
         return cls(
-            definitions=tuple(await agents.list_enabled(space_id)),
+            definitions=tuple(definitions),
             max_steps_ceiling=limits.max_steps_per_agent,
             time_note=time_note,
         )
@@ -150,6 +157,13 @@ class AgentRegistry:
             if tool is not None
         ]
         return [*WORKER_TOOLS, *catalogue_specs(tools)]
+
+
+def _general_only(definition: AgentDef) -> AgentDef:
+    kept = tuple(name for name in definition.allowed_tools if not is_default_space_only(name))
+    if kept == definition.allowed_tools:
+        return definition
+    return definition.model_copy(update={"allowed_tools": kept})
 
 
 class ProviderPool:

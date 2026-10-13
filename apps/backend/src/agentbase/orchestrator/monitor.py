@@ -1,6 +1,8 @@
 """Market watch (BUILD_SPEC Phase 18): notice sudden moves, alert, explain.
 
-The watcher is app code beside the scheduler, not an agent. While a space's
+The watcher is app code beside the scheduler, not an agent. It watches the
+default space alone: it is part of that space's investment pipeline, which
+stays there (2026-10-13). While the space's
 ``config/monitor.json`` turns it on, it reads quotes every few minutes from
 US pre-market open to after-hours close, compares them with the reference
 close and with the price a few minutes earlier, and records an alert for a
@@ -33,6 +35,7 @@ import httpx2
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from agentbase.store.alerts import NewAlert
+from agentbase.store.spaces import DEFAULT_SPACE_ID
 from agentbase.tools.base import ToolExecutionError
 from agentbase.tools.builtin.fetching import (
     checked_request,
@@ -563,11 +566,13 @@ class MarketMonitor:
         if self.wakefulness is not None and not self.wakefulness.settled():
             return
         async with self._lock:
-            for space in await self.spaces.list_all(include_archived=False):
-                try:
-                    await self._check_space(space)
-                except Exception:
-                    logger.exception("watching space %s failed", space.id)
+            space = await self.spaces.get(DEFAULT_SPACE_ID)
+            if space is None or space.archived:
+                return
+            try:
+                await self._check_space(space)
+            except Exception:
+                logger.exception("watching space %s failed", space.id)
 
     def status(self, space_id: str) -> MonitorStatus | None:
         return self._status.get(space_id)

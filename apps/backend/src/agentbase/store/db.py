@@ -84,6 +84,7 @@ MIGRATION_FILES: tuple[tuple[int, str], ...] = (
     (31, "031_analyst_forecasts.sql"),
     (32, "032_run_titles.sql"),
     (33, "033_decision_dates_and_sources.sql"),
+    (34, "034_pipeline_tools_stay_in_the_default_space.sql"),
 )
 
 #: Migrations requiring deferred foreign-key checks.

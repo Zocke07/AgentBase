@@ -183,6 +183,15 @@ async def create_space(request: Request, body: CreateSpaceRequest) -> SpaceRespo
     Seed after creating the row so a partial copy leaves a visible, repairable space.
     """
     store = _spaces(request)
+    if isinstance(body.seed, CopyFrom) and body.seed.copy_from == DEFAULT_SPACE_ID:
+        # The default space's roster is its investment pipeline, which stays
+        # there (2026-10-13). Refused before the row exists, not half-built.
+        home = await store.require(DEFAULT_SPACE_ID)
+        raise _reject(
+            f"{home.name}'s agents are its investment pipeline and stay in {home.name}. "
+            f"Start the new space with the starter roles or with no agents.",
+            "seed",
+        )
     fields: dict[str, Any] = {"name": body.name, "description": body.description}
     if body.provider is not None:
         fields["provider"] = body.provider

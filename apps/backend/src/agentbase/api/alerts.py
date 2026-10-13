@@ -1,8 +1,9 @@
 """Market watch endpoints (BUILD_SPEC Phase 18).
 
 Alerts across spaces for the window's badge and notifications, marking them
-seen, and each space's watch status and on/off switch. The thresholds stay
-in the space's ``config/monitor.json``, which Knowledge edits like any file.
+seen, and the default space's watch status and on/off switch: the watch is
+part of its investment pipeline and stays there (2026-10-13). The thresholds
+stay in the space's ``config/monitor.json``, which Knowledge edits like any file.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from pydantic import BaseModel, ConfigDict
 
 from agentbase.orchestrator.monitor import MonitorConfigError, MonitorStatus
 from agentbase.store.alerts import MarketAlert
+from agentbase.store.spaces import DEFAULT_SPACE_ID
 from agentbase.tools.sandbox import SandboxViolationError
 
 if TYPE_CHECKING:
@@ -70,7 +72,7 @@ async def mark_alerts_seen(request: Request, body: SeenRequest) -> SeenResponse:
 
 @router.get("/spaces/{space_id}/monitor")
 async def monitor_status(request: Request, space_id: str) -> MonitorStatus:
-    return await _monitor(request).read_status(await _space(request, space_id))
+    return await _monitor(request).read_status(await _watched(request, space_id))
 
 
 @router.put("/spaces/{space_id}/monitor")
@@ -78,7 +80,7 @@ async def switch_monitor(
     request: Request, space_id: str, body: MonitorSwitchRequest
 ) -> MonitorStatus:
     """Turn the watch on or off by its file, writing the starter file the first time."""
-    space = await _space(request, space_id)
+    space = await _watched(request, space_id)
     if space.archived:
         raise HTTPException(
             status_code=409,
@@ -94,13 +96,24 @@ async def switch_monitor(
     return await monitor.read_status(space)
 
 
-async def _space(request: Request, space_id: str) -> Space:
+async def _watched(request: Request, space_id: str) -> Space:
+    """The default space: the watch is part of its investment pipeline (2026-10-13)."""
     spaces: SpaceStore = request.app.state.spaces
     space = await spaces.get(space_id)
     if space is None:
         raise HTTPException(
             status_code=404,
             detail={"message": f"No space with id {space_id!r}.", "field": None},
+        )
+    if space.id != DEFAULT_SPACE_ID:
+        home = await spaces.require(DEFAULT_SPACE_ID)
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "message": f"The market watch runs only in {home.name}, the space with the "
+                f"investment pipeline.",
+                "field": None,
+            },
         )
     return space
 

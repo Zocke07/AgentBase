@@ -18,7 +18,7 @@ from agentbase.store.agents import (
     BuiltinNotDeletableError,
     DuplicateAgentNameError,
 )
-from agentbase.store.spaces import SpaceNotFoundError
+from agentbase.store.spaces import DEFAULT_SPACE_ID, SpaceNotFoundError
 from agentbase.tools.catalogue import CATALOGUE
 
 if TYPE_CHECKING:
@@ -175,9 +175,14 @@ async def delete_agent(request: Request, definition_id: str) -> Response:
 
 
 @router.get("/tools")
-async def list_tools(request: Request) -> list[ToolResponse]:
-    """List tools and risk levels for editor checkboxes."""
+async def list_tools(request: Request, space_id: str | None = None) -> list[ToolResponse]:
+    """List tools and risk levels for editor checkboxes.
+
+    With a ``space_id`` other than the default space's, only the general tools:
+    the investment pipeline's stay in the default space (2026-10-13).
+    """
     available = request.app.state.tool_runtime.tools
+    general_only = space_id is not None and space_id != DEFAULT_SPACE_ID
     return [
         ToolResponse(
             name=tool.name,
@@ -186,4 +191,5 @@ async def list_tools(request: Request) -> list[ToolResponse]:
             available=tool.name in available,
         )
         for tool in CATALOGUE
+        if not (general_only and tool.default_space_only)
     ]

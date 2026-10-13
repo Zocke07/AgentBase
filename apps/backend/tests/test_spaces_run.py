@@ -105,6 +105,62 @@ async def test_a_run_in_space_a_never_spawns_an_agent_that_lives_in_space_b(
     assert rebuilt.status == "completed"
 
 
+async def test_a_pipeline_tool_is_neither_offered_nor_run_outside_the_default_space(
+    store: EventStore,
+    settings: SettingsStore,
+    agents: AgentDefStore,
+    ledger: BudgetLedger,
+    secrets: SecretStore,
+    spaces: SpaceStore,
+    db: Database,
+) -> None:
+    """2026-10-13: the default space's investment tools stay there. A row that
+    still lists one, written before that rule, gets the general tools only."""
+    await settings.update({"auto_approve": [RiskLevel.LOW, RiskLevel.MEDIUM]})
+    lab = await spaces.create({"name": "Lab"})
+    scout = await agents.create(
+        {
+            "space_id": lab.id,
+            "name": "scout",
+            "role": "r",
+            "system_prompt": "p",
+            "allowed_tools": ["read_file"],
+        }
+    )
+    with db.write() as connection:
+        connection.execute(
+            "UPDATE agent_defs SET allowed_tools = ? WHERE id = ?",
+            (json.dumps(["read_prices", "read_file"]), scout.id),
+        )
+    provider = ScriptedProvider(
+        [
+            says("Delegating.", call("spawn_agent", "s1", agent="scout", task="prices")),
+            says("Fetching.", call("read_prices", "w1")),
+            says("Done.", call("finish", "w2", result="could not")),
+            says("Done.", call("finish", "s2", result="no prices here")),
+        ]
+    )
+    runtime, service = tool_runtime(store, db, spaces.folder_for(DEFAULT_SPACE_ID))
+    launcher = _launcher(store, settings, agents, ledger, secrets, spaces, provider, runtime)
+
+    async with StandingAnswer(service, approve=True):
+        run = await launcher.launch("Read prices", space_id=lab.id)
+        await asyncio.gather(*launcher.tasks)
+
+    events = await store.read(run.id)
+    rebuilt = reconstruct(events)
+    worker = rebuilt.agent("scout")
+    roster = (provider.systems[0] or "").split("These agents are available to you")[1]
+    assert "read_prices" not in roster
+    assert worker.allowed_tools == ("read_file",)
+    assert "read_prices" not in provider.offered_tools[1]
+    assert worker.denied_tools == ["read_prices"]
+    assert not any(
+        event.type == "tool.called" and event.payload.get("tool") == "read_prices"
+        for event in events
+    )
+
+
 async def test_a_write_lands_in_the_run_spaces_folder_and_another_spaces_folder_is_out_of_bounds(
     store: EventStore,
     settings: SettingsStore,
