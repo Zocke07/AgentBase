@@ -52,6 +52,9 @@ FEED_HOST: Final[str] = "feeds.finance.yahoo.com"
 MAX_SYMBOLS: Final[int] = 50
 MAX_MARKET_BYTES: Final[int] = MAX_RESPONSE_BYTES
 MAX_NEWS: Final[int] = 40
+#: A day's news file also keeps what earlier collections that day saved, up to this.
+MAX_DAY_NEWS: Final[int] = 200
+_MAX_NEWS_FILE_BYTES: Final[int] = 5_000_000
 SCREENERS: Final[tuple[str, ...]] = ("day_gainers", "day_losers", "most_actives")
 _SYMBOL: Final[re.Pattern[str]] = re.compile(r"^[A-Z0-9][A-Z0-9._-]{0,19}$")
 _NEWS_SYMBOL: Final[re.Pattern[str]] = re.compile(
@@ -86,11 +89,35 @@ def parse_symbols(value: Any, *, required: bool, maximum: int = MAX_SYMBOLS) -> 
     return result
 
 
-def _write_news(path: Path, rows: list[dict[str, Any]]) -> None:
+def _write_news(path: Path, rows: list[dict[str, Any]]) -> int:
+    """Write the day's headlines, newest first, after keeping those an earlier
+    collection that day saved; returns how many were kept.
+
+    Theses cite a headline by its id. On 2026-10-13 a second collection on the
+    same New York date replaced the file, and a cited headline was gone.
+    """
+    seen = {row["id"] for row in rows}
+    earlier: list[dict[str, Any]] = []
+    if path.is_file() and path.stat().st_size <= _MAX_NEWS_FILE_BYTES:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if (
+                isinstance(row, dict)
+                and isinstance(row.get("id"), str)
+                and row["id"] not in seen
+            ):
+                seen.add(row["id"])
+                earlier.append(row)
+    kept = earlier[: max(0, MAX_DAY_NEWS - len(rows))]
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows), encoding="utf-8"
+        "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in [*rows, *kept]),
+        encoding="utf-8",
     )
+    return len(kept)
 
 
 class ReadMarketTool:
@@ -258,12 +285,13 @@ class ReadMarketTool:
         }
         await asyncio.to_thread(write_json, payload["universe_path"], document)
         await asyncio.to_thread(write_json, payload["screeners_path"], screeners)
-        await asyncio.to_thread(_write_news, payload["news_path"], records)
+        kept = await asyncio.to_thread(_write_news, payload["news_path"], records)
         return json.dumps(
             {
                 **document,
                 "screeners": screeners,
                 "news_count": len(records),
+                "earlier_news_kept": kept,
                 "universe_path": sandbox.relative(payload["universe_path"]),
                 "news_path": sandbox.relative(payload["news_path"]),
                 "written": [

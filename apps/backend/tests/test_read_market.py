@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import httpx2
 import pytest
@@ -255,6 +255,49 @@ async def test_news_matching_preserves_configured_company_name_and_aliases(
     ]
     assert rows[0]["tickers"] == ["MU"]
     assert rows[1]["tickers"] == []
+
+
+async def test_a_later_collection_the_same_day_keeps_the_earlier_headlines(
+    sandbox: Sandbox,
+) -> None:
+    """2026-10-13: the evening collection replaced the midday news file, and
+    the bear thesis's cited Micron headline no longer existed anywhere."""
+    micron = (
+        "Micron stock drops on memory chip news",
+        "https://finance.yahoo.com/mu",
+        "Chips.",
+    )
+    microsoft = ("Microsoft reports revenue", "https://finance.yahoo.com/msft", "Revenue.")
+    stories = [micron]
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        if request.headers["host"] == "feeds.finance.yahoo.com":
+            return httpx2.Response(200, content=_feed(*stories))
+        return httpx2.Response(429)
+
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as client:
+        tool = ReadMarketTool(client, _clock)
+        first = json.loads(await tool.execute(tool.prepare({}, sandbox), sandbox))
+        [cited] = _news(sandbox, first)
+        stories[:] = [microsoft, micron]
+        second = json.loads(await tool.execute(tool.prepare({}, sandbox), sandbox))
+        seen_again = _news(sandbox, second)
+        stories[:] = [microsoft]
+        third = json.loads(await tool.execute(tool.prepare({}, sandbox), sandbox))
+
+    # A headline seen again is written once.
+    assert [row["title"] for row in seen_again] == [microsoft[0], micron[0]]
+    assert second["earlier_news_kept"] == 0
+    # Gone from the feed, the cited headline stays, after the newest.
+    rows = _news(sandbox, third)
+    assert third["news_count"] == 1 and third["earlier_news_kept"] == 1
+    assert [row["id"] for row in rows] == [rows[0]["id"], cited["id"]]
+    assert rows[0]["title"] == microsoft[0]
+
+
+def _news(sandbox: Sandbox, result: dict[str, Any]) -> list[dict[str, Any]]:
+    path = sandbox.root / result["news_path"]
+    return [json.loads(line) for line in path.read_text().splitlines()]
 
 
 async def test_invalid_holdings_do_not_hide_valid_watchlist_or_requested_symbols(
