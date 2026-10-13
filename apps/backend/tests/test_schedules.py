@@ -1067,6 +1067,93 @@ async def test_a_lookup_the_agent_corrected_does_not_block_the_investment_chain(
     assert next_stage.schedule_id == theses.id and next_stage.run_id is not None
 
 
+async def _verified_morning(store: EventStore, run_id: str) -> None:
+    """The results the morning stage must show before theses may start."""
+    await store.append(
+        run_id,
+        EventType.TOOL_RESULT,
+        {
+            "tool": "read_prices",
+            "result": json.dumps(
+                {"new_session": True, "summary": [{"ticker": "MU"}], "required_failures": []}
+            ),
+        },
+    )
+    await store.append(
+        run_id, EventType.TOOL_RESULT, {"tool": "compute_portfolio", "result": "{}"}
+    )
+
+
+_UNREADABLE = (
+    "The arguments for this spawn_agent call could not be read: they are not valid JSON "
+    "(Extra data at character 605). It did not run. Send it again with its arguments as "
+    "one JSON object."
+)
+
+
+async def test_a_refused_call_the_agent_sent_again_does_not_block_the_investment_chain(
+    schedules: ScheduleStore, scheduler: Scheduler, store: EventStore
+) -> None:
+    """2026-10-13: a supervisor's spawn_agent arguments could not be read, so the
+    call was refused before it ran; the supervisor sent it again and it ran."""
+    morning = await schedules.update("a7e2c1d0-5b3f-4c6a-9e81-0f4d2b7c9a11", {"enabled": True})
+    theses = await schedules.update("b8f3d2e1-6c4a-4d7b-8f92-1a5e3c8dab22", {"enabled": True})
+    run = await scheduler.run_now(morning)
+    refused = {"tool": "spawn_agent", "call_id": "c1", "error": _UNREADABLE}
+    await store.append(run.id, EventType.TOOL_REQUESTED, {**refused, "args": {}}, "sup")
+    await store.append(run.id, EventType.TOOL_ERROR, refused, "sup")
+    resent = {"tool": "spawn_agent", "call_id": "c2", "args": {"agent": "market-data"}}
+    await store.append(run.id, EventType.TOOL_REQUESTED, resent, "sup")
+    await store.append(run.id, EventType.TOOL_CALLED, resent, "sup")
+    await store.append(
+        run.id,
+        EventType.TOOL_RESULT,
+        {"tool": "spawn_agent", "call_id": "c2", "result": "done"},
+        "sup",
+    )
+    await _verified_morning(store, run.id)
+    await _finish(store, run.id, "completed")
+
+    (next_stage,) = await scheduler.on_run_finished(run.id)
+
+    assert next_stage.schedule_id == theses.id and next_stage.run_id is not None
+
+
+@pytest.mark.parametrize(
+    "story",
+    [
+        # Refused, and never sent again.
+        [(EventType.TOOL_ERROR, "c1", "sup")],
+        # Refused for one agent; a different agent's call to the tool is no resend.
+        [(EventType.TOOL_ERROR, "c1", "sup"), (EventType.TOOL_CALLED, "c2", "other")],
+        # Sent again first, refused after: the refusal was the last word.
+        [(EventType.TOOL_CALLED, "c2", "sup"), (EventType.TOOL_ERROR, "c1", "sup")],
+        # It ran and failed, which may have changed something.
+        [(EventType.TOOL_CALLED, "c1", "sup"), (EventType.TOOL_ERROR, "c1", "sup")],
+    ],
+)
+async def test_a_tool_error_still_blocks_the_investment_chain_unless_a_refused_call_was_resent(
+    schedules: ScheduleStore,
+    scheduler: Scheduler,
+    store: EventStore,
+    story: list[tuple[EventType, str, str]],
+) -> None:
+    morning = await schedules.update("a7e2c1d0-5b3f-4c6a-9e81-0f4d2b7c9a11", {"enabled": True})
+    theses = await schedules.update("b8f3d2e1-6c4a-4d7b-8f92-1a5e3c8dab22", {"enabled": True})
+    run = await scheduler.run_now(morning)
+    for event_type, call_id, agent in story:
+        payload: dict[str, object] = {"tool": "spawn_agent", "call_id": call_id}
+        if event_type == EventType.TOOL_ERROR:
+            payload["error"] = _UNREADABLE
+        await store.append(run.id, event_type, payload, agent)
+    await _verified_morning(store, run.id)
+    await _finish(store, run.id, "completed")
+
+    assert await scheduler.on_run_finished(run.id) == [
+        Fired(theses.id, None, "Not started: Morning collection had tool or model errors.")
+    ]
+
+
 async def test_the_seeded_investment_chain_requires_a_new_verified_price_session_and_portfolio(
     schedules: ScheduleStore, scheduler: Scheduler, launcher: FakeLauncher, store: EventStore
 ) -> None:

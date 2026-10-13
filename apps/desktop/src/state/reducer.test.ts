@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { LogBuilder, twoAgentRun } from "../test/log";
 
-import { EMPTY_RUN, isMissedLookup, pendingApprovals, reduce, reduceAll } from "./reducer";
+import { EMPTY_RUN, isMissedLookup, isResentRefusal, pendingApprovals, reduce, reduceAll } from "./reducer";
 
 
 
@@ -654,11 +654,33 @@ describe("errors", () => {
     ]);
 
     expect(state.errors).toEqual([
-      { agent: "w", kind: "llm", tool: null, message: "provider refused", seq: 1 },
-      { agent: "w", kind: "tool", tool: "read_file", message: "no such file", seq: 2 },
+      { agent: "w", kind: "llm", tool: null, callId: null, message: "provider refused", seq: 1 },
+      { agent: "w", kind: "tool", tool: "read_file", callId: null, message: "no such file", seq: 2 },
     ]);
     // The run summary calls a lookup that found nothing a missed lookup.
     expect(state.errors.map(isMissedLookup)).toEqual([false, true]);
+  });
+
+  it("tells a refused call its agent sent again from one that ran or was never sent again", () => {
+    /* 2026-10-13: a supervisor's spawn_agent arguments could not be read, so
+       it was refused before it ran, and the supervisor sent it again. */
+    const log = new LogBuilder();
+    const state = reduceAll([
+      log.add("tool.requested", { tool: "spawn_agent", call_id: "c1", args: {} }, "sup"),
+      log.add("tool.error", { tool: "spawn_agent", call_id: "c1", error: "could not be read" }, "sup"),
+      log.add("tool.requested", { tool: "spawn_agent", call_id: "c2", args: { agent: "decision" } }, "sup"),
+      log.add("tool.called", { tool: "spawn_agent", call_id: "c2", args: { agent: "decision" } }, "sup"),
+      log.add("tool.result", { tool: "spawn_agent", call_id: "c2", result: "done" }, "sup"),
+      // It ran and failed.
+      log.add("tool.called", { tool: "write_file", call_id: "c3", args: { path: "a.md" } }, "sup"),
+      log.add("tool.error", { tool: "write_file", call_id: "c3", error: "disk full" }, "sup"),
+      // Refused, and only another agent called the tool afterwards.
+      log.add("tool.error", { tool: "write_file", call_id: "c4", error: "could not be read" }, "sup"),
+      log.add("tool.called", { tool: "write_file", call_id: "c5", args: { path: "b.md" } }, "w"),
+    ]);
+
+    expect(state.errors.map((error) => error.callId)).toEqual(["c1", "c3", "c4"]);
+    expect(state.errors.map((error) => isResentRefusal(error, state))).toEqual([true, false, false]);
   });
 });
 

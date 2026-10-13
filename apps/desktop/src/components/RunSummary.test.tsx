@@ -118,7 +118,7 @@ describe("RunSummary", () => {
     expect(screen.queryByTestId("run-issue-badge")).toBeNull();
     expect(screen.getByTestId("fact-errors").textContent).toBe("0");
     const disclosure = screen.getByTestId("run-errors");
-    expect(disclosure.className).toContain("run-summary__problems--lookups");
+    expect(disclosure.className).toContain("run-summary__problems--calm");
     expect(disclosure.querySelector("summary")?.textContent).toContain("2 missed lookups");
     expect(disclosure.textContent).not.toContain("Review these before trusting the outcome");
     expect(disclosure.textContent).toContain("supervisor · lookup");
@@ -134,6 +134,41 @@ describe("RunSummary", () => {
     expect(screen.getByTestId("run-issue-badge").textContent).toBe("1 error");
     expect(screen.getByTestId("run-errors").textContent).toContain(
       "1 tool failure and 2 missed lookups. Review these before trusting the outcome.",
+    );
+  });
+
+  it("lists a refused call its agent sent again without calling it a failure", () => {
+    /* 2026-10-13: a supervisor's spawn_agent arguments could not be read, so
+       the call was refused before it ran. It was sent again and ran, yet the
+       run said "1 error during this run". */
+    const log = new LogBuilder();
+    const resent = [
+      ...twoAgentRun().slice(0, 4),
+      log.add("tool.requested", { tool: "spawn_agent", call_id: "c1", args: {} }, "supervisor"),
+      log.add(
+        "tool.error",
+        { tool: "spawn_agent", call_id: "c1", error: "The arguments for this spawn_agent call could not be read." },
+        "supervisor",
+      ),
+      log.add("tool.requested", { tool: "spawn_agent", call_id: "c2", args: { agent: "decision" } }, "supervisor"),
+      log.add("tool.called", { tool: "spawn_agent", call_id: "c2", args: { agent: "decision" } }, "supervisor"),
+    ];
+    const { unmount } = render(<RunSummary view={reduceAll(resent)} />);
+
+    expect(screen.queryByTestId("run-issue-badge")).toBeNull();
+    expect(screen.getByTestId("fact-errors").textContent).toBe("0");
+    const disclosure = screen.getByTestId("run-errors");
+    expect(disclosure.className).toContain("run-summary__problems--calm");
+    expect(disclosure.querySelector("summary")?.textContent).toContain("1 call sent again");
+    expect(disclosure.textContent).not.toContain("Review these before trusting the outcome");
+    expect(disclosure.textContent).toContain("supervisor · sent again");
+    unmount();
+
+    // Never sent again, it is a failure: what it would have started may never have run.
+    render(<RunSummary view={reduceAll(resent.slice(0, 6))} />);
+    expect(screen.getByTestId("run-issue-badge").textContent).toBe("1 error");
+    expect(screen.getByTestId("run-errors").textContent).toContain(
+      "1 tool failure. Review these before trusting the outcome.",
     );
   });
 

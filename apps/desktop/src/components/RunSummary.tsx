@@ -5,7 +5,7 @@ import * as api from "../lib/api";
 import { ellipsise, formatCount, formatDuration, formatMicros } from "../lib/format";
 import { policySentence, STATUS_LABEL } from "../state/describe";
 import { splitPath, writtenFiles, type WrittenFile } from "../state/files";
-import { isMissedLookup, type RunView } from "../state/reducer";
+import { changedNothing, isMissedLookup, isResentRefusal, type RunView } from "../state/reducer";
 
 import { Markdown } from "./Markdown";
 import { MetricBar } from "./MetricBar";
@@ -48,22 +48,25 @@ export function RunSummary({
 }: RunSummaryProps) {
   const denied = view.denials.length;
   const sandboxed = view.denials.filter((denial) => denial.blockedBy === "sandbox").length;
-  // A lookup that found nothing changed nothing; it is listed, not alarmed.
+  // A lookup that found nothing, or a refused call its agent sent again,
+  // changed nothing; it is listed, not alarmed.
   const lookups = view.errors.filter(isMissedLookup).length;
+  const calm = view.errors.filter((error) => changedNothing(error, view)).length;
+  const resent = calm - lookups;
   const modelErrors = view.errors.filter((error) => error.kind === "llm").length;
-  const toolErrors = view.errors.length - modelErrors - lookups;
+  const toolErrors = view.errors.length - modelErrors - calm;
   const failures = modelErrors + toolErrors;
-  const failureKinds = [
+  const calmKinds = [
+    lookups > 0 ? `${String(lookups)} missed lookup${lookups === 1 ? "" : "s"}` : null,
+    resent > 0 ? `${String(resent)} call${resent === 1 ? "" : "s"} sent again` : null,
+  ];
+  const kinds = joined([
     modelErrors > 0
       ? `${String(modelErrors)} model failure${modelErrors === 1 ? "" : "s"}`
       : null,
     toolErrors > 0 ? `${String(toolErrors)} tool failure${toolErrors === 1 ? "" : "s"}` : null,
-    lookups > 0 ? `${String(lookups)} missed lookup${lookups === 1 ? "" : "s"}` : null,
-  ].filter((label): label is string => label !== null);
-  const kinds =
-    failureKinds.length > 1
-      ? `${failureKinds.slice(0, -1).join(", ")} and ${failureKinds[failureKinds.length - 1] ?? ""}`
-      : (failureKinds[0] ?? "");
+    ...calmKinds,
+  ]);
   // Use log timestamps so replay matches live; live duration grows with events.
   const duration =
     view.startedTs !== null && view.latestTs !== null
@@ -166,7 +169,7 @@ export function RunSummary({
 
       {view.errors.length > 0 && (
         <details
-          className={`run-summary__problems${failures === 0 ? " run-summary__problems--lookups" : ""}`}
+          className={`run-summary__problems${failures === 0 ? " run-summary__problems--calm" : ""}`}
           data-testid="run-errors"
         >
           <summary>
@@ -176,12 +179,11 @@ export function RunSummary({
             <span className="run-summary__problem-copy">
               {failures === 0 ? (
                 <>
-                  <strong>
-                    {lookups} missed {lookups === 1 ? "lookup" : "lookups"}
-                  </strong>
+                  <strong>{joined(calmKinds)}</strong>
                   <small>
-                    An agent looked for something that was not there, or asked without saying what.
-                    Nothing was changed, and the agent was told each time.
+                    {lookups > 0 && "An agent looked for something that was not there, or asked without saying what. "}
+                    {resent > 0 && "An agent sent a request that could not be run as written, then sent it again. "}
+                    None of these changed anything, and the agent was told each time.
                   </small>
                 </>
               ) : (
@@ -202,7 +204,13 @@ export function RunSummary({
               <li key={error.seq} className={`run-summary__error run-summary__error--${error.kind}`}>
                 <span className="run-summary__error-who">
                   {error.agent ?? "run"} ·{" "}
-                  {error.kind === "llm" ? "model" : isMissedLookup(error) ? "lookup" : "tool"}
+                  {error.kind === "llm"
+                    ? "model"
+                    : isMissedLookup(error)
+                      ? "lookup"
+                      : isResentRefusal(error, view)
+                        ? "sent again"
+                        : "tool"}
                 </span>
                 <span className="run-summary__error-text">{ellipsise(error.message, 160)}</span>
               </li>
@@ -302,6 +310,14 @@ export function RunSummary({
       )}
     </section>
   );
+}
+
+/** "1 tool failure, 2 missed lookups and 1 call sent again", leaving out the empty parts. */
+function joined(parts: readonly (string | null)[]): string {
+  const present = parts.filter((part): part is string => part !== null);
+  return present.length > 1
+    ? `${present.slice(0, -1).join(", ")} and ${present[present.length - 1] ?? ""}`
+    : (present[0] ?? "");
 }
 
 

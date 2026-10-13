@@ -79,12 +79,43 @@ def _result_objects(events: list[Event], tool: str) -> list[dict[str, object]]:
 _LOOKUPS: Final[frozenset[str]] = frozenset({"read_file", "list_dir", "search_knowledge"})
 
 
+def _resent_refusals(events: list[Event]) -> set[int]:
+    """Errors for calls refused before they ran that the agent then sent again.
+
+    A refused call, such as one whose arguments could not be read, changed
+    nothing, and its error asks for it again (2026-10-13). Once the same agent
+    has run that tool after it, the work went ahead. A refusal never followed
+    up still counts: a worker it would have started may never have run.
+    """
+    ran = {
+        event.payload.get("call_id") for event in events if event.type == EventType.TOOL_CALLED
+    }
+    resent: set[int] = set()
+    for index, error in enumerate(events):
+        call_id = error.payload.get("call_id")
+        if error.type != EventType.TOOL_ERROR or call_id is None or call_id in ran:
+            continue
+        if any(
+            later.type == EventType.TOOL_CALLED
+            and later.agent_id == error.agent_id
+            and later.payload.get("tool") == error.payload.get("tool")
+            for later in events[index + 1 :]
+        ):
+            resent.add(error.seq)
+    return resent
+
+
 def _pipeline_block_reason(schedule_id: str, events: list[Event]) -> str | None:
     """Do not turn a completed-but-broken investment run into a chain success."""
     if schedule_id not in _PIPELINE_PARENTS:
         return None
+    resent = _resent_refusals(events)
     if any(
-        (event.type == EventType.TOOL_ERROR and event.payload.get("tool") not in _LOOKUPS)
+        (
+            event.type == EventType.TOOL_ERROR
+            and event.payload.get("tool") not in _LOOKUPS
+            and event.seq not in resent
+        )
         or event.type == EventType.TOOL_DENIED
         or (event.type == EventType.LLM_ERROR and event.payload.get("will_retry") is not True)
         for event in events

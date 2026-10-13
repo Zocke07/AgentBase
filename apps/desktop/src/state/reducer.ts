@@ -111,6 +111,8 @@ export interface RunError {
   readonly kind: "llm" | "tool";
   /** The tool that failed; null for a model error. */
   readonly tool: string | null;
+  /** The call it answered; null for a model error or an older log. */
+  readonly callId: string | null;
   readonly message: string;
   readonly seq: number;
 }
@@ -125,6 +127,25 @@ const LOOKUP_TOOLS: ReadonlySet<string> = new Set(["read_file", "list_dir", "sea
 
 export function isMissedLookup(error: RunError): boolean {
   return error.kind === "tool" && error.tool !== null && LOOKUP_TOOLS.has(error.tool);
+}
+
+/**
+ * A call refused before it ran, such as one whose arguments could not be
+ * read, that its agent then sent again and ran. The refusal changed nothing
+ * and the work went ahead. One never sent again stays a failure: a worker it
+ * would have started may never have run. The chain gate draws the same line.
+ */
+export function isResentRefusal(error: RunError, view: Pick<RunView, "toolCalls">): boolean {
+  const { callId } = error;
+  if (error.kind !== "tool" || callId === null) return false;
+  if (view.toolCalls.some((call) => call.callId === callId)) return false;
+  const agent = error.agent ?? "";
+  return view.toolCalls.some((call) => call.agent === agent && call.tool === error.tool && call.seq > error.seq);
+}
+
+/** A missed lookup or a refused call sent again: listed, but not a failure. */
+export function changedNothing(error: RunError, view: Pick<RunView, "toolCalls">): boolean {
+  return isMissedLookup(error) || isResentRefusal(error, view);
 }
 
 /**
@@ -464,7 +485,7 @@ export function reduce(state: RunView, event: Event): RunView {
       const message = text(payload, "error") ?? "";
       const recorded: RunView = {
         ...next,
-        errors: [...next.errors, { agent, kind: "llm", tool: null, message, seq }],
+        errors: [...next.errors, { agent, kind: "llm", tool: null, callId: null, message, seq }],
       };
       return agent === null
         ? recorded
@@ -512,10 +533,15 @@ export function reduce(state: RunView, event: Event): RunView {
 
     case "tool.error": {
       const message = text(payload, "error") ?? "";
-      const failed: RunView = {
-        ...next,
-        errors: [...next.errors, { agent, kind: "tool", tool: text(payload, "tool"), message, seq }],
+      const error: RunError = {
+        agent,
+        kind: "tool",
+        tool: text(payload, "tool"),
+        callId: text(payload, "call_id"),
+        message,
+        seq,
       };
+      const failed: RunView = { ...next, errors: [...next.errors, error] };
       return agent === null
         ? failed
         : withAgent(failed, agent, seq, (node) => ({ ...thinkingAgain(node), lastError: message }));
