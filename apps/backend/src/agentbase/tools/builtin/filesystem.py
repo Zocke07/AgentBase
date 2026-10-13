@@ -31,6 +31,12 @@ MAX_DIR_ENTRIES: Final[int] = 500
 #: Maximum text ``write_file`` writes in one call.
 MAX_WRITE_CHARS: Final[int] = 200_000
 
+#: Entries named beside a path that does not exist.
+MAX_HINT_ENTRIES: Final[int] = 30
+
+#: Bytes read to tell a binary file from text.
+_SNIFF_BYTES: Final[int] = 8192
+
 
 def _risk(name: str) -> RiskLevel:
     """Return catalogue risk for ``name`` without redeclaring it."""
@@ -47,6 +53,44 @@ def _description(name: str) -> str:
         msg = f"{name!r} has an implementation but no catalogue entry"
         raise RuntimeError(msg)
     return declaration.description
+
+
+def _space_path(sandbox: Sandbox, path: Path) -> str:
+    """A path as read_file and list_dir take it: from the space root, with ``/``."""
+    return sandbox.relative(path).replace("\\", "/")
+
+
+def _nearby(sandbox: Sandbox, missing: Path) -> str:
+    """What exists nearest a missing path, so the agent's next call can be right.
+
+    On 2026-10-13 a decision listed a "facts" folder that never existed; told
+    only that, it had to guess again. Hidden entries are left out, as
+    retrieval leaves them out.
+    """
+    folder = missing.parent
+    while not folder.is_dir() and sandbox.root in folder.parents:
+        folder = folder.parent
+    if folder != sandbox.root and sandbox.root not in folder.parents:
+        return ""
+    try:
+        entries = sorted(
+            (entry for entry in folder.iterdir() if not entry.name.startswith(".")),
+            key=lambda entry: entry.name.lower(),
+        )
+    except OSError:
+        return ""
+    shown = _space_path(sandbox, folder)
+    where = "The space's top level" if shown == "." else shown
+    if not entries:
+        return f" {where} is empty."
+    prefix = "" if shown == "." else f"{shown}/"
+    named = [
+        f"{prefix}{entry.name}/" if entry.is_dir() else f"{prefix}{entry.name}"
+        for entry in entries[:MAX_HINT_ENTRIES]
+    ]
+    more = len(entries) - MAX_HINT_ENTRIES
+    tail = f", and {more} more" if more > 0 else ""
+    return f" {where} holds: {', '.join(named)}{tail}."
 
 
 def _required_str(arguments: dict[str, Any], key: str, tool: str) -> str:
@@ -108,12 +152,23 @@ class ReadFileTool:
 
         def read() -> str:
             if not path.exists():
-                msg = f"There is no file at {shown} in the workspace."
+                msg = f"There is no file at {shown} in the workspace.{_nearby(sandbox, path)}"
                 raise ToolExecutionError(msg)
             if path.is_dir():
                 msg = f"{shown} is a directory, not a file. Use list_dir for it."
                 raise ToolExecutionError(msg)
             try:
+                with path.open("rb") as handle:
+                    head = handle.read(_SNIFF_BYTES)
+                if b"\0" in head:
+                    # Said, not shown: a decision that read a workbook was sent
+                    # about 29,000 tokens of zip bytes (2026-10-13).
+                    size = path.stat().st_size
+                    return (
+                        f"{shown} is a binary file ({size:,} bytes), such as a workbook "
+                        f"or an image, so its contents are not shown. read_file shows "
+                        f"text files only; read the text file it was made from instead."
+                    )
                 # Preserve readable text despite stray bytes.
                 return path.read_text(encoding="utf-8", errors="replace")
             except OSError as exc:
@@ -184,7 +239,7 @@ class ListDirTool:
 
         def listing() -> str:
             if not path.exists():
-                msg = f"There is no directory at {shown} in the workspace."
+                msg = f"There is no directory at {shown} in the workspace.{_nearby(sandbox, path)}"
                 raise ToolExecutionError(msg)
             if not path.is_dir():
                 msg = f"{shown} is a file, not a directory. Use read_file for it."
@@ -201,8 +256,8 @@ class ListDirTool:
             # Each entry by its path from the space root, which is what
             # read_file takes: a bare name read from a listed folder missed.
             # Built from the checked folder, so a link is never resolved here.
-            folder = sandbox.relative(path)
-            prefix = "" if folder == "." else f"{folder.replace(chr(92), '/')}/"
+            folder = _space_path(sandbox, path)
+            prefix = "" if folder == "." else f"{folder}/"
             lines = []
             for entry in entries[:MAX_DIR_ENTRIES]:
                 named = f"{prefix}{entry.name}"

@@ -137,6 +137,45 @@ async def test_reading_a_file_that_is_not_there_is_an_execution_failure(
     assert "no file at missing.txt" in str(caught.value)
 
 
+async def test_a_missing_path_names_what_exists_nearest_it(sandbox: Sandbox) -> None:
+    """2026-10-13: a decision listed a "facts" folder that never existed, and
+    was told only that. Naming what is there lets the next call be right."""
+    (sandbox.root / "raw/filings").mkdir(parents=True)
+    (sandbox.root / "raw/filings/MSFT.json").write_text("{}", encoding="utf-8")
+    (sandbox.root / "theses").mkdir()
+    (sandbox.root / ".agentbase").mkdir()
+
+    with pytest.raises(ToolExecutionError) as folder:
+        await ListDirTool().execute(ListDirTool().prepare({"path": "facts"}, sandbox), sandbox)
+    with pytest.raises(ToolExecutionError) as file:
+        read = ReadFileTool().prepare({"path": "raw/filings/MSFT.jsn"}, sandbox)
+        await ReadFileTool().execute(read, sandbox)
+    with pytest.raises(ToolExecutionError) as deeper:
+        read = ReadFileTool().prepare({"path": "raw/reports/2026/MSFT.md"}, sandbox)
+        await ReadFileTool().execute(read, sandbox)
+
+    assert str(folder.value) == (
+        "There is no directory at facts in the workspace. "
+        "The space's top level holds: raw/, theses/."
+    )
+    assert str(file.value).endswith("raw/filings holds: raw/filings/MSFT.json.")
+    assert str(deeper.value).endswith("raw holds: raw/filings/.")
+
+
+async def test_a_binary_file_is_described_not_shown(sandbox: Sandbox) -> None:
+    """2026-10-13: reading the monthly workbook sent a model ~29,000 tokens of zip bytes."""
+    (sandbox.root / "predictions").mkdir()
+    (sandbox.root / "predictions/2026-10.xlsx").write_bytes(b"PK\x03\x04\x14\x00" + bytes(2000))
+    tool = ReadFileTool()
+
+    result = await tool.execute(
+        tool.prepare({"path": "predictions/2026-10.xlsx"}, sandbox), sandbox
+    )
+
+    assert result.startswith("predictions/2026-10.xlsx is a binary file (2,006 bytes)")
+    assert "PK" not in result and "contents are not shown" in result
+
+
 async def test_reading_a_directory_points_at_list_dir(sandbox: Sandbox) -> None:
     (sandbox.root / "reports").mkdir()
     tool = ReadFileTool()
