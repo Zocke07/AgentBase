@@ -4,6 +4,39 @@ Updated 2026-10-13. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
+## The investment pipeline stays in the default space, 2026-10-13
+
+The maintainer asked that what was built for the default space, such as the
+portfolio editor, stay there, and that new spaces rely on the general agent
+tools alone.
+
+- **Tools.** The seven pipeline tools are `default_space_only` in the
+  catalogue. Another space is listed the general tools, cannot give an agent
+  a pipeline tool, cannot receive an agent that uses one by a move or copy,
+  and cannot start as a copy of the default roster. Its runs drop pipeline
+  tools from every definition, so a row that still lists one is neither
+  offered nor permitted it. Migration 034 removes them from other spaces'
+  agents and per-tool answers.
+- **Features.** The portfolio and market watch endpoints answer 404 for any
+  other space, and the watch checks the default space alone. Home's portfolio
+  card and pipeline offer, Automations' pipeline offer and Market watch, and
+  Runs' Market alerts filter show only there; a space switch clears that
+  filter. Another space's User Summary groups notes, daily notes, workbooks
+  and charts, with its own empty-state text.
+- **Executed.** New tests: the API refusals and tool lists
+  (`test_default_space_only.py`), a run in another space whose legacy row
+  lists `read_prices` (refused, never called, not offered), the watch
+  ignoring another space's switched-on file, migration 034 on a version-33
+  database, and the app's cards, filter, switcher, tool requests and summary
+  groups. The other session's portfolio test now expects the 404. `just ci`:
+  backend **1,409 passed, 12 skipped**; desktop **653 passed in 62 files**;
+  lint, formatting and both typecheckers clean. A copy of the dev database
+  upgraded to schema 34 with Main's 11 agents and 5 runs unchanged; it has no
+  other space, so the migration had nothing to remove there.
+- **Unverified.** Not seen in the window; it applies after `just dev-app`
+  restarts. Agents copied out of Main before today keep their general tools
+  and lose only the pipeline ones.
+
 ## A refused call sent again is not a failure, 2026-10-13
 
 After the capacity fix the maintainer pressed **Run now** on Daily decision

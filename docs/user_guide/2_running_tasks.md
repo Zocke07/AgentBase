@@ -8,7 +8,8 @@ task you want done once, and watched as it happens, is **Run once** on Home.
 
 ## Your portfolio
 
-On **Home**, open **My portfolio → Edit portfolio**. Add or remove stocks you
+On **Home** in Main, the default space, open **My portfolio → Edit
+portfolio**; other spaces have no portfolio. Add or remove stocks you
 own, enter share counts, and optionally enter the average purchase price and
 first purchase date. Leave unknown prices and dates blank. Each stock needs
 its ticker and sector; company name, industry and exchange can also be edited.
@@ -127,8 +128,9 @@ switched off and says why.
 
 ## Market watch: alerts for sudden moves
 
-**Market watch**, at the bottom of **Automations**, keeps an eye on prices
-between schedules. Choose **Turn on**. While AgentBase is open, from 04:00 to
+**Market watch**, at the bottom of Main's **Automations**, keeps an eye on
+prices between schedules; like the portfolio, it belongs to the default
+space. Choose **Turn on**. While AgentBase is open, from 04:00 to
 20:00 New York time on weekdays, it reads quotes every five minutes for your
 holdings, your watchlist and the S&P 500, Nasdaq Composite and Dow Jones. No
 model is used to watch, so watching costs nothing.

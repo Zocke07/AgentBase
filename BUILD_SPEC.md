@@ -1653,6 +1653,32 @@ without editing configuration files.*
 the portfolio tools; stale/busy/invalid saves cannot replace inputs; rollback
 and per-space confinement are tested; window navigation preserves drafts.
 
+### The investment pipeline stays in the default space
+
+*Requested 2026-10-13: what was built for the default space, such as the
+portfolio editor, stays there, and new spaces rely on the general agent
+tools alone.*
+
+- `ToolDeclaration.default_space_only` marks the seven pipeline tools:
+  `read_market`, `read_company_reports`, `read_prices`, `compute_portfolio`,
+  `check_limits`, `score_predictions` and `track_forecasts`. The general tools
+  are `read_file`, `list_dir`, `search_knowledge`, `propose_memory`,
+  `write_file`, `http_get`, `read_feed` and `run_shell`.
+- Outside the default space, `GET /tools?space_id=` lists the general tools
+  only; creating or editing an agent with a pipeline tool is refused on
+  `allowed_tools`; moving or copying an agent that uses one is refused on
+  `space_id`; and a new space cannot start as a copy of the default space's
+  roster. `AgentRegistry.load` drops pipeline tools from any other space's
+  roster, so a run there neither offers nor permits them whatever a row
+  says. Migration 034 removes them from such rows and per-tool answers.
+- `/spaces/{id}/portfolio` and `/spaces/{id}/monitor` answer 404 for any
+  other space, and the market watch checks the default space alone. Home's
+  **My portfolio** and pipeline offer, Automations' pipeline offer and
+  **Market watch**, and Runs' **Market alerts** filter appear only there.
+- Knowledge's pipeline groups (decisions, portfolio and weekly reviews,
+  market alerts, forecast workbooks) are the default space's; another space's
+  User Summary groups notes, daily notes, workbooks and charts.
+
 ## 6. How you should work
 
 - **One phase per session.** At the end of each phase, stop. Report what you built, what

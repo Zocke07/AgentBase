@@ -261,6 +261,15 @@ whether to start with **the three starter roles**, **no agents**, or
 **copies of the current space's agents**. Click **Create space**. Copies have
 their own definitions; later edits to the originals do not update them.
 
+The investment pipeline is Main's alone: **My portfolio**, **Market watch**,
+the pipeline's schedules and its seven investment tools (`read_market`,
+`read_company_reports`, `read_prices`, `compute_portfolio`, `check_limits`,
+`score_predictions` and `track_forecasts`) stay in the default space. A new
+space's agents use the general tools: files, knowledge, saved context, web
+pages and feeds, and the shell. So a new space cannot start as a copy of
+Main's agents, and Knowledge groups its results as notes, daily notes,
+workbooks and charts rather than decisions, reviews and alerts.
+
 In **Space settings**, change the name and description, then use **Open
 folder** to open the space's files in Explorer or Finder. Put input files
 there before asking an agent to read them. File tools are confined to this

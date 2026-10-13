@@ -75,7 +75,10 @@ have new IDs, are deletable, and now exist only in Python.
 
 1. `tools/catalogue.py`: a named, described `ToolDeclaration` with `RiskLevel`.
    `allowed_tools` validates it and editor checkboxes render it. Policy is a
-   *set* of levels, not a threshold.
+   *set* of levels, not a threshold. Set `default_space_only=True` for a tool
+   built for the default space's investment pipeline: other spaces are then
+   neither offered nor permitted it, and its agents cannot leave the default
+   space (BUILD_SPEC, "The investment pipeline stays in the default space").
 2. `tools/builtin/<module>.py`: implement `Tool`: **`prepare`** resolves and
    validates without side effects (including sandbox refusal before approval);
    **`execute`** performs the approved call. Build user-facing `Prepared.summary`

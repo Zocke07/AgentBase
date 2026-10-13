@@ -226,6 +226,11 @@ New spaces instead get three editable, deletable **starter roles**:
 and `reviewer` (researcher tools). Add them from Home with **Start from the
 starter roles**, including in the default space, or define your own.
 
+The seven investment tools named in the roster above work only in Main, the
+default space. An agent in any other space is offered, and may use, the
+general tools alone: `read_file`, `list_dir`, `search_knowledge`,
+`propose_memory`, `write_file`, `http_get`, `read_feed` and `run_shell`.
+
 ## Create or edit an agent
 
 Click **New agent** or select an existing agent, then save its fields.
@@ -257,6 +262,8 @@ or deleting changes future runs; historical logs retain their definitions.
 For an open agent, **Move to** transfers it to another active space; **Copy to**
 creates an independent definition there. Select the destination. Copies get a
 unique destination name and remain deletable even when sourced from a built-in.
+An agent that uses one of Main's investment tools stays in Main: moving or
+copying it elsewhere is refused with the tools it would lose.
 
 Use **Delete** and confirm to remove a definition. Default-space built-ins are
 protected; disable them to remove them from supervisor use.

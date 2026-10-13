@@ -13,6 +13,15 @@ future changes do not relocate users' data or disconnect their stored keys.
 
 ## Current state
 
+- **The investment pipeline stays in the default space, 2026-10-13.** At the
+  maintainer's request, the portfolio editor, the market watch, the pipeline
+  offer and the seven `default_space_only` tools belong to the default space;
+  other spaces' agents use the general tools. The API refuses those tools on
+  another space's agents, refuses moving or copying an agent that uses one,
+  and refuses a new space copied from the default roster.
+  `AgentRegistry.load` drops them from any other space's run, migration 034
+  removes them from such rows, and the portfolio and monitor endpoints answer
+  404 outside the default space. See BUILD_SPEC, after Phase 19.
 - **Personal stock-data editor, 2026-10-13.** Home's My portfolio card edits
   holdings, optional purchase details, cash/currency, additional watched
   stocks and risk limits. GET/PUT `/spaces/{id}/portfolio` read/write the
@@ -273,8 +282,9 @@ future changes do not relocate users' data or disconnect their stored keys.
   These are ordinary space files written through the existing gate; there is
   no visualization database or service, and no Visualize section since
   2026-10-08.
-- The latest recorded database migration is 033 (the decision's date, facts
-  and workbook); 032 adds run titles, 031 has the decision let
+- The latest recorded database migration is 034 (the pipeline tools leave
+  other spaces' agents); 033 is the decision's date, facts and workbook, 032
+  adds run titles, 031 has the decision let
   `track_forecasts` read the theses, 030 is the market watch, 029 the model
   refresh and 028 the research extension. Migration 020 adds Sonnet
   5.5, updates untouched shipped Sonnet roles, and applies fresh space
@@ -369,7 +379,8 @@ second chronological log here.
   after a rebuild or upgrade.
 - Tools validate and resolve in `prepare`, pass the approval gate, then run
   `execute`. Enforce the definition's allowlist independently of the tool list
-  offered to the model. Filesystem tools use the run's space folder; writes
+  offered to the model. A `default_space_only` tool is the investment
+  pipeline's: no other space's run offers or permits it. Filesystem tools use the run's space folder; writes
   resolve through `Sandbox.resolve_write_path`, and a network tool names its
   `host` in the prepared payload so the host list can bound it.
 - Autonomy is the gate answering by policy, never the gate skipped. Only
