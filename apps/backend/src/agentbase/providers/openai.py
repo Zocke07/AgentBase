@@ -16,6 +16,7 @@ from agentbase.providers.base import (
     Message,
     ProviderAuthError,
     ProviderError,
+    ProviderOverloadedError,
     ProviderRateLimitedError,
     ProviderUnavailableError,
     Role,
@@ -25,6 +26,7 @@ from agentbase.providers.base import (
     ToolCall,
     ToolSpec,
     decode_arguments,
+    mentions_overload,
 )
 from agentbase.providers.transport import (
     DEFAULT_TIMEOUT_SECONDS,
@@ -328,6 +330,8 @@ def _raise_responses_error(body: dict[str, Any]) -> None:
     detail = detail if isinstance(detail, str) and detail else "response failed"
     msg = f"openai Responses failed: {detail}"
     code = error.get("code")
+    if code in ("server_is_overloaded", "overloaded") or mentions_overload(detail):
+        raise ProviderOverloadedError(msg)
     if code in ("rate_limit_exceeded", "rate_limit_error", "insufficient_quota"):
         raise ProviderRateLimitedError(msg, retryable=code != "insufficient_quota")
     if code in ("server_error", "service_unavailable"):

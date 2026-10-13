@@ -18,8 +18,10 @@ import httpx2
 from agentbase.providers.base import (
     ProviderAuthError,
     ProviderError,
+    ProviderOverloadedError,
     ProviderRateLimitedError,
     ProviderUnavailableError,
+    mentions_overload,
 )
 
 if TYPE_CHECKING:
@@ -98,6 +100,11 @@ def _raise_for_status(response: httpx2.Response, provider: str) -> None:
         raise ProviderRateLimitedError(
             msg, retry_after_seconds=_retry_after(response), retryable=not quota
         )
+
+    # 529 is Anthropic's "overloaded"; a 503 that says so is the same.
+    if status == 529 or (status == 503 and mentions_overload(detail)):
+        msg = f"{provider} is at capacity right now ({status}), which usually passes within minutes: {detail}"
+        raise ProviderOverloadedError(msg, retry_after_seconds=_retry_after(response))
 
     if status >= 500:
         msg = f"{provider} is unavailable ({status}): {detail}"

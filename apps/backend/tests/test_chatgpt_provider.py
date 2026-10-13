@@ -18,6 +18,7 @@ from agentbase.providers.base import (
     Provider,
     ProviderAuthError,
     ProviderModelUnavailableError,
+    ProviderOverloadedError,
     ProviderRateLimitedError,
     ProviderUnavailableError,
     Role,
@@ -613,8 +614,55 @@ def test_codex_auth_and_busy_failures_keep_their_classification() -> None:
 
     assert isinstance(auth, ProviderAuthError)
     assert str(auth) == "HTTP 401: login expired"
-    assert isinstance(busy, ProviderRateLimitedError)
+    # A busy server is cooled down and retried, as an overloaded model is.
+    assert isinstance(busy, ProviderOverloadedError)
+    assert isinstance(busy, ProviderRateLimitedError) and busy.retryable is True
     assert "Server is busy" in str(busy)
+
+
+async def test_a_model_at_capacity_is_retried_later_not_failed(tmp_path: Path) -> None:
+    """2026-10-13: GPT-5.6 Terra answered "Selected model is at capacity" in a
+    scheduled theses stage; read as a plain failure, it stopped the chain."""
+    fake = _FakeCodex()
+    fake.thread.turn_error = TurnError.model_validate(
+        {
+            "message": "Selected model is at capacity. Please try a different model.",
+            "codexErrorInfo": "serverOverloaded",
+        }
+    )
+    runtime = CodexAppServerRuntime(tmp_path / "codex", codex=cast(AsyncCodex, fake))
+
+    with pytest.raises(ProviderOverloadedError) as caught:
+        async for _ in runtime.stream_infer(
+            "gpt-5.6-terra",
+            [Message(Role.USER, "Write theses")],
+            None,
+            system=None,
+            max_tokens=100,
+        ):
+            pytest.fail("A failed turn must not emit a completion.")
+
+    assert caught.value.retryable is True
+    assert str(caught.value).startswith("gpt-5.6-terra is at capacity on ChatGPT right now")
+    assert "Selected model is at capacity" in str(caught.value)
+    assert "usage limit reached" not in str(caught.value)
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        RuntimeError("Selected model is at capacity. Please try a different model."),
+        CodexError("Upstream overloaded"),
+        ServerBusyError(
+            -32000, "Request cannot proceed.", {"codex_error_info": "server_overloaded"}
+        ),
+    ],
+)
+def test_capacity_reads_from_the_flag_the_sdk_error_or_the_words(failure: Exception) -> None:
+    mapped = _mapped_provider_error(cast("CodexError | RuntimeError", failure), "gpt-5.6-terra")
+
+    assert isinstance(mapped, ProviderOverloadedError)
+    assert mapped.retryable is True
 
 
 def test_rpc_usage_metadata_is_specific_even_when_the_message_is_generic() -> None:

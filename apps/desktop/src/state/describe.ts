@@ -196,7 +196,10 @@ export function sentenceFor(event: Event): string {
     }
     case "llm.error":
       if (flag(payload, "will_retry")) {
-        return `${who}'s model was rate limited. Waiting ${shown("retry_after_seconds")} seconds before retrying.`;
+        // A model at capacity for everyone is not this account being limited.
+        return /\bat capacity\b/iu.test(read("error") ?? "")
+          ? `${who}'s model is at capacity right now. Waiting ${shown("retry_after_seconds")} seconds before trying it again.`
+          : `${who}'s model was rate limited. Waiting ${shown("retry_after_seconds")} seconds before retrying.`;
       }
       return `${who}'s model call failed: ${ellipsise(read("error") ?? "", 140)}`;
 

@@ -35,6 +35,7 @@ from agentbase.providers.base import (
     ProviderAuthError,
     ProviderError,
     ProviderModelUnavailableError,
+    ProviderOverloadedError,
     ProviderRateLimitedError,
     ProviderUnavailableError,
     Role,
@@ -44,6 +45,7 @@ from agentbase.providers.base import (
     ToolCall,
     ToolSpec,
     decode_arguments,
+    mentions_overload,
 )
 from agentbase.providers.codex_runtime import (
     CodexRuntimeError,
@@ -938,8 +940,16 @@ def _mapped_provider_error(
             f"limits and retry after the limit resets. Details: {message}",
             retryable=False,
         )
-    if limit_kind == "rate" or re.search(
-        r"\b429\b|\btoo\s+many\s+requests\b|\b(?:rate|usage)[\s_-]+limit\b", lowered
+    # Demand on the model, not this plan's limit, which waiting usually clears.
+    # The App Server's own flag outranks a rate limit read from the text.
+    overloaded = _codex_overloaded(codex_error_info) or _codex_overloaded(
+        getattr(exc, "data", None)
+    )
+    if not overloaded and (
+        limit_kind == "rate"
+        or re.search(
+            r"\b429\b|\btoo\s+many\s+requests\b|\b(?:rate|usage)[\s_-]+limit\b", lowered
+        )
     ):
         # App Server already retries a model turn. AgentBase may apply a bounded
         # cooldown, with this original failure retained if that also fails.
@@ -948,9 +958,25 @@ def _mapped_provider_error(
             f"ChatGPT/Codex usage limits if this continues. This may be temporary "
             f"throttling or a subscription usage limit. Details: {message}"
         )
-    if isinstance(exc, ServerBusyError):
-        return ProviderRateLimitedError(message)
+    if overloaded or isinstance(exc, ServerBusyError) or mentions_overload(message):
+        return ProviderOverloadedError(
+            f"{model} is at capacity on ChatGPT right now: demand is high for everyone, "
+            f"not a limit on your plan. This usually passes within minutes, and AgentBase "
+            f"waits and tries again a few times first. If it keeps happening, choose another "
+            f"model for this space or agent in Space settings. Details: {message}"
+        )
     return ProviderUnavailableError(message)
+
+
+def _codex_overloaded(info: Any) -> bool:
+    """The App Server's `serverOverloaded` flag, as an SDK enum or JSON-RPC data."""
+    value = getattr(info, "root", info)
+    value = getattr(value, "value", value)
+    if isinstance(value, str):
+        return value.replace("_", "").lower() == "serveroverloaded"
+    if isinstance(value, dict):
+        return any(_codex_overloaded(item) for item in value.values())
+    return False
 
 
 def _codex_limit_kind(info: Any) -> Literal["usage", "rate"] | None:

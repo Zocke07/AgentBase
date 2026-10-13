@@ -14,6 +14,7 @@ from agentbase.orchestrator.run import Mailbox, Run, RunCancelledError, RunCostE
 from agentbase.providers.base import (
     Completion,
     Message,
+    ProviderOverloadedError,
     ProviderRateLimitedError,
     Role,
     TextDelta,
@@ -219,3 +220,31 @@ async def test_stream_cleanup_does_not_hide_the_original_provider_error(
     with pytest.raises(ProviderRateLimitedError, match="Original usage limit"):
         await agent._call_model([], 1)
     assert waits == []
+
+
+async def test_a_model_at_capacity_gets_a_third_longer_wait(store: EventStore) -> None:
+    """A model at capacity for everyone usually clears within minutes: three
+    waits of one, two and four minutes, the same model each time."""
+    provider = ThrottledProvider([ProviderOverloadedError("at capacity")] * 3)
+    agent, run, waits = await make_agent(store, provider, seconds=1800)
+
+    result = await agent._call_model([Message(role=Role.USER, content="test")], 1)
+
+    assert result.text == "Done"
+    assert provider.calls == 4
+    assert sum(waits) == 420
+    errors = [e.payload for e in await store.read(run.id) if e.type == EventType.LLM_ERROR]
+    assert [error["retry_after_seconds"] for error in errors] == [60, 120, 240]
+    assert all(error["will_retry"] is True for error in errors)
+
+
+async def test_a_model_still_at_capacity_fails_after_its_waits(store: EventStore) -> None:
+    provider = ThrottledProvider([ProviderOverloadedError("at capacity")] * 4)
+    agent, run, waits = await make_agent(store, provider, seconds=1800)
+
+    with pytest.raises(ProviderOverloadedError):
+        await agent._call_model([Message(role=Role.USER, content="test")], 1)
+
+    assert sum(waits) == 420
+    errors = [e.payload for e in await store.read(run.id) if e.type == EventType.LLM_ERROR]
+    assert [error["will_retry"] for error in errors] == [True, True, True, False]

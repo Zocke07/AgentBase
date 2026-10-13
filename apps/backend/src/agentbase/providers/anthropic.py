@@ -14,6 +14,7 @@ from agentbase.providers.base import (
     Message,
     ProviderAuthError,
     ProviderError,
+    ProviderOverloadedError,
     Role,
     StreamEvent,
     TextDelta,
@@ -21,6 +22,7 @@ from agentbase.providers.base import (
     ToolCall,
     ToolSpec,
     decode_arguments,
+    mentions_overload,
 )
 from agentbase.providers.transport import (
     DEFAULT_TIMEOUT_SECONDS,
@@ -280,6 +282,7 @@ class _StreamState:
         self._output_tokens = 0
         self._stop_reason: str | None = None
         self._error: str | None = None
+        self._overloaded = False
 
     def consume(self, frame: dict[str, Any]) -> str:
         """Fold one frame in; return any text it contributed."""
@@ -295,6 +298,10 @@ class _StreamState:
             self._message_delta(frame)
         elif kind == "error":
             self._error = _error_message(frame)
+            error = frame.get("error")
+            self._overloaded = (
+                isinstance(error, dict) and error.get("type") == "overloaded_error"
+            )
 
         return ""
 
@@ -369,6 +376,9 @@ class _StreamState:
     def finish(self, provider: str) -> Completion:
         """Build the response or raise an error received after HTTP success."""
         if self._error is not None:
+            if self._overloaded or mentions_overload(self._error):
+                msg = f"{provider} is at capacity right now, which usually passes within minutes: {self._error}"
+                raise ProviderOverloadedError(msg)
             msg = f"{provider} failed mid-stream: {self._error}"
             raise ProviderError(msg)
 

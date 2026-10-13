@@ -7,6 +7,7 @@ provider. Some providers, such as Ollama, have neither API keys nor cost.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
@@ -20,6 +21,7 @@ __all__ = [
     "Provider",
     "ProviderAuthError",
     "ProviderError",
+    "ProviderOverloadedError",
     "ProviderRateLimitedError",
     "ProviderUnavailableError",
     "Role",
@@ -29,6 +31,7 @@ __all__ = [
     "ToolCall",
     "ToolSpec",
     "decode_arguments",
+    "mentions_overload",
 ]
 
 
@@ -176,6 +179,24 @@ class ProviderRateLimitedError(ProviderError):
         super().__init__(message)
         self.retry_after_seconds = retry_after_seconds
         self.retryable = retryable
+
+
+class ProviderOverloadedError(ProviderRateLimitedError):
+    """The model is at capacity for everyone, not limited for this account.
+
+    Temporary, so it is cooled down and retried like a 429, and never once its
+    output has started streaming. On 2026-10-13 a ChatGPT model at capacity
+    failed a scheduled theses stage at once and stopped the daily chain. The
+    model is still never swapped for another: the person chooses one.
+    """
+
+
+_OVERLOAD_WORDS: re.Pattern[str] = re.compile(r"\bat capacity\b|\boverloaded\b", re.IGNORECASE)
+
+
+def mentions_overload(text: str) -> bool:
+    """A service's own words for being at capacity, as in "Selected model is at capacity"."""
+    return _OVERLOAD_WORDS.search(text) is not None
 
 
 class ProviderUnavailableError(ProviderError):

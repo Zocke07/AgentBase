@@ -21,6 +21,7 @@ from agentbase.providers.base import (
     Provider,
     ProviderAuthError,
     ProviderError,
+    ProviderOverloadedError,
     ProviderRateLimitedError,
     ProviderUnavailableError,
     Role,
@@ -694,6 +695,46 @@ async def test_http_status_maps_to_the_shared_error_taxonomy(
 
     with pytest.raises(expected):
         await provider.complete([Message(role=Role.USER, content="hi")])
+
+
+async def test_an_overloaded_api_is_cooled_down_and_retried() -> None:
+    """Anthropic's 529, and a 503 that says it is overloaded, are capacity, not failure."""
+    anthropic = AnthropicProvider(
+        "k",
+        "claude-opus-5",
+        client=mock_client(
+            {"error": {"type": "overloaded_error", "message": "Overloaded"}}, status=529
+        ),
+    )
+    openai = OpenAIProvider(
+        "k",
+        "gpt-5.4",
+        client=mock_client({"error": {"message": "The engine is currently overloaded"}}, 503),
+    )
+
+    for provider in (anthropic, openai):
+        with pytest.raises(ProviderOverloadedError) as excinfo:
+            await provider.complete([Message(role=Role.USER, content="hi")])
+        assert excinfo.value.retryable is True
+        assert "at capacity right now" in str(excinfo.value)
+
+
+async def test_anthropic_overloaded_mid_stream_is_capacity() -> None:
+    body = "\n".join(
+        [
+            'data: {"type":"message_start","message":{"model":"claude-opus-5",'
+            '"usage":{"input_tokens":10,"output_tokens":0}}}',
+            "",
+            'data: {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}',
+            "",
+        ]
+    )
+    provider = AnthropicProvider(
+        api_key="test-key", model="claude-opus-5", client=mock_stream_client(body)
+    )
+
+    with pytest.raises(ProviderOverloadedError):
+        await collect(provider)
 
 
 async def test_rate_limit_carries_retry_after() -> None:

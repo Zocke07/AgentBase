@@ -30,6 +30,7 @@ from agentbase.providers.base import (
     Completion,
     Message,
     ProviderError,
+    ProviderOverloadedError,
     ProviderRateLimitedError,
     Role,
     TextDelta,
@@ -79,6 +80,10 @@ MAX_SAME_FAILURES: Final[int] = 3
 # never replay a request whose streamed output has already reached the log.
 _RATE_COOLDOWNS: Final[tuple[float, ...]] = (60.0, 120.0)
 _MAX_RATE_COOLDOWN: Final[float] = 180.0
+#: A model at capacity for everyone usually clears within minutes, so it gets
+#: a third, longer wait: failing at once stopped a scheduled chain (2026-10-13).
+_OVERLOAD_COOLDOWNS: Final[tuple[float, ...]] = (60.0, 120.0, 240.0)
+_MAX_OVERLOAD_COOLDOWN: Final[float] = 300.0
 
 #: All control calls distinguish denial from an unknown-tool error.
 _ALL_CONTROL_NAMES: Final[frozenset[str]] = SUPERVISOR_CONTROL_NAMES | WORKER_CONTROL_NAMES
@@ -328,8 +333,9 @@ class Agent:
         return cost_micros(model, projected)
 
     async def _call_model(self, messages: list[Message], step: int) -> Completion:
-        """Retry temporary throttling within this step and the run's limits."""
-        for attempt in range(len(_RATE_COOLDOWNS) + 1):
+        """Retry temporary throttling or capacity within this step and the run's limits."""
+        attempt = 0
+        while True:
             self._run.check_deadline()
             await self._run.check_cost(self._next_call_micros(messages))
             try:
@@ -359,16 +365,19 @@ class Agent:
                     interval = min(remaining, 1.0)
                     await self._sleep(interval)
                     remaining -= interval
-        raise AssertionError("rate retry loop exhausted without a result")
+                attempt += 1
 
     def _rate_delay(self, exc: ProviderRateLimitedError, attempt: int) -> float | None:
-        if not exc.retryable or attempt >= len(_RATE_COOLDOWNS):
+        overloaded = isinstance(exc, ProviderOverloadedError)
+        cooldowns = _OVERLOAD_COOLDOWNS if overloaded else _RATE_COOLDOWNS
+        ceiling = _MAX_OVERLOAD_COOLDOWN if overloaded else _MAX_RATE_COOLDOWN
+        if not exc.retryable or attempt >= len(cooldowns):
             return None
         delay = max(
-            _RATE_COOLDOWNS[attempt] + 5.0 * self._retry_jitter(),
+            cooldowns[attempt] + 5.0 * self._retry_jitter(),
             exc.retry_after_seconds or 0.0,
         )
-        if delay > _MAX_RATE_COOLDOWN or delay + 5.0 >= self._run.remaining_seconds():
+        if delay > ceiling or delay + 5.0 >= self._run.remaining_seconds():
             return None
         return delay
 

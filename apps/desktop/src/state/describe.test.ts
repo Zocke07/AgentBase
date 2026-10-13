@@ -16,6 +16,20 @@ describe("a sentence for every event", () => {
     const event = new LogBuilder().add("llm.error", { error: "Too many requests", will_retry: true, retry_after_seconds: 60 }, "worker");
     expect(sentenceFor(event)).toBe("worker's model was rate limited. Waiting 60 seconds before retrying.");
   });
+  it("describes a model at capacity as a wait, not a limit on the account", () => {
+    const event = new LogBuilder().add(
+      "llm.error",
+      {
+        error: "gpt-5.6-terra is at capacity on ChatGPT right now: demand is high for everyone.",
+        will_retry: true,
+        retry_after_seconds: 120,
+      },
+      "bull-architect",
+    );
+    expect(sentenceFor(event)).toBe(
+      "bull-architect's model is at capacity right now. Waiting 120 seconds before trying it again.",
+    );
+  });
   it("renders every known event type as something other than its raw name", () => {
     /* A type that fell through to the default would show its raw name, which
        is what the chip beside it already shows. */

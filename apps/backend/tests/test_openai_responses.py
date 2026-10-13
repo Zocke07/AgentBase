@@ -13,6 +13,7 @@ from agentbase.providers.base import (
     Completion,
     Message,
     ProviderError,
+    ProviderOverloadedError,
     ProviderRateLimitedError,
     ProviderUnavailableError,
     Role,
@@ -434,7 +435,7 @@ async def test_interrupted_stream_is_retryable_and_never_yields_a_completion() -
 @pytest.mark.parametrize("event_type", ["error", "response.failed"])
 async def test_stream_error_event_does_not_become_a_completion(event_type: str) -> None:
     failure: dict[str, Any] = {
-        "error": {"code": "server_error", "message": "Server overloaded"}
+        "error": {"code": "server_error", "message": "The server had an error"}
     }
     event = (
         {"type": event_type, **failure}
@@ -443,8 +444,26 @@ async def test_stream_error_event_does_not_become_a_completion(event_type: str) 
     )
     provider = OpenAIProvider("k", "gpt-6-astra", client=client_for([sse(event)], []))
 
-    with pytest.raises(ProviderUnavailableError, match="Server overloaded"):
+    with pytest.raises(ProviderUnavailableError, match="The server had an error"):
         _ = [event async for event in provider.stream([Message(Role.USER, "Get MU.")])]
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        {"code": "server_is_overloaded", "message": "Try again later"},
+        {"code": "server_error", "message": "Server overloaded"},
+    ],
+)
+async def test_an_overloaded_model_is_retried_later_not_failed(error: dict[str, Any]) -> None:
+    provider = OpenAIProvider(
+        "k", "gpt-6-astra", client=client_for([sse({"type": "error", "error": error})], [])
+    )
+
+    with pytest.raises(ProviderOverloadedError) as raised:
+        _ = [event async for event in provider.stream([Message(Role.USER, "Get MU.")])]
+
+    assert raised.value.retryable is True
 
 
 @pytest.mark.parametrize(
