@@ -4,6 +4,36 @@ Updated 2026-10-13. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
+## A model at capacity is waited out, 2026-10-13
+
+The retry's Theses and risk stage failed when GPT-5.6 Terra, the bull
+analyst's ChatGPT model, answered that it was at capacity after three
+successful calls. That stopped the chain before the decision. The ChatGPT
+mapping knew usage limits and rate limits but not the App Server's
+`serverOverloaded` flag. It read the reply as a plain failure, which the
+agent never retries.
+
+- **Classification.** `ProviderOverloadedError` is a temporary rate limit.
+  On ChatGPT it comes from the `serverOverloaded` flag, the SDK's busy error,
+  or "at capacity" or "overloaded" in the message. Through an API key it
+  comes from HTTP 529, a 503 that says it is overloaded, Anthropic's
+  `overloaded_error` event mid-stream, and OpenAI's overloaded codes. A
+  usage limit still wins over it, and an explicit rate limit stays a rate
+  limit.
+- **Retry.** The same model is tried again after about 1, 2 and 4 minutes
+  (each wait capped at 5), within the run's time limit, and never once
+  output has streamed. The log reads "model is at capacity right now.
+  Waiting N seconds before trying it again."
+- **Executed.** Provider, cooldown, Responses and orchestrator suites:
+  **222 passed**, including the Terra case through the App Server runtime,
+  the three classification routes, 529 and 503 through both API adapters,
+  the mid-stream event, three waits then success, and failure after the
+  third wait. The desktop sentence test passed. `just ci`: backend
+  **1,370 passed, 12 skipped**; desktop **629 passed in 60 files**; lint,
+  formatting and both typecheckers clean.
+- **Unverified.** No real capacity refusal has occurred since. The stage
+  stops if a model stays busy past about 7 minutes of waiting.
+
 ## Knowledge in two sections, and file actions that fail gracefully, 2026-10-13
 
 The end user found the files still unfriendly and asked for two sections,

@@ -13,6 +13,13 @@ future changes do not relocate users' data or disconnect their stored keys.
 
 ## Current state
 
+- **Model at capacity, 2026-10-13.** GPT-5.6 Terra answered "Selected model
+  is at capacity" in the retry's theses stage, and the run failed at once:
+  the ChatGPT mapping ignored the App Server's `serverOverloaded` flag. It is
+  now `ProviderOverloadedError`, a temporary rate limit, retried after
+  1, 2 and 4 minute waits on the same model. API providers map HTTP 529 and
+  overloaded errors the same way, and the run log says "at capacity",
+  not "rate limited".
 - **Knowledge in two sections, 2026-10-13.** At the end user's request,
   Knowledge opens on **User Summary**: decisions, reviews, alerts, the
   forecast workbook, charts and notes, grouped and newest first, each in

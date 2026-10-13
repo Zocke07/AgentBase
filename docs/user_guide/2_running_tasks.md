@@ -309,6 +309,12 @@ ChatGPT requests share a queue across all runs and models, with one request
 active at a time and at least five seconds between starts. Temporary model
 rate limits can retry twice after cooldowns of about 60 and 120 seconds,
 respecting a longer server wait up to 180 seconds and the remaining run time.
+A model that is at capacity for everyone ("Selected model is at capacity") is
+waited out longer, about one, two and then four minutes, with the same model;
+the log says the model is at capacity and how long it waits. If it is still
+busy after that, the run stops with that reason. Choose another model for the
+space or the agent in Space settings, or press **Run now** on the stopped
+automation later; a stage started that way continues the chain.
 The log shows the wait, and **Cancel run** also stops a cooldown. Requests
 that already produced visible output and confirmed account usage or billing
 limits do not retry. An account limit needs its allowance to reset or billing

@@ -345,6 +345,14 @@ cooldowns, checking cancellation, duration and budget before resending.
 Confirmed usage limits and partially streamed requests never retry. An
 abandoned remote turn receives a bounded best-effort interrupt before the
 queue permit releases; retry waits remain visible in the append-only log.
+*(2026-10-13: a model at capacity for everyone is `ProviderOverloadedError`,
+a temporary rate limit retried after waits of about one, two and four
+minutes, within the run's time limit. On ChatGPT it is recognized by the App
+Server's `serverOverloaded` flag, its busy error, or "at capacity" in the
+message; through an API key, by HTTP 529, an overloaded 503, or an
+overloaded error event. A GPT-5.6 Terra "Selected model is at capacity" had
+failed a scheduled theses stage outright and stopped the daily chain. The
+model is still never swapped for another.)*
 
 ChatGPT/API accounts can differ in entitlement and allowance. Preserve the
 requested model and surface access errors; never substitute. *(2026-09-29:
