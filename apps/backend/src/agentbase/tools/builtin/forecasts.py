@@ -3,8 +3,11 @@
 The fallback is an explicitly labeled random-walk baseline: tomorrow's price is
 conditional on today's close, with an assumption band estimated from historical
 volatility. It is a benchmark, not a news-aware or calibrated recommendation.
-Agent scenarios require a rationale and saved, dated evidence. Neither forecasts
-nor actuals are overwritten on reruns.
+The session's bull and bear theses become analyst forecasts from their
+magnitude bands; agent scenarios may also be submitted. Both require saved,
+dated evidence. Neither forecasts nor actuals are overwritten on reruns, and no
+forecast is issued while the US market trades, when it would already see part
+of the session it predicts.
 """
 
 from __future__ import annotations
@@ -45,7 +48,28 @@ _MAX_FILE_BYTES: Final[int] = 5_000_000
 # collected; a row without the first is available from the second.
 _OWN_STAMPS: Final[tuple[str, ...]] = ("published_at", "published", "filed", "date")
 _COLLECTED_STAMPS: Final[tuple[str, ...]] = ("fetched_at", "as_of")
+#: A thesis's magnitude band as a forecast, in percent: the return it is read
+#: as, then the band's near and far edge. An open band is read as the least
+#: the analyst claimed. These come from the theses' own band vocabulary.
+_BANDS: Final[dict[str, tuple[Decimal, Decimal, Decimal | None]]] = {
+    "0-1%": (Decimal("0.5"), Decimal(0), Decimal(1)),
+    "1-3%": (Decimal(2), Decimal(1), Decimal(3)),
+    "3-5%": (Decimal(4), Decimal(3), Decimal(5)),
+    "5%+": (Decimal(5), Decimal(5), None),
+}
+_THESIS_AGENTS: Final[tuple[tuple[str, str], ...]] = (("bull", "up"), ("bear", "down"))
+_CONFLICT_NOTE: Final[str] = (
+    " Bull and bear theses disagreed at this horizon, so the benchmark stands."
+)
 _MAX_RETURN_ROWS: Final[int] = 100
+#: US regular trading hours, New York time; ``_read_prices`` uses the same close.
+_OPEN: Final[time] = time(9, 30)
+_CLOSE: Final[time] = time(16)
+_TRADING_NOTE: Final[str] = (
+    "The US market is trading now (09:30 to 16:00 New York time), so no new forecasts "
+    "were recorded: a forecast issued now would already see part of the session it "
+    "predicts. Actuals were refreshed; the next run after the close records forecasts."
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,7 +114,7 @@ class TrackForecastsTool:
                     "items": {"type": "string"},
                     "minItems": 1,
                     "maxItems": 50,
-                    "description": "US tickers to forecast; defaults to saved price summary.",
+                    "description": "US tickers to forecast; defaults to the saved price summary. The session's thesis tickers are always added. Leave it out unless narrowing on purpose.",
                 },
                 "refresh_only": {
                     "type": "boolean",
@@ -126,7 +150,7 @@ class TrackForecastsTool:
                         },
                         "required": ["ticker", "horizon_days", "rationale", "evidence_ids"],
                     },
-                    "description": "Optional evidence-backed agent scenarios. Unspecified horizons receive a clearly labeled unchanged-close baseline with historical volatility bands. Existing predictions stay immutable.",
+                    "description": "Optional evidence-backed agent scenarios. Without one, a ticker and horizon takes the session's bull or bear thesis from its magnitude band, or else a clearly labeled unchanged-close baseline with historical volatility bands. Existing predictions stay immutable.",
                 },
             },
         }
@@ -239,13 +263,41 @@ def _track_locked(payload: dict[str, Any], sandbox: Sandbox, now: datetime) -> d
     issued = now.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     appended = 0
     preserved = 0
+    analyst = 0
+    conflicts: list[dict[str, Any]] = []
+    theses: dict[tuple[str, int], list[dict[str, Any]]] = {}
+    thesis_problems: list[str] = []
     skipped = [{"ticker": symbol, "reason": reason} for symbol, reason in problems.items()]
-    if not payload["refresh_only"]:
-        if as_of is None:
-            raise ToolExecutionError(
-                "No complete saved price sessions are available; run read_prices first."
-            )
-        evidence = _evidence_index(payload["raw"], sandbox, now) if submitted else {}
+    not_issued: str | None = None
+    if not payload["refresh_only"] and as_of is None:
+        raise ToolExecutionError(
+            "No complete saved price sessions are available; run read_prices first."
+        )
+    if not payload["refresh_only"] and _trading(now):
+        if submitted:
+            raise ToolExecutionError(_TRADING_NOTE)
+        not_issued = _TRADING_NOTE
+    if not payload["refresh_only"] and not_issued is None and as_of is not None:
+        # The session's bull and bear theses are forecasts too: every stock
+        # they name is forecast, from its band, even outside the summary.
+        theses, thesis_problems = _session_theses(sandbox, as_of)
+        for symbol in sorted({ticker for ticker, _ in theses} - set(symbols)):
+            if len(symbols) >= 50:
+                skipped.append({"ticker": symbol, "reason": "the 50-ticker limit was reached"})
+                continue
+            if symbol in problems:
+                continue  # Its unreadable prices are already reported.
+            if symbol not in histories:
+                try:
+                    histories[symbol] = _read_prices(
+                        sandbox.resolve_path(f"raw/prices/{symbol}.csv"), now
+                    )
+                except ToolExecutionError as exc:
+                    skipped.append({"ticker": symbol, "reason": str(exc)})
+                    continue
+            symbols.append(symbol)
+        symbols.sort()
+        evidence = _evidence_index(payload["raw"], sandbox, now) if submitted or theses else {}
         for symbol in symbols:
             history = histories.get(symbol)
             if history is None:
@@ -281,7 +333,18 @@ def _track_locked(payload: dict[str, Any], sandbox: Sandbox, now: datetime) -> d
                 scenario = submitted.get((symbol, horizon))
                 if scenario is not None:
                     _check_evidence(scenario["evidence_ids"], evidence, symbol, as_of, now)
-                record = _new_record(symbol, horizon, history, scenario, issued)
+                    record = _new_record(symbol, horizon, history, scenario, issued)
+                else:
+                    record = _from_theses(
+                        symbol,
+                        horizon,
+                        history,
+                        theses.get((symbol, horizon), []),
+                        (evidence, as_of, now, issued),
+                        conflicts,
+                        skipped,
+                    )
+                    analyst += record["method"] == "analyst_thesis"
                 records.append(record)
                 existing.add(forecast_id)
                 appended += 1
@@ -356,12 +419,176 @@ def _track_locked(payload: dict[str, Any], sandbox: Sandbox, now: datetime) -> d
         "forecasts": current[:_MAX_RETURN_ROWS],
         "truncated": len(current) > _MAX_RETURN_ROWS,
         "skipped": skipped,
+        "not_issued": not_issued,
+        "analyst_forecasts": analyst,
+        "thesis_conflicts": conflicts[:_MAX_RETURN_ROWS],
+        "thesis_problems": thesis_problems,
         "unresolved": unresolved[:_MAX_RETURN_ROWS],
         "ledger_path": _LEDGER,
         "workbooks": [f"predictions/{month}.xlsx" for month in sorted(books)],
         "horizon_basis": "1, 2, 3, 5 and 21 complete trading sessions after the immutable baseline session; weekends and holidays add no sessions",
-        "baseline_note": "Unchanged-close random-walk benchmark; 80% bands use historical daily volatility and a normal-return assumption, not calibrated forecast confidence. Agent scenarios remain conditional and uncalibrated.",
+        "baseline_note": "Unchanged-close random-walk benchmark; 80% bands use historical daily volatility and a normal-return assumption, not calibrated forecast confidence. Analyst theses and agent scenarios remain conditional and uncalibrated; an analyst forecast's band is the thesis's magnitude band.",
         "written": written,
+    }
+
+
+def _trading(now: datetime) -> bool:
+    """Inside US regular hours on a weekday. A holiday counts as trading: at
+    worst a manual run that day records its forecasts at the next run."""
+    local = now.astimezone(_NY)
+    return local.weekday() < 5 and _OPEN <= local.time() < _CLOSE
+
+
+def _session_theses(
+    sandbox: Sandbox, as_of: str
+) -> tuple[dict[tuple[str, int], list[dict[str, Any]]], list[str]]:
+    """The session's bull and bear theses by ticker and horizon, and what was unusable."""
+    theses: dict[tuple[str, int], list[dict[str, Any]]] = defaultdict(list)
+    problems: list[str] = []
+    for agent, direction in _THESIS_AGENTS:
+        name = f"theses/{agent}-{as_of}.jsonl"
+        path = sandbox.resolve_path(name)
+        if not path.is_file():
+            continue
+        if path.stat().st_size > _MAX_FILE_BYTES:
+            problems.append(f"{name} exceeds the size limit.")
+            continue
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if not line.strip():
+                continue
+            try:
+                thesis = _thesis(json.loads(line), agent, direction)
+            except (ValueError, TypeError, DecimalException) as exc:
+                problems.append(f"{name} line {number}: {exc}")
+                continue
+            theses[(thesis["ticker"], thesis["horizon_days"])].append(thesis)
+    return dict(theses), problems[:20]
+
+
+def _thesis(row: object, agent: str, direction: str) -> dict[str, Any]:
+    if not isinstance(row, dict):
+        raise ValueError("a thesis must be an object")
+    horizon = row.get("horizon_days")
+    if isinstance(horizon, bool) or horizon not in FORECAST_HORIZONS:
+        raise ValueError("horizon_days must be 1, 2, 3, 5 or 21")
+    if row.get("direction") != direction:
+        raise ValueError(f"a {agent} thesis must say direction {direction!r}")
+    band = row.get("magnitude_band")
+    if band not in _BANDS:
+        raise ValueError(f"magnitude_band must be one of {', '.join(_BANDS)}")
+    confidence = _number(row.get("confidence"), "confidence")
+    if not 0 <= confidence <= 1:
+        raise ValueError("confidence must be between zero and one")
+    text = row.get("thesis")
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError("thesis text is required")
+    evidence = row.get("evidence_ids")
+    if (
+        not isinstance(evidence, list)
+        or not evidence
+        or any(not isinstance(entry, str) or not entry.strip() for entry in evidence)
+    ):
+        raise ValueError("evidence_ids must name the saved records the thesis rests on")
+    pred_id = row.get("pred_id")
+    return {
+        "expected": _expected(row.get("expected_return_pct"), direction, band),
+        "agent": agent,
+        "ticker": _symbol(row.get("ticker")),
+        "horizon_days": horizon,
+        "direction": direction,
+        "band": band,
+        "confidence": confidence,
+        "text": " ".join(text.split()),
+        "evidence_ids": list(dict.fromkeys(entry.strip() for entry in evidence))[:20],
+        "pred_id": pred_id if isinstance(pred_id, str) else None,
+    }
+
+
+def _expected(value: object, direction: str, band: str) -> Decimal | None:
+    """An analyst's explicit return, kept only when it agrees with the thesis's own band."""
+    if value is None or isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        return None
+    try:
+        number = Decimal(str(value))
+    except DecimalException:
+        return None
+    _, near, far = _BANDS[band]
+    size = abs(number)
+    agrees = (number > 0) == (direction == "up") and number != 0
+    return number if agrees and near <= size and (far is None or size <= far) else None
+
+
+def _from_theses(
+    symbol: str,
+    horizon: int,
+    history: tuple[_Session, ...],
+    candidates: list[dict[str, Any]],
+    context: tuple[dict[str, datetime], str, datetime, str],
+    conflicts: list[dict[str, Any]],
+    skipped: list[dict[str, str]],
+) -> dict[str, Any]:
+    """One side's thesis as a forecast; disagreement or missing evidence keeps the benchmark."""
+    evidence, as_of, now, issued = context
+    if len({thesis["direction"] for thesis in candidates}) > 1:
+        conflicts.append({"ticker": symbol, "horizon_days": horizon})
+        return _new_record(symbol, horizon, history, None, issued, note=_CONFLICT_NOTE)
+    if not candidates:
+        return _new_record(symbol, horizon, history, None, issued)
+    thesis = max(candidates, key=lambda candidate: candidate["confidence"])
+    try:
+        _check_evidence(thesis["evidence_ids"], evidence, symbol, as_of, now)
+    except ToolExecutionError as exc:
+        skipped.append(
+            {"ticker": symbol, "reason": f"{horizon}-session thesis not used: {exc}"}
+        )
+        return _new_record(symbol, horizon, history, None, issued)
+    return _thesis_record(symbol, horizon, history, thesis, issued)
+
+
+def _thesis_record(
+    symbol: str,
+    horizon: int,
+    history: tuple[_Session, ...],
+    thesis: dict[str, Any],
+    issued: str,
+) -> dict[str, Any]:
+    baseline = history[-1]
+    middle, near, far = _BANDS[thesis["band"]]
+    up = thesis["direction"] == "up"
+    sign = 1 if up else -1
+    assumed: Decimal = thesis["expected"] if thesis["expected"] is not None else sign * middle
+    target = baseline.close * (1 + assumed / 100)
+    near_price = baseline.close * (1 + sign * near / 100)
+    far_price = None if far is None else baseline.close * (1 + sign * far / 100)
+    low, high = (near_price, far_price) if up else (far_price, near_price)
+    sessions = "1 session" if horizon == 1 else f"{horizon} sessions"
+    stated = "" if thesis["expected"] is None else f" (the analyst assumes {assumed:+}%)"
+    rationale = (
+        f"{thesis['agent'].title()} thesis: {thesis['direction']} {thesis['band']} over "
+        f"{sessions}{stated}, confidence {thesis['confidence']}. {thesis['text']}"
+    )
+    return {
+        "forecast_id": f"{baseline.date.isoformat()}-{symbol}-{horizon}",
+        "as_of": baseline.date.isoformat(),
+        "ticker": symbol,
+        "horizon_days": horizon,
+        "baseline_close": _json_number(baseline.close),
+        "predicted_close": _json_number(target),
+        "assumption_return_pct": _json_number(assumed),
+        "method": "analyst_thesis",
+        "confidence": _json_number(thesis["confidence"]),
+        "rationale": rationale[:4000],
+        "evidence_ids": thesis["evidence_ids"],
+        "thesis_id": thesis["pred_id"],
+        "created_at": issued,
+        "evidence_cutoff_at": issued,
+        "interval_low": None if low is None else _json_number(low),
+        "interval_high": None if high is None else _json_number(high),
+        "actual_date": None,
+        "actual_close": None,
+        "error_pct": None,
+        "actual_return_pct": None,
+        "status": "pending",
     }
 
 
@@ -371,6 +598,8 @@ def _new_record(
     history: tuple[_Session, ...],
     scenario: dict[str, Any] | None,
     issued: str,
+    *,
+    note: str = "",
 ) -> dict[str, Any]:
     baseline = history[-1]
     target = baseline.close
@@ -386,7 +615,10 @@ def _new_record(
             spread = Decimal("1.281552") * variance.sqrt() * Decimal(horizon).sqrt()
             low = _json_number(max(Decimal("0.000001"), baseline.close * (1 - spread)))
             high = _json_number(baseline.close * (1 + spread))
-        rationale = "Random-walk benchmark conditional on an unchanged last completed close. No directional news or earnings claim. Assumption bands scale historical daily return volatility by the square root of trading sessions; they are not calibrated confidence."
+        rationale = (
+            "Random-walk benchmark conditional on an unchanged last completed close. No directional news or earnings claim. Assumption bands scale historical daily return volatility by the square root of trading sessions; they are not calibrated confidence."
+            + note
+        )
         evidence_ids = [f"prices-{baseline.date.isoformat()}-{symbol}"]
     else:
         rationale = scenario["rationale"]
@@ -507,7 +739,7 @@ def _read_prices(path: Path, now: datetime) -> tuple[_Session, ...]:
                 if (
                     session_date.weekday() >= 5
                     or session_date > local.date()
-                    or (session_date == local.date() and local.time() < time(16))
+                    or (session_date == local.date() and local.time() < _CLOSE)
                 ):
                     continue
                 sessions.append(_Session(session_date, close))
@@ -558,7 +790,11 @@ def _read_ledger(path: Path) -> list[dict[str, Any]]:
                 raise ValueError("forecast IDs must match unique date/ticker/horizon keys")
             if _number(row.get("baseline_close"), "baseline_close") <= 0:
                 raise ValueError("baseline_close must be positive")
-            if row.get("method") not in {"random_walk_baseline", "agent_scenario"}:
+            if row.get("method") not in {
+                "random_walk_baseline",
+                "agent_scenario",
+                "analyst_thesis",
+            }:
                 raise ValueError("unsupported forecast method")
             _timestamp(row.get("created_at"), "created_at")
             _timestamp(row.get("evidence_cutoff_at"), "evidence_cutoff_at")

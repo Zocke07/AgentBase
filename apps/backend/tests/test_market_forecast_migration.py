@@ -44,7 +44,8 @@ def test_fresh_pipeline_discovers_prices_then_records_all_five_horizons(tmp_path
         assert "track_forecasts" in json.loads(agents["market-movers"]["allowed_tools"])
         assert "track_forecasts" in json.loads(agents["decision"]["allowed_tools"])
         assert "1|2|3|5|21" in agents["bull-architect"]["system_prompt"]
-        assert "scenario_return_pct" in agents["decision"]["system_prompt"]
+        # 031 replaced the scenario passage; its own suite checks the new one.
+        assert "FORECAST TASK" in agents["decision"]["system_prompt"]
         assert "news-scanner first" in goals["Morning collection"]
         assert "Always call track_forecasts" in goals["Daily decision"]
         assert json.loads(morning["cadence"])["weekdays"] == [1, 2, 3, 4, 5]

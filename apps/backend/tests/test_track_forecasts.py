@@ -250,6 +250,7 @@ async def test_incomplete_current_session_is_excluded_from_actuals_and_targets(
     _prices(sandbox, _RECORDED[:6])
     during = await _run(sandbox, "2026-10-05T18:00:00+00:00")
     assert during["newly_resolved"] == 0 and during["appended"] == 0
+    assert "trading now" in during["not_issued"]
     assert during["as_of"] == "2026-10-02"
     after = await _run(sandbox, "2026-10-05T22:00:00+00:00", refresh_only=True)
     assert after["newly_resolved"] == 1
@@ -521,3 +522,156 @@ async def test_session_sheet_puts_each_horizons_prediction_beside_its_actual(
     assert mu[8:11] == [102.0, None, None]
     assert mu[-2] == "Agent scenario for 1 day; random-walk baseline for the rest"
     assert str(mu[-1]).startswith("1 day: Assume a 2% rebound")
+
+
+def _thesis(agent: str, horizon: int, band: str, **overrides: Any) -> str:
+    row = {
+        "pred_id": f"{agent}-{horizon}",
+        "as_of": "2026-09-30T16:00:00-04:00",
+        "agent": agent,
+        "ticker": "MU",
+        "horizon_days": horizon,
+        "direction": "up" if agent == "bull" else "down",
+        "magnitude_band": band,
+        "confidence": 0.56,
+        "thesis": "Memory pricing guidance points higher for the quarter.",
+        "evidence_ids": ["movers-2026-09-30-MU"],
+        "invalidation": "Closes below 98.00",
+        "base_rate_note": "Typical one-day move is about 2%.",
+        **overrides,
+    }
+    return json.dumps(row)
+
+
+def _theses(sandbox: Sandbox, bull: list[str], bear: list[str]) -> None:
+    folder = sandbox.root / "theses"
+    folder.mkdir(exist_ok=True)
+    (folder / "bull-2026-09-30.jsonl").write_text("\n".join(bull), encoding="utf-8")
+    (folder / "bear-2026-09-30.jsonl").write_text("\n".join(bear), encoding="utf-8")
+
+
+async def test_the_sessions_theses_become_analyst_forecasts_from_their_bands(
+    sandbox: Sandbox,
+) -> None:
+    """2026-10-13: no thesis set expected_return_pct, so every forecast in the
+    friend's workbook was the unchanged close. A thesis's direction and band
+    are a forecast; the tool turns them into one, and the person can see how."""
+    _prices(sandbox, _RECORDED[:3])
+    _movers(sandbox)
+    _theses(
+        sandbox,
+        bull=[_thesis("bull", 21, "5%+")],
+        bear=[
+            _thesis("bear", 1, "1-3%"),
+            "not json",
+            _thesis("bear", 2, "1-3%", direction="up"),
+        ],
+    )
+
+    result = await _run(sandbox, "2026-10-01T02:00:00+00:00")
+
+    rows = {row["horizon_days"]: row for row in result["forecasts"]}
+    one_day, month = rows[1], rows[21]
+    assert one_day["method"] == "analyst_thesis" and month["method"] == "analyst_thesis"
+    # Down 1-3%: the band's midpoint, 2%, with the band as the range.
+    assert one_day["predicted_close"] == 99.96
+    assert (one_day["interval_low"], one_day["interval_high"]) == (98.94, 100.98)
+    assert one_day["assumption_return_pct"] == -2 and one_day["confidence"] == 0.56
+    assert one_day["evidence_ids"] == ["movers-2026-09-30-MU"]
+    assert one_day["rationale"].startswith("Bear thesis: down 1-3% over 1 session")
+    # Up at least 5%: the least the analyst claimed, open above.
+    assert month["predicted_close"] == 107.1 and month["interval_high"] is None
+    assert rows[3]["method"] == rows[5]["method"] == "random_walk_baseline"
+    # A row that says the wrong direction for its file is reported, not used.
+    assert rows[2]["method"] == "random_walk_baseline"
+    assert result["analyst_forecasts"] == 2
+    assert len(result["thesis_problems"]) == 2
+    _, mu = _sheet_rows(sandbox.root / "predictions/2026-09.xlsx", 1)
+    assert mu[-2] == "Analyst thesis for 1 day, 1 month; random-walk baseline for the rest"
+    assert str(mu[-1]).startswith("1 day: Bear thesis: down 1-3% over 1 session")
+
+
+async def test_bull_and_bear_disagreeing_leave_the_benchmark_and_say_so(
+    sandbox: Sandbox,
+) -> None:
+    _prices(sandbox, _RECORDED[:3])
+    _movers(sandbox)
+    _theses(sandbox, bull=[_thesis("bull", 1, "1-3%")], bear=[_thesis("bear", 1, "0-1%")])
+
+    result = await _run(sandbox, "2026-10-01T02:00:00+00:00")
+
+    one_day = next(row for row in result["forecasts"] if row["horizon_days"] == 1)
+    assert one_day["method"] == "random_walk_baseline"
+    assert "disagreed" in one_day["rationale"]
+    assert result["thesis_conflicts"] == [{"ticker": "MU", "horizon_days": 1}]
+
+
+async def test_a_thesis_whose_evidence_is_missing_falls_back_to_the_benchmark(
+    sandbox: Sandbox,
+) -> None:
+    _prices(sandbox, _RECORDED[:3])
+    _theses(sandbox, bull=[_thesis("bull", 1, "1-3%", evidence_ids=["invented-id"])], bear=[])
+
+    result = await _run(sandbox, "2026-10-01T02:00:00+00:00")
+
+    one_day = next(row for row in result["forecasts"] if row["horizon_days"] == 1)
+    assert one_day["method"] == "random_walk_baseline"
+    assert any("invented-id" in item["reason"] for item in result["skipped"])
+
+
+async def test_a_thesis_ticker_outside_the_summary_is_still_forecast(sandbox: Sandbox) -> None:
+    _prices(sandbox, _RECORDED[:3], "MU")
+    _prices(sandbox, _RECORDED[:3], "ORCL")  # the summary now names ORCL only
+    _movers(sandbox)
+    _theses(sandbox, bull=[_thesis("bull", 1, "1-3%")], bear=[])
+
+    result = await _run(sandbox, "2026-10-01T02:00:00+00:00")
+
+    assert {row["ticker"] for row in result["forecasts"]} == {"MU", "ORCL"}
+
+
+async def test_an_analysts_own_return_is_used_only_inside_its_band(sandbox: Sandbox) -> None:
+    _prices(sandbox, _RECORDED[:3])
+    _movers(sandbox)
+    _theses(
+        sandbox,
+        bull=[
+            _thesis("bull", 1, "1-3%", expected_return_pct=2.5),
+            _thesis("bull", 2, "1-3%", expected_return_pct=7),
+        ],
+        bear=[],
+    )
+
+    result = await _run(sandbox, "2026-10-01T02:00:00+00:00")
+
+    rows = {row["horizon_days"]: row for row in result["forecasts"]}
+    assert rows[1]["assumption_return_pct"] == 2.5 and rows[1]["predicted_close"] == 104.55
+    assert "the analyst assumes +2.5%" in rows[1]["rationale"]
+    # A figure outside the thesis's own band gives way to the band's midpoint.
+    assert rows[2]["assumption_return_pct"] == 2 and rows[2]["predicted_close"] == 104.04
+
+
+async def test_while_the_market_trades_actuals_fill_but_no_forecast_is_issued(
+    sandbox: Sandbox,
+) -> None:
+    """2026-10-13: a Run now at 13:47 New York forecast Monday's close from
+    Friday's, citing Monday's own midday headline. A forecast issued while
+    its first session trades has already seen part of what it predicts."""
+    _prices(sandbox, _RECORDED[:3])
+    await _run(sandbox, "2026-09-30T22:00:00+00:00")
+    _prices(sandbox, _RECORDED[:4])  # Thursday 2026-10-01 has closed.
+    _movers(sandbox)
+    _theses(sandbox, bull=[_thesis("bull", 1, "1-3%")], bear=[])
+
+    # Friday 2026-10-02 at 11:00 in New York: Friday's session is under way.
+    result = await _run(sandbox, "2026-10-02T15:00:00+00:00")
+
+    assert result["appended"] == 0 and result["newly_resolved"] == 1
+    assert result["not_issued"].startswith("The US market is trading now")
+    assert {row["as_of"] for row in _ledger(sandbox)} == {"2026-09-30"}
+    with pytest.raises(ToolExecutionError, match="trading now"):
+        await _run(sandbox, "2026-10-02T15:00:00+00:00", forecasts=[_scenario()])
+    _prices(sandbox, _RECORDED[:5])  # After Friday's close, with its prices saved.
+    after_close = await _run(sandbox, "2026-10-02T21:00:00+00:00")
+    assert after_close["as_of"] == "2026-10-02" and after_close["appended"] == 5
+    assert after_close["not_issued"] is None

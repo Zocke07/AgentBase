@@ -33,6 +33,7 @@ _LABELS: Final[dict[int, str]] = {
 }
 _METHODS: Final[dict[str, str]] = {
     "random_walk_baseline": "Random-walk baseline",
+    "analyst_thesis": "Analyst thesis",
     "agent_scenario": "Agent scenario",
 }
 DETAIL_SHEET: Final[str] = "All forecasts"
@@ -48,8 +49,8 @@ _DETAIL_FIELDS: Final[tuple[tuple[str, str], ...]] = (
     ("baseline_close", "Baseline close (USD)"),
     ("predicted_close", "Prediction (USD)"),
     ("assumption_return_pct", "Assumed return %"),
-    ("interval_low", "80% assumption band low"),
-    ("interval_high", "80% assumption band high"),
+    ("interval_low", "Assumption band low"),
+    ("interval_high", "Assumption band high"),
     ("method", "Method"),
     ("confidence", "Agent confidence (uncalibrated)"),
     ("actual_date", "Actual session"),
@@ -156,29 +157,38 @@ def _session_sheet(rows: list[dict[str, Any]]) -> str:
                 (forecast.get("actual_close"), _DECIMAL),
                 (forecast.get("error_pct"), _DECIMAL),
             ]
-        scenarios = [
-            horizon
+        claims = {
+            horizon: forecasts[horizon]["method"]
             for horizon in _LABELS
-            if forecasts.get(horizon, {}).get("method") == "agent_scenario"
-        ]
-        cells += [(_method_summary(scenarios), _PLAIN), (_notes(forecasts, scenarios), _PLAIN)]
+            if forecasts.get(horizon, {}).get("method", "random_walk_baseline")
+            != "random_walk_baseline"
+        }
+        cells += [(_method_summary(claims), _PLAIN), (_notes(forecasts, claims), _PLAIN)]
         table.append(cells)
     widths = [(1, 1, 10), (2, 17, 14), (18, 18, 40), (19, 19, 90)]
     return _worksheet(table, widths, frozen_columns=1)
 
 
-def _method_summary(scenarios: list[int]) -> str:
-    if not scenarios:
+def _method_summary(claims: dict[int, str]) -> str:
+    """Which horizons carry a thesis or scenario, by method, and that the rest are baselines."""
+    if not claims:
         return _METHODS["random_walk_baseline"]
-    named = ", ".join(_LABELS[horizon] for horizon in scenarios)
-    if len(scenarios) == len(_LABELS):
-        return f"{_METHODS['agent_scenario']} for every horizon"
-    return f"{_METHODS['agent_scenario']} for {named}; random-walk baseline for the rest"
+    by_method: dict[str, list[str]] = {}
+    for horizon, method in claims.items():
+        by_method.setdefault(method, []).append(_LABELS[horizon])
+    parts = [
+        f"{_METHODS.get(method, method)} for "
+        + ("every horizon" if len(labels) == len(_LABELS) else ", ".join(labels))
+        for method, labels in by_method.items()
+    ]
+    if len(claims) < len(_LABELS):
+        parts.append("random-walk baseline for the rest")
+    return "; ".join(parts)
 
 
-def _notes(forecasts: dict[int, dict[str, Any]], scenarios: list[int]) -> str | None:
-    """Each agent scenario's assumption; a baseline needs no note of its own."""
-    notes = [f"{_LABELS[horizon]}: {forecasts[horizon]['rationale']}" for horizon in scenarios]
+def _notes(forecasts: dict[int, dict[str, Any]], claims: dict[int, str]) -> str | None:
+    """Each thesis's or scenario's assumption; a baseline needs no note of its own."""
+    notes = [f"{_LABELS[horizon]}: {forecasts[horizon]['rationale']}" for horizon in claims]
     return " | ".join(notes) or None
 
 
