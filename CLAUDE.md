@@ -13,6 +13,20 @@ future changes do not relocate users' data or disconnect their stored keys.
 
 ## Current state
 
+- **Failure repair, 2026-10-13.** The first unattended chain crept for hours
+  because the Mac slept: maintenance wakes of a few seconds started and fed
+  the runs. Automations and the market watch now wait until the computer has
+  been awake two minutes (`orchestrator/power.py`), and the sidecar holds off
+  idle sleep while a run is going (lid close still sleeps). Every forecast
+  was the unchanged close: the decision copied a field no thesis wrote and
+  narrowed the call. `track_forecasts` now turns the session's bull and bear
+  theses into `analyst_thesis` forecasts from their bands (disagreement or
+  missing evidence keeps the baseline), and migration 031 has the decision
+  call it with no arguments. No forecast is issued during US regular hours;
+  a same-day collection keeps earlier headlines; `list_dir` returns
+  space-relative paths; a failed lookup no longer stops a chain. Runs lists
+  an automation's run by its title (migration 032). Generated outputs were
+  backed up and removed for a fresh retry. See docs/verification.md.
 - **Market watch, BUILD_SPEC Phase 18 (2026-10-13).** A sidecar task beside
   the scheduler (`orchestrator/monitor.py`) reads Yahoo spark quotes for a
   space's holdings, watchlist and indexes every few minutes, 04:00 to 20:00
@@ -172,7 +186,8 @@ future changes do not relocate users' data or disconnect their stored keys.
   task in the sidecar; `RunLauncher.on_finished` tells it when a run ends. The
   app must be open; a missed time, or a run the app closed on, is run once at
   the next launch or skipped, per the schedule. There is no tray or service
-  mode.
+  mode. After a sleep, nothing starts until the computer has been awake two
+  minutes, and a going run holds off idle sleep (`orchestrator/power.py`).
 - The default space ships the ten-definition investment research roster
   (migration 010, 2026-09-19): four Haiku collectors, Sonnet analysts and a
   risk manager, an Opus decision agent, and a Sonnet reviewer, with no
@@ -221,8 +236,9 @@ future changes do not relocate users' data or disconnect their stored keys.
   These are ordinary space files written through the existing gate; there is
   no visualization database or service, and no Visualize section since
   2026-10-08.
-- The latest recorded database migration is 030 (market watch, above);
-  029 is the model refresh and 028 the research extension. Migration 020 adds Sonnet
+- The latest recorded database migration is 032 (run titles); 031 has the
+  decision let `track_forecasts` read the theses, 030 is the market watch,
+  029 the model refresh and 028 the research extension. Migration 020 adds Sonnet
   5.5, updates untouched shipped Sonnet roles, and applies fresh space
   defaults without moving used spaces. Migration 021 wires the four
   deterministic tools and corrected goals into untouched pipeline rows, gives
@@ -353,7 +369,9 @@ second chronological log here.
   them. Do not make a model append to a growing file: `write_file` rewrites
   the whole file, `read_file` shows its first 20,000 characters, and a scored
   thesis must never change. Growing ledgers are written by deterministic
-  tools (`scores/predictions.jsonl`, the price CSVs).
+  tools (`scores/predictions.jsonl`, the price CSVs, and the day's
+  `raw/news-{date}.jsonl`, which keeps earlier same-day headlines so a cited
+  id still resolves).
 - Discord accepts explicit commands/mentions from allowed senders only. Its
   supervised adapter runs in-process and uses the same approval gate as the UI.
   Its one outbound path is `ChannelService.announce`, which posts market

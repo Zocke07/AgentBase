@@ -4,6 +4,61 @@ Updated 2026-10-13. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
+## Unattended chain repair and run titles, 2026-10-13
+
+The maintainer ran the chain again (**Run now** at 01:47 Taipei, then the
+07:00 schedule) and asked what went wrong, for fixes, for the generated
+outputs to be removed for a fresh retry, and for an automation's runs to show
+their title in Runs.
+
+- **The Mac slept.** `pmset -g log` shows the 07:00 morning collection
+  starting in a 07:52 DarkWake with the lid closed and advancing only in
+  later DarkWakes (08:19, 09:20, 12:23) until the 12:40 full wake; a
+  decision call in flight when the lid closed at 02:01 waited until 03:09.
+  Timed starts and market checks now wait until the computer has been awake
+  two minutes (`orchestrator/power.py`), and a going run holds off idle
+  sleep. On this Mac, `KeepAwake` created a real `PreventUserIdleSystemSleep`
+  assertion through `caffeinate -i -w <pid>` and removed it on the last
+  release.
+- **Every forecast was the unchanged close.** The decision was told to copy
+  `expected_return_pct`, which no thesis wrote, and passed `symbols` for 7 of
+  25 tickers. `track_forecasts` now records each thesis as `analyst_thesis`
+  from its band; disagreement or unsaved evidence keeps the baseline, and
+  migration 031 has the decision call it with no arguments. On a copy of
+  this morning's files, issued after the close, it recorded 125 forecasts,
+  the real META 21-session thesis as 742.96 to 757.82 within 750.39 to
+  765.25, and openpyxl read the workbook with warnings as errors.
+- **A forecast made mid-session.** The 01:47 run (13:47 New York) forecast
+  Monday's close from Friday's, citing Monday's midday Micron headline. No new
+  forecast is issued during US regular hours; the same probe at 17:55 UTC
+  recorded none and said why.
+- **A cited headline vanished.** The 07:52 collection rewrote
+  `raw/news-2026-10-12.jsonl` and dropped the headline the bear thesis cited;
+  the event log still held it. A day's file now keeps earlier headlines.
+- **Path slips stopped the chain.** `list_dir` returned bare names, the
+  decision's `read_file` failed on them, and any tool error blocked the next
+  stage. Entries are now space-relative paths, and a failed lookup no longer
+  blocks.
+- **Run titles.** `runs.title` (migration 032) holds the schedule's name or
+  `Market alert:` and its symbols; Runs shows it above the goal, and the run's
+  header folds the goal under **What it was asked to do**. Earlier runs are
+  backfilled from their schedule or alert batch.
+- **Fresh retry.** With no run going, the dev app was stopped and the
+  database and space were backed up to
+  `.dev/backups/fresh-start-20261013-132108` (98 files; integrity check ok).
+  Removed: 87 generated files, 5 runs, 1,135 events and 107 approvals. Kept:
+  the 9 inputs, settings, keys, the five enabled schedules and 634 spend rows
+  with their run links cleared. A copy of the cleaned database upgraded to
+  schema 32 with the new prompt, goals and column.
+- **Executed.** `just ci`: backend **1,350 passed, 12 skipped**; desktop
+  **612 passed in 59 files**; ruff, formatting, strict mypy on macOS and
+  Windows, ESLint and TypeScript passed. No Rust changed, so `check-tauri`
+  was not rerun.
+- **Unverified.** The chain has not yet run with these fixes, and no real
+  sleep and wake has been observed with the new sidecar. The titles were
+  checked by component tests, not in the window. A weekday market holiday
+  counts as trading hours (there is still no holiday calendar).
+
 ## Market watch, and the review of the research extension, 2026-10-13
 
 The maintainer resent the friend's answers with the 2026-10-12 work still

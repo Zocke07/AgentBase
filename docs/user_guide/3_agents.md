@@ -35,7 +35,7 @@ and dates stay blank.
 | `bull-architect` | Claude Sonnet 5.5 | Writes the strongest evidence-based rise cases as scored predictions. | file and knowledge tools |
 | `bear-architect` | Claude Sonnet 5.5 | Writes the strongest evidence-based fall cases as scored predictions. | file and knowledge tools |
 | `risk-manager` | Claude Sonnet 5.5 | Restates deterministic rule results, keeps its veto, then adds qualitative risks. | `check_limits` |
-| `decision` | Claude Opus 5.5 | Arbitrates the two cases and risk checks into a recommendation and records conditional forecasts or labeled baselines. | `track_forecasts`, file tools |
+| `decision` | Claude Opus 5.5 | Arbitrates the two cases and risk checks into a recommendation and records the session's forecasts: the theses' own, or labeled baselines. | `track_forecasts`, file tools |
 | `review-analyst` | Claude Sonnet 5.5 | Scores predictions, refreshes forecast actuals and diagnoses misses without hindsight. | `score_predictions`, `track_forecasts`, `propose_memory` |
 | `market-explainer` | the news scanner's model | Explains a market alert from the day's headlines and saved research, citing each source; never predicts or recommends. Started by [Market watch](2_running_tasks.md#market-watch-alerts-for-sudden-moves). | `read_feed`, file and knowledge tools |
 
@@ -99,9 +99,22 @@ or provider.
 The forecast tracker uses 1, 2, 3, 5 and 21 US trading sessions ahead;
 5 and 21 sessions approximate one week and one month. Weekends and market
 holidays are not forecast sessions. The baseline price repeats the latest
-close and is explicitly labeled `random_walk_baseline`. Analysts can add
-conditional scenarios with their price assumptions, rationale and cited
-evidence; an assumption is not a measured prediction skill.
+close and is explicitly labeled `random_walk_baseline`.
+
+Each bull or bear thesis becomes that stock's forecast at its horizon,
+labeled `analyst_thesis`: the middle of its magnitude band in its direction
+(5% for `5%+`), or the analyst's own `expected_return_pct` when that lies
+inside the band, with the band as its range. Where bull and bear disagree at
+a horizon, where a thesis cites evidence that was not saved, and wherever
+there is no thesis, the forecast is the baseline, and the tool says why. A
+thesis is a judgement, not a measured prediction skill; the weekly review
+scores it once the sessions have traded.
+
+Forecasts are recorded between US sessions. A run during US trading hours,
+09:30 to 16:00 New York time on weekdays, updates actual prices but records
+no new forecast, because a one-day forecast made then would already see part
+of the day it predicts. The next run after the close records them; the
+scheduled 07:00 runs fall outside those hours.
 
 `track_forecasts` keeps the original predictions in
 `predictions/forecasts.json` and creates `predictions/YYYY-MM.xlsx`, one
@@ -151,8 +164,8 @@ pipeline has a defined consumer:
    date, and it dates the stage's files. Bull and bear read the newest news,
    movers and calendar files and the computed portfolio, and may cite a
    movers row by its `id`. Each writes a theses file for the session, left
-   empty when the evidence supports no call. Each may state supported
-   conditional return assumptions for the decision stage to consider.
+   empty when the evidence supports no call. Each thesis's direction and
+   magnitude band become that stock's recorded forecast at its horizon.
    Then `check_limits` produces the
    hard rule results before the risk manager adds judgement.
 3. **Daily decision** writes `decisions/{session date}.md`, a recommendation
@@ -161,10 +174,10 @@ pipeline has a defined consumer:
    included, has its reasoning. **SOURCES** names what each row rests on: the
    theses, the news headlines and movers figures they cite, and the risk
    checks. An empty theses file is listed too, because it means that analyst
-   found nothing worth a call. It records forecasts for the five horizons,
-   using conditional research scenarios where supported and labeled
-   unchanged-close baselines otherwise. It never trades, submits an order,
-   or connects to a broker.
+   found nothing worth a call. It records forecasts for the five horizons
+   for every stock the session followed: each thesis's from its band, and
+   labeled unchanged-close baselines otherwise. It never trades, submits an
+   order, or connects to a broker.
 4. **Weekly knowledge** updates concept notes from the space's own knowledge
    and company notes from available financial reports and any filing text
    you supplied. Optional SEC research may include a bounded excerpt;

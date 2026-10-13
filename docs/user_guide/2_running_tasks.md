@@ -24,7 +24,7 @@ on:
 |---|---|---|
 | Morning collection | Tuesday through Saturday at 07:00 local time on new defaults | Yahoo market discovery and headlines, prices, forecast actuals, company news and financial reports, Treasury auctions and the current book. No new session stops the daily chain. |
 | Theses and risk | After Morning collection completes | The bull and bear cases, then the risk check against your limits. |
-| Daily decision | After Theses and risk completes | A dated recommendation table for you to review and evidence-backed forecast scenarios. Nothing is bought or sold. |
+| Daily decision | After Theses and risk completes | A dated recommendation table for you to review, and the session's forecasts from the analysts' theses. Nothing is bought or sold. |
 | Weekly knowledge | Saturdays at 09:00 | Concept notes from local knowledge and company notes from available financial reports or supplied filing text. |
 | Weekly review | Sundays at 18:00 | Scores resolved predictions and proposes durable lessons for Saved context. |
 
@@ -60,7 +60,7 @@ now**; a timed start says **from schedule**. Both are ordinary runs in every
 other way: the space's agents, folder, rules, approval policy and the shared
 budget all apply.
 
-Three things to know before relying on one:
+Four things to know before relying on one:
 
 - **AgentBase has to be open.** A time that passes while the app is closed
   cannot start anything then. Each schedule chooses what happens instead:
@@ -70,6 +70,11 @@ Three things to know before relying on one:
   schedule runs again once or is noted and left. Either way the following
   time is computed from the clock, so a laptop shut for a week runs the
   schedule once on opening, not seven times.
+- **The computer has to be awake.** A time that passes while it sleeps starts
+  once it has been awake for two minutes; the few seconds a closed laptop
+  wakes now and then to check mail do not count. While a run is going,
+  AgentBase keeps the computer from going to sleep on its own, but closing
+  the lid still puts it to sleep and pauses the run.
 - **Nobody is there to answer.** Calls the approval policy answers run on
   their own (see [Approvals](#approvals)). Anything else is still a question;
   in a scheduled run it waits **Seconds a scheduled run waits for an answer**
@@ -125,7 +130,8 @@ your approval policy. It explains what happened; it never predicts or
 recommends. Runs it starts are listed in **Runs** under **Market alerts**.
 
 The watch stops when AgentBase closes: nothing is watched while the app is
-closed, and it does not catch up on moves that happened then.
+closed, and it does not catch up on moves that happened then. After the
+computer wakes, it waits two minutes before its next check.
 
 ## Run a task once
 
@@ -152,7 +158,11 @@ automations are on and which is next, or **Automate a task** when none is.
 ## Watch the work
 
 The left list shows selected-space runs, newest first. **Show** narrows by UI,
-schedule, or Discord origin; cards label schedule/Discord runs.
+schedule, or Discord origin; cards label schedule/Discord runs. A run an
+automation started is named after it, such as **Morning collection**, or
+**Market alert: MU** for an explanation, with the start of its goal beneath.
+Its header shows the same name, and **What it was asked to do** opens the
+whole goal.
 
 The run view shows status and agent/tool/denial/token/error/cost counts; the
 sentence above the canvas gives current activity. Read the canvas left to

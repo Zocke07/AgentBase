@@ -227,6 +227,10 @@ CREATE TABLE approvals (
 `agent_defs`' uniqueness to `(space_id, name)`. The SQL is in that phase, beside the
 migration that introduces it.*
 
+*Migration 032 (2026-10-13) adds a nullable `title` on `runs`: an automation's name
+for the run, set when it starts (the schedule's name, or `Market alert:` and the
+alerted symbols). A person's own run has none; its goal is what they wrote.*
+
 ### Event types: this list is the contract
 
 ```
@@ -766,6 +770,17 @@ scheduled run expires after `unattended_question_seconds`.)*
 `schedule`; the Automations **Run now** button records origin `automation` and
 the schedule id in `origin_ref`. Both remain unattended and may start the next
 stage in a chain.)*
+
+*(Repair of 2026-10-13: an open app is not an awake computer. With the lid
+closed, a Mac's maintenance wakes, a few seconds every quarter hour, started
+the morning collection, which then crept through those seconds for five hours.
+A timed start now waits until the computer has been awake for two minutes;
+`orchestrator/power.py` tells a person's wake from a maintenance wake by the
+wall clock's jump across a suspension. While any run is going the sidecar
+holds the computer out of idle sleep, through `caffeinate -i` tied to the
+sidecar's process on macOS and `SetThreadExecutionState` on Windows; closing
+the lid still sleeps it. Runs lists an automation's run by its title, with
+its goal beneath.)*
 
 **Accept when:**
 
@@ -1334,6 +1349,32 @@ older zero-cash starter. The hard constraints in section 1 remain unchanged.
   checked-address helpers are the public `tools/builtin/fetching.py` instead
   of private imports between tool modules.)*
 
+*(Repair of 2026-10-13, after the first live chain:*
+- *The session's bull and bear theses are forecasts. `track_forecasts` reads
+  `theses/{bull,bear}-{session}.jsonl` itself and records a thesis as method
+  `analyst_thesis`: its target from the band's midpoint (an open `5%+` band as
+  5%), or from `expected_return_pct` when that lies inside the band, and its
+  assumption band from the thesis's band. Where bull and bear disagree at a
+  horizon, or a thesis cites evidence not saved by issuance, the labeled
+  baseline stands and the tool says why. Every thesis ticker is forecast, even
+  outside the price summary. The decision had been told to copy
+  `expected_return_pct`, which no thesis wrote, and narrowed the call to 7 of
+  25 tickers, so every forecast was the unchanged close; migration 031 has it
+  call the tool once with no arguments, changing shipped text only.*
+- *No new forecast is issued during US regular hours, 09:30 to 16:00 New York
+  time on weekdays: a Run now at 13:47 forecast Monday's close from Friday's
+  and cited Monday's own midday headline. Actuals still fill, and an explicit
+  scenario then is refused. A holiday counts as trading, so a manual run that
+  day leaves its forecasts to the next run; there is still no holiday
+  calendar.*
+- *A second collection on the same New York date keeps that day's earlier
+  headlines, newest first, up to 200: the evening run had replaced the midday
+  news file, and a headline a thesis cited existed nowhere.*
+- *`list_dir` names each entry by the space-relative path that `read_file`
+  takes; bare names sent the decision reading files that did not exist. A
+  failed lookup (`read_file`, `list_dir`, `search_knowledge`) no longer stops
+  a chain; a failed write, fetch or computation still does.)*
+
 **Out of scope:**
 
 - Reddit and other social sources: OAuth, and their terms.
@@ -1506,6 +1547,10 @@ would cost far more than it finds. So the watch is two parts:
   `discord_alert_channel_id` names a channel, the running Discord adapter
   posts each alert and explanation there, mentioning nobody; it still accepts
   commands only from allowed senders (constraint 6).
+
+*(2026-10-13: like a schedule, the watch neither checks quotes nor starts an
+explanation until the computer has been awake two minutes after a sleep; see
+the Phase 13 repair note.)*
 
 **Accept when:**
 

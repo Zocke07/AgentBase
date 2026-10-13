@@ -194,6 +194,23 @@ The sidecar still has no OS-level service or tray mode; that would be new
 shell infrastructure and is not built (the maintainer kept it out on
 2026-09-29: automation happens while the app is open).
 
+An open app is not an awake computer. `orchestrator/power.py` holds two
+pieces, wired in `main.py`. `Wakefulness` runs a five-second heartbeat on the
+wall clock; a gap of more than 30 seconds between beats means the process was
+suspended, and it then reports unsettled for two minutes. The
+scheduler's `_fire` and the market watch's `tick` start nothing until it
+settles, so a laptop's few-second maintenance wakes with the lid closed no
+longer start runs that then crawl for hours (2026-10-13). `KeepAwake` is held
+by `RunLauncher` from a run's start until its task ends: macOS spawns
+`/usr/bin/caffeinate -i -w <sidecar pid>`, so it ends with the sidecar even
+if that is killed, and Windows sets `SetThreadExecutionState`. It prevents
+idle sleep only; closing the lid still sleeps the computer. Tests replace it
+through the autouse `_no_keep_awake` fixture.
+
+A run the scheduler or the watch starts carries `runs.title` (migration 032):
+the schedule's name, or `Market alert:` and the batch's symbols. The window
+shows it above the goal in Runs and in the run's header.
+
 Migration 019 seeds the investment pipeline as five disabled schedules with
 fixed ids (`lib/pipeline.ts` names them); `turnOnPipeline` writes any missing
 `config/` template through the file API and enables them.
