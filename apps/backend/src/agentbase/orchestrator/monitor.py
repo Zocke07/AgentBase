@@ -471,6 +471,11 @@ def explanation_goal(alerts: list[MarketAlert], note_path: str) -> str:
     )
 
 
+def explanation_title(alerts: list[MarketAlert]) -> str:
+    """The Runs view's name for an explaining run: `Market alert: MU, ^IXIC`."""
+    return "Market alert: " + ", ".join(dict.fromkeys(alert.symbol for alert in alerts))
+
+
 def alert_message(alerts: list[NewAlert] | list[MarketAlert], *, explaining: bool) -> str:
     lines = "\n".join(f"- {describe(alert)}" for alert in alerts)
     tail = "\nLooking for the reason now." if explaining else ""
@@ -719,6 +724,7 @@ class MarketMonitor:
                 space_id=space.id,
                 origin="monitor",
                 origin_ref=batch.batch_id,
+                title=explanation_title(list(batch.alerts)),
                 max_run_seconds=EXPLANATION_SECONDS,
             )
         except Exception:

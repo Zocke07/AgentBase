@@ -3602,6 +3602,29 @@ button.md__tag:hover {
   -webkit-line-clamp: 3;
 }
 
+/* An automation's run is named by its automation; its goal, a paragraph of
+   instructions, is the caption beneath, whole on hover. */
+.run-card__title {
+  font-size: 0.9333rem;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: break-word;
+}
+
+.run-card--compact .run-card__title {
+  font-size: 0.8667rem;
+}
+
+.run-card__goal.run-card__goal--under {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 400;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .run-card__facts {
   display: flex;
   gap: 0.75rem;
@@ -3803,6 +3826,25 @@ button.md__tag:hover {
   font-size: 1.0625rem;
   line-height: 1.4;
   overflow-wrap: anywhere;
+}
+
+/* An automation's instructions, folded under the run's title. */
+.run-summary__brief {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 0.8667rem;
+}
+
+.run-summary__brief>summary {
+  width: fit-content;
+  cursor: pointer;
+}
+
+.run-summary__brief>p {
+  margin: 0.3rem 0 0;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .run-summary__issue-badge {

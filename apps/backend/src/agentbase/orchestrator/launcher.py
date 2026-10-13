@@ -81,6 +81,7 @@ class RunLauncher:
         space_id: str | None = None,
         origin: RunOrigin = "ui",
         origin_ref: str | None = None,
+        title: str | None = None,
         excluded_citations: tuple[str, ...] = (),
         prologue: Callable[[RunRow], Awaitable[None]] | None = None,
         max_run_seconds: int | None = None,
@@ -89,6 +90,7 @@ class RunLauncher:
         """Create a run, append ``prologue``, then start it.
 
         :param space_id: run location; ``None`` selects default space.
+        :param title: an automation's name for the run; a person's run has none.
         :param prologue: append before any orchestrator event.
         :param max_run_seconds: schedule-specific limit over the space limit;
             ``None`` retains the space limit.
@@ -102,6 +104,7 @@ class RunLauncher:
             origin=origin,
             origin_ref=origin_ref,
             space_id=space.id if space is not None else DEFAULT_SPACE_ID,
+            title=title,
         )
 
         if prologue is not None:

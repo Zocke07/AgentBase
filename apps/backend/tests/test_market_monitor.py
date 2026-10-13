@@ -259,6 +259,7 @@ class _Launcher:
             origin=options["origin"],
             origin_ref=options["origin_ref"],
             space_id=options["space_id"],
+            title=options.get("title"),
         )
         await self.events.set_run_status(run.id, "running")
         self.started.append({"goal": goal, **options, "run": run})
@@ -392,6 +393,7 @@ async def test_a_move_alerts_posts_and_starts_one_explanation_run(
     assert len(h.yahoo.requests) == 1 and "symbols=MU" in h.yahoo.requests[0]
     [started] = h.launcher.started
     assert started["origin"] == "monitor" and started["origin_ref"] == alert.batch_id
+    assert started["run"].title == "Market alert: MU"
     assert "MU (Micron Technology, Inc.) down 5.50% since the previous close" in started["goal"]
     assert "write alerts/2026-10-13-1100.md" in started["goal"]
     assert h.posted[0].startswith("Market alert, Tuesday 2026-10-13 11:00 New York time")

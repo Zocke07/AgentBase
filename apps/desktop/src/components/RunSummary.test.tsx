@@ -175,6 +175,22 @@ describe("RunSummary", () => {
     expect(screen.queryByTestId("run-policy")).toBeNull();
   });
 
+  it("heads an automation's run with its title and folds its instructions beneath", () => {
+    const log = new LogBuilder();
+    const goal = "Ask news-scanner first to discover Yahoo Finance top gainers, then collect headlines.";
+    const view = reduceAll([log.add("run.started", { goal })]);
+    const { unmount } = render(<RunSummary view={view} title="Morning collection" />);
+
+    expect(screen.getByRole("heading").textContent).toBe("Morning collection");
+    expect(screen.getByText("What it was asked to do").closest("details")?.textContent).toContain(goal);
+    unmount();
+
+    // A person's own run has no title: the goal they wrote is the headline.
+    render(<RunSummary view={view} />);
+    expect(screen.getByRole("heading").textContent).toBe(goal);
+    expect(screen.queryByText("What it was asked to do")).toBeNull();
+  });
+
   it("shows what the run cost, from the log", () => {
     render(<RunSummary view={reduceAll(twoAgentRun())} />);
 

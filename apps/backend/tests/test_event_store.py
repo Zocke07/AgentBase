@@ -216,6 +216,24 @@ async def test_create_and_fetch_run(store: EventStore) -> None:
     assert fetched.finished_at is None
 
 
+async def test_a_run_keeps_the_title_it_started_with(store: EventStore) -> None:
+    # The Runs view names an automation's run by its schedule, not its goal.
+    titled = await store.create_run(
+        goal="Ask news-scanner first to discover ...",
+        origin="schedule",
+        origin_ref="schedule-1",
+        title="Morning collection",
+    )
+    untitled = await store.create_run(goal="summarise my notes", origin="ui")
+
+    fetched = await store.get_run(titled.id)
+    listed = {run.id: run.title for run in await store.list_runs()}
+
+    assert titled.title == "Morning collection"
+    assert fetched is not None and fetched.title == "Morning collection"
+    assert listed == {titled.id: "Morning collection", untitled.id: None}
+
+
 async def test_get_unknown_run_returns_none(store: EventStore) -> None:
     assert await store.get_run("nope") is None
 

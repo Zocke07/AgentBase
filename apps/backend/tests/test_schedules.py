@@ -378,7 +378,11 @@ class FakeLauncher:
         if space.archived:
             raise SpaceArchivedError(space.name)
         run = await self._store.create_run(
-            goal, origin=kwargs["origin"], origin_ref=kwargs["origin_ref"], space_id=space.id
+            goal,
+            origin=kwargs["origin"],
+            origin_ref=kwargs["origin_ref"],
+            space_id=space.id,
+            title=kwargs.get("title"),
         )
         self.launched.append({"goal": goal, "run_id": run.id, **kwargs})
         return run
@@ -413,6 +417,7 @@ async def test_a_tick_launches_what_is_due_as_a_scheduled_run_and_nothing_else(
             "space_id": DEFAULT_SPACE_ID,
             "origin": "schedule",
             "origin_ref": due.id,
+            "title": "Due",
             "max_run_seconds": None,
         }
     ]
@@ -540,6 +545,8 @@ async def test_a_schedule_with_its_own_time_limit_hands_it_to_the_launcher(
     fired = await scheduler.tick()
     assert [entry.schedule_id for entry in fired] == [long.id]
     assert launcher.launched[-1]["max_run_seconds"] == 3600
+    # The Runs view names the run after its automation, not its goal.
+    assert launcher.launched[-1]["title"] == "Nightly"
 
 
 async def test_run_now_is_bounded_like_a_timed_start_and_leaves_the_next_time(
@@ -552,6 +559,7 @@ async def test_run_now_is_bounded_like_a_timed_start_and_leaves_the_next_time(
     assert launcher.launched[-1]["max_run_seconds"] == 1800
     assert run.origin == "automation"
     assert run.origin_ref == created.id
+    assert run.title == "Nightly"
     after = await schedules.require(created.id)
     assert after.last_run_id == run.id
     assert after.last_outcome == "Started by hand."

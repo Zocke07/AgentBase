@@ -43,6 +43,29 @@ describe("RunCard", () => {
     expect(goal?.getAttribute("title")).toBe(run.goal);
   });
 
+  it("names an automation's run by its title, with the goal beneath", () => {
+    // Every run of a morning's chain led with the same paragraph of instructions.
+    const run: Run = {
+      id: "run-titled",
+      space_id: "space-main",
+      goal: "Ask news-scanner first to discover Yahoo Finance top gainers, top losers and most active stocks",
+      status: "completed",
+      origin: "schedule",
+      origin_ref: "schedule-collect",
+      title: "Morning collection",
+      created_at: "2026-10-13T07:00:00Z",
+      finished_at: "2026-10-13T07:08:00Z",
+    };
+
+    render(<RunCard run={run} compact onOpen={vi.fn()} />);
+
+    const card = screen.getByTestId("run-row-run-titled");
+    expect(card.querySelector(".run-card__title")?.textContent).toBe("Morning collection");
+    const goal = card.querySelector(".run-card__goal--under");
+    expect(goal?.textContent).toBe(run.goal);
+    expect(goal?.getAttribute("title")).toBe(run.goal);
+  });
+
   it("distinguishes Run now from a timed schedule", () => {
     const run: Run = {
       id: "run-now",

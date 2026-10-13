@@ -110,5 +110,8 @@ class Run(BaseModel):
     status: RunStatus
     origin: RunOrigin
     origin_ref: str | None = None
+    #: What an automation's run is called: its schedule's name, or the moves a
+    #: market alert explains. ``None`` for a person's own run, named by its goal.
+    title: str | None = None
     created_at: datetime
     finished_at: datetime | None = None

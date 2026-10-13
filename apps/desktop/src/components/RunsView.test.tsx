@@ -484,3 +484,20 @@ describe("capturing an agent's words as a note", () => {
     expect(screen.getByTestId("capture-notice").textContent).toContain("Saved captures/run-1-");
   });
 });
+
+describe("an automation's run", () => {
+  it("is listed and headed by its title, not its instructions", async () => {
+    const user = userEvent.setup();
+    mocked.listRuns.mockResolvedValue([
+      { ...row("completed"), origin: "schedule", origin_ref: "schedule-1", title: "Morning collection" },
+    ]);
+    mocked.getRunHistory.mockResolvedValue(twoAgentRun());
+    render(<Harness onRunChanged={vi.fn()} pendingApprovals={[]} />);
+
+    await pick(user, "Morning collection", false);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("run-title").textContent).toBe("Morning collection");
+    });
+  });
+});

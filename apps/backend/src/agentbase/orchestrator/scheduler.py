@@ -373,6 +373,7 @@ class Scheduler:
                 space_id=schedule.space_id,
                 origin="schedule",
                 origin_ref=schedule.id,
+                title=schedule.name,
                 max_run_seconds=schedule.max_run_seconds,
             )
         except SpaceArchivedError:
@@ -474,6 +475,7 @@ class Scheduler:
             space_id=schedule.space_id,
             origin="automation",
             origin_ref=schedule.id,
+            title=schedule.name,
             max_run_seconds=schedule.max_run_seconds,
         )
         self._active_spaces[schedule.space_id] = run.id

@@ -32,6 +32,8 @@ const DETAIL_WIDTH_MIN = 240;
 
 export interface RunPanelProps {
   view: RunView;
+  /** See {@link RunSummaryProps.title}. */
+  title?: RunSummaryProps["title"];
   events: readonly Event[];
   cursor: number;
   selectedAgent: string | null;
@@ -55,6 +57,7 @@ export interface RunPanelProps {
 
 export function RunPanel({
   view,
+  title,
   events,
   cursor,
   selectedAgent,
@@ -185,6 +188,7 @@ export function RunPanel({
         >
           <RunSummary
             view={view}
+            title={title}
             onOpenNote={onOpenNote}
             onOpenFile={onOpenFile}
             spaceId={spaceId}

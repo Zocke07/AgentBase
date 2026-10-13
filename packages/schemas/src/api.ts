@@ -524,6 +524,7 @@ export interface Run {
   status: "pending" | "running" | "paused" | "completed" | "failed" | "cancelled";
   origin: "ui" | "discord" | "schedule" | "automation" | "monitor";
   origin_ref?: string | null;
+  title?: string | null;
   created_at: string;
   finished_at?: string | null;
 }

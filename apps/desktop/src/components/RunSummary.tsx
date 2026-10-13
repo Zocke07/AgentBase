@@ -17,6 +17,8 @@ import { MetricBar } from "./MetricBar";
 
 export interface RunSummaryProps {
   view: RunView;
+  /** An automation's name for the run, from its row; its goal then folds beneath. */
+  title?: string | null | undefined;
   /** Open cited Knowledge note; absent without navigation. */
   onOpenNote?: ((path: string, heading: string | null) => void) | undefined;
   /** Open a written data file in Knowledge's Agent files; absent without navigation. */
@@ -36,6 +38,7 @@ const CLAIM_FOLD_PX = 220;
 
 export function RunSummary({
   view,
+  title = null,
   onOpenNote,
   onOpenFile,
   spaceId = null,
@@ -70,7 +73,21 @@ export function RunSummary({
             {view.errors.length} {view.errors.length === 1 ? "error" : "errors"}
           </span>
         )}
-        <h2 className="run-summary__goal">{view.goal ?? "No goal recorded yet"}</h2>
+        {title === null ? (
+          <h2 className="run-summary__goal">{view.goal ?? "No goal recorded yet"}</h2>
+        ) : (
+          <>
+            <h2 className="run-summary__goal" data-testid="run-title">
+              {title}
+            </h2>
+            {view.goal !== null && (
+              <details className="run-summary__brief">
+                <summary>What it was asked to do</summary>
+                <p>{view.goal}</p>
+              </details>
+            )}
+          </>
+        )}
         {view.origin !== null && (
           // Same fold for Discord runs; show origin identity.
           <p className="run-summary__origin" data-testid="run-origin">

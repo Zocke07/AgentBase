@@ -393,6 +393,7 @@ export function RunsView({
               ) : (
                 <RunPanel
                   view={view}
+                  title={loadedRunId === selectedRow?.id ? selectedRow.title : null}
                   events={events}
                   cursor={cursor}
                   selectedAgent={selectedAgent}

@@ -115,6 +115,7 @@ def _row_to_run(row: sqlite3.Row) -> Run:
         status=row["status"],
         origin=row["origin"],
         origin_ref=row["origin_ref"],
+        title=row["title"],
         created_at=datetime.fromisoformat(row["created_at"]),
         finished_at=datetime.fromisoformat(finished) if finished else None,
     )
@@ -227,14 +228,20 @@ class EventStore:
         origin: RunOrigin = "ui",
         origin_ref: str | None = None,
         space_id: str = DEFAULT_SPACE_ID,
+        title: str | None = None,
     ) -> Run:
         """Insert a run row; pre-spaces callers use the default space."""
         return await asyncio.to_thread(
-            self._create_run_sync, goal, origin, origin_ref, space_id
+            self._create_run_sync, goal, origin, origin_ref, space_id, title
         )
 
     def _create_run_sync(
-        self, goal: str, origin: RunOrigin, origin_ref: str | None, space_id: str
+        self,
+        goal: str,
+        origin: RunOrigin,
+        origin_ref: str | None,
+        space_id: str,
+        title: str | None,
     ) -> Run:
         run = Run(
             id=str(uuid.uuid4()),
@@ -243,13 +250,15 @@ class EventStore:
             status="pending",
             origin=origin,
             origin_ref=origin_ref,
+            title=title,
             created_at=_now(),
         )
 
         with self._db.write() as connection:
             connection.execute(
-                "INSERT INTO runs (id, space_id, goal, status, origin, origin_ref, created_at)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO runs"
+                " (id, space_id, goal, status, origin, origin_ref, title, created_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     run.id,
                     run.space_id,
@@ -257,6 +266,7 @@ class EventStore:
                     run.status,
                     run.origin,
                     run.origin_ref,
+                    run.title,
                     run.created_at.isoformat(),
                 ),
             )

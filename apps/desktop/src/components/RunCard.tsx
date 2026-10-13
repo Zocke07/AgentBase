@@ -5,7 +5,8 @@ import { STATUS_LABEL } from "../state/describe";
 
 /**
  * Selectable `runs`-table snapshot. For open runs, fold status overrides lagging
- * rows; duration uses row timestamps, never a clock.
+ * rows; duration uses row timestamps, never a clock. An automation's run is
+ * named by its title, with its goal (a paragraph of instructions) beneath.
  */
 export interface RunCardProps {
   run: Run;
@@ -34,6 +35,7 @@ export function RunCard({
   const duration =
     finishedAt === null ? null : formatDuration(Date.parse(finishedAt) - Date.parse(run.created_at));
   const originLabel = runOriginLabel(run.origin);
+  const title = run.title ?? null;
 
   return (
     <button
@@ -52,7 +54,11 @@ export function RunCard({
           <span className="run-card__time">{clockDate(run.created_at)}</span>
         </span>
       </span>
-      <span className="run-card__goal" title={compact ? run.goal : undefined}>
+      {title !== null && <span className="run-card__title">{title}</span>}
+      <span
+        className={`run-card__goal${title !== null ? " run-card__goal--under" : ""}`}
+        title={compact || title !== null ? run.goal : undefined}
+      >
         {run.goal}
       </span>
       <span className="run-card__facts">
