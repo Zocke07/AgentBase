@@ -83,6 +83,18 @@ describe("creating", () => {
     expect(mocked.createSpace).toHaveBeenCalledWith({ name: "Lab 2", seed: { copy_from: "lab" } });
   });
 
+  it("does not offer copies of the default space's agents, its investment pipeline", async () => {
+    const user = userEvent.setup();
+    render(<SpaceSwitcher spaces={spaces} currentId="main" onSelect={vi.fn()} onCreated={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /Space: Main/ }));
+    await user.click(screen.getByRole("button", { name: "New space…" }));
+
+    expect(screen.queryByLabelText(/copies of Main's agents/)).toBeNull();
+    expect(screen.getByLabelText<HTMLInputElement>(/three starter roles/).checked).toBe(true);
+    expect(screen.getByLabelText(/no agents/)).toBeDefined();
+  });
+
   it("shows a refusal in place", async () => {
     const user = userEvent.setup();
     mocked.createSpace.mockRejectedValue(new Error("A space named 'Lab' already exists."));

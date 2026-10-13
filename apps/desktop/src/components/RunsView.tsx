@@ -40,6 +40,8 @@ export interface RunsViewProps {
   onOpenMemory?: ((path: string) => void) | undefined;
   /** Run memory status changed; reload inbox. */
   onMemoryChanged?: (() => void) | undefined;
+  /** The default space, whose market watch starts runs; other spaces have none. */
+  marketWatch?: boolean | undefined;
 }
 
 function connectionLabel(
@@ -82,6 +84,7 @@ export function RunsView({
   onOpenFile,
   onOpenMemory,
   onMemoryChanged,
+  marketWatch = false,
 }: RunsViewProps) {
   const [cancelling, setCancelling] = useState(false);
   /** Run with accepted cancellation; it stops at its next check. */
@@ -133,6 +136,12 @@ export function RunsView({
   useEffect(() => {
     ensureRuns();
   }, [ensureRuns]);
+
+  // The filter outlives a space switch; a space without the market watch has
+  // no market alert runs, so it would list nothing with no option to undo it.
+  useEffect(() => {
+    if (!marketWatch && origin === "monitor") setOrigin(undefined);
+  }, [marketWatch, origin, setOrigin]);
 
   const finished =
     view.status === "completed" || view.status === "failed" || view.status === "cancelled";
@@ -267,7 +276,7 @@ export function RunsView({
             <option value="automation">Run now</option>
             <option value="schedule">Scheduled</option>
             <option value="discord">From Discord</option>
-            <option value="monitor">Market alerts</option>
+            {marketWatch && <option value="monitor">Market alerts</option>}
           </select>
         </label>
 

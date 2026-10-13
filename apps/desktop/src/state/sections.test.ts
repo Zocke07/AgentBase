@@ -74,6 +74,26 @@ describe("the two sections", () => {
     expect(items[2]).toMatchObject({ kind: "file", date: "2026-10" });
   });
 
+  it("gives another space general groups, since the pipeline's stay in the default space", () => {
+    expect(summaryGroup("decisions/2026-10-12.md", false)).toBe("Notes");
+    expect(summaryGroup("alerts/2026-10-13-1100.md", false)).toBe("Notes");
+    expect(summaryGroup("daily/2026-10-13.md", false)).toBe("Daily notes");
+    expect(summaryGroup("reports/budget.xlsx", false)).toBe("Workbooks");
+    expect(summaryGroup("visualizations/daily-change.viz.json", false)).toBe("Charts and dashboards");
+    expect(summaryGroup("raw/movers-2026-10-12.json", false)).toBeNull();
+
+    const items = summaryItems(
+      [note("decisions/2026-10-12.md", "Decision, Oct 12"), note("daily/2026-10-13.md", "Oct 13")],
+      [file("predictions/2026-10.xlsx")],
+      false,
+    );
+    expect(items.map((item) => [item.group, item.title])).toEqual([
+      ["Workbooks", "2026 10"],
+      ["Daily notes", "Oct 13"],
+      ["Notes", "Decision, Oct 12"],
+    ]);
+  });
+
   it("names a file by what it holds", () => {
     expect(fileTitle("predictions/2026-11.xlsx")).toBe("Forecasts for November 2026");
     expect(fileTitle("visualizations/prediction-accuracy.viz.json")).toBe("Prediction accuracy");

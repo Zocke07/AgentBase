@@ -89,6 +89,15 @@ describe("what it fetches", () => {
     expect(screen.getByRole("alert").textContent).toContain("GET /tools: HTTP 500");
   });
 
+  it("asks for the tools its space's agents may use", async () => {
+    // Outside the default space, the sidecar lists the general tools only.
+    render(<AgentsView workspaceProvider="ollama" spaceId="space-lab" />);
+
+    await waitFor(() => {
+      expect(mocked.listTools).toHaveBeenCalledWith("space-lab");
+    });
+  });
+
   it("shows a failed provider catalogue the same way", async () => {
     const user = userEvent.setup();
     mocked.listProviders.mockRejectedValue(new Error("GET /settings/providers: HTTP 500"));

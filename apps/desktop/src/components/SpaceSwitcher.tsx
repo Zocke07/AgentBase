@@ -33,6 +33,10 @@ export function SpaceSwitcher({ spaces, currentId, onSelect, onCreated, compact 
   const nameInput = useRef<HTMLInputElement>(null);
 
   const current = spaces.find((space) => space.id === currentId) ?? null;
+  // The default space's agents are its investment pipeline, which stays there:
+  // a new space starts from the starter roles or nothing instead (2026-10-13).
+  const copyable = current !== null && !current.is_default;
+  const chosen = seed === "copy" && !copyable ? "builtins" : seed;
   const live = spaces.filter((space) => space.archived !== true);
   const archived = spaces.filter((space) => space.archived === true);
 
@@ -68,8 +72,7 @@ export function SpaceSwitcher({ spaces, currentId, onSelect, onCreated, compact 
     if (trimmed === "") return;
     setBusy(true);
     setError(null);
-    const body: Seed =
-      seed === "copy" && currentId !== null ? { copy_from: currentId } : seed === "copy" ? "builtins" : seed;
+    const body: Seed = chosen === "copy" && currentId !== null ? { copy_from: currentId } : chosen === "copy" ? "builtins" : chosen;
     try {
       const created = await api.createSpace({ name: trimmed, seed: body });
       setName("");
@@ -176,19 +179,21 @@ export function SpaceSwitcher({ spaces, currentId, onSelect, onCreated, compact 
                     ["empty", "no agents"],
                     ["copy", `copies of ${current?.name ?? "this space"}'s agents`],
                   ] as const
-                ).map(([value, label]) => (
-                  <label key={value} className="editor__tool">
-                    <input
-                      type="radio"
-                      name="seed"
-                      checked={seed === value}
-                      onChange={() => {
-                        setSeed(value);
-                      }}
-                    />
-                    <span>{label}</span>
-                  </label>
-                ))}
+                )
+                  .filter(([value]) => value !== "copy" || copyable)
+                  .map(([value, label]) => (
+                    <label key={value} className="editor__tool">
+                      <input
+                        type="radio"
+                        name="seed"
+                        checked={chosen === value}
+                        onChange={() => {
+                          setSeed(value);
+                        }}
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
               </fieldset>
               {error !== null && (
                 <p className="field-error" role="alert">

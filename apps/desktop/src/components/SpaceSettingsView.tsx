@@ -8,7 +8,7 @@ import type {
   ToolResponse,
   UpdateSpaceRequest,
 } from "@agentbase/schemas";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
@@ -164,7 +164,9 @@ export function SpaceSettingsView({
     }
     wasActive.current = active;
   }, [active, reloadCatalogue]);
-  const tools = useFetched(api.listTools, NO_TOOLS);
+  // Outside the default space, the general tools only.
+  const loadTools = useCallback(() => api.listTools(space.id), [space.id]);
+  const tools = useFetched(loadTools, NO_TOOLS);
   // Keep above remounting form so list reload `updated_at` changes do not hide
   // its saved notice, or what became of the agents a provider switch moved.
   const [saved, setSaved] = useState<string | null>(null);

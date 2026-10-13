@@ -296,6 +296,29 @@ describe("the picker", () => {
   });
 });
 
+describe("the market alerts filter", () => {
+  it("is offered where the market watch runs, and let go in a space without it", async () => {
+    // 2026-10-13: the market watch is the default space's alone.
+    const user = userEvent.setup();
+    mocked.listRuns.mockResolvedValue([]);
+    const { rerender } = render(<Harness onRunChanged={vi.fn()} pendingApprovals={[]} marketWatch />);
+
+    await user.selectOptions(screen.getByTestId("runs-origin"), "monitor");
+    await waitFor(() => {
+      expect(mocked.listRuns).toHaveBeenLastCalledWith(50, "space-main", "monitor");
+    });
+
+    useRunList.setState({ spaceId: "space-lab" });
+    rerender(<Harness onRunChanged={vi.fn()} pendingApprovals={[]} marketWatch={false} />);
+
+    await waitFor(() => {
+      expect(mocked.listRuns).toHaveBeenLastCalledWith(50, "space-lab", undefined);
+    });
+    expect(screen.queryByRole("option", { name: "Market alerts" })).toBeNull();
+    expect(screen.getByTestId<HTMLSelectElement>("runs-origin").value).toBe("");
+  });
+});
+
 describe("cancelling a run", () => {
   it("offers to cancel the selected run while it is going, and asks the sidecar when clicked", async () => {
     /* `run.cancelled` was in the contract and nothing produced it; a runaway

@@ -445,7 +445,13 @@ export const copyAgent = (id: string, spaceId: string): Promise<AgentDef> =>
 export const deleteAgent = (id: string): Promise<void> =>
   requestNoContent(`/agents/${id}`, { method: "DELETE" });
 
-export const listTools = (): Promise<ToolResponse[]> => request<ToolResponse[]>("/tools");
+/**
+ * Every tool, or the ones a space's agents may use: a space other than the
+ * default is offered the general tools only, since the investment pipeline's
+ * stay in the default space.
+ */
+export const listTools = (spaceId?: string | null): Promise<ToolResponse[]> =>
+  request<ToolResponse[]>(`/tools${query({ space_id: spaceId })}`);
 
 // --- approvals --------------------------------------------------------------
 

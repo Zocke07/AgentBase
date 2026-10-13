@@ -15,6 +15,8 @@ import { useFetched } from "../state/useFetched";
 
 export interface SummaryListProps {
   spaceId: string;
+  /** The default space, whose investment pipeline's results have groups of their own. */
+  pipeline?: boolean | undefined;
   /** The vault index's notes; null until it has been read. */
   notes: readonly NoteSummary[] | null;
   /** Bumped when files may have changed; rereads the workbooks and charts. */
@@ -40,7 +42,16 @@ const NEW_LABELS: Readonly<Record<NewKind, string>> = {
   diagram: "Diagram",
 };
 
-export function SummaryList({ spaceId, notes, reloadNonce = 0, activePath, onOpen, onReadAll, onNew }: SummaryListProps) {
+export function SummaryList({
+  spaceId,
+  pipeline = true,
+  notes,
+  reloadNonce = 0,
+  activePath,
+  onOpen,
+  onReadAll,
+  onNew,
+}: SummaryListProps) {
   const load = useCallback(() => api.listFiles(spaceId), [spaceId]);
   const files = useFetched(load, null);
   const { reload } = files;
@@ -51,7 +62,10 @@ export function SummaryList({ spaceId, notes, reloadNonce = 0, activePath, onOpe
   // Groups the person opened past their first few.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
 
-  const items = useMemo(() => summaryItems(notes ?? [], files.data?.files ?? []), [notes, files.data]);
+  const items = useMemo(
+    () => summaryItems(notes ?? [], files.data?.files ?? [], pipeline),
+    [notes, files.data, pipeline],
+  );
   const wanted = query.trim().toLocaleLowerCase();
   const matching =
     wanted === "" ? items : items.filter((item) => `${item.title} ${item.path}`.toLocaleLowerCase().includes(wanted));
@@ -103,10 +117,17 @@ export function SummaryList({ spaceId, notes, reloadNonce = 0, activePath, onOpe
       {loaded && items.length === 0 && (
         <div className="summary__empty">
           <p>Nothing to read yet.</p>
-          <p>
-            Decisions, portfolio reviews, market alerts and the monthly forecast workbook appear here as the daily
-            pipeline writes them. The raw data and settings behind them are under Technical Details.
-          </p>
+          {pipeline ? (
+            <p>
+              Decisions, portfolio reviews, market alerts and the monthly forecast workbook appear here as the daily
+              pipeline writes them. The raw data and settings behind them are under Technical Details.
+            </p>
+          ) : (
+            <p>
+              Notes, reports, workbooks and charts appear here as this space&apos;s runs and you write them. The raw
+              data and settings behind them are under Technical Details.
+            </p>
+          )}
         </div>
       )}
       {items.length > 0 && matching.length === 0 && (

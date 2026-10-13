@@ -222,6 +222,15 @@ describe("a ChatGPT plan that lacks a model", () => {
 });
 
 describe("what is sent", () => {
+  it("lists per-tool answers for the tools this space's agents may use", async () => {
+    // Outside the default space, the sidecar lists the general tools only.
+    render(<SpaceSettingsView space={lab} settings={settings} onChanged={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(mocked.listTools).toHaveBeenCalledWith(lab.id);
+    });
+  });
+
   it("sends a rule set back to blank as null, so the sidecar reads it as inherit", async () => {
     const user = userEvent.setup();
     const onChanged = vi.fn();

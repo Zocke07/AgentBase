@@ -6,7 +6,7 @@ import type {
   ToolResponse,
   UpdateAgentRequest,
 } from "@agentbase/schemas";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import * as api from "../lib/api";
 import { useRoster } from "../state/roster";
@@ -55,7 +55,9 @@ export function AgentsView({ workspaceProvider, spaceId = null, spaces = [] }: A
   const rosterError = useRoster((state) => state.error);
   const reloadRoster = useRoster((state) => state.load);
   const ensureRoster = useRoster((state) => state.ensure);
-  const tools = useFetched(api.listTools, NO_TOOLS);
+  // Outside the default space, the general tools only.
+  const loadTools = useCallback(() => api.listTools(spaceId), [spaceId]);
+  const tools = useFetched(loadTools, NO_TOOLS);
   const catalogue = useFetched(api.listProviders, NO_CATALOGUE);
 
   useEffect(() => {

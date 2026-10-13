@@ -905,6 +905,7 @@ export function KnowledgeView({
             ) : (
               <SummaryList
                 spaceId={space.id}
+                pipeline={space.is_default}
                 notes={index?.notes ?? null}
                 reloadNonce={listsNonce}
                 activePath={

@@ -280,7 +280,10 @@ export function HomeView({
           </section>
         )}
 
-        {space !== null && <PortfolioEditor key={space.id} spaceId={space.id} reloadNonce={portfolioNonce} running={now.some((run) => run.space_id === space.id && unfinished({ ...run, status: statusOf(run) }))} onSaved={() => {
+        {/* The portfolio editor and the pipeline offer belong to the default
+            space's investment pipeline; other spaces use the general agent
+            tools (2026-10-13). */}
+        {space?.is_default === true && <PortfolioEditor key={space.id} spaceId={space.id} reloadNonce={portfolioNonce} running={now.some((run) => run.space_id === space.id && unfinished({ ...run, status: statusOf(run) }))} onSaved={() => {
           onWorkspaceChanged();
           onPortfolioSaved?.();
         }} />}
@@ -291,7 +294,7 @@ export function HomeView({
               {pipelineNotice}
             </p>
           )}
-          {space !== null && (
+          {space?.is_default === true && (
             <PipelineOffer
               spaceId={space.id}
               // Only this space's rows: a list still loading after a switch

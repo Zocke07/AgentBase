@@ -118,6 +118,14 @@ describe("starting a run", () => {
     expect(onPortfolioSaved).toHaveBeenCalledOnce();
     expect(handlers.onWorkspaceChanged).toHaveBeenCalledOnce();
   });
+  it("keeps personal-data editing to the default space", async () => {
+    // 2026-10-13: the portfolio belongs to the default space's investment
+    // pipeline; another space uses the general agent tools only.
+    home({ space: { id: "space-lab", name: "Lab", is_default: false, folder: "D:/data/lab", created_at: "2026-10-13", updated_at: "2026-10-13" } });
+    await screen.findByTestId("run-card-run-1");
+    expect(screen.queryByRole("button", { name: "Edit portfolio" })).toBeNull();
+    expect(mocked.getPortfolio).not.toHaveBeenCalled();
+  });
   it("starts the run, opens it, and re-reads the list", async () => {
     const user = userEvent.setup();
     mocked.createRun.mockResolvedValue(row("pending", "run-new", "do a thing"));

@@ -666,6 +666,7 @@ export function App() {
                 onOpenFile={openFile}
                 onOpenMemory={openMemory}
                 onMemoryChanged={memoryChanged}
+                marketWatch={space?.is_default === true}
               />
             </ErrorBoundary>
           </div>

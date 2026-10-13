@@ -63,16 +63,20 @@ export function AutomationsView({
             {notice}
           </p>
         )}
-        <PipelineOffer
-          spaceId={space.id}
-          schedules={schedules.data}
-          runCapMicros={runCap}
-          onTurnedOn={(result) => {
-            setNotice(pipelineNotice(result));
-            schedules.reload();
-            onSchedulesChanged?.();
-          }}
-        />
+        {/* The pipeline and its market watch belong to the default space;
+            other spaces use the general agent tools (2026-10-13). */}
+        {space.is_default && (
+          <PipelineOffer
+            spaceId={space.id}
+            schedules={schedules.data}
+            runCapMicros={runCap}
+            onTurnedOn={(result) => {
+              setNotice(pipelineNotice(result));
+              schedules.reload();
+              onSchedulesChanged?.();
+            }}
+          />
+        )}
         <Schedules
           key={space.id}
           space={space}
@@ -82,7 +86,7 @@ export function AutomationsView({
           reloadNonce={schedulesNonce}
           onChanged={onSchedulesChanged}
         />
-        <MarketWatch key={`watch-${space.id}`} spaceId={space.id} onOpenFile={onOpenFile} />
+        {space.is_default && <MarketWatch key={`watch-${space.id}`} spaceId={space.id} onOpenFile={onOpenFile} />}
       </div>
     </div>
   );

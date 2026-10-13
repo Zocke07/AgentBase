@@ -11,6 +11,10 @@ import { dateInName, monthHeading, reportKind } from "./journal";
  * Details is the raw data, settings and records the agents work from, with
  * the vault's own tools. A file belongs to one of them by where it is and
  * what it is, so the same file never sits in both lists.
+ *
+ * The pipeline's groups (decisions, reviews, alerts, forecast workbooks) are
+ * the default space's: its investment pipeline stays there (2026-10-13).
+ * Another space's results are notes, daily notes, workbooks and charts.
  */
 export type KnowledgeSection = "summary" | "technical";
 
@@ -21,6 +25,7 @@ export const SUMMARY_GROUPS = [
   "Weekly reviews",
   "Market alerts",
   "Forecast workbooks",
+  "Workbooks",
   "Charts and dashboards",
   "Daily notes",
   "Notes",
@@ -54,15 +59,19 @@ const REPORT_GROUPS: Readonly<Record<string, SummaryGroup>> = {
  */
 const BEHIND_THE_SCENES: readonly string[] = ["memory/", "templates/", "raw/"];
 
-/** The User Summary group a file belongs to, or null for Technical Details. */
-export function summaryGroup(path: string): SummaryGroup | null {
+/**
+ * The User Summary group a file belongs to, or null for Technical Details.
+ * `pipeline` is whether the space is the default one, with the pipeline's groups.
+ */
+export function summaryGroup(path: string, pipeline = true): SummaryGroup | null {
   if (path.split("/").some((part) => part.startsWith("."))) return null;
-  if (path.toLocaleLowerCase().endsWith(".xlsx")) return "Forecast workbooks";
+  if (path.toLocaleLowerCase().endsWith(".xlsx")) return pipeline ? "Forecast workbooks" : "Workbooks";
   const kind = fileKind(path);
   if (kind === "chart" || kind === "dashboard" || kind === "diagram") return "Charts and dashboards";
   if (!isNote(path) || BEHIND_THE_SCENES.some((folder) => path.startsWith(folder))) return null;
   const report = reportKind(path);
-  return report === null ? "Notes" : (REPORT_GROUPS[report] ?? "Notes");
+  const group = report === null ? "Notes" : (REPORT_GROUPS[report] ?? "Notes");
+  return pipeline || group === "Daily notes" ? group : "Notes";
 }
 
 /** Which section a file is in. */
@@ -77,10 +86,11 @@ export function sectionOf(path: string): KnowledgeSection {
 export function summaryItems(
   notes: readonly NoteSummary[],
   files: readonly TextFileSummary[],
+  pipeline = true,
 ): SummaryItem[] {
   const items: SummaryItem[] = [];
   for (const note of notes) {
-    const group = summaryGroup(note.path);
+    const group = summaryGroup(note.path, pipeline);
     if (group === null) continue;
     items.push({
       path: note.path,
@@ -92,13 +102,13 @@ export function summaryItems(
     });
   }
   for (const file of files) {
-    const group = summaryGroup(file.path);
+    const group = summaryGroup(file.path, pipeline);
     if (group === null) continue;
     items.push({
       path: file.path,
       kind: "file",
       group,
-      title: fileTitle(file.path),
+      title: fileTitle(file.path, pipeline),
       date: dateInName(file.path),
       updatedAt: file.updated_at,
     });
@@ -113,10 +123,10 @@ export function summaryItems(
 }
 
 /** "Forecasts for October 2026"; "Daily change" for `visualizations/daily-change.viz.json`. */
-export function fileTitle(path: string): string {
+export function fileTitle(path: string, pipeline = true): string {
   const name = path.slice(path.lastIndexOf("/") + 1);
   const monthly = /^(\d{4}-\d{2})\.xlsx$/iu.exec(name);
-  if (monthly?.[1] !== undefined && path.startsWith("predictions/")) {
+  if (pipeline && monthly?.[1] !== undefined && path.startsWith("predictions/")) {
     return `Forecasts for ${monthHeading(monthly[1])}`;
   }
   const stem = name.replace(/\.(?:viz\.json|dashboard\.json|mmd|mermaid|xlsx)$/iu, "");

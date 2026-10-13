@@ -741,6 +741,23 @@ describe("the vault as an editor", () => {
 });
 
 describe("two sections: User Summary and Technical Details", () => {
+  it("gives another space general groups, without the investment pipeline's", async () => {
+    mocked.listKnowledge.mockResolvedValue({
+      ...index,
+      notes: [{ ...note, path: "decisions/2026-10-12.md", title: "Decision for Oct 12" }],
+    });
+    mocked.listFiles.mockResolvedValue({
+      files: [{ path: "reports/budget.xlsx", size: 2048, updated_at: "2026-10-13T00:00:00Z" }],
+    });
+    render(<KnowledgeView space={space} />);
+
+    const list = await screen.findByTestId("summary-list");
+    expect((await within(list).findByRole("region", { name: "Workbooks" })).textContent).toContain("Budget");
+    expect(within(list).getByRole("region", { name: "Notes" }).textContent).toContain("Decision for Oct 12");
+    expect(within(list).queryByRole("region", { name: "Decisions" })).toBeNull();
+    expect(within(list).queryByRole("region", { name: "Forecast workbooks" })).toBeNull();
+  });
+
   it("opens on the results, grouped and read in Preview, with the raw files left to Technical Details", async () => {
     const user = userEvent.setup();
     const decision: KnowledgeNote = {
@@ -760,7 +777,8 @@ describe("two sections: User Summary and Technical Details", () => {
         { path: "raw/movers-2026-10-12.json", size: 900, updated_at: "2026-10-13T00:00:00Z" },
       ],
     });
-    render(<KnowledgeView space={space} />);
+    // The pipeline's groups are the default space's.
+    render(<KnowledgeView space={{ ...space, is_default: true }} />);
 
     expect(await screen.findByRole("tab", { name: "User Summary", selected: true })).toBeTruthy();
     const list = screen.getByTestId("summary-list");

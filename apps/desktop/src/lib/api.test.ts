@@ -14,6 +14,7 @@ import {
   getPortfolio,
   savePortfolio,
   listRuns,
+  listTools,
   logoutChatGPT,
   onTransportFailure,
   resetBaseUrl,
@@ -69,6 +70,18 @@ describe("requests", () => {
     expect(fetchStub.mock.calls.map(([url]) => (typeof url === "string" ? url : "not a string"))).toEqual([
       "http://127.0.0.1:8787/runs?limit=10",
       "http://127.0.0.1:8787/runs?limit=20",
+    ]);
+  });
+
+  it("asks for every tool, or for the ones a space's agents may use", async () => {
+    fetchStub.mockImplementation(() => Promise.resolve(respond(200, [])));
+
+    await listTools();
+    await listTools("space-lab");
+
+    expect(fetchStub.mock.calls.map(([url]) => (typeof url === "string" ? url : "not a string"))).toEqual([
+      "http://127.0.0.1:8787/tools",
+      "http://127.0.0.1:8787/tools?space_id=space-lab",
     ]);
   });
 
