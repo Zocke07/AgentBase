@@ -26,6 +26,8 @@ vi.mock("../lib/api", () => ({
   updateSchedule: vi.fn(),
   listFiles: vi.fn(),
   writeFile: vi.fn(),
+  getPortfolio: vi.fn(),
+  savePortfolio: vi.fn(),
 }));
 
 const mocked = vi.mocked(api);
@@ -99,9 +101,23 @@ beforeEach(() => {
   mocked.listRuns.mockResolvedValue([row("completed")]);
   mocked.listAgents.mockResolvedValue([writer]);
   mocked.listSchedules.mockResolvedValue([]);
+  mocked.getPortfolio.mockResolvedValue({ portfolio: { currency: "USD", cash: "0", holdings: [], watchlist: [], limits: { max_position_pct: "10", max_sector_pct: "70", max_daily_loss_pct: "3" } }, revision: "original" });
 });
 
 describe("starting a run", () => {
+  it("offers personal-data editing on Home and refreshes related views after saving", async () => {
+    const user = userEvent.setup();
+    mocked.savePortfolio.mockImplementation((_id, body) => Promise.resolve({ ...body, revision: "saved" }));
+    const onPortfolioSaved = vi.fn();
+    const handlers = home({ space: { id: "space-main", name: "Main", is_default: true, folder: "D:/data/main", created_at: "2026-10-13", updated_at: "2026-10-13" }, onPortfolioSaved });
+    await user.click(await screen.findByRole("button", { name: "Edit portfolio" }));
+    await user.clear(screen.getByLabelText("Cash available to invest"));
+    await user.type(screen.getByLabelText("Cash available to invest"), "5000.01");
+    await user.click(screen.getByRole("button", { name: "Save portfolio" }));
+    await screen.findByText("Portfolio saved. Upcoming runs will use these details.");
+    expect(onPortfolioSaved).toHaveBeenCalledOnce();
+    expect(handlers.onWorkspaceChanged).toHaveBeenCalledOnce();
+  });
   it("starts the run, opens it, and re-reads the list", async () => {
     const user = userEvent.setup();
     mocked.createRun.mockResolvedValue(row("pending", "run-new", "do a thing"));
@@ -496,7 +512,7 @@ describe("working on its own", () => {
     expect(offer.textContent).toContain("$2,500 USD cash");
     expect(offer.textContent).toContain("Purchase prices and dates are blank");
     expect(offer.textContent).toContain("70% per sector");
-    expect(offer.textContent).toContain("Agent files");
+    expect(offer.textContent).toContain("My portfolio editor");
     expect(offer.textContent).toContain("Yahoo Finance top gainers, losers");
     expect(offer.textContent).toContain("one Excel file per month");
     expect(offer.textContent).toContain("1, 2, 3, 5 and 21 trading days");

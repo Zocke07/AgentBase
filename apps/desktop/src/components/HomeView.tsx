@@ -20,6 +20,7 @@ import { Markdown } from "./Markdown";
 import { MarketAlerts } from "./MarketAlerts";
 import { MetricBar } from "./MetricBar";
 import { PipelineOffer } from "./PipelineOffer";
+import { PortfolioEditor } from "./PortfolioEditor";
 import { RunCard } from "./RunCard";
 
 /**
@@ -53,6 +54,7 @@ export interface HomeViewProps {
   onOpenNote?: ((path: string, heading: string | null) => void) | undefined;
   /** Spend/settings may change; shell reloads header. */
   onWorkspaceChanged: () => void;
+  onPortfolioSaved?: (() => void) | undefined;
   /** Per-run spending ceiling in micros, named where the pipeline is offered. */
   runCapMicros?: number | null | undefined;
   onOpenAutomations?: (() => void) | undefined;
@@ -107,6 +109,7 @@ export function HomeView({
   onOpenSpaceSettings,
   onOpenNote,
   onWorkspaceChanged,
+  onPortfolioSaved,
   runCapMicros = null,
   onOpenAutomations,
   onAutomate,
@@ -118,6 +121,7 @@ export function HomeView({
   const [goal, setGoal] = useState("");
   const [stepThrough, setStepThrough] = useState(false);
   const [pipelineNotice, setPipelineNotice] = useState<string | null>(null);
+  const [portfolioNonce, setPortfolioNonce] = useState(0);
   const spaceId = space?.id ?? null;
   const loadSchedules = useCallback(
     () => (spaceId === null ? Promise.resolve(NO_SCHEDULES) : api.listSchedules(spaceId)),
@@ -276,6 +280,11 @@ export function HomeView({
           </section>
         )}
 
+        {space !== null && <PortfolioEditor key={space.id} spaceId={space.id} reloadNonce={portfolioNonce} running={now.some((run) => run.space_id === space.id && unfinished({ ...run, status: statusOf(run) }))} onSaved={() => {
+          onWorkspaceChanged();
+          onPortfolioSaved?.();
+        }} />}
+
         <section className="home__section home__automations" data-testid="home-automations">
           {pipelineNotice !== null && (
             <p className="settings__saved" role="status">
@@ -291,6 +300,7 @@ export function HomeView({
               runCapMicros={runCapMicros}
               onTurnedOn={(result) => {
                 setPipelineNotice(noticeFor(result));
+                setPortfolioNonce((current) => current + 1);
                 schedules.reload();
                 onSchedulesChanged?.();
               }}

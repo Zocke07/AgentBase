@@ -1615,6 +1615,35 @@ the Phase 13 repair note.)*
 
 ---
 
+### Phase 19: Personal stock-data editing
+
+*Requested 2026-10-13: let the person change the stock data needed by runs
+without editing configuration files.*
+
+- Home provides **My portfolio → Edit portfolio** for holdings, optional
+  purchase price/date, company/sector/industry/exchange, additional watched
+  stocks, cash and one currency, and the three portfolio risk percentages.
+- A native user-initiated GET/PUT `/spaces/{id}/portfolio` operates on the
+  existing `portfolio/positions.csv`, `config/watchlist.json` and
+  `config/limits.json`. Holdings are represented once in the form and remain
+  watched. No new agent tool, model call, broker connection or data database.
+- Validate all inputs before writes, retain decimal precision, extra CSV
+  columns and custom JSON metadata, and reject mixed currencies or malformed
+  originals. Missing files are an empty book, not invented holdings.
+- Revisions prevent overwriting a newer edit. A pending/running/paused run
+  prevents saving its inputs; replacements hold the shared database lock so
+  another run cannot start midway. Originals and rollback copies are staged
+  before replacing files. Disk failures retain recoverable originals.
+- Drafts survive space switches in the same window; Save is explicit, Cancel
+  discards, errors retain edits, and late reads/saves cannot erase newer drafts.
+- Changed personal inputs require a new same-session review; forecasts stay
+  immutable. Configured holdings/watchlist take priority over optional cached
+  discovery within the 50-stock price limit, with omissions reported.
+
+**Accept when:** edits round-trip through the form and are read unchanged by
+the portfolio tools; stale/busy/invalid saves cannot replace inputs; rollback
+and per-space confinement are tested; window navigation preserves drafts.
+
 ## 6. How you should work
 
 - **One phase per session.** At the end of each phase, stop. Report what you built, what

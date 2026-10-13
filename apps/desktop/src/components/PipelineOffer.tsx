@@ -58,7 +58,7 @@ export function PipelineOffer({ spaceId, schedules, runCapMicros, onTurnedOn }: 
         <p>
           <strong>Sample portfolio:</strong> one share each of MU, ORCL, CRWV, MSFT, NOW and AVGO, with
           $2,500 USD cash. Purchase prices and dates are blank because they are unknown. Review the sample
-          in Knowledge, then Agent files, and replace it with your real holdings before relying on the results.
+          in Home&apos;s My portfolio editor and replace it with your real holdings before relying on the results.
           Limits start at 10% per stock, 70% per sector and 3% daily loss; technology subsectors share the sector limit.
         </p>
         <p>

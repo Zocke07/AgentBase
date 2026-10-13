@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -19,6 +20,28 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
 pytestmark = pytest.mark.anyio
+
+
+async def test_changed_holdings_take_priority_over_a_full_cached_discovery_universe(
+    sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _resolver(monkeypatch)
+    for name, content in {
+        "portfolio/positions.csv": "ticker,shares\nCASH,0\nAAPL,1\n",
+        "raw/market/universe.json": json.dumps(
+            {"universe": [{"ticker": f"OLD{index}"} for index in range(50)]}
+        ),
+    }.items():
+        path = sandbox.root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+    client, _ = _client()
+    prepared = ReadPricesTool(client).prepare({}, sandbox)
+    assert len(prepared.payload["active_symbols"]) == 50
+    assert "AAPL" in prepared.payload["active_symbols"]
+    assert prepared.payload["omitted_discovered_symbols"] == ["OLD49"]
+    await client.aclose()
+
 
 _FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -268,6 +291,16 @@ async def test_same_session_retry_can_finish_missing_forecasts_or_decision(
     complete = json.loads(await tool.execute(prepared, sandbox))
     assert complete["new_session"] is False
     assert complete["research_needed"] is False
+    # A personal-data edit needs a fresh review even when prices and immutable
+    # forecast coverage already exist for this session.
+    limits = sandbox.root / "config/limits.json"
+    limits.parent.mkdir(exist_ok=True)
+    limits.write_text('{"max_position_pct":10,"max_sector_pct":65,"max_daily_loss_pct":3}')
+    modified = decision.stat().st_mtime_ns + 1_000_000_000
+    os.utime(limits, ns=(modified, modified))
+    changed_book = json.loads(await tool.execute(prepared, sandbox))
+    assert changed_book["new_session"] is False
+    assert changed_book["research_needed"] is True
     decision.unlink()
     interrupted = json.loads(await tool.execute(prepared, sandbox))
     assert interrupted["new_session"] is False

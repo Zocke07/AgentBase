@@ -476,9 +476,47 @@ export interface NoteSummary {
   updated_at: string;
 }
 
+export interface PersonalPortfolio {
+  currency: string;
+  cash: string;
+  holdings: PortfolioHolding[];
+  watchlist: PortfolioStock[];
+  limits: PortfolioLimits;
+}
+
 export interface PinNoteRequest {
   path: string;
   pinned: boolean;
+}
+
+export interface PortfolioHolding {
+  ticker: string;
+  sector: string;
+  company_name?: string;
+  industry?: string;
+  exchange?: string;
+  shares: string;
+  cost_per_share?: string | null;
+  opened?: string | null;
+}
+
+export interface PortfolioLimits {
+  max_position_pct: string;
+  max_sector_pct: string;
+  max_daily_loss_pct: string;
+}
+
+export interface PortfolioResponse {
+  portfolio: PersonalPortfolio;
+  revision: string;
+}
+
+export interface PortfolioStock {
+  ticker: string;
+  sector: string;
+  company_name?: string;
+  industry?: string;
+  exchange?: string;
 }
 
 export interface PreviewRequest {
@@ -527,6 +565,11 @@ export interface Run {
   title?: string | null;
   created_at: string;
   finished_at?: string | null;
+}
+
+export interface SavePortfolioRequest {
+  portfolio: PersonalPortfolio;
+  revision: string;
 }
 
 /** Cadence preview before saving. */

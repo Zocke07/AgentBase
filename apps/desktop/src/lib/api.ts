@@ -24,6 +24,8 @@ import type {
   MemoryMergeResult,
   MemoryStatus,
   MonitorStatus,
+  PortfolioResponse,
+  SavePortfolioRequest,
   ProviderCatalogueResponse,
   ProviderSwitchPlan,
   Run,
@@ -265,6 +267,13 @@ export const listFiles = (spaceId: string): Promise<TextFileIndex> => request<Te
 
 export const getFile = (spaceId: string, path: string): Promise<TextFile> =>
   request<TextFile>(`/spaces/${spaceId}/knowledge/file${query({ path })}`);
+
+/** Personal stock inputs saved in the same files read by runs. */
+export const getPortfolio = (spaceId: string): Promise<PortfolioResponse> =>
+  request<PortfolioResponse>(`/spaces/${spaceId}/portfolio`);
+
+export const savePortfolio = (spaceId: string, body: SavePortfolioRequest): Promise<PortfolioResponse> =>
+  request<PortfolioResponse>(`/spaces/${spaceId}/portfolio`, { method: "PUT", ...asJson(body) });
 
 /** Keep workbook bytes intact; the download route uses the space's file rules. */
 export const downloadFile = async (spaceId: string, path: string): Promise<Blob> =>

@@ -32,6 +32,7 @@ from agentbase.api.approvals import router as approvals_router
 from agentbase.api.auth import router as auth_router
 from agentbase.api.channels import router as channels_router
 from agentbase.api.knowledge import router as knowledge_router
+from agentbase.api.portfolio import router as portfolio_router
 from agentbase.api.runs import router as runs_router
 from agentbase.api.schedules import router as schedules_router
 from agentbase.api.settings import router as settings_router
@@ -290,6 +291,7 @@ def create_app(
     app.include_router(auth_router)
     app.include_router(channels_router)
     app.include_router(knowledge_router)
+    app.include_router(portfolio_router)
     app.include_router(runs_router)
     app.include_router(schedules_router)
     app.include_router(settings_router)

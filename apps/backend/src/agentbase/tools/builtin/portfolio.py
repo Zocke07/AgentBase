@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
     from agentbase.tools.sandbox import Sandbox
 
-__all__ = ["ComputePortfolioTool"]
+__all__ = ["ComputePortfolioTool", "is_supported_currency"]
 
 _POSITIONS_PATH: Final[str] = "portfolio/positions.csv"
 _PRICES_PATH: Final[str] = "raw/prices/summary.csv"
@@ -63,6 +63,11 @@ _CURRENCIES: Final[frozenset[str]] = frozenset(
     XTS XUA XXX YER ZAR ZMW ZWG
     """.split()  # noqa: SIM905 - the official list is reviewable in this form
 )
+
+
+def is_supported_currency(code: str) -> bool:
+    """Whether a book currency is accepted by the portfolio arithmetic."""
+    return code in _CURRENCIES
 
 
 @dataclass(frozen=True, slots=True)

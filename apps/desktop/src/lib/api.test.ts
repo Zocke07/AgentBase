@@ -11,6 +11,8 @@ import {
   failureMessage,
   isMissing,
   getChatGPTAuth,
+  getPortfolio,
+  savePortfolio,
   listRuns,
   logoutChatGPT,
   onTransportFailure,
@@ -47,6 +49,15 @@ afterEach(() => {
 });
 
 describe("requests", () => {
+  it("reads and saves personal data with its original revision", async () => {
+    const response = { portfolio: { currency: "USD", cash: "100.125", holdings: [], watchlist: [], limits: { max_position_pct: "10", max_sector_pct: "70", max_daily_loss_pct: "3" } }, revision: "before" };
+    fetchStub.mockImplementation(() => Promise.resolve(respond(200, response)));
+    expect(await getPortfolio("space-main")).toEqual(response);
+    await savePortfolio("space-main", response);
+    expect(fetchStub.mock.calls[1]?.[0]).toBe("http://127.0.0.1:8787/spaces/space-main/portfolio");
+    expect(fetchStub.mock.calls[1]?.[1]?.method).toBe("PUT");
+    expect(fetchStub.mock.calls[1]?.[1]?.body).toBe(JSON.stringify(response));
+  });
   it("talks to the sidecar's origin, once resolved, for every call", async () => {
     // A `Response` body can be read once; each call gets its own.
     fetchStub.mockImplementation(() => Promise.resolve(respond(200, [])));

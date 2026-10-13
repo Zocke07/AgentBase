@@ -4,6 +4,39 @@ Updated 2026-10-13. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
+## Personal stock data can be edited on Home, 2026-10-13
+
+**Home → My portfolio → Edit portfolio** edits holdings, additional watched
+stocks, share counts, optional purchase prices and dates, cash, currency and
+the three percentage limits. Owned stocks are automatically watched. Saving
+updates the existing `portfolio/positions.csv`, `config/watchlist.json` and
+`config/limits.json`; it makes no model calls and places no trades.
+
+- **Data integrity.** Decimal inputs retain their precision, including JSON
+  limit values. Extra CSV columns, aliases and custom JSON metadata survive.
+  Originals are backed up before replacement; a failed later write restores
+  earlier files by renaming prewritten recovery copies. Malformed input and
+  mixed currencies are reported without replacing data. Revision checks
+  reject stale saves, and a save cannot overlap an active run in that space.
+- **Editing.** Failed saves retain the form. Unsaved edits survive navigation
+  and space changes within the window. Delayed loads cannot replace edits,
+  and a save completing after navigation cannot erase a newer draft. Loading
+  failures do not expose an empty form that could overwrite existing inputs.
+- **Runs.** Changed personal inputs allow a manual morning run to review the
+  same market session again. Existing forecasts stay immutable. Configured
+  holdings and watched stocks take priority over cached discoveries within
+  the 50-stock research limit.
+- **Executed.** Backend **1,380 passed, 12 skipped**, excluding the frozen
+  binary tests; the rebuilt frozen backend's **14 smoke tests passed**.
+  Desktop **641 passed in 61 files**. Ruff, formatting, ESLint, strict mypy
+  on macOS and Windows, and TypeScript passed. The production frontend and
+  macOS arm64 sidecar both built. The dev sidecar copy was updated for the
+  next app restart. Tests cover actual portfolio-tool consumption, rollback,
+  stale edits, decimal precision, space isolation, active-run protection,
+  discovery capacity and asynchronous form behavior.
+- **Unverified.** The packaged window has not been exercised with this form.
+  No live personal data was changed and no paid model calls were made.
+
 ## A model at capacity is waited out, 2026-10-13
 
 The retry's Theses and risk stage failed when GPT-5.6 Terra, the bull

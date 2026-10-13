@@ -6,6 +6,30 @@ AgentBase is built for work that runs on its own. A space's **Automations**
 run goals at set times, or one after another, with no one at the window; a
 task you want done once, and watched as it happens, is **Run once** on Home.
 
+## Your portfolio
+
+On **Home**, open **My portfolio → Edit portfolio**. Add or remove stocks you
+own, enter share counts, and optionally enter the average purchase price and
+first purchase date. Leave unknown prices and dates blank. Each stock needs
+its ticker and sector; company name, industry and exchange can also be edited.
+Owned stocks are automatically watched, so put only additional stocks under
+**Other stocks to watch**.
+
+Enter your available cash, one currency for all amounts, and your three risk
+limits as percentages of the whole portfolio including cash. **Save portfolio**
+updates the data used by upcoming runs and the market watch. Changing a
+currency label does not convert money. The shipped research follows the US
+market; use USD for that portfolio. No trades are placed by this editor.
+
+Unsaved edits stay in this window when switching spaces; **Cancel** discards
+them. A failed save keeps your edits. If another window or a file edit changed
+the saved data, reload it before saving. Finish or cancel an active run before
+saving its inputs. Existing files are backed up before replacement.
+
+After changing personal inputs, a manual morning run can review the same
+market session again. Existing forecasts stay immutable. Your stocks take
+priority over cached discovered stocks within the 50-stock research limit.
+
 ## Automations: work on its own
 
 Open **Automations** (the second item in the rail, Ctrl/Cmd+2). The page says
@@ -28,12 +52,17 @@ on:
 | Weekly knowledge | Saturdays at 09:00 | Concept notes from local knowledge and company notes from available financial reports or supplied filing text. |
 | Weekly review | Sundays at 18:00 | Scores resolved predictions and proposes durable lessons for Saved context. |
 
-Review the sample `config/watchlist.json` and `portfolio/positions.csv` in
-**Knowledge → Technical Details → Agent files** before the first run. They start with one share
+Review the sample in **Home → My portfolio → Edit portfolio** before the first
+run. It starts with one share
 each of MU, ORCL, CRWV, MSFT, NOW and AVGO plus $2,500 USD cash; purchase
 prices and dates stay unknown. Replace this sample with your real holdings
 and cash. The sample limits are 10% per stock, 70% per sector and 3% daily
 loss.
+
+The same data remains available in **Knowledge → Technical Details → Agent
+files** as `portfolio/positions.csv`, `config/watchlist.json` and
+`config/limits.json`. Advanced edits there are reflected when the portfolio
+form reloads; extra CSV columns and custom JSON metadata are preserved.
 
 Monthly workbooks in `predictions/` keep one sheet per market session with
 1-, 2-, 3-, 5- and 21-session forecast prices and later actuals. Open them

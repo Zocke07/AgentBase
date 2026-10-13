@@ -621,6 +621,7 @@ export function App() {
                 }}
                 onOpenNote={openNote}
                 onWorkspaceChanged={refreshWorkspace}
+                onPortfolioSaved={() => { setOutputsNonce((current) => current + 1); }}
                 runCapMicros={space?.max_run_cost_micros ?? settings?.settings.max_run_cost_micros ?? null}
                 onOpenAutomations={() => {
                   setSection("automations");

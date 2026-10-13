@@ -13,6 +13,16 @@ future changes do not relocate users' data or disconnect their stored keys.
 
 ## Current state
 
+- **Personal stock-data editor, 2026-10-13.** Home's My portfolio card edits
+  holdings, optional purchase details, cash/currency, additional watched
+  stocks and risk limits. GET/PUT `/spaces/{id}/portfolio` read/write the
+  three canonical run inputs; no duplicate database or new agent tool.
+  Revisions prevent stale overwrites; saves are blocked during active runs, preserve
+  extra metadata and decimal precision, and stage backups for atomic rollback.
+  Drafts survive space switches within the window. Changed personal inputs
+  allow a same-session review; configured stocks take priority over optional
+  cached discovery within the price limit. See docs/verification.md.
+
 - **Model at capacity, 2026-10-13.** GPT-5.6 Terra answered "Selected model
   is at capacity" in the retry's theses stage, and the run failed at once:
   the ChatGPT mapping ignored the App Server's `serverOverloaded` flag. It is

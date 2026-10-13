@@ -117,8 +117,9 @@ class ReadPricesTool:
         raw = arguments.get("symbols")
         active: list[str] | None = None
         held: list[str] | None = None
+        omitted: list[str] = []
         if raw is None:
-            active, raw, held = _automatic_symbols(sandbox)
+            active, raw, held, omitted = _automatic_symbols(sandbox)
         if not isinstance(raw, list) or not raw:
             msg = f"{self.name} needs a non-empty 'symbols' array."
             raise ToolArgumentError(msg)
@@ -170,6 +171,7 @@ class ReadPricesTool:
                 "movers_dir": movers_probe.parent,
                 "active_symbols": active,
                 "held_symbols": held,
+                "omitted_discovered_symbols": omitted,
             },
             raw_arguments=dict(arguments),
         )
@@ -257,6 +259,9 @@ class ReadPricesTool:
             "required_failures": required_failures,
             "history_failures": history_failures,
             "refreshed_histories": len(histories),
+            "omitted_discovered_symbols": prepared.payload.get(
+                "omitted_discovered_symbols", []
+            ),
             "written": written,
         }
         return json.dumps(returned, ensure_ascii=False, separators=(",", ":"))
@@ -273,6 +278,11 @@ def _research_needed(
     if not decision.is_file() or not ledger.is_file():
         return True
     try:
+        reviewed = decision.stat().st_mtime_ns
+        for name in ("portfolio/positions.csv", "config/watchlist.json", "config/limits.json"):
+            personal = sandbox.resolve_path(name)
+            if personal.is_file() and personal.stat().st_mtime_ns > reviewed:
+                return True
         document = json.loads(ledger.read_text(encoding="utf-8"))
         forecasts = document.get("forecasts", []) if isinstance(document, dict) else []
         if not isinstance(forecasts, list):
@@ -292,11 +302,12 @@ def _research_needed(
         return True
 
 
-def _automatic_symbols(sandbox: Sandbox) -> tuple[list[str], list[str], list[str]]:
+def _automatic_symbols(sandbox: Sandbox) -> tuple[list[str], list[str], list[str], list[str]]:
     """Holdings always participate; retired discoveries stay until scored."""
     active: list[str] = []
     tracked: list[str] = []
     held: list[str] = []
+    omitted: list[str] = []
 
     def add(value: object, target: list[str]) -> None:
         if not isinstance(value, str) or _SYMBOL.fullmatch(value.strip().upper()) is None:
@@ -324,7 +335,15 @@ def _automatic_symbols(sandbox: Sandbox) -> tuple[list[str], list[str], list[str
             if not isinstance(entries, list):
                 raise ToolArgumentError(f"{shown} needs a {key} array.")
             for entry in entries:
-                add(entry.get("ticker") if isinstance(entry, dict) else entry, active)
+                candidate: list[str] = []
+                add(entry.get("ticker") if isinstance(entry, dict) else entry, candidate)
+                for symbol in candidate:
+                    if symbol in active:
+                        continue
+                    if key == "universe" and len(active) >= MAX_PRICE_SYMBOLS:
+                        omitted.append(symbol)
+                    else:
+                        active.append(symbol)
         if len(active) > MAX_PRICE_SYMBOLS:
             raise ToolArgumentError(
                 "The active market universe may contain at most 50 symbols."
@@ -344,7 +363,7 @@ def _automatic_symbols(sandbox: Sandbox) -> tuple[list[str], list[str], list[str
         raise ToolArgumentError(f"The market universe could not be read: {exc}") from exc
     if not active:
         raise ToolArgumentError("Add holdings or a watchlist, or run read_market first.")
-    return active, tracked, held
+    return active, tracked, held, omitted
 
 
 async def _fetch(client: httpx2.AsyncClient, request: dict[str, Any]) -> bytes:

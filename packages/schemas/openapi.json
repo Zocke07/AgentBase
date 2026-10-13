@@ -2251,6 +2251,47 @@
         "title": "NoteSummary",
         "type": "object"
       },
+      "PersonalPortfolio": {
+        "additionalProperties": false,
+        "properties": {
+          "cash": {
+            "title": "Cash",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "holdings": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioHolding"
+            },
+            "maxItems": 50,
+            "title": "Holdings",
+            "type": "array"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/PortfolioLimits"
+          },
+          "watchlist": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioStock"
+            },
+            "maxItems": 50,
+            "title": "Watchlist",
+            "type": "array"
+          }
+        },
+        "required": [
+          "currency",
+          "cash",
+          "holdings",
+          "watchlist",
+          "limits"
+        ],
+        "title": "PersonalPortfolio",
+        "type": "object"
+      },
       "PinNoteRequest": {
         "properties": {
           "path": {
@@ -2269,6 +2310,156 @@
           "pinned"
         ],
         "title": "PinNoteRequest",
+        "type": "object"
+      },
+      "PortfolioHolding": {
+        "additionalProperties": false,
+        "properties": {
+          "company_name": {
+            "default": "",
+            "maxLength": 160,
+            "title": "Company Name",
+            "type": "string"
+          },
+          "cost_per_share": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per Share"
+          },
+          "exchange": {
+            "default": "US",
+            "maxLength": 80,
+            "title": "Exchange",
+            "type": "string"
+          },
+          "industry": {
+            "default": "",
+            "maxLength": 160,
+            "title": "Industry",
+            "type": "string"
+          },
+          "opened": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opened"
+          },
+          "sector": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Sector",
+            "type": "string"
+          },
+          "shares": {
+            "title": "Shares",
+            "type": "string"
+          },
+          "ticker": {
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Ticker",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ticker",
+          "sector",
+          "shares"
+        ],
+        "title": "PortfolioHolding",
+        "type": "object"
+      },
+      "PortfolioLimits": {
+        "additionalProperties": false,
+        "properties": {
+          "max_daily_loss_pct": {
+            "title": "Max Daily Loss Pct",
+            "type": "string"
+          },
+          "max_position_pct": {
+            "title": "Max Position Pct",
+            "type": "string"
+          },
+          "max_sector_pct": {
+            "title": "Max Sector Pct",
+            "type": "string"
+          }
+        },
+        "required": [
+          "max_position_pct",
+          "max_sector_pct",
+          "max_daily_loss_pct"
+        ],
+        "title": "PortfolioLimits",
+        "type": "object"
+      },
+      "PortfolioResponse": {
+        "properties": {
+          "portfolio": {
+            "$ref": "#/components/schemas/PersonalPortfolio"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "portfolio",
+          "revision"
+        ],
+        "title": "PortfolioResponse",
+        "type": "object"
+      },
+      "PortfolioStock": {
+        "additionalProperties": false,
+        "properties": {
+          "company_name": {
+            "default": "",
+            "maxLength": 160,
+            "title": "Company Name",
+            "type": "string"
+          },
+          "exchange": {
+            "default": "US",
+            "maxLength": 80,
+            "title": "Exchange",
+            "type": "string"
+          },
+          "industry": {
+            "default": "",
+            "maxLength": 160,
+            "title": "Industry",
+            "type": "string"
+          },
+          "sector": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Sector",
+            "type": "string"
+          },
+          "ticker": {
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Ticker",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ticker",
+          "sector"
+        ],
+        "title": "PortfolioStock",
         "type": "object"
       },
       "PreviewRequest": {
@@ -2526,6 +2717,24 @@
           "created_at"
         ],
         "title": "Run",
+        "type": "object"
+      },
+      "SavePortfolioRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "portfolio": {
+            "$ref": "#/components/schemas/PersonalPortfolio"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "portfolio",
+          "revision"
+        ],
+        "title": "SavePortfolioRequest",
         "type": "object"
       },
       "SchedulePreview": {
@@ -7017,6 +7226,92 @@
           }
         },
         "summary": "Switch Monitor"
+      }
+    },
+    "/spaces/{space_id}/portfolio": {
+      "get": {
+        "operationId": "get_portfolio_spaces__space_id__portfolio_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portfolio"
+      },
+      "put": {
+        "operationId": "put_portfolio_spaces__space_id__portfolio_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavePortfolioRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Portfolio"
       }
     },
     "/spaces/{space_id}/provider-switch": {

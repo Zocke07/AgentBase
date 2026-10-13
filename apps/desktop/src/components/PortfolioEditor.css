@@ -1,0 +1,14 @@
+.portfolio-editor { margin-block: 1rem; }
+.portfolio-editor__heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
+.portfolio-editor__heading p { margin-bottom: 0; }
+.portfolio-editor__summary { color: var(--muted); overflow-wrap: anywhere; }
+.portfolio-editor__form { border: 0; padding: 0; min-width: 0; }
+.portfolio-editor__form > section { margin-block: 1.5rem; }
+.portfolio-editor__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: .8rem 1rem; margin-block: .8rem; }
+.portfolio-editor__field { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
+.portfolio-editor__field input { width: 100%; min-width: 0; padding: .5rem .6rem; color: var(--text); background: var(--surface); border: 1px solid var(--border-strong); border-radius: 6px; font: inherit; }
+.portfolio-editor__stock { border: 1px solid var(--border); border-radius: 8px; margin-block: 1rem; padding: 1rem; min-width: 0; }
+.portfolio-editor__stock legend { padding-inline: .35rem; font-weight: 600; }
+.portfolio-editor__stock details { margin-block: .8rem; }
+.portfolio-editor__stock summary { cursor: pointer; color: var(--muted); }
+.portfolio-editor__field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
