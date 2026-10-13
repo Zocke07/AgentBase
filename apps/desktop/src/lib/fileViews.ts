@@ -7,17 +7,18 @@ import {
 } from "./visualization";
 
 /**
- * How Knowledge shows an agent file: as text, or drawn. A data file can be
- * drawn as a chart; a saved chart, dashboard or diagram opens drawn.
+ * How Knowledge shows an agent file: read in Preview, as editable text, or
+ * drawn. Every file opens in a reading view, Preview or its drawing, so a
+ * look cannot change it; a data file can also be drawn as a chart.
  */
 
-export type FileView = "text" | "chart" | "dashboard" | "diagram";
+export type FileView = "preview" | "text" | "chart" | "dashboard" | "diagram";
 
 /** The views a file offers, its default first. */
 export function viewsFor(kind: FileKind): readonly FileView[] {
   switch (kind) {
     case "data":
-      return ["text", "chart"];
+      return ["preview", "chart", "text"];
     case "chart":
       return ["chart", "text"];
     case "dashboard":
@@ -25,11 +26,12 @@ export function viewsFor(kind: FileKind): readonly FileView[] {
     case "diagram":
       return ["diagram", "text"];
     case "text":
-      return ["text"];
+      return ["preview", "text"];
   }
 }
 
 export const VIEW_LABELS: Readonly<Record<FileView, string>> = {
+  preview: "Preview",
   text: "Text",
   chart: "Chart",
   dashboard: "Dashboard",

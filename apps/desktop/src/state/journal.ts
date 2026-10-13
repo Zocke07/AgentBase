@@ -36,14 +36,24 @@ const OTHER = "Note";
 const LEFT_OUT: readonly string[] = ["memory/", "templates/"];
 const DATED = /(\d{4})-(\d{2})(?:-(\d{2}))?/;
 
+/** What a report is by where the pipeline writes it, such as "Decision"; null for anything else. */
+export function reportKind(path: string): string | null {
+  return KINDS.find((known) => path.startsWith(known.prefix))?.kind ?? null;
+}
+
+/** The date in a file's name, `2026-10-06` or `2026-10`; null when it has none. */
+export function dateInName(path: string): string | null {
+  return datedName(path.slice(path.lastIndexOf("/") + 1));
+}
+
 /** Every dated note but run memories and templates, newest first. */
 export function journalEntries(notes: readonly NoteSummary[]): JournalEntry[] {
   const entries: JournalEntry[] = [];
   for (const note of notes) {
     if (LEFT_OUT.some((folder) => note.path.startsWith(folder))) continue;
-    const date = datedName(note.path.slice(note.path.lastIndexOf("/") + 1));
+    const date = dateInName(note.path);
     if (date === null) continue;
-    const kind = KINDS.find((known) => note.path.startsWith(known.prefix))?.kind ?? OTHER;
+    const kind = reportKind(note.path) ?? OTHER;
     entries.push({ path: note.path, kind, title: note.title, date, updatedAt: note.updated_at });
   }
   return entries.sort(

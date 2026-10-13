@@ -4,6 +4,7 @@ import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../lib/api";
+import { ApiError } from "../lib/api";
 import * as folder from "../lib/folder";
 import { VISUALIZATION_SCHEMA } from "../lib/visualization";
 
@@ -50,6 +51,12 @@ beforeEach(() => {
 });
 
 afterEach(() => { vi.restoreAllMocks(); });
+
+/** A file opens in Preview; its text is one click away. */
+async function showText(user: ReturnType<typeof userEvent.setup>): Promise<HTMLTextAreaElement> {
+  await user.click(within(await screen.findByRole("group", { name: "Show as" })).getByRole("button", { name: "Text" }));
+  return screen.getByLabelText<HTMLTextAreaElement>("File contents");
+}
 
 /** Both halves at once, the way the Knowledge view mounts them, sharing the open file. */
 function Both({ onChanged }: { onChanged?: () => void }) {
@@ -101,16 +108,22 @@ describe("data files", () => {
     render(<Both onChanged={onChanged} />);
 
     await user.click(await screen.findByRole("button", { name: /config\/watchlist\.json/ }));
-    const text = await screen.findByLabelText("File contents");
-    await waitFor(() => {
-      expect((text as HTMLTextAreaElement).value).toBe('{"watchlist": []}');
-    });
+    // It opens in Preview, which only reads it.
+    expect((await screen.findByTestId("file-preview")).textContent).toContain('"watchlist": []');
+    expect(screen.queryByLabelText("File contents")).toBeNull();
+    const text = await showText(user);
+    expect(text.value).toBe('{"watchlist": []}');
 
     fireEvent.change(text, { target: { value: '{"watchlist": [{"ticker": "AAPL"}]}' } });
     await user.click(screen.getByRole("button", { name: "Save file" }));
 
     await waitFor(() => {
-      expect(mocked.writeFile).toHaveBeenCalledWith("space-lab", "config/watchlist.json", '{"watchlist": [{"ticker": "AAPL"}]}');
+      expect(mocked.writeFile).toHaveBeenCalledWith(
+        "space-lab",
+        "config/watchlist.json",
+        '{"watchlist": [{"ticker": "AAPL"}]}',
+        { create: false },
+      );
     });
     expect(onChanged).toHaveBeenCalled();
   });
@@ -119,10 +132,7 @@ describe("data files", () => {
     const user = userEvent.setup();
     render(<Both />);
     await user.click(await screen.findByRole("button", { name: /config\/watchlist\.json/ }));
-    const text = await screen.findByLabelText("File contents");
-    await waitFor(() => {
-      expect((text as HTMLTextAreaElement).value).toBe('{"watchlist": []}');
-    });
+    const text = await showText(user);
 
     fireEvent.change(text, { target: { value: "{not json" } });
     await user.click(screen.getByRole("button", { name: "Save file" }));
@@ -135,10 +145,7 @@ describe("data files", () => {
     const user = userEvent.setup();
     render(<Both />);
     await user.click(await screen.findByRole("button", { name: /config\/watchlist\.json/ }));
-    const text = await screen.findByLabelText("File contents");
-    await waitFor(() => {
-      expect((text as HTMLTextAreaElement).value).toBe('{"watchlist": []}');
-    });
+    const text = await showText(user);
 
     expect(screen.getByRole("heading", { name: "watchlist.json" })).toBeTruthy();
     expect(screen.getByText("config/ · JSON")).toBeTruthy();
@@ -160,10 +167,12 @@ describe("data files", () => {
     expect(screen.getByLabelText<HTMLTextAreaElement>("File contents").value).toContain("day_gainers");
     await user.click(screen.getByRole("button", { name: "Save file" }));
     await waitFor(() => {
+      // A new file is created, never written over one already there.
       expect(mocked.writeFile).toHaveBeenCalledWith(
         "space-lab",
         "config/sources.json",
         expect.stringContaining("query1.finance.yahoo.com"),
+        { create: true },
       );
     });
 
@@ -174,7 +183,7 @@ describe("data files", () => {
     await waitFor(() => {
       expect(mocked.deleteFile).toHaveBeenCalledWith("space-lab", "config/sources.json");
     });
-    expect(await screen.findByText(/Pick an agent file on the left/)).toBeDefined();
+    expect(await screen.findByText(/Pick a file on the left/)).toBeDefined();
   });
 
   it("downloads a monthly workbook as binary without opening a text editor", async () => {
@@ -238,6 +247,85 @@ describe("data files", () => {
   });
 });
 
+describe("when a file action fails", () => {
+  it("offers Try again for a file that would not open, and nothing that could save over it", async () => {
+    /* A failed read once left an empty editor whose Save button wrote that
+       empty text over the file. */
+    const user = userEvent.setup();
+    mocked.getFile.mockRejectedValueOnce(new ApiError(500, "HTTP 500"));
+    render(<Both />);
+    await user.click(await screen.findByRole("button", { name: /config\/watchlist\.json/ }));
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "This file could not be opened: AgentBase could not finish this (error 500). Try again; if it keeps happening, restart AgentBase.",
+    );
+    expect(screen.queryByRole("button", { name: "Save file" })).toBeNull();
+    expect(screen.queryByLabelText("File contents")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect((await screen.findByTestId("file-preview")).textContent).toContain('"watchlist": []');
+    expect(mocked.writeFile).not.toHaveBeenCalled();
+  });
+
+  it("says when a new file's name is taken, and keeps the text", async () => {
+    const user = userEvent.setup();
+    mocked.writeFile.mockRejectedValueOnce(
+      new ApiError(409, "There is already a file at config/sources.json. Choose another name, or open that file."),
+    );
+    render(<Both />);
+    await user.selectOptions(await screen.findByLabelText("Create from template"), "config/sources.json");
+    await user.click(screen.getByRole("button", { name: "Save file" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain("There is already a file at config/sources.json");
+    expect(screen.getByLabelText<HTMLTextAreaElement>("File contents").value).toContain("day_gainers");
+  });
+
+  it("closes a file another window already deleted, as asked", async () => {
+    const user = userEvent.setup();
+    mocked.deleteFile.mockRejectedValueOnce(new ApiError(404, "There is no file at config/watchlist.json."));
+    render(<Both />);
+    await user.click(await screen.findByRole("button", { name: /config\/watchlist\.json/ }));
+    await user.click(await screen.findByRole("button", { name: "Delete…" }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(await screen.findByText(/Pick a file on the left/)).toBeDefined();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("asks before closing a file with unsaved changes", async () => {
+    const user = userEvent.setup();
+    render(<Both />);
+    await user.click(await screen.findByRole("button", { name: /config\/watchlist\.json/ }));
+    fireEvent.change(await showText(user), { target: { value: '{"watchlist": ["MU"]}' } });
+
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.getByRole("alertdialog", { name: "Unsaved changes" }).textContent).toContain("Close without saving");
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(screen.getByLabelText<HTMLTextAreaElement>("File contents").value).toBe('{"watchlist": ["MU"]}');
+
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    await user.click(screen.getByRole("button", { name: "Discard and close" }));
+    expect(await screen.findByText(/Pick a file on the left/)).toBeDefined();
+  });
+
+  it("lists only the raw data and settings under Technical Details", async () => {
+    mocked.listFiles.mockResolvedValue({
+      files: [
+        { path: "config/watchlist.json", size: 120, updated_at: "2026-10-13T00:00:00Z" },
+        { path: "predictions/2026-10.xlsx", size: 2048, updated_at: "2026-10-13T00:00:00Z" },
+        { path: "visualizations/pipeline.dashboard.json", size: 200, updated_at: "2026-10-13T00:00:00Z" },
+      ],
+    });
+    render(<FilesPanel spaceId="space-lab" part="list" scope="technical" open={null} onOpen={vi.fn()} />);
+
+    expect(await screen.findByText("watchlist.json")).toBeTruthy();
+    expect(screen.queryByText("2026-10.xlsx")).toBeNull();
+    expect(screen.queryByText("pipeline.dashboard.json")).toBeNull();
+    // New charts start in User Summary, beside the charts they join.
+    expect(screen.queryByRole("group", { name: "Charts and diagrams" })).toBeNull();
+  });
+});
+
 describe("charts, dashboards and diagrams", () => {
   const SALES_CSV = "day,revenue,cost\n2026-09-01,12,8\n2026-09-02,17,9\n";
   const SALES_CHART = JSON.stringify({
@@ -277,10 +365,10 @@ describe("charts, dashboards and diagrams", () => {
     // A saved chart is named for what it is in the list.
     expect(await screen.findByText("Chart · 200 B")).toBeTruthy();
     await user.click(await screen.findByRole("button", { name: /^data\/sales\.csv/ }));
-    // A data file opens as text; the chart is one click away.
-    await waitFor(() => {
-      expect(screen.getByLabelText<HTMLTextAreaElement>("File contents").value).toBe(SALES_CSV);
-    });
+    // A data file opens in Preview as a table; the chart is one click away.
+    const table = within(await screen.findByTestId("file-preview")).getByRole("table");
+    expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["day", "revenue", "cost"]);
+    expect(within(table).getAllByRole("row")).toHaveLength(3);
     await user.click(within(screen.getByRole("group", { name: "Show as" })).getByRole("button", { name: "Chart" }));
     expect(await screen.findByRole("img", { name: /line chart: sales/i })).toBeDefined();
 
@@ -294,6 +382,7 @@ describe("charts, dashboards and diagrams", () => {
         "space-lab",
         "visualizations/revenue.viz.json",
         expect.stringContaining(VISUALIZATION_SCHEMA),
+        { create: true },
       );
     });
     // The new chart opens, drawn.
@@ -322,6 +411,7 @@ describe("charts, dashboards and diagrams", () => {
         "space-lab",
         "visualizations/sales.viz.json",
         expect.stringContaining('"chart": "bar"'),
+        { create: false },
       );
     });
   });
@@ -342,6 +432,7 @@ describe("charts, dashboards and diagrams", () => {
         "space-lab",
         "visualizations/dashboard.dashboard.json",
         expect.stringMatching(/agentbase:\/\/dashboard\/v1[\s\S]*visualizations\/sales\.viz\.json/),
+        { create: true },
       );
     });
   });
@@ -364,7 +455,12 @@ describe("charts, dashboards and diagrams", () => {
     expect(screen.getByLabelText<HTMLTextAreaElement>("Mermaid source").value).toContain("Supervisor");
     await user.click(screen.getByRole("button", { name: "Save diagram" }));
     await waitFor(() => {
-      expect(mocked.writeFile).toHaveBeenCalledWith("space-lab", "visualizations/diagram.mmd", expect.stringContaining("flowchart LR"));
+      expect(mocked.writeFile).toHaveBeenCalledWith(
+        "space-lab",
+        "visualizations/diagram.mmd",
+        expect.stringContaining("flowchart LR"),
+        { create: true },
+      );
     });
   });
 

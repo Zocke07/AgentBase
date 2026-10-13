@@ -7,11 +7,12 @@ import type {
   MemoryItem,
   SpaceResponse,
 } from "@agentbase/schemas";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../lib/api";
+import { ApiError } from "../lib/api";
 import * as folder from "../lib/folder";
 
 import { KnowledgeView } from "./KnowledgeView";
@@ -187,6 +188,18 @@ beforeEach(() => {
   );
 });
 
+type User = ReturnType<typeof userEvent.setup>;
+
+/** The vault's own tools: tree, editor, search, files and Saved context. */
+async function toTechnical(user: User) {
+  await user.click(await screen.findByRole("tab", { name: "Technical Details" }));
+}
+
+/** Notes open in Preview; editing one is a click away. */
+async function toWrite(user: User) {
+  await user.click(await screen.findByRole("button", { name: "Write" }));
+}
+
 describe("knowledge vault", () => {
   it("rereads its lists each time it is shown or a run finishes, so new files appear", async () => {
     // Every section stays mounted; a run's outputs once stayed missing until a restart.
@@ -233,6 +246,7 @@ describe("knowledge vault", () => {
     const user = userEvent.setup();
     render(<KnowledgeView space={space} />);
 
+    await toTechnical(user);
     await user.click(await screen.findByRole("tab", { name: "Recent" }));
     expect(screen.getByText("The newest notes and agent files, whoever wrote them.")).toBeTruthy();
     expect(await screen.findByText("storage.md")).toBeTruthy();
@@ -254,7 +268,8 @@ describe("knowledge vault", () => {
     const user = userEvent.setup();
     render(<KnowledgeView space={space} />);
 
-    await user.click(await screen.findByRole("tab", { name: "Journal" }));
+    // The Journal is part of User Summary, which Knowledge opens on.
+    await user.click(await screen.findByRole("button", { name: "All reports as one page" }));
     expect(screen.getByText("Every dated report, such as each day's decision, as one page, newest first.")).toBeTruthy();
     // A page to read, not a note to edit: the editor's modes stand aside.
     expect(screen.queryByRole("group", { name: "Knowledge view" })).toBeNull();
@@ -263,8 +278,13 @@ describe("knowledge vault", () => {
     expect(screen.getByTestId("journal").textContent).not.toContain("decisions/storage.md");
 
     await user.click(screen.getByRole("button", { name: "Open note decisions/2026-10-06.md" }));
-    expect(await screen.findByRole("tab", { name: "Notes", selected: true })).toBeTruthy();
-    expect(await screen.findByLabelText("Markdown source")).toHaveProperty("value", decision.content);
+    // A report opens among the results, in Preview.
+    expect(await screen.findByRole("tab", { name: "User Summary", selected: true })).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByLabelText("Markdown preview").textContent).toContain("AAPL pass");
+    });
+    expect(screen.getByRole("button", { name: "Preview" })).toHaveProperty("ariaPressed", "true");
+    expect(screen.queryByLabelText("Markdown source")).toBeNull();
   });
 
   it("folds the run summaries, which Saved context manages, until asked", async () => {
@@ -274,6 +294,7 @@ describe("knowledge vault", () => {
       notes: [note, { ...note, path: "memory/runs/run-1.md", title: "Run memory: Decide" }],
     });
     render(<KnowledgeView space={space} />);
+    await toTechnical(user);
 
     expect(await screen.findByText("Storage decision")).toBeTruthy();
     expect(screen.getByRole("button", { name: /^memory/ }).getAttribute("aria-expanded")).toBe("false");
@@ -290,6 +311,7 @@ describe("knowledge vault", () => {
       notes: [{ ...note, path: "decisions/2026-10-07.md", title: "DECISION TABLE" }],
     });
     render(<KnowledgeView space={space} />);
+    await toTechnical(userEvent.setup());
 
     expect(await screen.findByText("DECISION TABLE")).toBeTruthy();
     expect(screen.getByText("2026-10-07.md")).toBeTruthy();
@@ -298,12 +320,15 @@ describe("knowledge vault", () => {
   it("names and explains the three kinds of workspace knowledge", async () => {
     const user = userEvent.setup();
     render(<KnowledgeView space={space} />);
+    await toTechnical(user);
 
     expect(await screen.findByRole("tab", { name: "Notes" })).toBeTruthy();
-    expect(screen.getByText("Markdown knowledge that you and agents write.")).toBeTruthy();
+    expect(screen.getByText("Every Markdown note in the vault, with its links, tags and search.")).toBeTruthy();
 
     await user.click(screen.getByRole("tab", { name: "Agent files" }));
-    expect(screen.getByText("Structured inputs and generated files used by agents.")).toBeTruthy();
+    expect(
+      screen.getByText("The raw data, settings and records agents work from. Workbooks and charts are in User Summary."),
+    ).toBeTruthy();
     expect(screen.queryByRole("group", { name: "Knowledge view" })).toBeNull();
     expect(screen.queryByRole("button", { name: "New note" })).toBeNull();
 
@@ -318,11 +343,15 @@ describe("knowledge vault", () => {
   it("opens a Markdown note with properties, links and backlinks", async () => {
     const user = userEvent.setup();
     render(<KnowledgeView space={space} />);
+    await toTechnical(user);
 
     await user.click(await screen.findByRole("button", { name: /Storage decision/ }));
 
-    expect(await screen.findByLabelText("Markdown source")).toHaveProperty("value", note.content);
-    expect(screen.getByLabelText("Markdown preview").className).toContain("knowledge__preview--fluid");
+    // It opens in Preview; its source is a click away.
+    expect((await screen.findByLabelText("Markdown preview")).className).toContain("knowledge__preview--fluid");
+    expect(screen.queryByLabelText("Markdown source")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Split" }));
+    expect(screen.getByLabelText("Markdown source")).toHaveProperty("value", note.content);
     expect(screen.getByText("#architecture", { selector: ".knowledge__tag" })).toBeTruthy();
     expect(screen.getByText("status").parentElement?.textContent).toContain("accepted");
     expect(screen.getByRole("button", { name: /index\.md/ })).toBeTruthy();
@@ -331,7 +360,9 @@ describe("knowledge vault", () => {
   it("saves edited Markdown and refreshes the live vault index", async () => {
     const user = userEvent.setup();
     render(<KnowledgeView space={space} />);
+    await toTechnical(user);
     await user.click(await screen.findByRole("button", { name: /Storage decision/ }));
+    await toWrite(user);
 
     const editor = await screen.findByLabelText("Markdown source");
     await user.clear(editor);
@@ -343,6 +374,7 @@ describe("knowledge vault", () => {
         "space-lab",
         "decisions/storage.md",
         "# Changed",
+        { create: false },
       );
     });
     expect(mocked.listKnowledge).toHaveBeenCalledTimes(2);
@@ -366,6 +398,7 @@ describe("knowledge vault", () => {
     };
     mocked.searchKnowledge.mockResolvedValue(result);
     render(<KnowledgeView space={space} />);
+    await toTechnical(user);
 
     await user.type(screen.getByLabelText("Search knowledge"), "sqlite");
     await user.click(screen.getByRole("button", { name: "Search" }));
@@ -378,6 +411,7 @@ describe("knowledge vault", () => {
   it("creates a safe Markdown note from the window", async () => {
     const user = userEvent.setup();
     render(<KnowledgeView space={space} />);
+    await toTechnical(user);
 
     await user.click(await screen.findByRole("button", { name: "New note" }));
     await user.clear(screen.getByLabelText("Note path"));
@@ -385,22 +419,25 @@ describe("knowledge vault", () => {
     await user.type(screen.getByLabelText("Markdown source"), "# New research");
     await user.click(screen.getByRole("button", { name: "Save note" }));
 
+    // A new note never replaces one already at its path.
     expect(mocked.saveKnowledgeNote).toHaveBeenCalledWith(
       "space-lab",
       "research/new.md",
       expect.stringContaining("# New research"),
+      { create: true },
     );
   });
 
   it("requires confirmation before deleting a note", async () => {
     const user = userEvent.setup();
     render(<KnowledgeView space={space} />);
+    await toTechnical(user);
 
     await user.click(await screen.findByRole("button", { name: /Storage decision/ }));
     await user.click(screen.getByRole("button", { name: "Delete note…" }));
 
     expect(mocked.deleteKnowledgeNote).not.toHaveBeenCalled();
-    expect(screen.getByText(`Delete ${note.path}?`)).toBeTruthy();
+    expect(screen.getByText(`Delete ${note.path}? A copy is kept under .agentbase/backups.`)).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
     expect(mocked.deleteKnowledgeNote).toHaveBeenCalledWith("space-lab", note.path);
@@ -409,6 +446,7 @@ describe("knowledge vault", () => {
   it("shows unresolved links and filters the browser to orphans or a tag", async () => {
     const user = userEvent.setup();
     render(<KnowledgeView space={space} />);
+    await toTechnical(user);
     await screen.findByRole("button", { name: /Storage decision/ });
 
     expect(screen.getByText(/1 orphan · 1 unresolved link/)).toBeTruthy();
@@ -427,6 +465,7 @@ describe("knowledge vault", () => {
   it("pins the open note through the pin endpoint", async () => {
     const user = userEvent.setup();
     render(<KnowledgeView space={space} />);
+    await toTechnical(user);
     await user.click(await screen.findByRole("button", { name: /Storage decision/ }));
 
     await user.click(screen.getByRole("button", { name: "Pin note" }));
@@ -438,6 +477,7 @@ describe("knowledge vault", () => {
   it("starts today's daily note under daily/ with a dated title", async () => {
     const user = userEvent.setup();
     render(<KnowledgeView space={space} />);
+    await toTechnical(user);
     await screen.findByRole("button", { name: /Storage decision/ });
 
     await user.click(screen.getByRole("button", { name: "Daily note" }));
@@ -499,6 +539,7 @@ describe("knowledge vault", () => {
       backup_path: ".agentbase/backups/merge",
     });
     render(<KnowledgeView space={space} onOpenRun={onOpenRun} />);
+    await toTechnical(user);
 
     await user.click(await screen.findByRole("tab", { name: /Saved context/ }));
     expect(await screen.findByText(/From a run/)).toBeTruthy();
@@ -528,6 +569,7 @@ describe("the vault as an editor", () => {
   it("shows notes as a folder tree whose folders fold", async () => {
     const user = userEvent.setup();
     render(<KnowledgeView space={space} />);
+    await toTechnical(user);
     await screen.findByRole("button", { name: /Storage decision/ });
 
     // The fold button, not the folder's delete beside it.
@@ -557,7 +599,9 @@ describe("the vault as an editor", () => {
   it("asks before unsaved changes are lost to another note", async () => {
     const user = userEvent.setup();
     render(<KnowledgeView space={space} />);
+    await toTechnical(user);
     await user.click(await screen.findByRole("button", { name: /Storage decision/ }));
+    await toWrite(user);
     await user.type(await screen.findByLabelText("Markdown source"), " more");
     expect(screen.getByTestId("unsaved")).toBeTruthy();
 
@@ -575,6 +619,7 @@ describe("the vault as an editor", () => {
   it("completes a [[ link from the vault's note names", async () => {
     const user = userEvent.setup();
     render(<KnowledgeView space={space} />);
+    await toTechnical(user);
     await user.click(await screen.findByRole("button", { name: "New note" }));
 
     const editor = screen.getByLabelText<HTMLTextAreaElement>("Markdown source");
@@ -592,21 +637,25 @@ describe("the vault as an editor", () => {
     const user = userEvent.setup();
     mocked.getKnowledgeNote.mockResolvedValue({ ...note, content: "# Todo\n\n- [ ] write it up\n- [x] done" });
     render(<KnowledgeView space={space} />);
+    await toTechnical(user);
     await user.click(await screen.findByRole("button", { name: /Storage decision/ }));
 
+    // Ticked in Preview, where the note opens.
     await user.click(await screen.findByRole("checkbox", { name: "Mark as done" }));
 
-    expect(screen.getByLabelText<HTMLTextAreaElement>("Markdown source").value).toContain("- [x] write it up");
     expect(screen.getByTestId("unsaved")).toBeTruthy();
+    await toWrite(user);
+    expect(screen.getByLabelText<HTMLTextAreaElement>("Markdown source").value).toContain("- [x] write it up");
   });
 
   it("filters the tree by a tag clicked in the preview", async () => {
     const user = userEvent.setup();
     mocked.getKnowledgeNote.mockResolvedValue({ ...note, content: "# Note\n\nTagged #scratch here." });
     render(<KnowledgeView space={space} />);
+    await toTechnical(user);
     await user.click(await screen.findByRole("button", { name: /Storage decision/ }));
 
-    const preview = screen.getByLabelText("Markdown preview");
+    const preview = await screen.findByLabelText("Markdown preview");
     const tag = [...preview.querySelectorAll("button")].find((button) => button.textContent === "#scratch");
     if (tag === undefined) throw new Error("tag not rendered");
     await user.click(tag);
@@ -644,6 +693,7 @@ describe("the vault as an editor", () => {
       backup_path: ".agentbase/backups/20260919T000000Z-delete-folder-abcd1234",
     });
     render(<KnowledgeView space={space} />);
+    await toTechnical(user);
     await user.click(await screen.findByRole("button", { name: /Storage decision/ }));
 
     await user.click(screen.getByRole("button", { name: "Delete the folder decisions" }));
@@ -658,13 +708,14 @@ describe("the vault as an editor", () => {
     await waitFor(() => {
       expect(mocked.deleteKnowledgeFolder).toHaveBeenCalledWith("space-lab", "decisions");
     });
-    // The open note was inside: the editor lets go of it.
-    expect(screen.queryByLabelText("Markdown source")).toBeNull();
+    // The open note was inside: the reader lets go of it.
+    expect(screen.queryByLabelText("Markdown preview")).toBeNull();
     expect((await screen.findByText(/a copy is at/)).textContent).toContain("delete-folder-abcd1234");
   });
 
   it("offers Open in Obsidian only where the shell found Obsidian", async () => {
     render(<KnowledgeView space={space} />);
+    await toTechnical(userEvent.setup());
     await screen.findByRole("button", { name: /Storage decision/ });
 
     await waitFor(() => {
@@ -680,10 +731,143 @@ describe("the vault as an editor", () => {
       new Error("Obsidian did not open the folder. Open it as a vault from Obsidian's own vault picker instead: /data/spaces/space-lab"),
     );
     render(<KnowledgeView space={space} />);
+    await toTechnical(user);
 
     await user.click(await screen.findByRole("button", { name: "Open in Obsidian" }));
 
     expect(folder.openInObsidian).toHaveBeenCalledWith("/data/spaces/space-lab");
     expect((await screen.findByRole("alert")).textContent).toContain("Obsidian's own vault picker");
+  });
+});
+
+describe("two sections: User Summary and Technical Details", () => {
+  it("opens on the results, grouped and read in Preview, with the raw files left to Technical Details", async () => {
+    const user = userEvent.setup();
+    const decision: KnowledgeNote = {
+      ...note,
+      path: "decisions/2026-10-12.md",
+      title: "Decision for Oct 12",
+      content: "# Decision for Oct 12\n\nHold **MU**.",
+    };
+    mocked.listKnowledge.mockResolvedValue({
+      ...index,
+      notes: [decision, { ...note, path: "memory/runs/run-1.md", title: "Run memory" }],
+    });
+    mocked.getKnowledgeNote.mockResolvedValue(decision);
+    mocked.listFiles.mockResolvedValue({
+      files: [
+        { path: "predictions/2026-10.xlsx", size: 2048, updated_at: "2026-10-13T00:00:00Z" },
+        { path: "raw/movers-2026-10-12.json", size: 900, updated_at: "2026-10-13T00:00:00Z" },
+      ],
+    });
+    render(<KnowledgeView space={space} />);
+
+    expect(await screen.findByRole("tab", { name: "User Summary", selected: true })).toBeTruthy();
+    const list = screen.getByTestId("summary-list");
+    expect((await within(list).findByRole("region", { name: "Forecast workbooks" })).textContent).toContain(
+      "Forecasts for October 2026",
+    );
+    expect(within(list).getByRole("region", { name: "Decisions" }).textContent).toContain("Decision for Oct 12");
+    expect(list.textContent).not.toContain("movers");
+    expect(list.textContent).not.toContain("Run memory");
+
+    await user.click(within(list).getByRole("button", { name: /Decision for Oct 12/ }));
+    await waitFor(() => {
+      expect(screen.getByLabelText("Markdown preview").textContent).toContain("Hold MU.");
+    });
+    expect(screen.getByRole("button", { name: "Preview" })).toHaveProperty("ariaPressed", "true");
+    // The vault's own tools stay under Technical Details.
+    expect(screen.queryByRole("button", { name: "Graph" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Pin note" })).toBeNull();
+
+    await toTechnical(user);
+    expect(screen.getByRole("tab", { name: "Notes" })).toBeTruthy();
+  });
+
+  it("asks before a data file's unsaved changes are left for another section", async () => {
+    const user = userEvent.setup();
+    mocked.listFiles.mockResolvedValue({
+      files: [{ path: "config/limits.json", size: 40, updated_at: "2026-10-13T00:00:00Z" }],
+    });
+    mocked.getFile.mockResolvedValue({
+      path: "config/limits.json",
+      size: 40,
+      updated_at: "2026-10-13T00:00:00Z",
+      content: '{"max_position_pct": 10}',
+    });
+    render(<KnowledgeView space={space} />);
+    await toTechnical(user);
+    await user.click(screen.getByRole("tab", { name: "Agent files" }));
+    await user.click(await screen.findByRole("button", { name: /config\/limits\.json/ }));
+    await user.click(within(await screen.findByRole("group", { name: "Show as" })).getByRole("button", { name: "Text" }));
+    fireEvent.change(screen.getByLabelText("File contents"), { target: { value: '{"max_position_pct": 12}' } });
+
+    await user.click(screen.getByRole("tab", { name: "User Summary" }));
+    expect(screen.getByTestId("unsaved-file-guard").textContent).toContain("unsaved changes");
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(screen.getByLabelText<HTMLTextAreaElement>("File contents").value).toBe('{"max_position_pct": 12}');
+
+    await user.click(screen.getByRole("tab", { name: "User Summary" }));
+    await user.click(screen.getByRole("button", { name: "Discard and continue" }));
+    expect(await screen.findByRole("tab", { name: "User Summary", selected: true })).toBeTruthy();
+    expect(screen.queryByLabelText("File contents")).toBeNull();
+  });
+
+  it("says when a note the list still showed is gone, and refreshes the list", async () => {
+    const user = userEvent.setup();
+    mocked.getKnowledgeNote.mockRejectedValueOnce(new ApiError(404, "There is no knowledge note at decisions/storage.md."));
+    render(<KnowledgeView space={space} />);
+
+    await user.click(await screen.findByRole("button", { name: /Storage decision/ }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain("decisions/storage.md is no longer in this space");
+    await waitFor(() => {
+      expect(mocked.listKnowledge).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("keeps a new note's text when its name is taken", async () => {
+    const user = userEvent.setup();
+    mocked.saveKnowledgeNote.mockRejectedValueOnce(
+      new ApiError(409, "There is already a note at research/new.md. Choose another name, or open that note."),
+    );
+    render(<KnowledgeView space={space} />);
+    await toTechnical(user);
+    await user.click(await screen.findByRole("button", { name: "New note" }));
+    await user.clear(screen.getByLabelText("Note path"));
+    await user.type(screen.getByLabelText("Note path"), "research/new.md");
+    await user.type(screen.getByLabelText("Markdown source"), "# Mine");
+    await user.click(screen.getByRole("button", { name: "Save note" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain("There is already a note at research/new.md");
+    expect(screen.getByLabelText<HTMLTextAreaElement>("Markdown source").value).toContain("# Mine");
+  });
+
+  it("counts a note another window already deleted as deleted", async () => {
+    const user = userEvent.setup();
+    mocked.deleteKnowledgeNote.mockRejectedValueOnce(new ApiError(404, "There is no knowledge note at decisions/storage.md."));
+    render(<KnowledgeView space={space} />);
+    await toTechnical(user);
+    await user.click(await screen.findByRole("button", { name: /Storage decision/ }));
+    await user.click(screen.getByRole("button", { name: "Delete note…" }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(await screen.findByText("decisions/storage.md was already gone.")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("starts a new note from User Summary under a name nothing else has", async () => {
+    const user = userEvent.setup();
+    mocked.listKnowledge.mockResolvedValue({
+      ...index,
+      notes: [note, { ...orphan, path: "knowledge/untitled.md", title: "Untitled" }],
+    });
+    render(<KnowledgeView space={space} />);
+    await screen.findByRole("button", { name: /Storage decision/ });
+
+    await user.selectOptions(screen.getByLabelText("Create something new"), "note");
+
+    expect(screen.getByLabelText<HTMLInputElement>("Note path").value).toBe("knowledge/untitled-2.md");
+    expect(screen.getByRole("tab", { name: "User Summary", selected: true })).toBeTruthy();
   });
 });

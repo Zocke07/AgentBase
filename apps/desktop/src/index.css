@@ -1035,6 +1035,121 @@ pre {
   font-size: 0.7333rem;
 }
 
+/* Knowledge's two sections, above everything else in the rail: what was
+   written to be read, and what the agents work from. */
+.knowledge__sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.25rem;
+  margin: 0.85rem 0.85rem 0.6rem;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.knowledge__sections button {
+  padding: 0.45rem 0.35rem;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow-wrap: break-word;
+  cursor: pointer;
+}
+
+.knowledge__sections button:hover {
+  color: var(--text);
+}
+
+.knowledge__sections button[aria-selected="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.knowledge__back {
+  align-self: flex-start;
+  margin: 0 0.85rem 0.4rem;
+  font-size: 0.7333rem;
+}
+
+/* User Summary: the results, grouped, each opening in Preview. */
+.summary {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+  padding: 0 0.65rem 0.65rem;
+  overflow-y: auto;
+}
+
+.summary__tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.35rem;
+}
+
+.summary__tools label,
+.summary__tools input {
+  width: 100%;
+  min-width: 0;
+}
+
+.summary__tools input,
+.summary__tools select {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.76rem;
+}
+
+.summary__read-all {
+  align-self: flex-start;
+  font-size: 0.7333rem;
+}
+
+/* A result is named for a person, in the reading font and in full. */
+.summary .files__name {
+  font-family: inherit;
+  font-size: 0.8333rem;
+  font-weight: 600;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.file-view__note.dashboard__waiting {
+  margin: 0;
+  padding: 0.8rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.summary__empty {
+  padding: 0.8rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.summary__empty p {
+  margin: 0;
+}
+
+.summary__empty p + p {
+  margin-top: 0.35rem;
+  font-size: 0.7333rem;
+}
+
 .knowledge__browser-tabs {
   display: grid;
   /* Two tabs a row: Saved context does not fit a quarter of the rail. An odd
@@ -7082,6 +7197,83 @@ input[type="radio"] {
   line-height: 1.5;
   resize: vertical;
   tab-size: 2;
+}
+
+/* Preview: a file read, not edited; Text is where it changes. */
+.file-preview {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+}
+
+.file-preview__note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.7333rem;
+}
+
+.file-preview__scroll {
+  flex: 1;
+  min-height: 12rem;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.file-preview__table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.file-preview__table th,
+.file-preview__table td {
+  max-width: 28rem;
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.file-preview__table th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.file-preview__table td.file-preview__number {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.file-preview__text {
+  flex: 1;
+  min-height: 12rem;
+  margin: 0;
+  padding: 0.75rem;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.8667rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.file-editor__loading {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 .file-editor__hint {

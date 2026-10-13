@@ -2,16 +2,17 @@ import type { TextFileSummary } from "@agentbase/schemas";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import * as api from "../lib/api";
-import { ApiError } from "../lib/api";
+import { failureMessage, isMissing } from "../lib/errors";
 import { VIEW_LABELS, VISUAL_TEMPLATES, viewsFor, type FileView } from "../lib/fileViews";
 import { openWorkbook, revealAvailable, revealFolder } from "../lib/folder";
 import { STARTERS } from "../lib/pipeline";
 import { scrollToActive } from "../lib/scroll";
 import { fileKind, uniquePath, type FileKind } from "../lib/visualization";
 import { isWorkingFile } from "../state/files";
+import { sectionOf } from "../state/sections";
 import { useFetched } from "../state/useFetched";
 
-import { ChartFile, DashboardFile, DataChart, DiagramFile } from "./FileViews";
+import { ChartFile, DashboardFile, DataChart, DataPreview, DiagramFile } from "./FileViews";
 
 /**
  * Space-folder config/data files and generated Excel workbooks. The text
@@ -33,6 +34,13 @@ export interface FilesPanelProps {
   onChanged?: (() => void) | undefined;
   /** Parent bump after other-half file changes; reload list. */
   reloadNonce?: number | undefined;
+  /**
+   * Which files the list shows: under Technical Details only the raw data,
+   * settings and records; workbooks and charts are in User Summary.
+   */
+  scope?: "technical" | "all" | undefined;
+  /** Told whenever the open file gains or loses unsaved changes. */
+  onDirtyChange?: ((dirty: boolean) => void) | undefined;
 }
 
 export interface OpenFile {
@@ -114,10 +122,21 @@ function groupLabel(group: string): string {
   return group === "" ? "Space root" : group;
 }
 
-export function FilesPanel({ spaceId, folder, part, open, onOpen, onChanged, reloadNonce = 0 }: FilesPanelProps) {
+export function FilesPanel({
+  spaceId,
+  folder,
+  part,
+  open,
+  onOpen,
+  onChanged,
+  reloadNonce = 0,
+  scope = "all",
+  onDirtyChange,
+}: FilesPanelProps) {
   const load = useCallback(() => api.listFiles(spaceId), [spaceId]);
   const files = useFetched(load, null);
-  const list = files.data?.files ?? NO_FILES;
+  const everything = files.data?.files ?? NO_FILES;
+  const list = scope === "technical" ? everything.filter((file) => sectionOf(file.path) === "technical") : everything;
   const [query, setQuery] = useState("");
   // Folders whose fold the person changed from its default.
   const [toggled, setToggled] = useState<ReadonlySet<string>>(new Set());
@@ -203,13 +222,15 @@ export function FilesPanel({ spaceId, folder, part, open, onOpen, onChanged, rel
               }}
             >
               <option value="">From template…</option>
-              <optgroup label="Charts and diagrams">
-                {VISUAL_TEMPLATES.map((template) => (
-                  <option key={template.id} value={template.id}>
-                    {template.label}
-                  </option>
-                ))}
-              </optgroup>
+              {scope === "all" && (
+                <optgroup label="Charts and diagrams">
+                  {VISUAL_TEMPLATES.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.label}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
               <optgroup label="Investment pipeline">
                 {STARTERS.map((starter) => (
                   <option key={starter.path} value={starter.path}>
@@ -222,7 +243,10 @@ export function FilesPanel({ spaceId, folder, part, open, onOpen, onChanged, rel
         </div>
         {files.error !== null && (
           <p className="field-error" role="alert">
-            {files.error}
+            The files could not be listed: {files.error}{" "}
+            <button type="button" className="link" onClick={reload}>
+              Try again
+            </button>
           </p>
         )}
         {list.length === 0 && files.data !== null && (
@@ -308,12 +332,12 @@ export function FilesPanel({ spaceId, folder, part, open, onOpen, onChanged, rel
     return (
       <div className="files__placeholder" data-testid="files-editor">
         <p>
-          Pick an agent file on the left, or create one. These are plain-text inputs and outputs in the space folder;
-          agents read them with read_file.
+          Pick a file on the left, or create one. These are the plain-text inputs, collected data and records in the
+          space folder that agents read with read_file.
         </p>
         <p>
-          A CSV or JSON file can be drawn as a chart, and a saved chart, dashboard or diagram opens drawn. New ones
-          start from the template list. Generated Excel workbooks offer a download.
+          Each opens in Preview, as a table where it has rows. Text shows its source for editing, and Chart draws a
+          CSV or JSON file; a saved chart opens with your results in User Summary.
         </p>
       </div>
     );
@@ -338,7 +362,8 @@ export function FilesPanel({ spaceId, folder, part, open, onOpen, onChanged, rel
       key={`${spaceId}:${open.path}:${String(open.fresh)}`}
       spaceId={spaceId}
       open={open}
-      files={list}
+      files={everything}
+      onDirtyChange={onDirtyChange}
       onSaved={(path) => {
         files.reload();
         onOpen({ path, fresh: false });
@@ -382,7 +407,7 @@ function Workbook({
     try {
       await action();
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : String(failure));
+      setError(failureMessage(failure));
     } finally {
       setBusy(false);
     }
@@ -431,7 +456,18 @@ function Workbook({
                 type="button"
                 className="button button--small button--primary"
                 disabled={busy}
-                onClick={() => void act(() => openWorkbook(onDisk))}
+                onClick={() =>
+                  void act(async () => {
+                    try {
+                      await openWorkbook(onDisk);
+                    } catch (failure) {
+                      throw new Error(
+                        `${failureMessage(failure)} Show in folder opens its folder instead, where you can open it yourself.`,
+                        { cause: failure },
+                      );
+                    }
+                  })
+                }
               >
                 Open in spreadsheet app
               </button>
@@ -463,6 +499,7 @@ function FileEditor({
   onSaved,
   onDeleted,
   onCancel,
+  onDirtyChange,
 }: {
   spaceId: string;
   open: OpenFile;
@@ -471,16 +508,20 @@ function FileEditor({
   onSaved: (path: string) => void;
   onDeleted: () => void;
   onCancel: () => void;
+  onDirtyChange?: ((dirty: boolean) => void) | undefined;
 }) {
   const starter = STARTERS.find((candidate) => candidate.path === open.path);
   const purpose = open.fresh ? (open.purpose ?? starter?.why) : starter?.why;
   const [path, setPath] = useState(open.path);
   const [content, setContent] = useState(open.fresh ? (open.content ?? starter?.content ?? "") : "");
-  const [baseline, setBaseline] = useState(open.fresh ? "" : null as string | null);
-  const [loading, setLoading] = useState(!open.fresh);
+  // What the disk holds; null until read, so nothing unread can be saved over it.
+  const [baseline, setBaseline] = useState<string | null>(open.fresh ? "" : null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleteAsked, setDeleteAsked] = useState(false);
+  const [closeAsked, setCloseAsked] = useState(false);
 
   useEffect(() => {
     if (open.fresh) return undefined;
@@ -491,26 +532,43 @@ function FileEditor({
         if (!live) return;
         setContent(file.content);
         setBaseline(file.content);
-        setLoading(false);
+        setLoadError(null);
       })
       .catch((failure: unknown) => {
         if (!live) return;
-        setError(failure instanceof Error ? failure.message : String(failure));
-        setLoading(false);
+        setLoadError(
+          isMissing(failure)
+            ? `${open.path} is no longer in this space; a run or another window may have removed it.`
+            : failureMessage(failure),
+        );
       });
     return () => {
       live = false;
     };
-  }, [spaceId, open.path, open.fresh]);
+  }, [spaceId, open.path, open.fresh, attempt]);
 
-  const dirty = baseline === null ? true : content !== baseline;
+  const loading = baseline === null && loadError === null;
+  const dirty = baseline !== null && content !== baseline;
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+  // Leaving clears the mark, saved or discarded.
+  useEffect(
+    () => () => {
+      onDirtyChange?.(false);
+    },
+    [onDirtyChange],
+  );
+
   const isJson = path.trim().toLowerCase().endsWith(".json");
   const identity = pathParts(path);
   const kind = fileKind(path);
-  // A file opens in its first view; the person's choice holds while it fits.
+  // A file opens in its first view, a Preview where it has one; a new file
+  // has nothing to preview yet. The person's choice holds while it fits.
   const views = viewsFor(kind);
   const [chosenView, setChosenView] = useState<FileView | null>(null);
-  const view = chosenView !== null && views.includes(chosenView) ? chosenView : (views[0] ?? "text");
+  const opening = open.fresh && views[0] === "preview" ? "text" : (views[0] ?? "text");
+  const view = chosenView !== null && views.includes(chosenView) ? chosenView : opening;
 
   const save = async () => {
     setError(null);
@@ -523,17 +581,18 @@ function FileEditor({
       try {
         JSON.parse(content);
       } catch (failure) {
-        setError(`Not valid JSON: ${failure instanceof Error ? failure.message : String(failure)}`);
+        setError(`Not valid JSON: ${failureMessage(failure)}`);
         return;
       }
     }
     setBusy(true);
     try {
-      const saved = await api.writeFile(spaceId, wanted, content);
+      // A new file never replaces one already at its path.
+      const saved = await api.writeFile(spaceId, wanted, content, { create: open.fresh });
       setBaseline(saved.content);
       onSaved(saved.path);
     } catch (failure) {
-      setError(failure instanceof ApiError ? failure.message : failure instanceof Error ? failure.message : String(failure));
+      setError(failureMessage(failure));
     } finally {
       setBusy(false);
     }
@@ -546,11 +605,46 @@ function FileEditor({
       await api.deleteFile(spaceId, open.path);
       onDeleted();
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : String(failure));
+      // Already gone is what was asked for.
+      if (isMissing(failure)) onDeleted();
+      else setError(failureMessage(failure));
     } finally {
       setBusy(false);
     }
   };
+
+  if (loadError !== null) {
+    return (
+      <div className="file-editor" data-testid="files-editor">
+        <div className="file-editor__head">
+          <div className="file-editor__identity">
+            <span className="file-editor__eyebrow">{EYEBROWS[kind]}</span>
+            <h2>{identity.name}</h2>
+            <p>{identity.directory === "" ? "Space root" : `${identity.directory}/`}</p>
+          </div>
+          <div className="file-editor__actions">
+            <button type="button" className="button button--small" onClick={onCancel}>
+              Close
+            </button>
+            <button
+              type="button"
+              className="button button--small button--primary"
+              onClick={() => {
+                setLoadError(null);
+                setAttempt((current) => current + 1);
+              }}
+            >
+              Try again
+            </button>
+          </div>
+        </div>
+        <p className="field-error" role="alert">
+          This file could not be opened: {loadError}
+        </p>
+        <p className="file-editor__hint">Nothing was changed. It cannot be edited until it opens.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="file-editor" data-testid="files-editor">
@@ -603,18 +697,54 @@ function FileEditor({
               <button
                 type="button"
                 className="button button--small"
-                disabled={busy}
+                disabled={busy || loading}
                 onClick={() => {
                   setDeleteAsked(true);
+                  setCloseAsked(false);
                 }}
               >
                 Delete…
               </button>
             ))}
-          <button type="button" className="button button--small" disabled={busy} onClick={onCancel}>
-            Close
-          </button>
-          <button type="button" className="button button--small button--primary" disabled={busy || loading || !dirty} onClick={() => void save()}>
+          {closeAsked ? (
+            <span className="roster__confirm" role="alertdialog" aria-label="Unsaved changes">
+              <span>Close without saving your changes?</span>
+              <button type="button" className="button button--small button--danger" onClick={onCancel}>
+                Discard and close
+              </button>
+              <button
+                type="button"
+                className="button button--small"
+                onClick={() => {
+                  setCloseAsked(false);
+                }}
+              >
+                Keep editing
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="button button--small"
+              disabled={busy}
+              onClick={() => {
+                if (dirty) {
+                  setCloseAsked(true);
+                  setDeleteAsked(false);
+                } else {
+                  onCancel();
+                }
+              }}
+            >
+              Close
+            </button>
+          )}
+          <button
+            type="button"
+            className="button button--small button--primary"
+            disabled={busy || loading || (!dirty && !open.fresh)}
+            onClick={() => void save()}
+          >
             {busy ? "Saving…" : SAVE_LABELS[kind]}
           </button>
         </div>
@@ -643,13 +773,18 @@ function FileEditor({
           {error}
         </p>
       )}
-      {view === "text" || loading ? (
+      {loading ? (
+        <p className="file-editor__loading" role="status">
+          Opening {identity.name}…
+        </p>
+      ) : view === "preview" ? (
+        <DataPreview path={path} content={content} />
+      ) : view === "text" ? (
         <textarea
           className="file-editor__text"
           aria-label="File contents"
           spellCheck={false}
-          value={loading ? "Loading…" : content}
-          disabled={loading}
+          value={content}
           onChange={(changed) => {
             setContent(changed.target.value);
           }}
@@ -664,10 +799,13 @@ function FileEditor({
         <DiagramFile content={content} title={identity.name.replace(/\.(?:mmd|mermaid)$/i, "")} onContent={setContent} />
       )}
       <p className="file-editor__hint">
-        {view === "text" && isJson ? "JSON is checked before it is saved. " : ""}
-        {view === "text"
-          ? "An agent with read_file sees this file; one with write_file may change it, behind the same approval as any write."
-          : "Saved as an ordinary file: an agent with write_file can create or change it, behind the same approval as any write."}
+        {view === "preview"
+          ? "Preview only reads the file. Choose Text to change it."
+          : view === "text" && isJson
+            ? "JSON is checked before it is saved. An agent with read_file sees this file; one with write_file may change it, behind the same approval as any write."
+            : view === "text"
+              ? "An agent with read_file sees this file; one with write_file may change it, behind the same approval as any write."
+              : "Saved as an ordinary file: an agent with write_file can create or change it, behind the same approval as any write."}
       </p>
     </div>
   );

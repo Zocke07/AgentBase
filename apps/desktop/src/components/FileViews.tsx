@@ -2,6 +2,7 @@ import type { TextFileSummary } from "@agentbase/schemas";
 import { useEffect, useMemo, useState } from "react";
 
 import * as api from "../lib/api";
+import { isMissing } from "../lib/errors";
 import {
   dashboardJson,
   defaultVisualization,
@@ -16,6 +17,7 @@ import {
   type ChartKind,
   type DashboardSpec,
   type DataSet,
+  type Scalar,
   type SortOrder,
   type VisualizationSpec,
 } from "../lib/visualization";
@@ -30,11 +32,114 @@ import { MermaidDiagram } from "./MermaidDiagram";
  * agent writes through the same approval as any other write.
  */
 
+/** How many rows a Preview shows; Text has the whole file. */
+const PREVIEW_ROWS = 200;
+
+type Preview =
+  | { readonly kind: "table"; readonly data: DataSet }
+  | { readonly kind: "text"; readonly text: string; readonly note: string | null };
+
+/**
+ * A file read, not edited, which is how Knowledge opens one: rows as a
+ * table, other JSON indented, anything else as written. A look at a file can
+ * no longer change it; Text is where it is edited.
+ */
+export function DataPreview({ path, content }: { path: string; content: string }) {
+  const preview = useMemo(() => previewOf(path, content), [path, content]);
+  if (preview.kind === "text") {
+    return (
+      <div className="file-preview" data-testid="file-preview">
+        {preview.note !== null && <p className="file-preview__note">{preview.note}</p>}
+        {preview.text !== "" && <pre className="file-preview__text">{preview.text}</pre>}
+      </div>
+    );
+  }
+  const { data } = preview;
+  const total = data.rows.length;
+  const rows = data.rows.slice(0, PREVIEW_ROWS);
+  return (
+    <div className="file-preview" data-testid="file-preview">
+      <p className="file-preview__note">
+        {total > PREVIEW_ROWS
+          ? `The first ${String(PREVIEW_ROWS)} of ${total.toLocaleString()} rows. Text shows all of it.`
+          : `${total.toLocaleString()} row${total === 1 ? "" : "s"}.`}
+      </p>
+      <div className="file-preview__scroll">
+        <table className="file-preview__table">
+          <thead>
+            <tr>
+              {data.columns.map((column) => (
+                <th key={column.name} scope="col">
+                  {column.name}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, position) => (
+              <tr key={position}>
+                {data.columns.map((column) => (
+                  <td key={column.name} className={column.kind === "number" ? "file-preview__number" : undefined}>
+                    {cellText(row[column.name] ?? null)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function previewOf(path: string, content: string): Preview {
+  if (content.trim() === "") return { kind: "text", text: "", note: "This file is empty." };
+  const lower = path.toLowerCase();
+  if (lower.endsWith(".json")) {
+    let value: unknown;
+    try {
+      value = JSON.parse(content);
+    } catch (failure) {
+      return { kind: "text", text: content, note: `This is not valid JSON (${message(failure)}), so it is shown as written.` };
+    }
+    // A list of records reads as a table; settings and nested records as indented JSON.
+    if (Array.isArray(value) && value.length > 0) {
+      const table = attempt(() => parseDataFile(path, content));
+      if ("value" in table && table.value.columns.length > 0) return { kind: "table", data: table.value };
+    }
+    return { kind: "text", text: JSON.stringify(value, null, 2), note: null };
+  }
+  if (fileKind(path) === "data") {
+    const table = attempt(() => parseDataFile(path, content));
+    if ("error" in table) {
+      return { kind: "text", text: content, note: `This could not be read as rows (${table.error}), so it is shown as written.` };
+    }
+    if (table.value.rows.length > 0 && table.value.columns.length > 0) return { kind: "table", data: table.value };
+  }
+  return { kind: "text", text: content, note: null };
+}
+
+/** A cell as a person reads it: large figures grouped, small ones and years as written. */
+function cellText(value: Scalar): string {
+  if (value === null) return "";
+  if (typeof value === "number") {
+    return value.toLocaleString(undefined, { maximumFractionDigits: 6, useGrouping: Math.abs(value) >= 10_000 });
+  }
+  return String(value);
+}
+
 interface LoadedChart {
   path: string;
   spec: VisualizationSpec | null;
   data: DataSet | null;
   error: string | null;
+  /** Its data file is not written yet, as before a pipeline's first weekly review. */
+  waiting: boolean;
+}
+
+/** A chart whose data is not there yet: said calmly, since a run will write it. */
+function noDataYet(source: string): string {
+  return `No data yet: ${source} appears once a run writes it.`;
 }
 
 /** An open data file drawn as a chart, which can be saved as a chart file of its own. */
@@ -88,7 +193,8 @@ export function DataChart({
     setBusy(true);
     setError(null);
     try {
-      await api.writeFile(spaceId, wanted, visualizationJson(spec));
+      // A new chart never replaces one the space already has under that name.
+      await api.writeFile(spaceId, wanted, visualizationJson(spec), { create: true });
       onSaved(wanted);
     } catch (failure) {
       setError(message(failure));
@@ -152,7 +258,12 @@ export function ChartFile({
   const parsed = useMemo(() => attempt(() => parseVisualizationSpec(content)), [content]);
   const spec = "value" in parsed ? parsed.value : null;
   const source = spec?.source ?? "";
-  const [loaded, setLoaded] = useState<{ source: string; data: DataSet | null; error: string | null } | null>(null);
+  const [loaded, setLoaded] = useState<{
+    source: string;
+    data: DataSet | null;
+    error: string | null;
+    waiting?: boolean;
+  } | null>(null);
   useEffect(() => {
     if (source === "") return undefined;
     let live = true;
@@ -164,7 +275,7 @@ export function ChartFile({
           if (live) setLoaded({ source, data, error: null });
         },
         (failure: unknown) => {
-          if (live) setLoaded({ source, data: null, error: message(failure) });
+          if (live) setLoaded({ source, data: null, error: message(failure), waiting: isMissing(failure) });
         },
       );
     return () => {
@@ -188,9 +299,11 @@ export function ChartFile({
       ? "Choose the data file this chart draws."
       : current === null
         ? "Reading the data…"
-        : current.error !== null
-          ? `${source} cannot be drawn: ${current.error}`
-          : null;
+        : current.waiting === true
+          ? noDataYet(source)
+          : current.error !== null
+            ? `${source} cannot be drawn: ${current.error}`
+            : null;
 
   const changeSource = async (next: string) => {
     try {
@@ -324,6 +437,10 @@ export function DashboardFile({
           {shown?.map((chart) =>
             chart.spec !== null && chart.data !== null ? (
               <Chart key={chart.path} data={chart.data} spec={chart.spec} compact />
+            ) : chart.waiting && chart.spec !== null ? (
+              <div key={chart.path} className="file-view__note dashboard__waiting">
+                <strong>{chart.spec.title}</strong> {noDataYet(chart.spec.source)}
+              </div>
             ) : (
               <div key={chart.path} className="field-error">
                 {chart.path}: {chart.error}
@@ -532,12 +649,17 @@ function ChartEditor({
 }
 
 async function loadChart(spaceId: string, path: string): Promise<LoadedChart> {
+  let spec: VisualizationSpec;
   try {
-    const spec = parseVisualizationSpec((await api.getFile(spaceId, path)).content);
-    const source = await api.getFile(spaceId, spec.source);
-    return { path, spec, data: parseDataFile(source.path, source.content), error: null };
+    spec = parseVisualizationSpec((await api.getFile(spaceId, path)).content);
   } catch (failure) {
-    return { path, spec: null, data: null, error: message(failure) };
+    return { path, spec: null, data: null, error: message(failure), waiting: false };
+  }
+  try {
+    const source = await api.getFile(spaceId, spec.source);
+    return { path, spec, data: parseDataFile(source.path, source.content), error: null, waiting: false };
+  } catch (failure) {
+    return { path, spec, data: null, error: message(failure), waiting: isMissing(failure) };
   }
 }
 

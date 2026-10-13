@@ -22,12 +22,16 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 
 import * as api from "../lib/api";
+import { failureMessage, isMissing } from "../lib/errors";
+import { VISUAL_TEMPLATES } from "../lib/fileViews";
 import { obsidianAvailable, openInObsidian } from "../lib/folder";
 import { modelLabel } from "../lib/format";
 import { fuzzyFilter } from "../lib/fuzzy";
 import { forceLayout } from "../lib/graphLayout";
 import { countWords, toggleTaskLine } from "../lib/markdown";
+import { uniquePath } from "../lib/visualization";
 import { journalDays, journalEntries, journalKinds } from "../state/journal";
+import { sectionOf, type KnowledgeSection } from "../state/sections";
 import { useFetched } from "../state/useFetched";
 
 import { FilesPanel, type OpenFile } from "./FilesPanel";
@@ -40,10 +44,14 @@ import { NoteEditor } from "./NoteEditor";
 import { NoteTree } from "./NoteTree";
 import { QuickSwitcher } from "./QuickSwitcher";
 import { RecentFiles } from "./RecentFiles";
+import { SummaryList, type NewKind } from "./SummaryList";
 
 /**
- * Space-local Markdown vault: file explorer, source/preview editor, and
- * links/backlinks. Notes remain ordinary folder files.
+ * Space-local Markdown vault in two sections. User Summary lists what was
+ * written to be read (reports, notes, workbooks and charts) and opens each in
+ * Preview. Technical Details holds the raw data, settings and records, the
+ * vault's tree, editor, graph and retrieval tools. Notes remain ordinary
+ * folder files either way.
  */
 
 export interface KnowledgeViewProps {
@@ -68,7 +76,10 @@ export interface KnowledgeViewProps {
 }
 
 type ViewMode = "split" | "write" | "preview" | "graph" | "evaluate";
-type BrowserMode = "recent" | "journal" | "notes" | "files" | "memories";
+/** Technical Details' tabs. */
+type BrowserMode = "recent" | "notes" | "files" | "memories";
+/** What User Summary shows beside its list. */
+type SummaryShows = "note" | "file" | null;
 type NoteFilter = "all" | "pinned" | "orphans" | "unresolved";
 type GraphScope = "vault" | "local";
 
@@ -90,6 +101,11 @@ export function KnowledgeView({
 }: KnowledgeViewProps) {
   const [index, setIndex] = useState<KnowledgeIndex | null>(null);
   const [memories, setMemories] = useState<MemoryIndex | null>(null);
+  const [section, setSection] = useState<KnowledgeSection>("summary");
+  const [summaryView, setSummaryView] = useState<"list" | "journal">("list");
+  const [summaryShows, setSummaryShows] = useState<SummaryShows>(null);
+  // User Summary's open workbook or chart; Technical Details' file is `openFile`.
+  const [summaryFile, setSummaryFile] = useState<OpenFile | null>(null);
   const [browserMode, setBrowserMode] = useState<BrowserMode>("notes");
   const [note, setNote] = useState<KnowledgeNote | null>(null);
   const [path, setPath] = useState("");
@@ -97,7 +113,8 @@ export function KnowledgeView({
   // Last disk-agreed editor source; difference means unsaved.
   const [baseline, setBaseline] = useState("");
   const [creating, setCreating] = useState(false);
-  const [mode, setMode] = useState<ViewMode>("split");
+  // Every note opens in Preview, so a look cannot change it.
+  const [mode, setMode] = useState<ViewMode>("preview");
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [graph, setGraph] = useState<KnowledgeGraph>(EMPTY_GRAPH);
@@ -123,6 +140,9 @@ export function KnowledgeView({
   // Files view shared open data file; nonce signals editor save/delete.
   const [openFile, setOpenFile] = useState<OpenFile | null>(null);
   const [filesNonce, setFilesNonce] = useState(0);
+  // The open data file's unsaved changes, and a move away from it waiting on the person.
+  const [fileDirty, setFileDirty] = useState(false);
+  const [pendingLeave, setPendingLeave] = useState<{ run: () => void } | null>(null);
   // Delay cross-note navigation until unsaved-change decision.
   const [pendingOpen, setPendingOpen] = useState<{ path: string; heading: string | null } | null>(null);
   // The Journal's kind filter, and the date last picked in its index.
@@ -214,9 +234,20 @@ export function KnowledgeView({
         const loaded = await api.getKnowledgeNote(space.id, wanted);
         settle(loaded);
         wantedHeading.current = heading;
-        setMode((current) => (current === "graph" || current === "evaluate" ? "split" : current));
+        setMode("preview");
       } catch (failure) {
-        setError(asMessage(failure));
+        if (isMissing(failure)) {
+          // The list was older than the folder: say so and bring it up to date.
+          setError(`${wanted} is no longer in this space; a run or another window may have moved or removed it.`);
+          void Promise.all([api.listKnowledge(space.id), api.listMemories(space.id)])
+            .then(([nextIndex, nextMemories]) => {
+              setIndex(nextIndex);
+              setMemories(nextMemories);
+            })
+            .catch(() => undefined);
+        } else {
+          setError(asMessage(failure));
+        }
       } finally {
         setBusy(false);
       }
@@ -252,23 +283,80 @@ export function KnowledgeView({
     [dirty, note?.path, openNote],
   );
 
-  // Cross-section citation or memory note request.
+  /** Leave the open data file, asking first when it has unsaved changes. */
+  const leaveFile = (go: () => void) => {
+    if (fileDirty) {
+      setPendingLeave({ run: go });
+      return;
+    }
+    go();
+  };
+
+  /** Show a file where it belongs: a workbook or chart in User Summary, anything else in Agent files. */
+  const placeFile = (file: OpenFile) => {
+    const where = file.fresh ? section : sectionOf(file.path);
+    setSection(where);
+    if (where === "summary") {
+      setSummaryView("list");
+      setSummaryShows("file");
+      setSummaryFile(file);
+    } else {
+      setBrowserMode("files");
+      setOpenFile(file);
+    }
+  };
+
+  const openFileIn = (file: OpenFile) => {
+    leaveFile(() => {
+      placeFile(file);
+    });
+  };
+
+  /** Open a note where it belongs: a result in User Summary, anything else in Notes. */
+  const openNoteIn = (wanted: string, heading: string | null = null, where: KnowledgeSection = sectionOf(wanted)) => {
+    leaveFile(() => {
+      setSection(where);
+      if (where === "summary") {
+        setSummaryView("list");
+        setSummaryShows("note");
+      } else {
+        setBrowserMode("notes");
+      }
+      requestOpen(wanted, heading);
+    });
+  };
+
+  // Cross-section citation or memory note request: a report opens among the
+  // results, a memory beside the inbox, anything else in Notes. Placed while
+  // rendering; the effect below loads the note.
+  const [placedRequest, setPlacedRequest] = useState<number | null>(null);
+  if (openRequest !== undefined && openRequest.file !== true && openRequest.nonce !== placedRequest) {
+    setPlacedRequest(openRequest.nonce);
+    const where = openRequest.inbox === true ? "technical" : sectionOf(openRequest.path);
+    setSection(where);
+    if (where === "summary") {
+      setSummaryView("list");
+      setSummaryShows("note");
+    } else {
+      setBrowserMode(openRequest.inbox === true ? "memories" : "notes");
+    }
+  }
   const lastRequest = useRef<number | null>(null);
   useEffect(() => {
     if (openRequest === undefined || openRequest.file === true || openRequest.nonce === lastRequest.current) {
       return;
     }
     lastRequest.current = openRequest.nonce;
-    setBrowserMode(openRequest.inbox === true ? "memories" : "notes");
     requestOpen(openRequest.path, openRequest.heading);
   }, [openRequest, requestOpen]);
 
-  // A data file a run wrote opens in Agent files; adjusted while rendering.
+  // A file a run wrote opens where it belongs; adjusted while rendering.
   const [handledFile, setHandledFile] = useState<number | null>(null);
   if (openRequest?.file === true && openRequest.nonce !== handledFile) {
     setHandledFile(openRequest.nonce);
-    setBrowserMode("files");
-    setOpenFile({ path: openRequest.path, fresh: false });
+    const requested: OpenFile = { path: openRequest.path, fresh: false };
+    if (fileDirty) setPendingLeave({ run: () => { placeFile(requested); } });
+    else placeFile(requested);
   }
 
   // Agents write files while the section sits hidden; without this a run's
@@ -336,18 +424,18 @@ export function KnowledgeView({
     setToast(`No note is called "${target}" yet. Create it from the Open dialog (Ctrl/Cmd+O).`);
   };
 
-  /** A link in a Journal report opens its note in Notes. */
+  /** A link in a Journal report opens its note where it belongs. */
   const followFromJournal = (target: string, heading: string | null) => {
     const resolved = resolveLink(target);
     if (resolved === null) {
       followLink(target, heading);
       return;
     }
-    setBrowserMode("notes");
-    requestOpen(resolved, heading);
+    openNoteIn(resolved, heading);
   };
 
   const filterByTag = (tag: string) => {
+    setSection("technical");
     setBrowserMode("notes");
     setHits(null);
     setNoteFilter("all");
@@ -366,7 +454,8 @@ export function KnowledgeView({
           `Moved note and updated ${String(moved.updated_links)} link${moved.updated_links === 1 ? "" : "s"}. Backup: ${moved.backup_path}`,
         );
       } else {
-        saved = await api.saveKnowledgeNote(space.id, path, content);
+        // A new note never replaces one already at its path.
+        saved = await api.saveKnowledgeNote(space.id, path, content, { create: creating });
         setToast("Saved. Retrieval now uses this version.");
       }
       settle(saved);
@@ -399,7 +488,14 @@ export function KnowledgeView({
         `${path}/ was deleted (${String(result.deleted_files)} file${result.deleted_files === 1 ? "" : "s"}); a copy is at ${result.backup_path}.`,
       );
     } catch (failure) {
-      setError(asMessage(failure));
+      if (isMissing(failure)) {
+        // Already gone is what was asked for.
+        setFolderAsked(null);
+        setToast(`${path}/ was already gone.`);
+        await reload().catch(() => undefined);
+      } else {
+        setError(asMessage(failure));
+      }
     } finally {
       setBusy(false);
     }
@@ -409,16 +505,27 @@ export function KnowledgeView({
     if (note === null) return;
     setBusy(true);
     setError(null);
-    try {
-      await api.deleteKnowledgeNote(space.id, note.path);
+    const clear = () => {
       setNote(null);
       setPath("");
       setContent("");
       setBaseline("");
+      setDeleteAsked(false);
+    };
+    try {
+      await api.deleteKnowledgeNote(space.id, note.path);
+      clear();
+      setToast(`${note.path} was deleted. A copy is kept under .agentbase/backups.`);
       await reload();
-      setToast(`${note.path} was deleted.`);
     } catch (failure) {
-      setError(asMessage(failure));
+      if (isMissing(failure)) {
+        // Already gone is what was asked for.
+        clear();
+        setToast(`${note.path} was already gone.`);
+        await reload().catch(() => undefined);
+      } else {
+        setError(asMessage(failure));
+      }
     } finally {
       setBusy(false);
     }
@@ -475,7 +582,10 @@ export function KnowledgeView({
     setBusy(true);
     setError(null);
     try {
-      await api.deleteKnowledgeNote(space.id, memory.path);
+      await api.deleteKnowledgeNote(space.id, memory.path).catch((failure: unknown) => {
+        // Already gone is what was asked for.
+        if (!isMissing(failure)) throw failure;
+      });
       setForgetAsked(null);
       setMergeSelection((current) => current.filter((item) => item !== memory.path));
       if (note?.path === memory.path) {
@@ -540,7 +650,11 @@ export function KnowledgeView({
     setPath(nextPath);
     setContent(nextContent);
     setBaseline(nextContent);
-    setMode((current) => (current === "graph" || current === "evaluate" ? "split" : current));
+    // A new note has nothing to read yet: its source beside its preview,
+    // shown in whichever section it was started from.
+    setMode("split");
+    setSummaryView("list");
+    setSummaryShows("note");
     setDeleteAsked(false);
     setMoving(false);
     setPendingOpen(null);
@@ -669,10 +783,148 @@ export function KnowledgeView({
   const words = selected ? countWords(content) : 0;
   const folder = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
   const fileName = path.slice(folder === "" ? 0 : folder.length + 1);
+  const freeNotePath = () => uniquePath("knowledge/untitled.md", allNotes.map((item) => item.path));
+
+  /** A file was saved or deleted: reread the lists, saying so if that fails. */
+  const afterFileChange = () => {
+    setFilesNonce((current) => current + 1);
+    void reload().catch((failure: unknown) => {
+      setError(asMessage(failure));
+    });
+  };
+
+  const showSection = (next: KnowledgeSection) => {
+    if (next === section) return;
+    leaveFile(() => {
+      setSection(next);
+      setHits(null);
+      if (next === "summary") setMode((current) => (current === "graph" || current === "evaluate" ? "preview" : current));
+    });
+  };
+
+  const showTab = (next: BrowserMode) => {
+    leaveFile(() => {
+      setBrowserMode(next);
+      if (next !== "notes") setHits(null);
+    });
+  };
+
+  /** Start something new from User Summary, where it will be listed. */
+  const startNew = (what: NewKind) => {
+    if (what === "note") {
+      leaveFile(() => {
+        setSummaryView("list");
+        setSummaryShows("note");
+        startNote(freeNotePath(), NEW_NOTE);
+      });
+      return;
+    }
+    const template = VISUAL_TEMPLATES.find((candidate) => candidate.id === what);
+    if (template === undefined) return;
+    void api.listFiles(space.id).then(
+      (listed) => {
+        openFileIn({
+          path: uniquePath(
+            template.path,
+            listed.files.map((file) => file.path),
+          ),
+          fresh: true,
+          content: template.content,
+          purpose: template.purpose,
+        });
+      },
+      (failure: unknown) => {
+        setError(asMessage(failure));
+      },
+    );
+  };
+
+  // What the workspace shows: User Summary's result or report page, or a
+  // Technical Details tab's file, note or tool.
+  const summaryFileShown = section === "summary" && summaryView === "list" && summaryShows === "file" && summaryFile !== null;
+  const summaryNoteShown = section === "summary" && summaryView === "list" && summaryShows === "note" && selected;
+  const journalShown = section === "summary" && summaryView === "journal";
+  const technicalFiles = section === "technical" && browserMode === "files";
+  const showToolbar = section === "technical" ? !technicalFiles : summaryNoteShown;
 
   return (
     <div className="knowledge" data-testid="knowledge-view" ref={root}>
       <aside className="knowledge__browser">
+        <div className="knowledge__sections" role="tablist" aria-label="Knowledge sections">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={section === "summary"}
+            onClick={() => {
+              showSection("summary");
+            }}
+          >
+            User Summary
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={section === "technical"}
+            onClick={() => {
+              showSection("technical");
+            }}
+          >
+            Technical Details
+          </button>
+        </div>
+
+        {section === "summary" ? (
+          <>
+            <p className="knowledge__browser-kind">
+              {summaryView === "journal"
+                ? "Every dated report, such as each day's decision, as one page, newest first."
+                : "What was written for you to read: decisions, reviews, alerts, forecast workbooks and charts. Each opens in Preview."}
+            </p>
+            {summaryView === "journal" ? (
+              <>
+                <button
+                  type="button"
+                  className="link knowledge__back"
+                  onClick={() => {
+                    setSummaryView("list");
+                  }}
+                >
+                  {"‹"} All results
+                </button>
+                <JournalIndex
+                  days={days}
+                  kinds={kinds}
+                  kind={shownKind}
+                  onKind={setJournalKind}
+                  current={journalFocus?.date ?? null}
+                  onPick={(date) => {
+                    setJournalFocus((current) => ({ date, nonce: (current?.nonce ?? 0) + 1 }));
+                  }}
+                />
+              </>
+            ) : (
+              <SummaryList
+                spaceId={space.id}
+                notes={index?.notes ?? null}
+                reloadNonce={listsNonce}
+                activePath={
+                  summaryShows === "note" ? (note?.path ?? null) : summaryShows === "file" ? (summaryFile?.path ?? null) : null
+                }
+                onOpen={(item) => {
+                  if (item.kind === "note") openNoteIn(item.path, null, "summary");
+                  else openFileIn({ path: item.path, fresh: false });
+                }}
+                onReadAll={() => {
+                  leaveFile(() => {
+                    setSummaryView("journal");
+                  });
+                }}
+                onNew={startNew}
+              />
+            )}
+          </>
+        ) : (
+          <>
         <div className="knowledge__browser-head">
           <div className="knowledge__browser-title">
             <h2>{space.name}</h2>
@@ -707,7 +959,7 @@ export function KnowledgeView({
                 title="New note"
                 aria-label="New note"
                 onClick={() => {
-                  startNote("knowledge/untitled.md", NEW_NOTE);
+                  startNote(freeNotePath(), NEW_NOTE);
                 }}
               >
                 <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -747,14 +999,13 @@ export function KnowledgeView({
           )}
         </div>
 
-        <div className="knowledge__browser-tabs" role="tablist" aria-label="Vault browser">
+        <div className="knowledge__browser-tabs" role="tablist" aria-label="Technical Details">
           <button
             type="button"
             role="tab"
             aria-selected={browserMode === "recent"}
             onClick={() => {
-              setBrowserMode("recent");
-              setHits(null);
+              showTab("recent");
             }}
           >
             Recent
@@ -762,20 +1013,9 @@ export function KnowledgeView({
           <button
             type="button"
             role="tab"
-            aria-selected={browserMode === "journal"}
-            onClick={() => {
-              setBrowserMode("journal");
-              setHits(null);
-            }}
-          >
-            Journal
-          </button>
-          <button
-            type="button"
-            role="tab"
             aria-selected={browserMode === "notes"}
             onClick={() => {
-              setBrowserMode("notes");
+              showTab("notes");
             }}
           >
             Notes
@@ -785,8 +1025,7 @@ export function KnowledgeView({
             role="tab"
             aria-selected={browserMode === "files"}
             onClick={() => {
-              setBrowserMode("files");
-              setHits(null);
+              showTab("files");
             }}
           >
             Agent files
@@ -796,8 +1035,7 @@ export function KnowledgeView({
             role="tab"
             aria-selected={browserMode === "memories"}
             onClick={() => {
-              setBrowserMode("memories");
-              setHits(null);
+              showTab("memories");
             }}
           >
             Saved context
@@ -810,12 +1048,10 @@ export function KnowledgeView({
         <p className="knowledge__browser-kind">
           {browserMode === "recent"
             ? "The newest notes and agent files, whoever wrote them."
-            : browserMode === "journal"
-            ? "Every dated report, such as each day's decision, as one page, newest first."
             : browserMode === "notes"
-            ? "Markdown knowledge that you and agents write."
+            ? "Every Markdown note in the vault, with its links, tags and search."
             : browserMode === "files"
-              ? "Structured inputs and generated files used by agents."
+              ? "The raw data, settings and records agents work from. Workbooks and charts are in User Summary."
               : "Generated context managed for future runs, with uncertain items sent to your attention."}
         </p>
 
@@ -934,23 +1170,21 @@ export function KnowledgeView({
               requestOpen(wanted, null);
             }}
             onOpenFile={(wanted) => {
-              setBrowserMode("files");
-              setOpenFile({ path: wanted, fresh: false });
-            }}
-          />
-        ) : browserMode === "journal" ? (
-          <JournalIndex
-            days={days}
-            kinds={kinds}
-            kind={shownKind}
-            onKind={setJournalKind}
-            current={journalFocus?.date ?? null}
-            onPick={(date) => {
-              setJournalFocus((current) => ({ date, nonce: (current?.nonce ?? 0) + 1 }));
+              openFileIn({ path: wanted, fresh: false });
             }}
           />
         ) : browserMode === "files" ? (
-          <FilesPanel spaceId={space.id} part="list" open={openFile} onOpen={setOpenFile} reloadNonce={listsNonce} />
+          <FilesPanel
+            spaceId={space.id}
+            part="list"
+            scope="technical"
+            open={openFile}
+            onOpen={(file) => {
+              if (file === null) leaveFile(() => { setOpenFile(null); });
+              else openFileIn(file);
+            }}
+            reloadNonce={listsNonce}
+          />
         ) : browserMode === "memories" ? (
           <MemoryInbox
             memories={memories}
@@ -1058,13 +1292,15 @@ export function KnowledgeView({
             )}
           </div>
         )}
+          </>
+        )}
       </aside>
 
       <section className="knowledge__workspace">
-        {browserMode !== "files" && browserMode !== "journal" && (
+        {showToolbar && (
           <div className="knowledge__toolbar">
           <div className="knowledge__modes" role="group" aria-label="Knowledge view">
-            {(["write", "preview", "split"] as const).map((choice) => (
+            {(["preview", "write", "split"] as const).map((choice) => (
               <button
                 type="button"
                 key={choice}
@@ -1077,22 +1313,26 @@ export function KnowledgeView({
                 {choice === "split" ? "Split" : choice === "write" ? "Write" : "Preview"}
               </button>
             ))}
-            <span className="knowledge__modes-gap" />
-            <button type="button" aria-pressed={mode === "graph"} onClick={() => void showGraph()}>
-              Graph
-            </button>
-            <button
-              type="button"
-              aria-pressed={mode === "evaluate"}
-              onClick={() => {
-                setMode("evaluate");
-              }}
-            >
-              Evaluate
-            </button>
+            {section === "technical" && (
+              <>
+                <span className="knowledge__modes-gap" />
+                <button type="button" aria-pressed={mode === "graph"} onClick={() => void showGraph()}>
+                  Graph
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={mode === "evaluate"}
+                  onClick={() => {
+                    setMode("evaluate");
+                  }}
+                >
+                  Evaluate
+                </button>
+              </>
+            )}
           </div>
           <div className="knowledge__actions">
-            {obsidian && (
+            {obsidian && section === "technical" && (
               <button
                 type="button"
                 className="button button--small"
@@ -1111,7 +1351,7 @@ export function KnowledgeView({
                 {note !== null &&
                   (deleteAsked ? (
                     <span className="roster__confirm">
-                      <span>Delete {note.path}?</span>
+                      <span>Delete {note.path}? A copy is kept under .agentbase/backups.</span>
                       <button
                         type="button"
                         className="button button--small button--danger"
@@ -1154,7 +1394,7 @@ export function KnowledgeView({
                     Move or rename…
                   </button>
                 )}
-                {note !== null && !moving && (
+                {note !== null && !moving && section === "technical" && (
                   <button type="button" className="button button--small" disabled={busy} onClick={() => void pinCurrent()}>
                     {note.pinned === true ? "Unpin note" : "Pin note"}
                   </button>
@@ -1222,31 +1462,97 @@ export function KnowledgeView({
           </div>
         )}
 
-        {browserMode === "files" ? (
+        {pendingLeave !== null && (
+          <div className="knowledge__guard" role="alertdialog" aria-label="Unsaved file" data-testid="unsaved-file-guard">
+            <span>The open file has unsaved changes. Leave it without saving?</span>
+            <button
+              type="button"
+              className="button button--small button--danger"
+              onClick={() => {
+                const leaving = pendingLeave;
+                setPendingLeave(null);
+                setFileDirty(false);
+                leaving.run();
+              }}
+            >
+              Discard and continue
+            </button>
+            <button
+              type="button"
+              className="button button--small"
+              onClick={() => {
+                setPendingLeave(null);
+              }}
+            >
+              Keep editing
+            </button>
+          </div>
+        )}
+
+        {technicalFiles ? (
           <FilesPanel
             spaceId={space.id}
             folder={space.folder}
             part="editor"
             open={openFile}
-            onOpen={setOpenFile}
-            onChanged={() => {
-              setFilesNonce((current) => current + 1);
-              void reload();
+            onOpen={(file) => {
+              if (file === null) setOpenFile(null);
+              else placeFile(file);
             }}
+            onChanged={afterFileChange}
+            onDirtyChange={setFileDirty}
           />
-        ) : browserMode === "journal" ? (
+        ) : summaryFileShown ? (
+          <FilesPanel
+            spaceId={space.id}
+            folder={space.folder}
+            part="editor"
+            open={summaryFile}
+            onOpen={(file) => {
+              if (file === null) {
+                setSummaryFile(null);
+                setSummaryShows(null);
+              } else {
+                placeFile(file);
+              }
+            }}
+            onChanged={afterFileChange}
+            onDirtyChange={setFileDirty}
+          />
+        ) : journalShown ? (
           <JournalPage
             spaceId={space.id}
             days={days}
             focus={journalFocus}
             onOpenNote={(wanted) => {
-              setBrowserMode("notes");
-              requestOpen(wanted);
+              openNoteIn(wanted);
             }}
             onLink={followFromJournal}
             onTag={filterByTag}
           />
-        ) : mode === "graph" ? (
+        ) : section === "summary" && !summaryNoteShown ? (
+          <div className="knowledge__welcome" data-testid="summary-welcome">
+            <h2>Your results</h2>
+            <p>
+              Pick a result on the left to read it. Decisions, portfolio reviews and market alerts open as pages, the
+              monthly forecast workbook opens in your spreadsheet app, and charts are drawn.
+            </p>
+            <p>Technical Details holds the raw data, settings and records the agents worked from.</p>
+            <div className="knowledge__welcome-actions">
+              <button
+                type="button"
+                className="button"
+                onClick={() => {
+                  leaveFile(() => {
+                    setSummaryView("journal");
+                  });
+                }}
+              >
+                Read every dated report as one page
+              </button>
+            </div>
+          </div>
+        ) : section === "technical" && mode === "graph" ? (
           <KnowledgeGraphView
             graph={graph}
             scope={graphScope}
@@ -1256,7 +1562,7 @@ export function KnowledgeView({
               requestOpen(wanted);
             }}
           />
-        ) : mode === "evaluate" ? (
+        ) : section === "technical" && mode === "evaluate" ? (
           <KnowledgeEvaluationView spaceId={space.id} />
         ) : selected ? (
           <>
@@ -1364,7 +1670,7 @@ export function KnowledgeView({
                 type="button"
                 className="button button--primary"
                 onClick={() => {
-                  startNote("knowledge/untitled.md", NEW_NOTE);
+                  startNote(freeNotePath(), NEW_NOTE);
                 }}
               >
                 Create a note
@@ -1438,7 +1744,7 @@ export function KnowledgeView({
           notes={allNotes}
           onOpen={(wanted) => {
             setSwitcher(false);
-            requestOpen(wanted);
+            openNoteIn(wanted);
           }}
           onCreate={(wanted) => {
             setSwitcher(false);
@@ -1731,5 +2037,5 @@ function graphElements(
 }
 
 function asMessage(failure: unknown): string {
-  return failure instanceof Error ? failure.message : String(failure);
+  return failureMessage(failure);
 }
