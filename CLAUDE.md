@@ -282,8 +282,9 @@ future changes do not relocate users' data or disconnect their stored keys.
   These are ordinary space files written through the existing gate; there is
   no visualization database or service, and no Visualize section since
   2026-10-08.
-- The latest recorded database migration is 034 (the pipeline tools leave
-  other spaces' agents); 033 is the decision's date, facts and workbook, 032
+- The latest recorded database migration is 035 (the risk manager reduces
+  only for a risk an input names); 034 takes the pipeline tools from other
+  spaces' agents, 033 is the decision's date, facts and workbook, 032
   adds run titles, 031 has the decision let
   `track_forecasts` read the theses, 030 is the market watch, 029 the model
   refresh and 028 the research extension. Migration 020 adds Sonnet

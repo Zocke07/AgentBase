@@ -4,6 +4,36 @@ Updated 2026-10-13. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
+## The first clean chain after a fresh start, and the risk verdicts, 2026-10-14
+
+After the generated outputs and usage were cleared, the 07:00 chain started
+at 11:02 Taipei, outside US trading hours, and ran unattended in 12 minutes:
+collection 2.5, theses and risk 7.5, decision 2. It read 26 symbols with no
+price failures and wrote `decisions/2026-10-13.md` for the right session.
+`track_forecasts` recorded 130 forecasts, 10 of them analyst forecasts (MU
+bullish, CRWV bearish), with no conflicts. The supervisor's spawn arguments
+came out unreadable three times on GPT-5.6 Terra; each was refused, sent
+again, and passed the chain gate. The API-equivalent estimate was $1.84, 69%
+of it the theses stage.
+
+- **Risk verdicts.** Every holding passed every hard rule, yet AVGO, NOW and
+  ORCL were "reduce" for sharing a sector that passed its limit and for a
+  routine 17-week bill auction, so the decision recommended trimming them.
+  Migration 035 gives each verdict a test (block for a failed rule, reduce
+  for a stock-specific risk a read input names, allow otherwise), names the
+  calendar file it had looked for under `config/`, and says what
+  `max_size_pct` holds. Only passages still as shipped change.
+- **Executed.** `test_risk_verdicts_migration.py`: a fresh database has the
+  new rules, and an edited passage keeps its edit while the others move; a
+  version-34 database lacks them. A copy of the live database upgraded to
+  schema 35 with the five passages replaced and its runs kept. `just ci`:
+  backend **1,411 passed, 12 skipped**; desktop **653 passed in 62 files**;
+  lint, formatting and both typecheckers clean.
+- **Unverified.** No run has used the new rules yet; they load when
+  `just dev-app` restarts. MU and MSFT remain blocked on the sample
+  portfolio, one share each in a $4,714 book, which is the sample's sizing
+  rather than a fault.
+
 ## The investment pipeline stays in the default space, 2026-10-13
 
 The maintainer asked that what was built for the default space, such as the

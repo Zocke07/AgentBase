@@ -34,7 +34,7 @@ and dates stay blank.
 | `portfolio-review` | Claude Haiku 5.5 | Computes and describes the current book. Never recommends. | `compute_portfolio` |
 | `bull-architect` | Claude Sonnet 5.5 | Writes the strongest evidence-based rise cases as scored predictions. | file and knowledge tools |
 | `bear-architect` | Claude Sonnet 5.5 | Writes the strongest evidence-based fall cases as scored predictions. | file and knowledge tools |
-| `risk-manager` | Claude Sonnet 5.5 | Restates deterministic rule results, keeps its veto, then adds qualitative risks. | `check_limits` |
+| `risk-manager` | Claude Sonnet 5.5 | Restates deterministic rule results and blocks on any failed rule. Otherwise it allows, unless a file it read names a risk specific to that stock, such as its own earnings inside a thesis's horizon. Sharing a sector within the limit, a routine Treasury auction or general caution is no reason to reduce. | `check_limits` |
 | `decision` | Claude Opus 5.5 | Arbitrates the two cases and risk checks into a recommendation and records the session's forecasts: the theses' own, or labeled baselines. | `track_forecasts`, file tools |
 | `review-analyst` | Claude Sonnet 5.5 | Scores predictions, refreshes forecast actuals and diagnoses misses without hindsight. | `score_predictions`, `track_forecasts`, `propose_memory` |
 | `market-explainer` | the news scanner's model | Explains a market alert from the day's headlines and saved research, citing each source; never predicts or recommends. Started by [Market watch](2_running_tasks.md#market-watch-alerts-for-sudden-moves). | `read_feed`, file and knowledge tools |
@@ -167,7 +167,9 @@ pipeline has a defined consumer:
    empty when the evidence supports no call. Each thesis's direction and
    magnitude band become that stock's recorded forecast at its horizon.
    Then `check_limits` produces the
-   hard rule results before the risk manager adds judgement.
+   hard rule results before the risk manager adds judgement: block for a
+   failed rule, reduce for a stock-specific risk a file names, and allow on
+   an ordinary day.
 3. **Daily decision** writes `decisions/{session date}.md`, a recommendation
    for human review. Its table's **Size (% of portfolio)** is the share of
    the portfolio's total value to hold, 0% for a pass. Every row, a pass

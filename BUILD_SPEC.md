@@ -1430,6 +1430,23 @@ sent again, and the chain gate passes it. A refusal never followed up still
 counts as a failure, since a worker it would have started may never have
 run.)*
 
+*(2026-10-14, the first clean daily chain after a fresh start, 12 minutes
+unattended: every holding passed every hard rule, yet the risk manager marked
+AVGO, NOW and ORCL "reduce" for sharing the Technology sector, which
+`max_sector_pct` already limits and which passed, and for a routine 17-week
+Treasury bill auction. The calendar holds only Treasury auctions, several a
+week, so those reasons would have reduced every holding daily, and the
+decision followed them into trims. Its prompt said its job was to find
+reasons not to act and to prefer the more restrictive verdict under any
+uncertainty. Migration 035 gives each verdict a test: block for a failed hard
+rule and nothing else; reduce for a ticker-specific risk that an input it
+read names, such as the stock's own earnings or company news inside a thesis
+horizon; allow otherwise. Sector overlap that passes its rule, a routine
+auction, a thesis's confidence and general uncertainty are not reasons alone.
+It also names the calendar file, which it had looked for under `config/`,
+and what `max_size_pct` holds for each verdict. Only passages still as
+shipped change.)*
+
 **Out of scope:**
 
 - Reddit and other social sources: OAuth, and their terms.
