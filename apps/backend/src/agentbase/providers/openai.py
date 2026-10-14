@@ -246,16 +246,12 @@ class OpenAIProvider:
 
         content = message.get("content")
         usage = body.get("usage")
-        usage = usage if isinstance(usage, dict) else {}
 
         return Completion(
             provider=self.name,
             model=str(body.get("model", self._model)),
             text=content if isinstance(content, str) else "",
-            usage=TokenUsage(
-                input_tokens=_non_negative_int(usage.get("prompt_tokens")),
-                output_tokens=_non_negative_int(usage.get("completion_tokens")),
-            ),
+            usage=_chat_usage(usage),
             tool_calls=tuple(_tool_calls(message.get("tool_calls"))),
             stop_reason=_optional_str(choice.get("finish_reason")),
         )
@@ -426,6 +422,8 @@ def _from_responses(body: dict[str, Any], provider: str, model: str) -> Completi
         raise ProviderError(msg)
     usage = body.get("usage")
     usage = usage if isinstance(usage, dict) else {}
+    details = usage.get("input_tokens_details")
+    prompt_parts = details if isinstance(details, dict) else {}
     if status == "incomplete":
         details = body.get("incomplete_details")
         reason = details.get("reason") if isinstance(details, dict) else None
@@ -441,6 +439,9 @@ def _from_responses(body: dict[str, Any], provider: str, model: str) -> Completi
             # output_tokens already includes reasoning_tokens. Do not count
             # those details twice or exclude them from the app's budget.
             output_tokens=_non_negative_int(usage.get("output_tokens")),
+            # Parts of input_tokens: OpenAI caches without being asked.
+            cache_read_tokens=_non_negative_int(prompt_parts.get("cached_tokens")),
+            cache_write_tokens=_non_negative_int(prompt_parts.get("cache_write_tokens")),
         ),
         tool_calls=tuple(calls),
         stop_reason=stop_reason,
@@ -516,6 +517,19 @@ def _tool_calls(raw: Any) -> list[ToolCall]:
     return calls
 
 
+def _chat_usage(usage: Any) -> TokenUsage:
+    """Chat Completions counts; the cached and newly cached parts are within ``prompt_tokens``."""
+    counts = usage if isinstance(usage, dict) else {}
+    details = counts.get("prompt_tokens_details")
+    parts = details if isinstance(details, dict) else {}
+    return TokenUsage(
+        input_tokens=_non_negative_int(counts.get("prompt_tokens")),
+        output_tokens=_non_negative_int(counts.get("completion_tokens")),
+        cache_read_tokens=_non_negative_int(parts.get("cached_tokens")),
+        cache_write_tokens=_non_negative_int(parts.get("cache_write_tokens")),
+    )
+
+
 def _non_negative_int(value: Any) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         return 0
@@ -537,8 +551,7 @@ class _StreamState:
         self._model = model
         self._text: list[str] = []
         self._calls: dict[int, dict[str, Any]] = {}
-        self._input_tokens = 0
-        self._output_tokens = 0
+        self._usage: dict[str, Any] = {}
         self._stop_reason: str | None = None
 
     def consume(self, frame: dict[str, Any]) -> str:
@@ -549,8 +562,7 @@ class _StreamState:
 
         usage = frame.get("usage")
         if isinstance(usage, dict):
-            self._input_tokens = _non_negative_int(usage.get("prompt_tokens"))
-            self._output_tokens = _non_negative_int(usage.get("completion_tokens"))
+            self._usage = usage
 
         choices = frame.get("choices")
         if not isinstance(choices, list) or not choices:
@@ -623,10 +635,7 @@ class _StreamState:
             provider=provider,
             model=self._model,
             text="".join(self._text),
-            usage=TokenUsage(
-                input_tokens=self._input_tokens,
-                output_tokens=self._output_tokens,
-            ),
+            usage=_chat_usage(self._usage),
             tool_calls=tuple(tool_calls),
             stop_reason=self._stop_reason,
         )

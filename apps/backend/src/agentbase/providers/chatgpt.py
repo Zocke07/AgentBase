@@ -808,20 +808,21 @@ def _optional_text(value: object) -> str | None:
 
 
 def _usage(raw: Any) -> TokenUsage:
+    """The turn's counts. As in OpenAI's API, ``input_tokens`` is the whole
+    prompt, and the cached and newly cached parts are within it."""
     last = getattr(raw, "last", None)
-    input_tokens = getattr(last, "input_tokens", 0)
-    output_tokens = getattr(last, "output_tokens", 0)
+
+    def count(name: str) -> int:
+        value = getattr(last, name, 0)
+        if isinstance(value, int) and not isinstance(value, bool):
+            return max(0, value)
+        return 0
+
     return TokenUsage(
-        input_tokens=(
-            max(0, input_tokens)
-            if isinstance(input_tokens, int) and not isinstance(input_tokens, bool)
-            else 0
-        ),
-        output_tokens=(
-            max(0, output_tokens)
-            if isinstance(output_tokens, int) and not isinstance(output_tokens, bool)
-            else 0
-        ),
+        input_tokens=count("input_tokens"),
+        output_tokens=count("output_tokens"),
+        cache_read_tokens=count("cached_input_tokens"),
+        cache_write_tokens=count("cache_write_input_tokens"),
     )
 
 

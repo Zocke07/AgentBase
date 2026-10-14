@@ -109,13 +109,26 @@ def decode_arguments(encoded: str) -> tuple[dict[str, Any], str | None]:
 
 @dataclass(frozen=True, slots=True)
 class TokenUsage:
-    """Normalized nonnegative integer token counts; use zero, not ``None``."""
+    """Normalized nonnegative integer token counts; use zero, not ``None``.
+
+    ``input_tokens`` is the whole prompt. The cache counts are parts of it
+    that a provider billed differently: read from its prompt cache, or written
+    to it (``providers/pricing.py`` charges both).
+    """
 
     input_tokens: int = 0
     output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
 
     def __post_init__(self) -> None:
-        if self.input_tokens < 0 or self.output_tokens < 0:
+        counts = (
+            self.input_tokens,
+            self.output_tokens,
+            self.cache_read_tokens,
+            self.cache_write_tokens,
+        )
+        if any(count < 0 for count in counts):
             msg = f"token counts cannot be negative: {self!r}"
             raise ValueError(msg)
 

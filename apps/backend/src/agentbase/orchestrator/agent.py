@@ -444,6 +444,10 @@ class Agent:
                 "thinking": completion.thinking,
                 "input_tokens": completion.usage.input_tokens,
                 "output_tokens": completion.usage.output_tokens,
+                # Parts of input_tokens the provider read from or wrote to its
+                # prompt cache, each billed at its own rate.
+                "cache_read_tokens": completion.usage.cache_read_tokens,
+                "cache_write_tokens": completion.usage.cache_write_tokens,
                 # ``None`` only from an unwrapped provider; app never builds one.
                 "cost_micros": completion.cost_micros,
                 "stop_reason": completion.stop_reason,

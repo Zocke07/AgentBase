@@ -536,6 +536,29 @@ async def test_the_recorded_cost_uses_actual_usage_not_the_estimate(
     assert await ledger.spent_micros() == 300
 
 
+async def test_cached_input_is_recorded_at_the_providers_cache_rates(
+    ledger: BudgetLedger, store: EventStore
+) -> None:
+    """2026-10-14: a provider bills the part of a prompt it had cached at a
+    fraction of the input rate, and the part it wrote to the cache at a
+    premium. The ledger records what the call reported, priced that way."""
+    run_id = await _run_id(store)
+    usage = TokenUsage(
+        input_tokens=1_000_000,
+        output_tokens=0,
+        cache_read_tokens=800_000,
+        cache_write_tokens=100_000,
+    )
+    inner = StubProvider(model="claude-sonnet-5-5", usage=usage)
+    guarded = BudgetedProvider(inner, ledger, run_id)
+
+    await guarded.complete([Message(role=Role.USER, content="hi")])
+
+    # Sonnet 5.5 at $2/M: 100k plain $0.20, 800k read at 0.05x $0.08 and 100k
+    # written at 1.25x $0.25.
+    assert await ledger.spent_micros() == 200_000 + 80_000 + 250_000
+
+
 async def test_the_guard_preserves_the_provider_protocol(
     ledger: BudgetLedger, store: EventStore
 ) -> None:

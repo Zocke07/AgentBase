@@ -1,6 +1,8 @@
 """Anthropic Messages API adapter.
 
-Anthropic requires a top-level system prompt and ``max_tokens``.
+Anthropic requires a top-level system prompt and ``max_tokens``. Every request
+asks for prompt caching: each agent step re-sends its whole conversation, and
+a cached prefix costs a small fraction of the input rate (2026-10-14).
 """
 
 from __future__ import annotations
@@ -80,6 +82,9 @@ class AnthropicProvider:
             "model": self._model,
             "max_tokens": max_tokens,
             "messages": turns,
+            # Automatic caching: the breakpoint goes on the last block, so the
+            # next step reads this request's prompt from the cache.
+            "cache_control": {"type": "ephemeral"},
         }
         if system_prompt:
             payload["system"] = system_prompt
@@ -174,6 +179,7 @@ class AnthropicProvider:
 
         usage = body.get("usage")
         usage = usage if isinstance(usage, dict) else {}
+        prompt, read, written = _prompt_counts(usage)
 
         return Completion(
             provider=self.name,
@@ -181,8 +187,10 @@ class AnthropicProvider:
             text="".join(text_parts),
             thinking="".join(thinking_parts) or None,
             usage=TokenUsage(
-                input_tokens=_non_negative_int(usage.get("input_tokens")),
+                input_tokens=prompt,
                 output_tokens=_non_negative_int(usage.get("output_tokens")),
+                cache_read_tokens=read,
+                cache_write_tokens=written,
             ),
             tool_calls=tuple(tool_calls),
             stop_reason=_optional_str(body.get("stop_reason")),
@@ -255,6 +263,24 @@ def _blocks(content: Any) -> list[dict[str, Any]]:
     return [block for block in content if isinstance(block, dict)]
 
 
+#: Anthropic's three prompt counts: after the cache, read from it, written to it.
+_PROMPT_FIELDS: Final[tuple[str, ...]] = (
+    "input_tokens",
+    "cache_read_input_tokens",
+    "cache_creation_input_tokens",
+)
+
+
+def _prompt_counts(usage: dict[str, Any]) -> tuple[int, int, int]:
+    """The whole prompt, and its parts read from and written to the cache.
+
+    Anthropic's ``input_tokens`` counts only what follows the cached part.
+    """
+    read = _non_negative_int(usage.get("cache_read_input_tokens"))
+    written = _non_negative_int(usage.get("cache_creation_input_tokens"))
+    return _non_negative_int(usage.get("input_tokens")) + read + written, read, written
+
+
 def _non_negative_int(value: Any) -> int:
     """Coerce a reported token count, defaulting to 0 rather than raising."""
     if isinstance(value, bool) or not isinstance(value, int):
@@ -278,7 +304,9 @@ class _StreamState:
         self._text: list[str] = []
         self._thinking: list[str] = []
         self._blocks: dict[int, dict[str, Any]] = {}
-        self._input_tokens = 0
+        # Anthropic's prompt counts as reported, each kept until a later frame
+        # repeats it.
+        self._prompt_usage: dict[str, Any] = {}
         self._output_tokens = 0
         self._stop_reason: str | None = None
         self._error: str | None = None
@@ -316,9 +344,14 @@ class _StreamState:
 
         usage = message.get("usage")
         if isinstance(usage, dict):
-            self._input_tokens = _non_negative_int(usage.get("input_tokens"))
+            self._prompt(usage)
             # Final ``message_delta`` reports the definitive output count.
             self._output_tokens = _non_negative_int(usage.get("output_tokens"))
+
+    def _prompt(self, usage: dict[str, Any]) -> None:
+        for field in _PROMPT_FIELDS:
+            if usage.get(field) is not None:
+                self._prompt_usage[field] = usage[field]
 
     def _block_start(self, frame: dict[str, Any]) -> None:
         block = frame.get("content_block")
@@ -372,6 +405,8 @@ class _StreamState:
             output = usage.get("output_tokens")
             if output is not None:
                 self._output_tokens = _non_negative_int(output)
+            # Counts here are cumulative: one that repeats a prompt count replaces it.
+            self._prompt(usage)
 
     def finish(self, provider: str) -> Completion:
         """Build the response or raise an error received after HTTP success."""
@@ -392,6 +427,7 @@ class _StreamState:
             for _, block in sorted(self._blocks.items())
             for arguments, problem in [decode_arguments("".join(block["json"]))]
         ]
+        prompt, read, written = _prompt_counts(self._prompt_usage)
 
         return Completion(
             provider=provider,
@@ -399,8 +435,10 @@ class _StreamState:
             text="".join(self._text),
             thinking="".join(self._thinking) or None,
             usage=TokenUsage(
-                input_tokens=self._input_tokens,
+                input_tokens=prompt,
                 output_tokens=self._output_tokens,
+                cache_read_tokens=read,
+                cache_write_tokens=written,
             ),
             tool_calls=tuple(tool_calls),
             stop_reason=self._stop_reason,

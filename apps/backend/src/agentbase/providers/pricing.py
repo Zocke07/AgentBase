@@ -33,6 +33,9 @@ MICROS_PER_DOLLAR: Final[int] = 1_000_000
 #: Prices are quoted per this many tokens.
 TOKENS_PER_PRICE_UNIT: Final[int] = 1_000_000
 
+#: Cache rates are basis points of a tier's input rate: 10,000 is the full rate.
+FULL_RATE_BPS: Final[int] = 10_000
+
 #: IDs under this prefix run locally and cost nothing.
 LOCAL_MODEL_PREFIX: Final[str] = "ollama/"
 
@@ -73,23 +76,51 @@ class LongContextPrice:
 
 @dataclass(frozen=True, slots=True)
 class ModelPrice:
-    """Input/output micros per million tokens, with an optional prompt tier."""
+    """Input/output micros per million tokens, with an optional prompt tier.
+
+    A prompt-cache read and a cache write cost these basis points of the
+    selected tier's input rate. Both providers publish them as fixed fractions
+    of each tier's input price.
+    """
 
     input_micros_per_million: int
     output_micros_per_million: int
     long_context: LongContextPrice | None = None
+    cache_read_bps: int = FULL_RATE_BPS
+    cache_write_bps: int = FULL_RATE_BPS
 
     def __post_init__(self) -> None:
         if self.input_micros_per_million < 0 or self.output_micros_per_million < 0:
             msg = f"a price cannot be negative: {self!r}"
             raise ValueError(msg)
+        if self.cache_read_bps < 0 or self.cache_write_bps < 0:
+            msg = f"a cache rate cannot be negative: {self!r}"
+            raise ValueError(msg)
 
 
-def _usd(dollars_per_million_input: str, dollars_per_million_output: str) -> ModelPrice:
+#: Published cache rates, as basis points of the input rate.
+_TENTH: Final[int] = 1_000
+_TWENTIETH: Final[int] = 500
+_FORTIETH: Final[int] = 250
+_QUARTER: Final[int] = 2_500
+_HALF: Final[int] = 5_000
+#: A cache write at 1.25x: Anthropic's five-minute cache, OpenAI from GPT-5.6.
+_WRITE_PREMIUM: Final[int] = 12_500
+
+
+def _usd(
+    dollars_per_million_input: str,
+    dollars_per_million_output: str,
+    *,
+    cached: int,
+    writes: int,
+) -> ModelPrice:
     """Build price from published string dollar figures; floats are inexact."""
     return ModelPrice(
         input_micros_per_million=_dollars_to_micros(dollars_per_million_input),
         output_micros_per_million=_dollars_to_micros(dollars_per_million_output),
+        cache_read_bps=cached,
+        cache_write_bps=writes,
     )
 
 
@@ -99,6 +130,9 @@ def _long_usd(
     over_input_tokens: int,
     long_input_price: str,
     long_output_price: str,
+    *,
+    cached: int,
+    writes: int,
 ) -> ModelPrice:
     """Published short/long dollar rates; the selected rate prices the full call."""
     return ModelPrice(
@@ -109,6 +143,8 @@ def _long_usd(
             input_micros_per_million=_dollars_to_micros(long_input_price),
             output_micros_per_million=_dollars_to_micros(long_output_price),
         ),
+        cache_read_bps=cached,
+        cache_write_bps=writes,
     )
 
 
@@ -121,49 +157,74 @@ def _dollars_to_micros(dollars: str) -> int:
 
 #: List prices per million tokens by provider, used by settings. Both checked
 #: 2026-10-12, Anthropic against platform.claude.com/docs/en/models/overview
-#: and OpenAI against developers.openai.com/api/docs/pricing. Standard-tier,
-#: non-batch; applicable prompt-length premiums count against caps. `catalog.py`
-#: gives each one a tier; a model
-#: priced here and missing there fails a test.
+#: and OpenAI against developers.openai.com/api/docs/pricing; cache rates and
+#: the long tiers of GPT-5.6 Terra and Luna, GPT-5.5 and GPT-5.4 checked
+#: 2026-10-14 against the same pricing page and Anthropic's prompt-caching
+#: page. Standard-tier, non-batch; applicable prompt-length premiums count
+#: against caps. `catalog.py` gives each one a tier; a model priced here and
+#: missing there fails a test. Anthropic reads cost 0.1x except Sonnet and
+#: Opus 5.5 (0.05x) and Fable 5.1 (0.025x); its five-minute writes cost 1.25x.
 _ANTHROPIC: Final[dict[str, ModelPrice]] = {
-    "claude-fable-5-1": _usd("10.00", "50.00"),
-    "claude-fable-5": _usd("10.00", "50.00"),
-    "claude-opus-5-5": _usd("4.00", "20.00"),
-    "claude-opus-5": _usd("5.00", "25.00"),
-    "claude-opus-4-8": _usd("5.00", "25.00"),
-    "claude-opus-4-7": _usd("5.00", "25.00"),
-    "claude-opus-4-6": _usd("5.00", "25.00"),
-    "claude-sonnet-5-5": _usd("2.00", "10.00"),
-    "claude-sonnet-5": _usd("2.00", "10.00"),
-    "claude-sonnet-4-6": _usd("3.00", "15.00"),
-    "claude-haiku-5-5": _long_usd("0.10", "0.50", 100_000, "0.50", "2.50"),
-    "claude-haiku-4-5": _usd("1.00", "5.00"),
+    "claude-fable-5-1": _usd("10.00", "50.00", cached=_FORTIETH, writes=_WRITE_PREMIUM),
+    "claude-fable-5": _usd("10.00", "50.00", cached=_TENTH, writes=_WRITE_PREMIUM),
+    "claude-opus-5-5": _usd("4.00", "20.00", cached=_TWENTIETH, writes=_WRITE_PREMIUM),
+    "claude-opus-5": _usd("5.00", "25.00", cached=_TENTH, writes=_WRITE_PREMIUM),
+    "claude-opus-4-8": _usd("5.00", "25.00", cached=_TENTH, writes=_WRITE_PREMIUM),
+    "claude-opus-4-7": _usd("5.00", "25.00", cached=_TENTH, writes=_WRITE_PREMIUM),
+    "claude-opus-4-6": _usd("5.00", "25.00", cached=_TENTH, writes=_WRITE_PREMIUM),
+    "claude-sonnet-5-5": _usd("2.00", "10.00", cached=_TWENTIETH, writes=_WRITE_PREMIUM),
+    "claude-sonnet-5": _usd("2.00", "10.00", cached=_TENTH, writes=_WRITE_PREMIUM),
+    "claude-sonnet-4-6": _usd("3.00", "15.00", cached=_TENTH, writes=_WRITE_PREMIUM),
+    "claude-haiku-5-5": _long_usd(
+        "0.10", "0.50", 100_000, "0.50", "2.50", cached=_TENTH, writes=_WRITE_PREMIUM
+    ),
+    "claude-haiku-4-5": _usd("1.00", "5.00", cached=_TENTH, writes=_WRITE_PREMIUM),
 }
 
+#: OpenAI caches without being asked. From GPT-5.6 a cache write costs 1.25x;
+#: before it, a write costs the plain input rate.
 _OPENAI: Final[dict[str, ModelPrice]] = {
-    "gpt-6-astra": _long_usd("10.00", "50.00", 272_000, "20.00", "75.00"),
-    "gpt-6.1-sol": _long_usd("2.00", "10.00", 272_000, "4.00", "15.00"),
-    "gpt-6-sol": _long_usd("2.00", "10.00", 272_000, "4.00", "15.00"),
-    "gpt-6-luna": _long_usd("0.10", "0.50", 272_000, "0.20", "0.75"),
-    "gpt-5.6-sol": _long_usd("4.00", "20.00", 272_000, "8.00", "30.00"),
-    "gpt-5.6-terra": _usd("2.00", "12.00"),
-    "gpt-5.6-luna": _usd("0.20", "1.20"),
-    "gpt-5.5": _usd("5.00", "30.00"),
-    "gpt-5.4": _usd("2.50", "15.00"),
-    "gpt-5.4-mini": _usd("0.75", "4.50"),
-    "gpt-5.4-nano": _usd("0.20", "1.25"),
-    "gpt-5.2": _usd("1.75", "14.00"),
-    "gpt-5.1": _usd("1.25", "10.00"),
-    "gpt-5": _usd("1.25", "10.00"),
-    "gpt-5-mini": _usd("0.25", "2.00"),
-    "gpt-5-nano": _usd("0.05", "0.40"),
-    "gpt-4.1": _usd("2.00", "8.00"),
-    "gpt-4.1-mini": _usd("0.40", "1.60"),
-    "gpt-4.1-nano": _usd("0.10", "0.40"),
-    "gpt-4o": _usd("2.50", "10.00"),
-    "gpt-4o-mini": _usd("0.15", "0.60"),
-    "o3": _usd("2.00", "8.00"),
-    "o3-mini": _usd("1.10", "4.40"),
+    "gpt-6-astra": _long_usd(
+        "10.00", "50.00", 272_000, "20.00", "75.00", cached=_TENTH, writes=_WRITE_PREMIUM
+    ),
+    "gpt-6.1-sol": _long_usd(
+        "2.00", "10.00", 272_000, "4.00", "15.00", cached=_TWENTIETH, writes=_WRITE_PREMIUM
+    ),
+    "gpt-6-sol": _long_usd(
+        "2.00", "10.00", 272_000, "4.00", "15.00", cached=_TENTH, writes=_WRITE_PREMIUM
+    ),
+    "gpt-6-luna": _long_usd(
+        "0.10", "0.50", 272_000, "0.20", "0.75", cached=_TENTH, writes=_WRITE_PREMIUM
+    ),
+    "gpt-5.6-sol": _long_usd(
+        "4.00", "20.00", 272_000, "8.00", "30.00", cached=_TENTH, writes=_WRITE_PREMIUM
+    ),
+    "gpt-5.6-terra": _long_usd(
+        "2.00", "12.00", 272_000, "4.00", "18.00", cached=_TENTH, writes=_WRITE_PREMIUM
+    ),
+    "gpt-5.6-luna": _long_usd(
+        "0.20", "1.20", 272_000, "0.40", "1.80", cached=_TENTH, writes=_WRITE_PREMIUM
+    ),
+    "gpt-5.5": _long_usd(
+        "5.00", "30.00", 272_000, "10.00", "45.00", cached=_TENTH, writes=FULL_RATE_BPS
+    ),
+    "gpt-5.4": _long_usd(
+        "2.50", "15.00", 272_000, "5.00", "22.50", cached=_TENTH, writes=FULL_RATE_BPS
+    ),
+    "gpt-5.4-mini": _usd("0.75", "4.50", cached=_TENTH, writes=FULL_RATE_BPS),
+    "gpt-5.4-nano": _usd("0.20", "1.25", cached=_TENTH, writes=FULL_RATE_BPS),
+    "gpt-5.2": _usd("1.75", "14.00", cached=_TENTH, writes=FULL_RATE_BPS),
+    "gpt-5.1": _usd("1.25", "10.00", cached=_TENTH, writes=FULL_RATE_BPS),
+    "gpt-5": _usd("1.25", "10.00", cached=_TENTH, writes=FULL_RATE_BPS),
+    "gpt-5-mini": _usd("0.25", "2.00", cached=_TENTH, writes=FULL_RATE_BPS),
+    "gpt-5-nano": _usd("0.05", "0.40", cached=_TENTH, writes=FULL_RATE_BPS),
+    "gpt-4.1": _usd("2.00", "8.00", cached=_QUARTER, writes=FULL_RATE_BPS),
+    "gpt-4.1-mini": _usd("0.40", "1.60", cached=_QUARTER, writes=FULL_RATE_BPS),
+    "gpt-4.1-nano": _usd("0.10", "0.40", cached=_QUARTER, writes=FULL_RATE_BPS),
+    "gpt-4o": _usd("2.50", "10.00", cached=_HALF, writes=FULL_RATE_BPS),
+    "gpt-4o-mini": _usd("0.15", "0.60", cached=_HALF, writes=FULL_RATE_BPS),
+    "o3": _usd("2.00", "8.00", cached=_QUARTER, writes=FULL_RATE_BPS),
+    "o3-mini": _usd("1.10", "4.40", cached=_HALF, writes=FULL_RATE_BPS),
 }
 
 #: Local inference is explicitly zero so free differs from unpriced. ``_lookup``
@@ -219,13 +280,22 @@ def cost_micros(model: str, usage: TokenUsage) -> int:
     ):
         rates = price.long_context
 
+    # The cache counts are parts of the prompt: never more than all of it.
+    cached = min(usage.cache_read_tokens, usage.input_tokens)
+    written = min(usage.cache_write_tokens, usage.input_tokens - cached)
+    plain = usage.input_tokens - cached - written
     total = (
-        usage.input_tokens * rates.input_micros_per_million
-        + usage.output_tokens * rates.output_micros_per_million
+        rates.input_micros_per_million
+        * (
+            plain * FULL_RATE_BPS
+            + cached * price.cache_read_bps
+            + written * price.cache_write_bps
+        )
+        + usage.output_tokens * rates.output_micros_per_million * FULL_RATE_BPS
     )
 
     # Integer-only ceiling division: ``-(-a // b)``.
-    return -(-total // TOKENS_PER_PRICE_UNIT)
+    return -(-total // (TOKENS_PER_PRICE_UNIT * FULL_RATE_BPS))
 
 
 def format_micros(micros: int) -> str:
