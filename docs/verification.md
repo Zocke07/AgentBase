@@ -4,6 +4,42 @@ Updated 2026-10-13. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
+## Cheaper runs at the same quality, 2026-10-14
+
+The maintainer asked how to keep quality while cutting cost, since API use
+may become expensive. In the 2026-10-14 chain, 639,087 of 904,758 input
+tokens (71%) repeated the same agent's previous call, and the decision
+re-sent a 77,276-character `track_forecasts` result at every later step.
+
+- **Prompt caching.** Rates were read on 2026-10-14 from
+  developers.openai.com/api/docs/pricing, OpenAI's prompt-caching guide and
+  Anthropic's prompt-caching page. The Anthropic adapter adds a top-level
+  `cache_control` to every request (automatic caching); OpenAI caches without
+  being asked. Each adapter now reports `cache_read_tokens` and
+  `cache_write_tokens` within `input_tokens`, from Anthropic's
+  `cache_read_input_tokens` and `cache_creation_input_tokens`, OpenAI's
+  `prompt_tokens_details` or `input_tokens_details`, and the Codex runtime's
+  `cached_input_tokens` and `cache_write_input_tokens`. `pricing.py` charges
+  them at each model's published rates, and `llm.response` records them. The
+  check also found long tiers missing for GPT-5.6 Terra and Luna, GPT-5.5 and
+  GPT-5.4, now added.
+- **The forecast result.** `track_forecasts` lists the analysts' and agents'
+  forecasts in brief (`scenarios`) and counts the baselines (`baselines`).
+  On the 2026-10-13 session's real data that is 4,454 characters instead of
+  77,276, 94% smaller; the ledger and workbook are unchanged.
+- **Executed.** `test_prompt_caching.py`: published read and write rates for
+  17 models, the remainder of a prompt at normal rates, the long tier, counts
+  clamped to their prompt, and each adapter's reporting, streamed and not.
+  The ledger records a cached call at those rates. The forecast tests read
+  full rows from the ledger, and a new one checks the brief result. `just
+  ci`: backend **1,437 passed, 12 skipped**; desktop **653 passed in 62
+  files**; lint, formatting and both typecheckers clean.
+- **Unverified.** No real request has used caching yet. Whether the ChatGPT
+  runtime reports cached tokens for AgentBase's calls shows in the next run's
+  `llm.response` events; the Codex logs record only that usage changed. The
+  saving is estimated from one run: on Anthropic or OpenAI API prices,
+  roughly half the chain's input cost, more where reads cost 0.05x.
+
 ## The first clean chain after a fresh start, and the risk verdicts, 2026-10-14
 
 After the generated outputs and usage were cleared, the 07:00 chain started

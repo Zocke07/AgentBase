@@ -334,6 +334,10 @@ the app warns; before each model call it refuses estimates over remaining
 budget. Accounting uses UTC months.
 
 Spending uses this build's token prices; provider bills are authoritative.
+Each step an agent takes re-sends its conversation so far, and providers keep
+recently sent text in a cache: text read back from it costs a small fraction of
+the normal price and text written to it a little more, at each provider's
+published rates. Spending counts both, as the provider reports them.
 ChatGPT subscription usage is an API-equivalent safety estimate, not an API
 charge, enforcing the same AgentBase cap. Ollama costs zero. Changing space or
 deleting history does not reset spend.

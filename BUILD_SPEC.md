@@ -353,6 +353,22 @@ message; through an API key, by HTTP 529, an overloaded 503, or an
 overloaded error event. A GPT-5.6 Terra "Selected model is at capacity" had
 failed a scheduled theses stage outright and stopped the daily chain. The
 model is still never swapped for another.)*
+*(2026-10-14, prompt caching: each agent step re-sends its whole
+conversation, 71% of the input tokens in that day's chain. The Anthropic
+adapter asks for automatic caching with a top-level `cache_control`; OpenAI
+caches without being asked. `TokenUsage` keeps `input_tokens` as the whole
+prompt and adds `cache_read_tokens` and `cache_write_tokens`, the parts the
+provider read from or wrote to its cache: Anthropic's `input_tokens` excludes
+them and is summed back, OpenAI's and the Codex runtime's include them.
+`pricing.py` charges those parts at published fractions of the selected
+tier's input rate (`cache_read_bps`, `cache_write_bps`): reads at 0.1x, or
+0.05x for Sonnet and Opus 5.5 and GPT-6.1 Sol and 0.025x for Fable 5.1, with
+older OpenAI models at 0.25x or 0.5x; writes at 1.25x for Anthropic and for
+OpenAI from GPT-5.6, plain before it. Each row states both, and a count is
+clamped to the prompt it belongs to so it can never be charged twice.
+`llm.response` records both counts. The ChatGPT plan's API-equivalent
+estimate uses the same rates. The same check added the missing long tiers of
+GPT-5.6 Terra and Luna, GPT-5.5 and GPT-5.4.)*
 
 ChatGPT/API accounts can differ in entitlement and allowance. Preserve the
 requested model and surface access errors; never substitute. *(2026-09-29:
@@ -1347,7 +1363,11 @@ older zero-cash starter. The hard constraints in section 1 remain unchanged.
   and errors are filled when complete sessions arrive, across earlier months.
   Neither targets nor resolved actuals change on reruns. Text is literal in
   XLSX cells. Workbook download is space-confined and binary; text-edit APIs
-  cannot modify it.
+  cannot modify it. *(2026-10-14: its result lists the session's analyst and
+  agent forecasts in brief as `scenarios` and counts the baselines under
+  `baselines`, since a baseline repeats the last close. Its 100 full rows had
+  been about 19,000 tokens that the decision re-sent at every later step;
+  the ledger and workbook keep every field.)*
 - Migration 028 updates exact shipped prompts, allowlists and goals, raises
   untouched step ceilings where research needs more reads, and preserves
   chosen models, custom text/tools and saved network policy. Fresh host

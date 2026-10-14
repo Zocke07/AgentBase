@@ -13,6 +13,13 @@ future changes do not relocate users' data or disconnect their stored keys.
 
 ## Current state
 
+- **Cheaper runs at the same quality, 2026-10-14.** Re-sent conversation was
+  71% of a daily chain's input. The Anthropic adapter asks for prompt
+  caching, every adapter reports cached and cache-written tokens, and the
+  price table charges them at published rates, for the ChatGPT estimate too.
+  `track_forecasts` returns the analysts' and agents' forecasts in brief and
+  counts the baselines (`scenarios`, `baselines`), 94% smaller on the
+  2026-10-13 session; the ledger keeps every field.
 - **The investment pipeline stays in the default space, 2026-10-13.** At the
   maintainer's request, the portfolio editor, the market watch, the pipeline
   offer and the seven `default_space_only` tools belong to the default space;
@@ -408,6 +415,9 @@ second chronological log here.
 - Budget arithmetic uses integer micros. Check before a call; persist spend
   before yielding its streamed completion. Deleting a finished run keeps its
   spend with `run_id` cleared, preserving the app-wide budget total.
+  `TokenUsage.input_tokens` is the whole prompt; its cache-read and
+  cache-write parts are charged at each model's published rates in
+  `pricing.py`, never a guessed discount.
 - Spaces own rosters and app-managed folders. The default space cannot be
   archived or deleted; a space with runs must be archived or have those runs
   deleted first. Deleting a run leaves the files it wrote alone.

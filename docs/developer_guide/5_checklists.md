@@ -102,12 +102,16 @@ a fresh and an upgraded database.
 
 ### A model or a provider
 
-- **Model:** add a dollar-*string* row (`_usd("2.50", "10.00")`, never float)
-  to its `providers/pricing.py` table; it derives `PRICES` and
-  `MODELS_BY_PROVIDER`, then appears in `GET /settings/providers` and the
-  editor. Refuse unpriced models rather than charging zero.
+- **Model:** add a dollar-*string* row (`_usd("2.50", "10.00", cached=...,
+  writes=...)`, never float) to its `providers/pricing.py` table, with the
+  provider's published cache-read and cache-write rates as basis points of
+  the input rate; it derives `PRICES` and `MODELS_BY_PROVIDER`, then appears
+  in `GET /settings/providers` and the editor. Refuse unpriced models rather
+  than charging zero.
 - **Provider:** a class implementing `Provider` (both `complete` and
-  `stream`) in `providers/`, an entry in `factory.SUPPORTED_PROVIDERS`, and
+  `stream`) in `providers/`, reporting `TokenUsage.input_tokens` as the whole
+  prompt with its cache-read and cache-write parts inside it, an entry in
+  `factory.SUPPORTED_PROVIDERS`, and
   a construction branch in `build_provider`, a model catalogue entry, and
   `qualified_model` if it namespaces model ids the way Ollama does.
   `test_qualified_model_is_what_the_built_provider_reports` covers each one.
