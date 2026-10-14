@@ -62,6 +62,22 @@ _CONFLICT_NOTE: Final[str] = (
     " Bull and bear theses disagreed at this horizon, so the benchmark stands."
 )
 _MAX_RETURN_ROWS: Final[int] = 100
+_BASELINE: Final[str] = "random_walk_baseline"
+#: What the result says of each analyst or agent forecast; the ledger keeps
+#: the rationale, timestamps and actuals.
+_BRIEF_FIELDS: Final[tuple[str, ...]] = (
+    "forecast_id",
+    "ticker",
+    "horizon_days",
+    "method",
+    "baseline_close",
+    "predicted_close",
+    "assumption_return_pct",
+    "interval_low",
+    "interval_high",
+    "confidence",
+    "evidence_ids",
+)
 #: US regular trading hours, New York time; ``_read_prices`` uses the same close.
 _OPEN: Final[time] = time(9, 30)
 _CLOSE: Final[time] = time(16)
@@ -408,6 +424,11 @@ def _track_locked(payload: dict[str, Any], sandbox: Sandbox, now: datetime) -> d
             _atomic_write(path, body, sandbox)
             written.append(sandbox.relative(path))
     current = [record for record in records if record["as_of"] == as_of]
+    scenarios = [
+        {field: record.get(field) for field in _BRIEF_FIELDS}
+        for record in current
+        if record["method"] != _BASELINE
+    ]
     return {
         "as_of": as_of,
         "appended": appended,
@@ -416,8 +437,18 @@ def _track_locked(payload: dict[str, Any], sandbox: Sandbox, now: datetime) -> d
         "pending": sum(row["status"] == "pending" for row in records),
         "total_forecasts": len(records),
         "current_forecasts": len(current),
-        "forecasts": current[:_MAX_RETURN_ROWS],
-        "truncated": len(current) > _MAX_RETURN_ROWS,
+        # The analysts' and agents' own forecasts in brief. A baseline repeats
+        # the last close, so it is counted rather than listed: 100 full rows
+        # were about 19,000 tokens that the decision re-sent at every later
+        # step (2026-10-14). The ledger and workbook keep every field.
+        "scenarios": scenarios[:_MAX_RETURN_ROWS],
+        "truncated": len(scenarios) > _MAX_RETURN_ROWS,
+        "baselines": {
+            "forecasts": len(current) - len(scenarios),
+            "tickers": sorted(
+                {record["ticker"] for record in current if record["method"] == _BASELINE}
+            ),
+        },
         "skipped": skipped,
         "not_issued": not_issued,
         "analyst_forecasts": analyst,

@@ -86,6 +86,11 @@ def _ledger(sandbox: Sandbox) -> list[dict[str, Any]]:
     return list(document["forecasts"])
 
 
+def _issued(sandbox: Sandbox, result: dict[str, Any]) -> list[dict[str, Any]]:
+    """The session's full forecast rows, which the result names only in brief."""
+    return [row for row in _ledger(sandbox) if row["as_of"] == result["as_of"]]
+
+
 def _scenario(**overrides: Any) -> dict[str, Any]:
     return {
         "ticker": "MU",
@@ -133,15 +138,20 @@ async def test_default_generates_five_horizons_with_honest_baselines_and_excel(
     result = json.loads(await tool.execute(tool.prepare({}, sandbox), sandbox))
     assert result["appended"] == 5
     assert result["pending"] == 5
-    assert [row["horizon_days"] for row in result["forecasts"]] == list(FORECAST_HORIZONS)
-    assert all(row["predicted_close"] == 102 for row in result["forecasts"])
-    assert all(row["confidence"] is None for row in result["forecasts"])
-    assert all(row["method"] == "random_walk_baseline" for row in result["forecasts"])
-    assert all(row["actual_close"] is None for row in result["forecasts"])
+    assert [row["horizon_days"] for row in _issued(sandbox, result)] == list(FORECAST_HORIZONS)
+    assert all(row["predicted_close"] == 102 for row in _issued(sandbox, result))
+    assert all(row["confidence"] is None for row in _issued(sandbox, result))
+    assert all(row["method"] == "random_walk_baseline" for row in _issued(sandbox, result))
+    assert all(row["actual_close"] is None for row in _issued(sandbox, result))
     assert (
-        result["forecasts"][0]["interval_low"] < 102 < result["forecasts"][0]["interval_high"]
+        _issued(sandbox, result)[0]["interval_low"]
+        < 102
+        < _issued(sandbox, result)[0]["interval_high"]
     )
-    assert result["forecasts"][4]["interval_high"] > result["forecasts"][0]["interval_high"]
+    assert (
+        _issued(sandbox, result)[4]["interval_high"]
+        > _issued(sandbox, result)[0]["interval_high"]
+    )
     assert result["written"] == ["predictions/forecasts.json", "predictions/2026-09.xlsx"]
     with ZipFile(sandbox.root / "predictions/2026-09.xlsx") as archive:
         # Parse every XML part, validate the sheet linkage, and inspect data.
@@ -173,13 +183,13 @@ async def test_agent_scenario_computes_price_and_preserves_original_on_rerun(
         sandbox, "2026-09-30T22:00:00+00:00", forecasts=[_scenario(confidence=0.55)]
     )
     assert first["appended"] == 5
-    row = first["forecasts"][0]
+    row = _issued(sandbox, first)[0]
     assert row["baseline_close"] == 102
     assert row["predicted_close"] == 104.04
     assert row["assumption_return_pct"] == 2
     assert row["method"] == "agent_scenario"
     assert row["interval_low"] is None
-    assert first["forecasts"][1]["method"] == "random_walk_baseline"
+    assert _issued(sandbox, first)[1]["method"] == "random_walk_baseline"
     ledger_before = (sandbox.root / "predictions/forecasts.json").read_bytes()
     excel_before = (sandbox.root / "predictions/2026-09.xlsx").read_bytes()
     second = await _run(
@@ -301,7 +311,7 @@ async def test_evidence_must_be_saved_and_available_at_issuance_and_bad_inputs_d
     valid = await _run(
         sandbox, "2026-10-01T02:00:00+00:00", forecasts=[_scenario(evidence_ids=["news-valid"])]
     )
-    assert valid["forecasts"][0]["method"] == "agent_scenario"
+    assert _issued(sandbox, valid)[0]["method"] == "agent_scenario"
     before = (sandbox.root / "predictions/forecasts.json").read_bytes()
     excel = (sandbox.root / "predictions/2026-09.xlsx").read_bytes()
     _prices(sandbox, _RECORDED[:4])
@@ -352,8 +362,8 @@ async def test_cited_report_facts_and_screener_rows_count_from_when_they_were_fe
         forecasts=[_scenario(evidence_ids=[fact, screener])],
     )
 
-    assert result["forecasts"][0]["method"] == "agent_scenario"
-    assert result["forecasts"][0]["evidence_ids"] == [fact, screener]
+    assert _issued(sandbox, result)[0]["method"] == "agent_scenario"
+    assert _issued(sandbox, result)[0]["evidence_ids"] == [fact, screener]
 
 
 async def test_report_facts_fetched_after_issuance_are_refused(sandbox: Sandbox) -> None:
@@ -464,11 +474,46 @@ async def test_response_is_bounded_but_ledger_and_workbook_keep_all_tickers(
         _prices(sandbox, _RECORDED[:3], symbol)
     result = await _run(sandbox, "2026-09-30T22:00:00+00:00", symbols=symbols)
     assert result["appended"] == 105 and result["current_forecasts"] == 105
-    assert result["truncated"] is True and len(result["forecasts"]) == 100
+    assert result["scenarios"] == [] and result["truncated"] is False
+    assert result["baselines"] == {"forecasts": 105, "tickers": sorted(symbols)}
     assert len(_ledger(sandbox)) == 105
     workbook = sandbox.root / "predictions/2026-09.xlsx"
     assert len(_sheet_rows(workbook, 1)) == 22
     assert len(_sheet_rows(workbook, 2)) == 106
+
+
+async def test_the_result_names_the_sessions_forecasts_in_brief(sandbox: Sandbox) -> None:
+    """2026-10-14: the result listed 100 of the session's 130 forecasts in full,
+    about 19,000 tokens that the decision re-sent at every later step. A
+    baseline repeats the last close, so the result counts those; the analysts'
+    and agents' own forecasts come in brief. The ledger keeps every field."""
+    _prices(sandbox, _RECORDED[:3])
+    _movers(sandbox)
+
+    result = await _run(
+        sandbox, "2026-09-30T22:00:00+00:00", forecasts=[_scenario(confidence=0.55)]
+    )
+
+    assert "forecasts" not in result
+    assert result["baselines"] == {"forecasts": 4, "tickers": ["MU"]}
+    assert result["scenarios"] == [
+        {
+            "forecast_id": "2026-09-30-MU-1",
+            "ticker": "MU",
+            "horizon_days": 1,
+            "method": "agent_scenario",
+            "baseline_close": 102,
+            "predicted_close": 104.04,
+            "assumption_return_pct": 2,
+            "interval_low": None,
+            "interval_high": None,
+            "confidence": 0.55,
+            "evidence_ids": ["movers-2026-09-30-MU"],
+        }
+    ]
+    assert result["truncated"] is False
+    (full,) = [row for row in _ledger(sandbox) if row["method"] == "agent_scenario"]
+    assert full["rationale"].startswith("Assume a 2% rebound")
 
 
 async def test_partial_scenarios_still_forecast_every_active_summary_ticker(
@@ -483,12 +528,12 @@ async def test_partial_scenarios_still_forecast_every_active_summary_ticker(
     _movers(sandbox)
     result = await _run(sandbox, "2026-09-30T22:00:00+00:00", forecasts=[_scenario()])
     assert result["appended"] == 10 and result["current_forecasts"] == 10
-    assert {row["ticker"] for row in result["forecasts"]} == {"MU", "ORCL"}
-    scenarios = [row for row in result["forecasts"] if row["method"] == "agent_scenario"]
+    assert {row["ticker"] for row in _issued(sandbox, result)} == {"MU", "ORCL"}
+    scenarios = [row for row in _issued(sandbox, result) if row["method"] == "agent_scenario"]
     assert len(scenarios) == 1 and scenarios[0]["ticker"] == "MU"
     assert all(
         row["method"] == "random_walk_baseline"
-        for row in result["forecasts"]
+        for row in _issued(sandbox, result)
         if row["ticker"] == "ORCL"
     )
 
@@ -570,7 +615,7 @@ async def test_the_sessions_theses_become_analyst_forecasts_from_their_bands(
 
     result = await _run(sandbox, "2026-10-01T02:00:00+00:00")
 
-    rows = {row["horizon_days"]: row for row in result["forecasts"]}
+    rows = {row["horizon_days"]: row for row in _issued(sandbox, result)}
     one_day, month = rows[1], rows[21]
     assert one_day["method"] == "analyst_thesis" and month["method"] == "analyst_thesis"
     # Down 1-3%: the band's midpoint, 2%, with the band as the range.
@@ -600,7 +645,7 @@ async def test_bull_and_bear_disagreeing_leave_the_benchmark_and_say_so(
 
     result = await _run(sandbox, "2026-10-01T02:00:00+00:00")
 
-    one_day = next(row for row in result["forecasts"] if row["horizon_days"] == 1)
+    one_day = next(row for row in _issued(sandbox, result) if row["horizon_days"] == 1)
     assert one_day["method"] == "random_walk_baseline"
     assert "disagreed" in one_day["rationale"]
     assert result["thesis_conflicts"] == [{"ticker": "MU", "horizon_days": 1}]
@@ -614,7 +659,7 @@ async def test_a_thesis_whose_evidence_is_missing_falls_back_to_the_benchmark(
 
     result = await _run(sandbox, "2026-10-01T02:00:00+00:00")
 
-    one_day = next(row for row in result["forecasts"] if row["horizon_days"] == 1)
+    one_day = next(row for row in _issued(sandbox, result) if row["horizon_days"] == 1)
     assert one_day["method"] == "random_walk_baseline"
     assert any("invented-id" in item["reason"] for item in result["skipped"])
 
@@ -627,7 +672,7 @@ async def test_a_thesis_ticker_outside_the_summary_is_still_forecast(sandbox: Sa
 
     result = await _run(sandbox, "2026-10-01T02:00:00+00:00")
 
-    assert {row["ticker"] for row in result["forecasts"]} == {"MU", "ORCL"}
+    assert {row["ticker"] for row in _issued(sandbox, result)} == {"MU", "ORCL"}
 
 
 async def test_an_analysts_own_return_is_used_only_inside_its_band(sandbox: Sandbox) -> None:
@@ -644,7 +689,7 @@ async def test_an_analysts_own_return_is_used_only_inside_its_band(sandbox: Sand
 
     result = await _run(sandbox, "2026-10-01T02:00:00+00:00")
 
-    rows = {row["horizon_days"]: row for row in result["forecasts"]}
+    rows = {row["horizon_days"]: row for row in _issued(sandbox, result)}
     assert rows[1]["assumption_return_pct"] == 2.5 and rows[1]["predicted_close"] == 104.55
     assert "the analyst assumes +2.5%" in rows[1]["rationale"]
     # A figure outside the thesis's own band gives way to the band's midpoint.
