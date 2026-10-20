@@ -4,6 +4,46 @@ Updated 2026-10-13. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
+## Unreported sessions, the portfolio review and long files, 2026-10-20
+
+The first chain on Claude (Sonnet 5.5 and Haiku 5.5 through an API key) ran
+from a Run now at 15:11 Taipei in 6 minutes 35 seconds for $1.14, with no
+errors, refusals or retries; 69% of the text read came from the prompt
+cache. AgentBase had been closed since 14 October, so the 15 to 17 October
+mornings never ran, and the catch-up at launch failed in under a second
+because the new Anthropic key is read only at startup. Three gaps surfaced.
+
+- **Unreported sessions.** Nothing said the 14 to 16 October sessions had no
+  research. `compute_portfolio` records `since_previous` in computed.json:
+  the last valued session, the sessions between with no valuation, the
+  change in total value and each holding's price change from its saved
+  history; valuing the same session again keeps the comparison. On a copy of
+  the live space with the 13 October valuation restored it reported
+  2026-10-14, -15 and -16, -$104.49 (-2.2168%), CRWV -21.4497% and NOW
+  +4.8698%, the report's figures. Home's portfolio card shows it through
+  `GET /spaces/{id}/portfolio/valuation` (default space only), and migration
+  036 has the decision name unreported sessions under its table.
+- **The portfolio review stopped.** The holdings file was last saved on
+  12 October, so the stale flag (positions more than three days older than
+  the session) was true, and the review's prompt both stopped on a stale
+  input and stated the flag first. Migration 036 keeps the flag as a note and
+  adds `since_previous` to the review.
+- **Long files.** The day's 37 headlines were 26,936 characters; the risk
+  manager and the decision saw 20,000 and said so. `read_file` takes an
+  `offset`, ends a cut-off read on a whole line and names the offset to read
+  on, with a closing note on the last page.
+- **Executed.** Tests: pages through a 60-line file to every line and refuses
+  bad offsets; `since_previous` with a holding lacking the earlier close, a
+  re-valuation and four unreadable earlier files; the valuation endpoint,
+  including another space's 404; migration 036 on a fresh and an edited
+  database; the card's note with and without a gap. A copy of the live
+  database upgraded to schema 36 with the five passages replaced and its 9
+  runs kept. `just ci`: backend **1,447 passed, 12 skipped**; desktop **656
+  passed in 62 files**; lint, formatting and both typecheckers clean.
+- **Unverified.** No real run uses these yet. Today's run already replaced
+  the 13 October valuation, so the next run compares with 19 October and
+  will show no gap; the card shows the change from then on.
+
 ## Cheaper runs at the same quality, 2026-10-14
 
 The maintainer asked how to keep quality while cutting cost, since API use

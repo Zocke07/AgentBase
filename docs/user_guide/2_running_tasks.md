@@ -31,6 +31,12 @@ After changing personal inputs, a manual morning run can review the same
 market session again. Existing forecasts stay immutable. Your stocks take
 priority over cached discovered stocks within the 50-stock research limit.
 
+Below the summary, the card says when the portfolio was last valued and how
+its value changed since the report before. When market sessions went by with
+no research, because AgentBase was closed at 07:00, it names them: those days
+have no research or forecasts, and none can be made afterwards. The portfolio
+review and the decision say the same.
+
 ## Automations: work on its own
 
 Open **Automations** (the second item in the rail, Ctrl/Cmd+2). The page says

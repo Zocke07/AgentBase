@@ -13,6 +13,14 @@ future changes do not relocate users' data or disconnect their stored keys.
 
 ## Current state
 
+- **Gaps and reading, 2026-10-20.** After three closed mornings the first
+  chain on Claude ran cleanly, but nothing said 14 to 16 October had no
+  research, the portfolio review stopped on a week-old holdings file, and a
+  26,936-character news file was read only to 20,000. `compute_portfolio`
+  records `since_previous` (skipped sessions and changes since the last
+  valuation), Home's portfolio card shows it, migration 036 keeps the stale
+  flag as a note and has the decision name unreported sessions, and
+  `read_file` pages by `offset`. See docs/verification.md.
 - **Cheaper runs at the same quality, 2026-10-14.** Re-sent conversation was
   71% of a daily chain's input. The Anthropic adapter asks for prompt
   caching, every adapter reports cached and cache-written tokens, and the
@@ -289,8 +297,9 @@ future changes do not relocate users' data or disconnect their stored keys.
   These are ordinary space files written through the existing gate; there is
   no visualization database or service, and no Visualize section since
   2026-10-08.
-- The latest recorded database migration is 035 (the risk manager reduces
-  only for a risk an input names); 034 takes the pipeline tools from other
+- The latest recorded database migration is 036 (a dated holdings file is a
+  note, not a stop, and unreported sessions are named); 035 has the risk
+  manager reduce only for a risk an input names, 034 takes the pipeline tools from other
   spaces' agents, 033 is the decision's date, facts and workbook, 032
   adds run titles, 031 has the decision let
   `track_forecasts` read the theses, 030 is the market watch, 029 the model
@@ -436,7 +445,8 @@ second chronological log here.
   the files they change under `.agentbase/backups/`.
 - Agents' outputs stay one dated file per session; the Journal only reads
   them. Do not make a model append to a growing file: `write_file` rewrites
-  the whole file, `read_file` shows its first 20,000 characters, and a scored
+  the whole file, `read_file` shows 20,000 characters at a time (a cut-off
+  read ends on a whole line and names the `offset` to read on), and a scored
   thesis must never change. Growing ledgers are written by deterministic
   tools (`scores/predictions.jsonl`, the price CSVs, and the day's
   `raw/news-{date}.jsonl`, which keeps earlier same-day headlines so a cited

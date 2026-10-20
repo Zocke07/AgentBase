@@ -86,7 +86,7 @@ Preview; **‹ All results** returns to the list. Run summaries and templates
 never appear here.
 
 The Journal only reads. Each report stays its own file, because an agent can
-only rewrite a whole file and reads at most a file's first 20,000 characters:
+only rewrite a whole file and reads a file 20,000 characters at a time:
 a single log that grew every day would have to be copied out and back by a
 model, would hide its newest entries from the next run, and could change a
 past prediction before it is scored.

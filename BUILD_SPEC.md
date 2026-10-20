@@ -1467,6 +1467,23 @@ It also names the calendar file, which it had looked for under `config/`,
 and what `max_size_pct` holds for each verdict. Only passages still as
 shipped change.)*
 
+*(2026-10-20, the first chain on Claude, 6.5 minutes: AgentBase had been
+closed for three mornings, so the 14 to 16 October sessions got no research,
+and nothing said so. `compute_portfolio` now records `since_previous`: the
+session the computed.json it replaces was valued for (or, valuing the same
+session again, the comparison that one made), the sessions between with no
+valuation, the change in total value and each holding's price change from
+its saved history; null with nothing readable to compare. The portfolio
+review states it, the decision reads computed.json and names unreported
+sessions under its table, and Home's portfolio card shows the last valuation
+and the gap from `GET /spaces/{id}/portfolio/valuation`, default space only.
+The portfolio review had also stopped: the holdings file was a week old, so
+the stale flag was true, and its prompt both stopped on a stale input and
+stated the flag first. Migration 036 keeps the flag as a note. The day's 37
+headlines ran to 26,936 characters, and the risk manager and the decision
+never saw the last quarter: `read_file` takes an `offset`, ends a cut-off
+read on a whole line, and names the offset to read on.)*
+
 **Out of scope:**
 
 - Reddit and other social sources: OAuth, and their terms.

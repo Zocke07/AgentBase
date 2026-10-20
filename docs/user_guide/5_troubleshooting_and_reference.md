@@ -82,6 +82,14 @@ as an error instead, and is worth reviewing before you trust the outcome, as
 is a request that could not be run and was never sent again: what it would
 have done may not have happened.
 
+**Some market sessions have no research.**
+The daily runs need AgentBase open, and the computer awake, at 07:00 Taipei
+time from Tuesday to Saturday. When it was closed, the next run researches only
+the newest session; the price history fills in the missed days, and earlier
+forecasts are still scored against their real closes, but the missed sessions
+get no research or forecasts. Home's portfolio card, the portfolio review and
+the decision name them.
+
 **I denied a request and another question appeared.**
 Exact same-run tool/argument repeats are automatically denied. Different
 arguments can ask again. Inspect and deny the new call, or **Cancel run**.
