@@ -129,20 +129,32 @@ class ReadFileTool:
                         "Path to the file, relative to the workspace root, "
                         "such as 'notes.txt' or 'reports/q1.md'."
                     ),
-                }
+                },
+                "offset": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": (
+                        "Character position to start from, as a cut-off read's note "
+                        "gives it. Leave it out to read from the start."
+                    ),
+                },
             },
             "required": ["path"],
         }
 
     def prepare(self, arguments: dict[str, Any], sandbox: Sandbox) -> Prepared:
         raw = _required_str(arguments, "path", self.name)
+        offset = arguments.get("offset", 0)
+        if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
+            msg = f"{self.name}'s 'offset' must be a whole number of characters, 0 or more."
+            raise ToolArgumentError(msg)
         resolved = sandbox.resolve_path(raw)
         shown = sandbox.relative(resolved)
 
         return Prepared(
             tool_name=self.name,
-            summary=f"read the file {shown}",
-            payload={"path": resolved, "shown": shown},
+            summary=f"read the file {shown}" + (f" from character {offset}" if offset else ""),
+            payload={"path": resolved, "shown": shown, "offset": offset},
             raw_arguments=dict(arguments),
         )
 
@@ -176,14 +188,34 @@ class ReadFileTool:
                 raise ToolExecutionError(msg) from exc
 
         content = await asyncio.to_thread(read)
+        return _page(content, shown, prepared.payload.get("offset", 0))
 
-        if len(content) > MAX_READ_CHARS:
-            return (
-                f"{content[:MAX_READ_CHARS]}\n\n"
-                f"[truncated: {shown} is {len(content)} characters and only the "
-                f"first {MAX_READ_CHARS} are shown]"
-            )
+
+def _page(content: str, shown: str, start: int) -> str:
+    """At most ``MAX_READ_CHARS`` from ``start``, ending on a whole line.
+
+    A cut-off read says where the next one starts: the day's headlines once ran
+    past the limit, and the risk manager and the decision never saw the last
+    quarter of them (2026-10-20).
+    """
+    total = len(content)
+    if start == 0 and total <= MAX_READ_CHARS:
         return content
+    if start > 0 and start >= total:
+        msg = f"offset {start} is past the end of {shown}, which is {total} characters."
+        raise ToolExecutionError(msg)
+    end = start + MAX_READ_CHARS
+    if end >= total:
+        return f"{content[start:]}\n\n[the end of {shown}: characters {start} to {total} of {total}]"
+    # End on a line break, so a record of JSON lines is never split in two.
+    line_end = content.rfind("\n", start, end)
+    if line_end >= start:
+        end = line_end + 1
+    return (
+        f"{content[start:end]}\n\n"
+        f"[truncated: {shown} is {total} characters; this shows characters {start} to "
+        f"{end}. Call read_file with offset {end} to read on.]"
+    )
 
 
 class ListDirTool:

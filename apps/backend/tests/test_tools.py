@@ -202,6 +202,50 @@ async def test_a_long_file_is_truncated_and_says_so(sandbox: Sandbox) -> None:
     assert str(MAX_READ_CHARS) in result
 
 
+async def test_a_long_file_is_read_on_from_where_the_last_read_stopped(
+    sandbox: Sandbox,
+) -> None:
+    """2026-10-20: the day's 37 headlines were 26,936 characters, and the risk
+    manager and the decision never saw the last quarter of them. A cut-off read
+    ends on a whole line and says where to read on, so every line is reachable."""
+    lines = [json.dumps({"id": f"news-{number}", "title": "x" * 700}) for number in range(60)]
+    text = "\n".join(lines) + "\n"
+    (sandbox.root / "news.jsonl").write_text(text, encoding="utf-8")
+    tool = ReadFileTool()
+
+    pages: list[str] = []
+    offset = 0
+    for _ in range(10):
+        arguments: dict[str, object] = {"path": "news.jsonl"}
+        if offset:
+            arguments["offset"] = offset
+        result = await tool.execute(tool.prepare(arguments, sandbox), sandbox)
+        if "\n\n[truncated:" in result:
+            page, notice = result.rsplit("\n\n[truncated:", 1)
+            assert page.endswith("}\n"), "a page ends on a whole line"
+            assert len(page) <= MAX_READ_CHARS
+            pages.append(page)
+            offset = int(notice.split("offset ")[1].split()[0])
+            continue
+        page, _, end = result.rpartition("\n\n[the end of news.jsonl")
+        pages.append(page if end else result)
+        break
+
+    assert "".join(pages) == text
+    assert len(pages) == 3
+
+
+async def test_an_offset_must_be_a_whole_number_inside_the_file(sandbox: Sandbox) -> None:
+    (sandbox.root / "short.txt").write_text("hello", encoding="utf-8")
+    tool = ReadFileTool()
+
+    for bad in (-1, 2.5, "10", True):
+        with pytest.raises(ToolArgumentError, match="offset"):
+            tool.prepare({"path": "short.txt", "offset": bad}, sandbox)
+    with pytest.raises(ToolExecutionError, match="past the end"):
+        await tool.execute(tool.prepare({"path": "short.txt", "offset": 6}, sandbox), sandbox)
+
+
 async def test_search_knowledge_returns_cited_markdown_chunks(sandbox: Sandbox) -> None:
     (sandbox.root / "decision.md").write_text(
         "# Storage\n\nUse SQLite WAL for the local event log.", encoding="utf-8"
