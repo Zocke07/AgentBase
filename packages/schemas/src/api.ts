@@ -519,6 +519,17 @@ export interface PortfolioStock {
   exchange?: string;
 }
 
+/** The newest valuation, for Home's portfolio card. Read-only. */
+export interface PortfolioValuation {
+  as_of: string;
+  currency: string;
+  total_value: number;
+  day_change: number;
+  day_change_pct: number | null;
+  positions_date?: string | null;
+  since_previous?: SinceReport | null;
+}
+
 export interface PreviewRequest {
   cadence: DailyCadence | WeeklyCadence | IntervalCadence | AfterCadence;
 }
@@ -644,6 +655,16 @@ export interface SettingsResponse {
   model_is_priced: boolean;
   version: string;
   data_dir: string;
+}
+
+/** What changed since the report before, as compute_portfolio recorded it. */
+export interface SinceReport {
+  session: string;
+  skipped_sessions: string[];
+  total_value: number;
+  value_change: number;
+  value_change_pct: number | null;
+  price_change_pct: Record<string, number | null>;
 }
 
 /** Space and its run read/write location. */

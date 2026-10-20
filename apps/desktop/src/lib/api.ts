@@ -25,6 +25,7 @@ import type {
   MemoryStatus,
   MonitorStatus,
   PortfolioResponse,
+  PortfolioValuation,
   SavePortfolioRequest,
   ProviderCatalogueResponse,
   ProviderSwitchPlan,
@@ -271,6 +272,10 @@ export const getFile = (spaceId: string, path: string): Promise<TextFile> =>
 /** Personal stock inputs saved in the same files read by runs. */
 export const getPortfolio = (spaceId: string): Promise<PortfolioResponse> =>
   request<PortfolioResponse>(`/spaces/${spaceId}/portfolio`);
+
+/** The newest valuation a run saved, or null before the first. */
+export const getPortfolioValuation = (spaceId: string): Promise<PortfolioValuation | null> =>
+  request<PortfolioValuation | null>(`/spaces/${spaceId}/portfolio/valuation`);
 
 export const savePortfolio = (spaceId: string, body: SavePortfolioRequest): Promise<PortfolioResponse> =>
   request<PortfolioResponse>(`/spaces/${spaceId}/portfolio`, { method: "PUT", ...asJson(body) });

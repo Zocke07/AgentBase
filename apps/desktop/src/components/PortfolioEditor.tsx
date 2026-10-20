@@ -3,6 +3,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import * as api from "../lib/api";
 import { failureMessage } from "../lib/errors";
+import { useFetched } from "../state/useFetched";
 
 import "./PortfolioEditor.css";
 
@@ -183,6 +184,7 @@ export function PortfolioEditor({ spaceId, onSaved, reloadNonce = 0, running = f
         {base.portfolio.holdings.length} holdings{base.portfolio.holdings.length > 0 && ` (${base.portfolio.holdings.map((row) => row.ticker).join(", ")})`}
         {` · ${base.portfolio.cash} ${base.portfolio.currency} available · ${String(base.portfolio.watchlist.length)} additional watched stocks`}
       </p>}
+      {!editing && <ValuationNote spaceId={spaceId} reloadNonce={reloadNonce} />}
       {editing && form !== null && <form onSubmit={(event) => { event.preventDefault(); void save(); }}>
         <fieldset disabled={saving || loading} className="portfolio-editor__form">
           <datalist id={`${id}-sectors`}>{SECTORS.map((sector) => <option key={sector} value={sector} />)}</datalist>
@@ -213,4 +215,66 @@ export function PortfolioEditor({ spaceId, onSaved, reloadNonce = 0, running = f
       </form>}
     </section>
   );
+}
+
+/**
+ * The newest valuation, what changed since the report before it, and the
+ * sessions in between that got no research. Three mornings once went by with
+ * AgentBase closed, and nothing on Home said so (2026-10-20).
+ */
+function ValuationNote({ spaceId, reloadNonce }: { spaceId: string; reloadNonce: number }) {
+  const load = useCallback(() => api.getPortfolioValuation(spaceId), [spaceId]);
+  const valuation = useFetched(load, null);
+  const { reload } = valuation;
+  useEffect(() => {
+    if (reloadNonce > 0) reload();
+  }, [reloadNonce, reload]);
+  useEffect(() => {
+    window.addEventListener("focus", reload);
+    return () => {
+      window.removeEventListener("focus", reload);
+    };
+  }, [reload]);
+
+  const value = valuation.data;
+  if (value === null) return null;
+  const since = value.since_previous ?? null;
+  const skipped = since?.skipped_sessions ?? [];
+  const percent = since?.value_change_pct ?? null;
+  return (
+    <div className="portfolio-editor__valuation" data-testid="portfolio-valuation">
+      <p>
+        Valued at the {day(value.as_of)} close: {AMOUNT.format(value.total_value)} {value.currency}
+        {since !== null &&
+          `, ${signed(since.value_change)}${percent === null ? "" : ` (${signed(percent)}%)`} since ${day(since.session)}`}
+        .
+      </p>
+      {skipped.length > 0 && (
+        <p className="portfolio-editor__gap">
+          No research for {sessions(skipped)}: AgentBase runs the daily research only while it is open.
+        </p>
+      )}
+    </div>
+  );
+}
+
+const AMOUNT = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** "Oct 19" for `2026-10-19`, read as a calendar day wherever the window is. */
+function day(date: string): string {
+  return new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
+function signed(value: number): string {
+  return `${value < 0 ? "\u2212" : "+"}${AMOUNT.format(Math.abs(value))}`;
+}
+
+/** "the Oct 14, Oct 15 and Oct 16 sessions"; a long gap by its ends. */
+function sessions(days: readonly string[]): string {
+  const first = days[0] ?? "";
+  const last = days[days.length - 1] ?? "";
+  if (days.length > 4) return `the ${String(days.length)} sessions from ${day(first)} to ${day(last)}`;
+  const named = days.map(day);
+  const listed = named.length > 1 ? `${named.slice(0, -1).join(", ")} and ${named[named.length - 1] ?? ""}` : (named[0] ?? "");
+  return `the ${listed} session${days.length === 1 ? "" : "s"}`;
 }

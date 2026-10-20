@@ -2462,6 +2462,68 @@
         "title": "PortfolioStock",
         "type": "object"
       },
+      "PortfolioValuation": {
+        "description": "The newest valuation, for Home's portfolio card. Read-only.",
+        "properties": {
+          "as_of": {
+            "title": "As Of",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "day_change": {
+            "title": "Day Change",
+            "type": "number"
+          },
+          "day_change_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day Change Pct"
+          },
+          "positions_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Positions Date"
+          },
+          "since_previous": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SinceReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "total_value": {
+            "title": "Total Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "as_of",
+          "currency",
+          "total_value",
+          "day_change",
+          "day_change_pct"
+        ],
+        "title": "PortfolioValuation",
+        "type": "object"
+      },
       "PreviewRequest": {
         "properties": {
           "cadence": {
@@ -3137,6 +3199,65 @@
           "data_dir"
         ],
         "title": "SettingsResponse",
+        "type": "object"
+      },
+      "SinceReport": {
+        "description": "What changed since the report before, as compute_portfolio recorded it.",
+        "properties": {
+          "price_change_pct": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Price Change Pct",
+            "type": "object"
+          },
+          "session": {
+            "title": "Session",
+            "type": "string"
+          },
+          "skipped_sessions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skipped Sessions",
+            "type": "array"
+          },
+          "total_value": {
+            "title": "Total Value",
+            "type": "number"
+          },
+          "value_change": {
+            "title": "Value Change",
+            "type": "number"
+          },
+          "value_change_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Change Pct"
+          }
+        },
+        "required": [
+          "session",
+          "skipped_sessions",
+          "total_value",
+          "value_change",
+          "value_change_pct",
+          "price_change_pct"
+        ],
+        "title": "SinceReport",
         "type": "object"
       },
       "SpaceResponse": {
@@ -7312,6 +7433,54 @@
           }
         },
         "summary": "Put Portfolio"
+      }
+    },
+    "/spaces/{space_id}/portfolio/valuation": {
+      "get": {
+        "description": "The newest valuation for Home: its worth, and what changed and went\nunreported since the report before it. Null until a run has valued it.",
+        "operationId": "get_valuation_spaces__space_id__portfolio_valuation_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/PortfolioValuation"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Valuation Spaces  Space Id  Portfolio Valuation Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Valuation"
       }
     },
     "/spaces/{space_id}/provider-switch": {

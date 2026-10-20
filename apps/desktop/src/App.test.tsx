@@ -48,6 +48,7 @@ vi.mock("./lib/api", () => ({
   listProviders: vi.fn(),
   listFiles: vi.fn(),
   getPortfolio: vi.fn(),
+  getPortfolioValuation: vi.fn(),
   savePortfolio: vi.fn(),
   listSchedules: vi.fn(),
   listAlerts: vi.fn(),
@@ -87,6 +88,7 @@ const row = (status: Run["status"], id = "run-1"): Run => ({
 });
 
 beforeEach(() => {
+  mocked.getPortfolioValuation.mockResolvedValue(null);
   mocked.getPortfolio.mockResolvedValue({ portfolio: { currency: "USD", cash: "0", holdings: [], watchlist: [], limits: { max_position_pct: "10", max_sector_pct: "70", max_daily_loss_pct: "3" } }, revision: "original" });
   useRunStore.getState().reset();
   useRunList.getState().reset();

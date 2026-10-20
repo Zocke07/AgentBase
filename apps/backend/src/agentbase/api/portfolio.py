@@ -11,8 +11,10 @@ from agentbase.store.portfolio import (
     PortfolioConflictError,
     PortfolioInputError,
     PortfolioResponse,
+    PortfolioValuation,
     SavePortfolioRequest,
     load_portfolio,
+    load_valuation,
     save_portfolio,
 )
 from agentbase.store.spaces import DEFAULT_SPACE_ID, SpaceNotFoundError
@@ -69,6 +71,14 @@ async def get_portfolio(request: Request, space_id: str) -> PortfolioResponse:
         return await asyncio.to_thread(load_portfolio, root)
     except (PortfolioInputError, SandboxViolationError, OSError, ValueError, TypeError) as exc:
         raise _error(exc) from exc
+
+
+@router.get("/valuation")
+async def get_valuation(request: Request, space_id: str) -> PortfolioValuation | None:
+    """The newest valuation for Home: its worth, and what changed and went
+    unreported since the report before it. Null until a run has valued it."""
+    root = await _root(request, space_id)
+    return await asyncio.to_thread(load_valuation, root)
 
 
 @router.put("")

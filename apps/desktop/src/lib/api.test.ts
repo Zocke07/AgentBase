@@ -12,6 +12,7 @@ import {
   isMissing,
   getChatGPTAuth,
   getPortfolio,
+  getPortfolioValuation,
   savePortfolio,
   listRuns,
   listTools,
@@ -58,6 +59,11 @@ describe("requests", () => {
     expect(fetchStub.mock.calls[1]?.[0]).toBe("http://127.0.0.1:8787/spaces/space-main/portfolio");
     expect(fetchStub.mock.calls[1]?.[1]?.method).toBe("PUT");
     expect(fetchStub.mock.calls[1]?.[1]?.body).toBe(JSON.stringify(response));
+  });
+  it("reads the newest valuation, which is null before a run has made one", async () => {
+    fetchStub.mockImplementation(() => Promise.resolve(respond(200, null)));
+    expect(await getPortfolioValuation("space-main")).toBeNull();
+    expect(fetchStub.mock.calls[0]?.[0]).toBe("http://127.0.0.1:8787/spaces/space-main/portfolio/valuation");
   });
   it("talks to the sidecar's origin, once resolved, for every call", async () => {
     // A `Response` body can be read once; each call gets its own.

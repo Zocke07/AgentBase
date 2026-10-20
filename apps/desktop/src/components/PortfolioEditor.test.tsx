@@ -7,14 +7,14 @@ import * as api from "../lib/api";
 
 import { PortfolioEditor } from "./PortfolioEditor";
 
-vi.mock("../lib/api", () => ({ getPortfolio: vi.fn(), savePortfolio: vi.fn() }));
+vi.mock("../lib/api", () => ({ getPortfolio: vi.fn(), savePortfolio: vi.fn(), getPortfolioValuation: vi.fn() }));
 const mocked = vi.mocked(api);
 let space = 0;
 const data = (): PortfolioResponse => ({
   portfolio: { currency: "USD", cash: "2500.125", holdings: [{ ticker: "MU", shares: "1", cost_per_share: null, opened: null, sector: "Technology", company_name: "Micron", industry: "Semiconductors", exchange: "US" }], watchlist: [], limits: { max_position_pct: "10", max_sector_pct: "70", max_daily_loss_pct: "3" } }, revision: "initial",
 });
 
-beforeEach(() => { vi.clearAllMocks(); mocked.getPortfolio.mockResolvedValue(data()); });
+beforeEach(() => { vi.clearAllMocks(); mocked.getPortfolio.mockResolvedValue(data()); mocked.getPortfolioValuation.mockResolvedValue(null); });
 
 async function open(props: Partial<Parameters<typeof PortfolioEditor>[0]> = {}) {
   const spaceId = `portfolio-test-${String(++space)}`;
@@ -22,6 +22,38 @@ async function open(props: Partial<Parameters<typeof PortfolioEditor>[0]> = {}) 
   await userEvent.click(await screen.findByRole("button", { name: "Edit portfolio" }));
   return { ...rendered, spaceId };
 }
+
+describe("the last valuation", () => {
+  it("says what changed since the report before and which sessions got no research", async () => {
+    // 2026-10-20: three mornings went by with AgentBase closed, and nothing on Home said so.
+    mocked.getPortfolioValuation.mockResolvedValue({
+      as_of: "2026-10-19", currency: "USD", total_value: 4609.08, day_change: 40.85, day_change_pct: 0.8942,
+      positions_date: "2026-10-12",
+      since_previous: {
+        session: "2026-10-13", skipped_sessions: ["2026-10-14", "2026-10-15", "2026-10-16"],
+        total_value: 4713.57, value_change: -104.49, value_change_pct: -2.2168, price_change_pct: { MU: -5.0661 },
+      },
+    });
+    render(<PortfolioEditor spaceId={`portfolio-test-${String(++space)}`} />);
+
+    const note = await screen.findByTestId("portfolio-valuation");
+    expect(note.textContent).toContain("Valued at the Oct 19 close: 4,609.08 USD, \u2212104.49 (\u22122.22%) since Oct 13.");
+    expect(note.textContent).toContain("No research for the Oct 14, Oct 15 and Oct 16 sessions");
+  });
+
+  it("says nothing before the first valuation, and nothing of a gap where there is none", async () => {
+    render(<PortfolioEditor spaceId={`portfolio-test-${String(++space)}`} />);
+    await screen.findByRole("button", { name: "Edit portfolio" });
+    expect(screen.queryByTestId("portfolio-valuation")).toBeNull();
+
+    mocked.getPortfolioValuation.mockResolvedValue({
+      as_of: "2026-10-13", currency: "USD", total_value: 4713.57, day_change: 0, day_change_pct: null, since_previous: null,
+    });
+    act(() => { window.dispatchEvent(new Event("focus")); });
+    const note = await screen.findByTestId("portfolio-valuation");
+    expect(note.textContent).toBe("Valued at the Oct 13 close: 4,713.57 USD.");
+  });
+});
 
 describe("personal portfolio editing", () => {
   it("loads once with a refresh nonce and ignores an older request that finishes late", async () => {

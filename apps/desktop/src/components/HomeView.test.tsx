@@ -27,6 +27,7 @@ vi.mock("../lib/api", () => ({
   listFiles: vi.fn(),
   writeFile: vi.fn(),
   getPortfolio: vi.fn(),
+  getPortfolioValuation: vi.fn(),
   savePortfolio: vi.fn(),
 }));
 
@@ -101,6 +102,7 @@ beforeEach(() => {
   mocked.listRuns.mockResolvedValue([row("completed")]);
   mocked.listAgents.mockResolvedValue([writer]);
   mocked.listSchedules.mockResolvedValue([]);
+  mocked.getPortfolioValuation.mockResolvedValue(null);
   mocked.getPortfolio.mockResolvedValue({ portfolio: { currency: "USD", cash: "0", holdings: [], watchlist: [], limits: { max_position_pct: "10", max_sector_pct: "70", max_daily_loss_pct: "3" } }, revision: "original" });
 });
 

@@ -318,6 +318,47 @@ def _decode(
     )
 
 
+class SinceReport(BaseModel):
+    """What changed since the report before, as compute_portfolio recorded it."""
+
+    session: str
+    skipped_sessions: list[str]
+    total_value: float
+    value_change: float
+    value_change_pct: float | None
+    price_change_pct: dict[str, float | None]
+
+
+class PortfolioValuation(BaseModel):
+    """The newest valuation, for Home's portfolio card. Read-only."""
+
+    as_of: str
+    currency: str
+    total_value: float
+    day_change: float
+    day_change_pct: float | None
+    positions_date: str | None = None
+    since_previous: SinceReport | None = None
+
+
+_VALUATION = "portfolio/computed.json"
+_MAX_VALUATION_BYTES = 1_000_000
+
+
+def load_valuation(root: Path) -> PortfolioValuation | None:
+    """The last saved valuation; nothing, rather than an error, if there is none
+    or it cannot be read, since the next run writes a new one."""
+    path = root / _VALUATION
+    if root.is_symlink() or path.parent.is_symlink() or path.is_symlink():
+        return None
+    try:
+        if not path.is_file() or path.stat().st_size > _MAX_VALUATION_BYTES:
+            return None
+        return PortfolioValuation.model_validate(json.loads(path.read_text(encoding="utf-8")))
+    except (OSError, UnicodeError, ValueError):
+        return None
+
+
 def load_portfolio(root: Path) -> PortfolioResponse:
     with _LOCK:
         contents = _read(_paths(root))

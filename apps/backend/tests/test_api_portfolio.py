@@ -271,3 +271,73 @@ def test_mixed_existing_currencies_are_reported(
     response = client.get(URL)
     assert response.status_code == 422
     assert "more than one currency" in response.text
+
+
+_SINCE = {
+    "session": "2026-10-13",
+    "skipped_sessions": ["2026-10-14", "2026-10-15", "2026-10-16"],
+    "total_value": 4713.57,
+    "value_change": -104.49,
+    "value_change_pct": -2.2168,
+    "price_change_pct": {"CRWV": -21.4497, "MU": -5.0661, "NEW": None},
+}
+
+
+def test_home_reads_the_newest_valuation_and_what_went_unreported(
+    client: TestClient, app_paths: AppPaths
+) -> None:
+    """2026-10-20: three mornings had no report, and nothing on Home said so."""
+    computed = app_paths.spaces_dir / DEFAULT_SPACE_ID / "portfolio/computed.json"
+    computed.parent.mkdir(parents=True, exist_ok=True)
+    assert client.get(f"{URL}/valuation").json() is None
+
+    computed.write_text(
+        json.dumps(
+            {
+                "as_of": "2026-10-19",
+                "currency": "USD",
+                "total_value": 4609.08,
+                "day_change": 40.85,
+                "day_change_pct": 0.8942,
+                "positions_date": "2026-10-12",
+                "stale": True,
+                "positions": [{"ticker": "MU"}],
+                "since_previous": _SINCE,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert client.get(f"{URL}/valuation").json() == {
+        "as_of": "2026-10-19",
+        "currency": "USD",
+        "total_value": 4609.08,
+        "day_change": 40.85,
+        "day_change_pct": 0.8942,
+        "positions_date": "2026-10-12",
+        "since_previous": _SINCE,
+    }
+
+    # A first valuation has nothing to compare with.
+    computed.write_text(
+        json.dumps(
+            {
+                "as_of": "2026-10-13",
+                "currency": "USD",
+                "total_value": 4713.57,
+                "day_change": 0,
+                "day_change_pct": None,
+                "since_previous": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert client.get(f"{URL}/valuation").json()["since_previous"] is None
+
+    # Something that is not a valuation is no valuation, not an error.
+    for broken in ("not json", "[]", '{"as_of": 5}'):
+        computed.write_text(broken, encoding="utf-8")
+        assert client.get(f"{URL}/valuation").json() is None
+
+    other = client.post("/spaces", json={"name": "Other", "seed": "empty"}).json()["id"]
+    assert client.get(f"/spaces/{other}/portfolio/valuation").status_code == 404
