@@ -166,7 +166,7 @@ class ComputePortfolioTool:
 
     async def execute(self, prepared: Prepared, sandbox: Sandbox) -> str:
         try:
-            result = await asyncio.to_thread(_compute, prepared.payload)
+            result = await asyncio.to_thread(_compute, prepared.payload, sandbox)
         except DecimalException as exc:
             raise ToolExecutionError(
                 "portfolio inputs contain a number outside the supported range."
@@ -176,7 +176,7 @@ class ComputePortfolioTool:
         return json.dumps(reported, ensure_ascii=False, separators=(",", ":"))
 
 
-def _compute(payload: dict[str, Any]) -> dict[str, Any]:
+def _compute(payload: dict[str, Any], sandbox: Sandbox) -> dict[str, Any]:
     positions_path: Path = payload["positions_path"]
     prices_path: Path = payload["prices_path"]
     limits_path: Path = payload["limits_path"]
@@ -343,6 +343,14 @@ def _compute(payload: dict[str, Any]) -> dict[str, Any]:
             f"{_POSITIONS_PATH} records no holdings or cash, so every value is 0. "
             "Add a CASH row and any holdings to it to size positions."
         )
+    # Read before computed.json is replaced: the earlier valuation is the last report.
+    result["since_previous"] = _since_previous(
+        computed_path,
+        sandbox,
+        as_of,
+        total,
+        {item.position.ticker: item.price.close for item in calculated},
+    )
 
     _write_outputs(
         computed_path,
@@ -355,6 +363,106 @@ def _compute(payload: dict[str, Any]) -> dict[str, Any]:
         book_currency or "",
     )
     return result
+
+
+def _since_previous(
+    computed_path: Path,
+    sandbox: Sandbox,
+    as_of: date,
+    total: Decimal,
+    closes: dict[str, Decimal],
+) -> dict[str, Any] | None:
+    """How the book moved since the last report, and the sessions between with none.
+
+    The last report is the valuation computed.json holds before this one is
+    written; valuing the same session again keeps the comparison it made.
+    AgentBase closed for three mornings left 14 to 16 October unreported, and
+    nothing said so (2026-10-20). Missing or unreadable history is reported
+    as nothing to compare with, never as a failure of the valuation.
+    """
+    earlier = _earlier_valuation(computed_path)
+    if earlier is None:
+        return None
+    valued = _iso_date(earlier.get("as_of"))
+    if valued == as_of:
+        kept = earlier.get("since_previous")
+        if not isinstance(kept, dict):
+            return None
+        session = _iso_date(kept.get("session"))
+        before = _number(kept.get("total_value"))
+    else:
+        session = valued
+        before = _number(earlier.get("total_value"))
+    if session is None or before is None or session >= as_of:
+        return None
+
+    histories = {ticker: _closes(sandbox, ticker) for ticker in closes}
+    skipped = sorted(
+        {day for history in histories.values() for day in history if session < day < as_of}
+    )
+    change = total - before
+    return {
+        "session": session.isoformat(),
+        "skipped_sessions": [day.isoformat() for day in skipped],
+        "total_value": _json_number(before, _MONEY),
+        "value_change": _json_number(change, _MONEY),
+        "value_change_pct": _json_optional(_percent(change, before), _PERCENT),
+        "price_change_pct": {
+            ticker: _json_optional(
+                None
+                if (then := histories[ticker].get(session)) is None
+                else _percent(closes[ticker] - then, then),
+                _PERCENT,
+            )
+            for ticker in sorted(closes)
+        },
+    }
+
+
+def _earlier_valuation(path: Path) -> dict[str, Any] | None:
+    try:
+        earlier = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError):
+        return None
+    return earlier if isinstance(earlier, dict) else None
+
+
+def _iso_date(value: Any) -> date | None:
+    if not isinstance(value, str) or _DATE.fullmatch(value) is None:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _number(value: Any) -> Decimal | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        return Decimal(str(value))
+    except InvalidOperation:
+        return None
+
+
+def _closes(sandbox: Sandbox, ticker: str) -> dict[date, Decimal]:
+    """A holding's saved daily closes, from the year of history read_prices writes."""
+    try:
+        path = sandbox.resolve_path(f"raw/prices/{ticker}.csv")
+        with path.open("r", encoding="utf-8-sig", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+    except (OSError, UnicodeError, csv.Error, ValueError):
+        return {}
+    closes: dict[date, Decimal] = {}
+    for row in rows:
+        day = _iso_date((row.get("date") or "").strip())
+        try:
+            close = Decimal((row.get("close") or "").strip())
+        except InvalidOperation:
+            continue
+        if day is not None and close.is_finite() and close > 0:
+            closes[day] = close
+    return closes
 
 
 def _read_positions(path: Path) -> list[_Position]:

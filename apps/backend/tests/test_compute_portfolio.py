@@ -457,3 +457,93 @@ async def test_an_empty_portfolio_is_an_empty_book_not_a_failure(
         await checks.execute(checks.prepare({"date": "2026-10-06"}, sandbox), sandbox)
     )
     assert checked["items"] == []
+
+
+def _history(sandbox: Sandbox, ticker: str, closes: dict[str, str]) -> None:
+    rows = "".join(f"{day},0,0,0,{close},1\n" for day, close in closes.items())
+    _write(sandbox, f"raw/prices/{ticker}.csv", "date,open,high,low,close,volume\n" + rows)
+
+
+def _book_after_a_gap(sandbox: Sandbox) -> None:
+    """Valued for 13 October, then nothing until 19 October."""
+    _write(
+        sandbox,
+        "portfolio/positions.csv",
+        "ticker,shares,cost_per_share,opened,sector,currency\n"
+        "CASH,1000,,,Cash,USD\n"
+        "MU,1,,,Technology,USD\n"
+        "NOW,2,,,Technology,USD\n"
+        "AVGO,1,,,Technology,USD\n",
+    )
+    days = ("2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16", "2026-10-19")
+    _history(
+        sandbox,
+        "MU",
+        dict(zip(days, ("953.19", "914.13", "931.24", "878.84", "904.90"), strict=True)),
+    )
+    _history(
+        sandbox,
+        "NOW",
+        dict(zip(days, ("138.61", "135.10", "140.02", "141.97", "145.36"), strict=True)),
+    )
+    # A holding bought after the last report has no close to compare with.
+    _history(sandbox, "AVGO", {"2026-10-16": "328.75", "2026-10-19": "334.59"})
+    _write(
+        sandbox,
+        "raw/prices/summary.csv",
+        "ticker,date,close,prev_close,currency\n"
+        "AVGO,2026-10-19,334.59,328.75,USD\n"
+        "MU,2026-10-19,904.90,878.84,USD\n"
+        "NOW,2026-10-19,145.36,141.97,USD\n",
+    )
+    _limits(sandbox)
+    _write(
+        sandbox,
+        "portfolio/computed.json",
+        json.dumps({"as_of": "2026-10-13", "total_value": 2565.00}),
+    )
+
+
+async def test_the_book_reports_what_changed_and_what_went_unreported_since_the_last_report(
+    sandbox: Sandbox,
+) -> None:
+    """2026-10-20: AgentBase was closed for three mornings. The book now names
+    the sessions that got no report, and how it moved since the last one."""
+    _book_after_a_gap(sandbox)
+    tool = ComputePortfolioTool()
+
+    result = json.loads(await tool.execute(tool.prepare({}, sandbox), sandbox))
+
+    assert result["as_of"] == "2026-10-19"
+    assert result["since_previous"] == {
+        "session": "2026-10-13",
+        "skipped_sessions": ["2026-10-14", "2026-10-15", "2026-10-16"],
+        "total_value": 2565.00,
+        "value_change": -34.79,
+        "value_change_pct": -1.3563,
+        "price_change_pct": {"AVGO": None, "MU": -5.0661, "NOW": 4.8698},
+    }
+    saved = json.loads((sandbox.root / "portfolio/computed.json").read_text(encoding="utf-8"))
+    assert saved["since_previous"] == result["since_previous"]
+
+    # Valuing the same session again still compares with 13 October.
+    again = json.loads(await tool.execute(tool.prepare({}, sandbox), sandbox))
+    assert again["since_previous"] == result["since_previous"]
+
+
+@pytest.mark.parametrize("previous", [None, "not json", '{"as_of": "someday"}', "[]"])
+async def test_without_a_readable_earlier_report_there_is_nothing_to_compare(
+    sandbox: Sandbox, previous: str | None
+) -> None:
+    _book_after_a_gap(sandbox)
+    computed = sandbox.root / "portfolio/computed.json"
+    if previous is None:
+        computed.unlink()
+    else:
+        computed.write_text(previous, encoding="utf-8")
+    tool = ComputePortfolioTool()
+
+    result = json.loads(await tool.execute(tool.prepare({}, sandbox), sandbox))
+
+    assert result["since_previous"] is None
+    assert result["total_value"] == 2530.21

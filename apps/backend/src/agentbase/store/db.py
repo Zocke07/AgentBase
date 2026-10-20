@@ -86,6 +86,7 @@ MIGRATION_FILES: tuple[tuple[int, str], ...] = (
     (33, "033_decision_dates_and_sources.sql"),
     (34, "034_pipeline_tools_stay_in_the_default_space.sql"),
     (35, "035_risk_verdicts_need_named_evidence.sql"),
+    (36, "036_unreported_sessions.sql"),
 )
 
 #: Migrations requiring deferred foreign-key checks.
