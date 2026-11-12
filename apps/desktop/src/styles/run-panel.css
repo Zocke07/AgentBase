@@ -1,0 +1,324 @@
+/* --- run panel ------------------------------------------------------------ */
+
+.run-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.run-projection {
+  display: grid;
+  grid-template-rows: auto auto minmax(20rem, 1.6fr) minmax(9rem, 1fr);
+  min-height: 0;
+  flex: 1;
+}
+
+.run-summary {
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.run-summary__head {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 0.35rem 0.65rem;
+  align-items: center;
+}
+
+.run-summary__goal {
+  grid-column: 1 / -1;
+  margin: 0.15rem 0 0;
+  font-size: 1.0625rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+/* An automation's instructions, folded under the run's title. */
+.run-summary__brief {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 0.8667rem;
+}
+
+.run-summary__brief>summary {
+  width: fit-content;
+  cursor: pointer;
+}
+
+.run-summary__brief>p {
+  margin: 0.3rem 0 0;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.run-summary__issue-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bad) 10%, var(--surface));
+  color: var(--bad);
+  font-size: 0.7333rem;
+  font-weight: 650;
+}
+
+/* Where a channel-originated run came from. Reads as a caption, because the
+   goal is the headline and this is the provenance under it. */
+.run-summary__origin,
+.run-summary__policy {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8667rem;
+}
+
+.run-summary__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+  margin: 0.5rem 0 0;
+}
+
+.run-summary__facts div {
+  display: flex;
+  gap: 0.4rem;
+  align-items: baseline;
+}
+
+.run-summary__facts dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.run-summary__facts dd {
+  margin: 0;
+  font-size: 0.8667rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.run-summary__sandboxed {
+  color: var(--bad);
+}
+
+.run-summary__fact--bad dt,
+.run-summary__fact--bad dd {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+.run-summary__cap {
+  margin: 0.5rem 0 0;
+  color: var(--bad);
+  font-size: 0.8667rem;
+}
+
+.run-summary__problems {
+  margin-top: 0.65rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--bad) 30%, var(--border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bad) 3%, var(--surface));
+}
+
+/* Only missed lookups and refused calls sent again: nothing failed or changed, so no alarm colours. */
+.run-summary__problems--calm {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+.run-summary__problems--calm .run-summary__problem-mark {
+  background: color-mix(in srgb, var(--muted) 14%, var(--surface));
+  color: var(--muted);
+}
+
+.run-summary__problems--calm .run-summary__problem-copy strong,
+.run-summary__problems--calm .run-summary__error-who {
+  color: var(--text);
+}
+
+.run-summary__problems>summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.55rem 0.7rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.run-summary__problems>summary::-webkit-details-marker {
+  display: none;
+}
+
+.run-summary__problem-mark {
+  display: grid;
+  width: 1.35rem;
+  height: 1.35rem;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--bad) 12%, var(--surface));
+  color: var(--bad);
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
+.run-summary__problem-copy {
+  min-width: 0;
+}
+
+.run-summary__problem-copy strong,
+.run-summary__problem-copy small {
+  display: block;
+}
+
+.run-summary__problem-copy strong {
+  color: var(--bad);
+  font-size: 0.8667rem;
+}
+
+.run-summary__problem-copy small {
+  margin-top: 0.1rem;
+  color: var(--muted);
+  font-size: 0.7333rem;
+}
+
+.run-summary__problem-action {
+  color: var(--muted);
+  font-size: 0.7333rem;
+  font-weight: 600;
+}
+
+.run-summary__problem-action::after {
+  display: inline-block;
+  margin-left: 0.35rem;
+  transform: rotate(0deg);
+  transition: transform 120ms ease-out;
+  content: "\203a";
+}
+
+.run-summary__problems[open] .run-summary__problem-action::after {
+  transform: rotate(90deg);
+}
+
+.run-summary__errors {
+  margin: 0;
+  padding: 0 0.7rem 0.55rem 2.7rem;
+  list-style: none;
+  font-size: 0.8rem;
+}
+
+.run-summary__error {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, auto) minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.35rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.run-summary__error-who {
+  flex: none;
+  color: var(--bad);
+  font-weight: 600;
+}
+
+.run-summary__error-text {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.run-summary__unknown {
+  margin: 0.6rem 0 0;
+  color: var(--warn);
+  font-size: 0.8667rem;
+}
+
+/* The terminal summary is a claim, and is styled to read as one. */
+.claim {
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  border-left: 3px solid var(--border-strong);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--surface-2);
+}
+
+.claim--reason {
+  border-left-color: var(--bad);
+}
+
+.claim__label {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.claim__text {
+  margin: 0.2rem 0 0;
+  font-size: 0.9333rem;
+}
+
+.claim__text p {
+  margin-bottom: 0.4em;
+}
+
+.claim__text h1,
+.claim__text h2,
+.claim__text h3,
+.claim__text h4 {
+  margin: 0.6em 0 0.25em;
+  font-size: 1em;
+}
+
+/* A `[[note#heading]]` citation that opens the note. */
+.citation {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: 0.8267rem var(--mono);
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.citation:hover {
+  color: var(--accent-strong);
+}
+
+.claim__caveat {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+/* One sentence about the run at this cursor, above the graph. */
+.now-line {
+  margin: 0;
+  padding: 0.6rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+/* The previous run, kept on screen while the next one's history is fetched.
+   Dimmed rather than removed: an empty panel and back was a flash on every
+   switch, and a veil over what is already there is not. */
+.run-panel--loading .run-projection,
+.run-panel--loading .approval {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.run-projection,
+.approval {
+  transition: opacity 120ms ease-out;
+}
+

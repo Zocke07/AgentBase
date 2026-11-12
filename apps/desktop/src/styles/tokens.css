@@ -1,0 +1,171 @@
+/* --- tokens --------------------------------------------------------------- */
+
+:root {
+  color-scheme: light;
+
+  --bg: #f3f4f7;
+  --surface: #ffffff;
+  --surface-2: #eceef3;
+  --surface-3: #e2e5ec;
+  --border: #dcdfe7;
+  --border-strong: #bfc5d2;
+  --text: #1a1e29;
+  /* 6.5:1 on a surface, 5.9:1 on the page. */
+  --muted: #555e70;
+  /* The lightest text allowed: 5.0:1 on a surface, 4.6:1 on the page. */
+  --faint: #666f82;
+
+  /* White on the accent is 5.0:1; the brighter orange it replaced was 3.8:1. */
+  --accent: #b8501e;
+  --accent-strong: #9c4218;
+  --accent-soft: rgb(184 80 30 / 12%);
+  --on-accent: #ffffff;
+
+  /* The product mark keeps one identity instead of borrowing status colours. */
+  --brand-lead: #b8501e;
+  --brand-base: #277e99;
+  --brand-links: #66718d;
+  --brand-ring: #ffffff;
+  --brand-shadow: rgb(20 24 40 / 12%);
+
+  --good: #1a7a50;
+  --good-soft: rgb(26 122 80 / 12%);
+  --bad: #c43d2c;
+  --bad-soft: rgb(196 61 44 / 10%);
+  --warn: #8f5e0a;
+  --warn-soft: rgb(143 94 10 / 12%);
+  --info: #2a6bb0;
+  --info-soft: rgb(42 107 176 / 12%);
+
+  --viz-1: #2a6bb0;
+  --viz-2: #d4622a;
+  --viz-3: #1f8a5b;
+  --viz-4: #8a55b5;
+  --viz-5: #b07a13;
+  --viz-6: #b94668;
+
+  /* The three risk levels, in the order the gate ranks them. */
+  --risk-low: var(--info);
+  --risk-medium: var(--warn);
+  --risk-high: var(--bad);
+
+  /* The run's states. */
+  --status-pending: var(--faint);
+  --status-running: var(--accent);
+  --status-paused: var(--warn);
+  --status-completed: var(--good);
+  --status-failed: var(--bad);
+  --status-cancelled: var(--muted);
+
+  --shadow-1: 0 1px 2px rgb(20 24 40 / 6%), 0 4px 14px rgb(20 24 40 / 6%);
+  --shadow-2: 0 2px 6px rgb(20 24 40 / 10%), 0 12px 32px rgb(20 24 40 / 12%);
+  --radius: 10px;
+  --radius-sm: 6px;
+
+  /* Motion: three speeds and two curves; nothing else moves. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.35, 0.64, 1);
+  --dur-quick: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+
+  --rail-width: 13.5rem;
+
+  --mono: ui-monospace, "Cascadia Code", Consolas, "SF Mono", Menlo, monospace;
+
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --bg: #0e1016;
+    --surface: #161922;
+    --surface-2: #1e222d;
+    --surface-3: #272c39;
+    --border: #2a2f3c;
+    --border-strong: #3c4354;
+    --text: #e7e9f0;
+    --muted: #8d95a9;
+    --faint: #7e869c;
+
+    --accent: #ff8f52;
+    --accent-strong: #ffa672;
+    --accent-soft: rgb(255 143 82 / 14%);
+    --on-accent: #1a0f06;
+
+    --brand-lead: #ff8f52;
+    --brand-base: #6bc1d4;
+    --brand-links: #74809e;
+    --brand-ring: #161922;
+    --brand-shadow: rgb(0 0 0 / 32%);
+
+    --good: #6fcf8e;
+    --good-soft: rgb(111 207 142 / 14%);
+    --bad: #f2705d;
+    --bad-soft: rgb(242 112 93 / 14%);
+    --warn: #e8c468;
+    --warn-soft: rgb(232 196 104 / 14%);
+    --info: #6cb4e6;
+    --info-soft: rgb(108 180 230 / 14%);
+
+    --viz-1: #6cb4e6;
+    --viz-2: #ff8f52;
+    --viz-3: #6fcf8e;
+    --viz-4: #c494e8;
+    --viz-5: #e8c468;
+    --viz-6: #ed82a0;
+
+    --shadow-1: 0 1px 2px rgb(0 0 0 / 40%), 0 4px 14px rgb(0 0 0 / 30%);
+    --shadow-2: 0 2px 6px rgb(0 0 0 / 45%), 0 12px 32px rgb(0 0 0 / 40%);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0e1016;
+  --surface: #161922;
+  --surface-2: #1e222d;
+  --surface-3: #272c39;
+  --border: #2a2f3c;
+  --border-strong: #3c4354;
+  --text: #e7e9f0;
+  --muted: #8d95a9;
+  --faint: #7e869c;
+
+  --accent: #ff8f52;
+  --accent-strong: #ffa672;
+  --accent-soft: rgb(255 143 82 / 14%);
+  --on-accent: #1a0f06;
+
+  --brand-lead: #ff8f52;
+  --brand-base: #6bc1d4;
+  --brand-links: #74809e;
+  --brand-ring: #161922;
+  --brand-shadow: rgb(0 0 0 / 32%);
+
+  --good: #6fcf8e;
+  --good-soft: rgb(111 207 142 / 14%);
+  --bad: #f2705d;
+  --bad-soft: rgb(242 112 93 / 14%);
+  --warn: #e8c468;
+  --warn-soft: rgb(232 196 104 / 14%);
+  --info: #6cb4e6;
+  --info-soft: rgb(108 180 230 / 14%);
+
+  --viz-1: #6cb4e6;
+  --viz-2: #ff8f52;
+  --viz-3: #6fcf8e;
+  --viz-4: #c494e8;
+  --viz-5: #e8c468;
+  --viz-6: #ed82a0;
+
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 40%), 0 4px 14px rgb(0 0 0 / 30%);
+  --shadow-2: 0 2px 6px rgb(0 0 0 / 45%), 0 12px 32px rgb(0 0 0 / 40%);
+}
+

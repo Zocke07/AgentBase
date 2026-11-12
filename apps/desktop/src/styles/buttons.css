@@ -1,0 +1,80 @@
+/* --- buttons -------------------------------------------------------------- */
+
+.button {
+  padding: 0.45rem 0.95rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8667rem;
+  font-weight: 500;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.button:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.button--primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.button--primary:hover:not(:disabled) {
+  border-color: var(--accent-strong);
+  background: var(--accent-strong);
+}
+
+.button--small {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.button--danger:hover:not(:disabled) {
+  border-color: var(--bad);
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
+.button--allow {
+  border-color: var(--good);
+  background: var(--good);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* The run-wide yes: the same green, outlined, so the one-call yes stays the
+   obvious answer and this one reads as the wider one. */
+.button--allow-run {
+  border-color: var(--good);
+  color: var(--good);
+  background: transparent;
+  font-weight: 600;
+}
+
+.button--allow-run:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--good) 12%, transparent);
+}
+
+.button--allow:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.button--deny {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+.button--deny:hover:not(:disabled) {
+  background: var(--bad-soft);
+}
+

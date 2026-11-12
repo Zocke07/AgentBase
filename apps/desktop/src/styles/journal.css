@@ -1,0 +1,141 @@
+/* Journal: the dates down the browser, every dated report as one page. */
+.journal-index {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 0;
+  padding: 0 0.65rem 0.65rem;
+  overflow-y: auto;
+}
+
+.journal-index__filter {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0 0.35rem 0.35rem;
+  color: var(--muted);
+  font-size: 0.7333rem;
+}
+
+.journal-index__filter select {
+  flex: 1;
+  min-width: 0;
+}
+
+.journal-index__badge {
+  font-size: 0.6667rem;
+}
+
+.journal-index__day {
+  font-family: inherit;
+}
+
+.journal {
+  flex: 1;
+  min-height: 0;
+  padding: 0 1.5rem 2rem;
+  overflow-y: auto;
+  background: var(--bg);
+}
+
+.journal__inner {
+  max-width: 64rem;
+  margin: 0 auto;
+}
+
+.journal__head {
+  padding: 1.1rem 0 0.25rem;
+}
+
+.journal__head h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.journal__head p {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+/* The date stays in view while its reports scroll under it. */
+.journal__date {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 1.25rem 0 0.6rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 0.95rem;
+}
+
+.journal__entry {
+  margin-bottom: 0.9rem;
+  padding: 0.9rem 1.1rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.journal__entry-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 0.7rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.journal__entry-name {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.journal__path {
+  color: var(--muted);
+  font: 0.7333rem var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.journal__loading {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+/* A report's own headings sit under the page's date and kind. */
+.journal__body {
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.journal__body h1 {
+  font-size: 1.15rem;
+}
+
+.journal__body h2 {
+  font-size: 1.05rem;
+}
+
+.journal__body h3 {
+  font-size: 0.95rem;
+}
+
+.journal__more {
+  display: block;
+  margin: 1.25rem auto 0;
+}
+
+@media (max-width: 850px) {
+  .journal {
+    padding: 0 0.85rem 1.5rem;
+  }
+}
+

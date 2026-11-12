@@ -1,0 +1,216 @@
+/* ==========================================================================
+   Responsive layout. The window can be as small as 800 by 600.
+   ========================================================================== */
+
+/* The main column is placed explicitly, so a rail taken out of the flow as a
+   drawer does not let the page slide into the rail's column. */
+.app__main {
+  grid-column: 2;
+}
+
+@keyframes drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+}
+
+/* In a narrow window the rail opens over the page, with a scrim behind it
+   that closes it on a click. */
+.rail--drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 45;
+  width: 13.5rem;
+  box-shadow: var(--shadow-2);
+  animation: drawer-in var(--dur-base) var(--ease-out) backwards;
+}
+
+.app__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 44;
+  background: rgb(10 12 20 / 35%);
+  animation: fade-in var(--dur-base) var(--ease-out) backwards;
+}
+
+/* Anything that sits in a grid or flex column may shrink below its content's
+   width; without this, one long row pushes the whole section off the page. */
+.run-panel,
+.runs-view__main,
+.agents-view__editor,
+.knowledge__workspace {
+  min-width: 0;
+}
+
+/* Form rows wrap instead of running off the right edge. */
+.editor__row {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 1100px) {
+  .runs-view {
+    grid-template-columns: 15rem minmax(0, 1fr);
+  }
+
+  .agents-view {
+    grid-template-columns: 18rem minmax(0, 1fr);
+  }
+
+  .knowledge {
+    grid-template-columns: minmax(13rem, 16rem) minmax(0, 1fr);
+  }
+
+  /* The replay status takes a line of its own, live or scrubbed alike, so the
+     slider keeps its length when the words beside it change. */
+  .scrubber {
+    flex-wrap: wrap;
+  }
+
+  .scrubber__state {
+    flex: 1 1 100%;
+    min-width: 0;
+    justify-content: flex-start;
+  }
+
+  .app__header {
+    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+  }
+
+  .app__workspace {
+    gap: 0.6rem;
+  }
+
+  .budget__label {
+    display: none;
+  }
+
+  .home {
+    padding: 1rem 1.25rem 2rem;
+  }
+
+  .settings {
+    padding-right: 1rem;
+    padding-left: 1rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .runs-view {
+    grid-template-columns: 12.5rem minmax(0, 1fr);
+  }
+
+  .agents-view {
+    grid-template-columns: 14rem minmax(0, 1fr);
+  }
+
+  .budget__bar {
+    width: 3.5rem;
+  }
+
+  .run-summary {
+    padding: 0.75rem 1rem;
+  }
+}
+
+/* One column that may shrink: without a template the grid's column is as wide
+   as its widest child (the log's filter row), whatever the window. */
+.run-projection {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* The run's title and figures are the last thing to give up room: they keep
+   at least their first lines, and scroll inside that if the window is short. */
+.run-panel__summary {
+  min-height: 5.25rem;
+  max-height: 45vh;
+}
+
+@media (max-height: 760px) {
+  .run-projection {
+    grid-template-rows: auto auto minmax(12rem, 1.6fr) minmax(7rem, 1fr);
+  }
+}
+
+/* The event log folded to its newest step: one line under the canvas, which
+   takes the room the rows had. Two classes, so the short-window rows above
+   do not win. */
+.run-projection.run-projection--log-collapsed {
+  grid-template-rows: auto auto minmax(12rem, 1fr) auto;
+}
+
+.log--collapsed .log__filters {
+  flex-wrap: nowrap;
+  border-bottom: 0;
+}
+
+.log__fold {
+  display: inline-flex;
+  flex: none;
+  gap: 0.45rem;
+  align-items: center;
+  margin-left: -0.45rem;
+  padding: 0.2rem 0.5rem 0.2rem 0.45rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--dur-quick) var(--ease-out);
+}
+
+.log__fold:hover {
+  background: var(--surface-2);
+}
+
+/* A chevron drawn from two borders: down while open, right while folded. */
+.log__fold-icon {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-right: 2px solid currentcolor;
+  border-bottom: 2px solid currentcolor;
+  transform: translateY(-0.1rem) rotate(45deg);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.log--collapsed .log__fold-icon {
+  transform: rotate(-45deg);
+}
+
+.log__latest {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The run's connection, as a dot and a word: pulsing while live. */
+.runs-view__connection--live::before,
+.runs-view__connection--connecting::before {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-right: 0.45rem;
+  border-radius: 50%;
+  background: var(--status-running);
+  vertical-align: 0.1em;
+  animation: pulse 1.6s ease-in-out infinite;
+  content: "";
+}
+
+.runs-view__connection--closed::before {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-right: 0.45rem;
+  border-radius: 50%;
+  background: var(--status-completed);
+  vertical-align: 0.1em;
+  content: "";
+}
+

@@ -1,0 +1,79 @@
+/* A note row: its title, then its file name when the title hides it. */
+.tree__label {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  text-align: left;
+}
+
+.tree__label .tree__name {
+  flex: none;
+}
+
+.tree__file {
+  overflow: hidden;
+  color: var(--faint);
+  font: 0.6667rem var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Recent: notes and agent files together, newest first, by day. */
+.recent {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 0;
+  padding: 0 0.65rem 0.65rem;
+}
+
+.recent__day {
+  margin: 0.25rem 0.35rem 0.15rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 650;
+  letter-spacing: 0.035em;
+}
+
+/* Recent's fold for a day's working files: quieter than a file row. */
+.recent__fold {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.75rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recent__fold:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* Agent files folder heading as its own fold toggle. */
+.files__group-toggle {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.files__group-toggle:hover {
+  color: var(--text);
+}
+

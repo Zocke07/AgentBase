@@ -1,0 +1,189 @@
+/* --- the waiting shell (Phase 1's, still used before the sidecar answers) -- */
+
+.shell {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.75rem;
+  min-height: 100vh;
+  padding: 2rem;
+  text-align: center;
+}
+
+.shell__title {
+  font-size: 2rem;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+
+.shell__logo {
+  width: 3.75rem;
+  height: 3.75rem;
+  filter: drop-shadow(0 2px 3px var(--brand-shadow));
+  animation: rise-in var(--dur-slow) var(--ease-spring) backwards;
+}
+
+.brand-mark {
+  display: block;
+  overflow: visible;
+  filter: none;
+}
+
+.brand-mark__links {
+  fill: none;
+  stroke: var(--brand-links);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3.4;
+}
+
+.brand-mark__node {
+  stroke: var(--brand-ring);
+  stroke-width: 1.5;
+}
+
+.brand-mark__node--lead {
+  fill: var(--brand-lead);
+}
+
+.brand-mark__node--base {
+  fill: var(--brand-base);
+}
+
+.shell__technical {
+  max-width: 32rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+.shell__technical summary {
+  cursor: pointer;
+}
+
+.shell__status {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin: 0;
+}
+
+.shell__detail {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8667rem;
+}
+
+/* The start screen's stages: a bar that fills as each one finishes, and the
+   list of what the window is waiting on, the current one with a spinner. */
+.startup__bar {
+  position: relative;
+  width: min(18rem, 80vw);
+  height: 4px;
+  margin-top: 0.5rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-3);
+}
+
+.startup__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+.startup__bar--failed .startup__fill {
+  background: var(--bad);
+}
+
+.startup__stages {
+  display: grid;
+  gap: 0.6rem;
+  width: min(22rem, 86vw);
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.startup__stage {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+  color: var(--muted);
+}
+
+.startup__stage--active,
+.startup__stage--done {
+  color: var(--text);
+}
+
+.startup__stage--active {
+  font-weight: 500;
+}
+
+.startup__stage--failed {
+  color: var(--bad);
+}
+
+.startup__mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.startup__stage--active .startup__mark {
+  border-color: transparent;
+  color: var(--accent);
+}
+
+.startup__stage--done .startup__mark {
+  border-color: var(--good);
+  color: var(--good);
+  animation: pop-in var(--dur-base) var(--ease-spring) backwards;
+}
+
+.startup__stage--failed .startup__mark {
+  border-color: var(--bad);
+}
+
+.startup__text {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.startup__detail {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.dot {
+  flex: none;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+}
+
+.dot--pending {
+  background: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.dot--ok {
+  background: var(--good);
+}
+
+.dot--bad {
+  background: var(--bad);
+}
+

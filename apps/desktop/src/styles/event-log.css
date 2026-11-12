@@ -1,0 +1,206 @@
+/* --- event log ------------------------------------------------------------ */
+
+.log {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface);
+}
+
+.log__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  padding: 0.4rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8rem;
+}
+
+.log__filters label {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.log__filters select,
+.log__filters input {
+  padding: 0.15rem 0.4rem;
+  font-size: 0.8rem;
+}
+
+.log__filter-label,
+.log__count {
+  color: var(--muted);
+}
+
+.log__count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.log__search input {
+  width: 11rem;
+}
+
+.log__toggle {
+  color: var(--muted);
+}
+
+/* Floats over the list's bottom edge while the reader is scrolled up. */
+.log__newest {
+  position: absolute;
+  right: 1.5rem;
+  bottom: 0.75rem;
+  box-shadow: var(--shadow-2);
+}
+
+.log__rows {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Only the rows in view exist. The list is a spacer as tall as every row
+   would be, and each rendered row is placed at its computed offset. */
+.log__list {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.log__item {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+}
+
+/* Each row is a button so it can open to its payload from the keyboard too;
+   the button reset below keeps it looking like a row. Its height is fixed
+   - ROW_PX in EventLog.tsx - so where a row sits is arithmetic. */
+.log__row {
+  display: grid;
+  grid-template-columns: 2.75rem 4.5rem minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  width: 100%;
+  height: 30px;
+  padding: 0 1.25rem;
+  border: 0;
+  border-left: 3px solid transparent;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8667rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.log__row:hover,
+.log__row--open {
+  background: var(--surface-2);
+}
+
+.log__row--run {
+  border-left-color: var(--accent);
+}
+
+.log__row--agent {
+  border-left-color: var(--info);
+}
+
+.log__row--llm {
+  border-left-color: var(--faint);
+}
+
+.log__row--tool {
+  border-left-color: var(--good);
+}
+
+.log__row--approval {
+  border-left-color: var(--warn);
+}
+
+.log__row--budget {
+  border-left-color: var(--warn);
+}
+
+.log__row--channel {
+  border-left-color: var(--border-strong);
+}
+
+.log__seq,
+.log__time {
+  overflow: hidden;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 0.7333rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log__sentence {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The raw type, as a chip: what a bug report needs, muted beside the sentence. */
+.log__type {
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.7333rem;
+  white-space: nowrap;
+}
+
+.log__row:hover .log__type,
+.log__row--open .log__type {
+  background: var(--surface-3);
+}
+
+.log__detail {
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.log__prose {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0.6rem 1.25rem 0.5rem 4rem;
+  border-bottom: 1px dashed var(--border);
+  background: var(--surface);
+  font-size: 0.8667rem;
+}
+
+.log__prose>.md {
+  flex: 1;
+  max-width: 48rem;
+}
+
+.log__payload {
+  margin: 0;
+  padding: 0.5rem 1.25rem 0.6rem 4rem;
+  max-height: 24rem;
+  overflow: auto;
+  color: var(--text);
+  font-size: 0.7333rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.log__empty {
+  position: static;
+  padding: 1rem 1.25rem;
+  color: var(--muted);
+  font-size: 0.8667rem;
+}
+

@@ -1,0 +1,22 @@
+/* --- runs view ------------------------------------------------------------ */
+
+.runs-view {
+  display: grid;
+  grid-template-columns: 19rem minmax(0, 1fr);
+  height: 100%;
+  overflow: hidden;
+}
+
+/* The list scrolls inside the panel rather than the panel itself, so the
+   divider on the panel's edge stays put while the list moves. */
+.runs-view__side {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  overflow: hidden;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+

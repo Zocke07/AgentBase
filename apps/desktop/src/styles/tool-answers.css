@@ -1,0 +1,38 @@
+/* --- answers by tool (Settings, Space settings) ----------------------------- */
+
+.policy-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8667rem;
+}
+
+.policy-table th,
+.policy-table td {
+  padding: 0.4rem 0.5rem;
+  border-top: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.policy-table th {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.policy-table__description {
+  color: var(--muted);
+}
+
+.policy-table select {
+  min-width: 11rem;
+}
+
+@media (max-width: 720px) {
+  .policy-table__description {
+    display: none;
+  }
+}
+

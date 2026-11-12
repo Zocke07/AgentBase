@@ -1,8 +1,92 @@
 # Verification and remaining work
 
-Updated 2026-10-13. This is the current record; [history](history/README.md)
+Updated 2026-11-12. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
+
+## Phase 20, stage 20.1: baseline, workbench and rules, 2026-11-12
+
+On branch `phase-20-redesign`, not merged, pushed or released. The stage
+changes nothing a person can see; BUILD_SPEC Phase 20 holds the confirmed
+decisions and [the brief](design/virtual-office-redesign.md) the detail and
+this stage's inventory (its appendix).
+
+- **Baseline.** `just ui-shots` starts a scratch sidecar on port 8790 with
+  made-up notes and the scripted debug run, Vite on 5173 and headless
+  Chromium, and captures every section, the run view, the agent inspector
+  and a note in both themes at 800 by 600, 1,100 by 800 and 1,440 by 900: 66
+  screenshots in `.dev/shots/<label>/`. Two captures of the same page first
+  differed by one colour level on 20 antialiased pixels when one landed
+  inside a 1 ms animation; every animation now ends at once and the
+  browser's clock is pinned. Of eight full captures on the same data since,
+  seven were byte-identical to the first on all 66 screenshots; one had a
+  single screenshot (Usage, light, 800 by 600) with 8 pixels changed by at
+  most 2 of 255 on the rounded corners of the native month selector, with no
+  code change between them. `--compare` reports the count, size and place of
+  any difference so that such noise can be told from a real change.
+- **The stylesheet split.** `index.css` (8,763 lines) keeps its header and
+  imports 42 files under `src/styles` in the old order; joined, they are the
+  old file line for line. The production stylesheet has the same SHA-256
+  before and after (`8b71f84f...`, 136,221 bytes), and all 66 screenshots
+  are byte-identical before the split, after it, and again at the end of the
+  stage (twice, after the one noisy capture above). `BrandMark.test.tsx` read `index.css` for the brand tokens and now
+  reads the stylesheet through `test/stylesheet.ts`; no other pre-existing
+  test changed.
+- **Scenarios.** Fourteen fixture runs in `src/test/scenarios.ts`, written
+  from made-up content in the orchestrator's event order. They use every
+  event type except `run.paused`, which nothing emits. `scenarios.test.ts`
+  (29 tests) holds each to what it shows, and `replayIdentity.test.tsx`
+  compares live with replay at several cursors of each (14 more tests).
+- **Design rules** (`src/design/rules.test.ts`). 34 colour tokens are each in
+  all three theme blocks and the two dark blocks agree. Raw colour literals
+  outside the token file are held at 12 in 7 files and `color-mix()` colours
+  at 30 in 10 files. Of the listed text and surface pairs, 16 fall short of
+  4.5:1 today (`--faint` on the two deeper surfaces in both themes; in
+  light, the accent and status words on the deeper surfaces and on their
+  own soft fills) and are named as known shortfalls for stage 20.2.
+- **The workbench.** `just workbench` draws the tokens with live contrast
+  ratios, the type, the controls, the rail and the run view of each scenario
+  with playback, opened in headless Chromium with no console error. A test
+  fails any fetch or event stream from it. `build.test.ts` builds the app in
+  memory and finds nothing from `workbench/`, `test/`, `design/` or
+  `scripts/`; with the workbench added as a build input it failed, as it
+  should.
+- **Visual tests.** `just test-visual`: **122 passed** in Chromium and WebKit
+  (25 screenshot comparisons and 36 axe checks in each), three times in a
+  row. Baselines are macOS only: 50 files, 6.9 MB. A run page is captured at
+  1,100 by 720 and any other page at its whole height. Axe found three serious
+  findings in today's interface, listed for stage 20.2: the dark Allow
+  button's contrast, the error count badge's contrast in a failed run's
+  summary, and the space switcher's accessible name.
+- **Review.** The `code-review` skill ran at high effort on the stage's diff
+  and returned ten findings; all were fixed. Two scenarios did not match the
+  orchestrator: a stuck worker does not fail a run whose supervisor
+  finishes, and a chat reply is recorded as `report` on its first delivery,
+  not as a final message. The token parity rule read only hex, `rgb()` and
+  `hsl()`, so a token in a newer colour form could have skipped it; one
+  reader now serves both colour rules and knows every colour function and
+  name. Tall workbench pages were compared only to the first 720 px. The
+  workbench's link did not follow the player's cursor. `ui-shots` read a
+  mistyped `--reuse` as a fresh run and deleted the scratch data, deleted a
+  label's screenshots before its servers had started, did not notice a
+  seeded run that never finished, and now refuses `--reuse` on data seeded
+  in an earlier month. The build test matched folders by substring, and the
+  workbench's copy of the reduced-motion block had no test holding it to
+  the app's.
+- **Lint.** Type-aware ESLint over the frontend peaked at 1.92 GB on `main`,
+  under Node's 2 GB default heap, and ran out of memory once this stage's
+  files were added. The lint scripts now allow 4 GB; the run peaks at 2.0 GB.
+- **Executed.** `just ci`: backend **1,447 passed, 12 skipped**; desktop
+  **739 passed in 67 files** (656 in 62 before the stage); lint, formatting
+  and both typecheckers clean. `just test-visual` and `just ui-shots` as
+  above.
+- **Unverified.** Nothing ran on Windows: `just workbench`, `just ui-shots`
+  and `just test-visual` are single commands that should work under
+  PowerShell 5.1 but have not, and Windows has no screenshot baselines, so
+  `test-visual` stays out of `just ci`. The Tauri window was not opened: the
+  stage touches no shell code, and the screenshots come from the same
+  interface in a browser against the dev server. CI on GitHub did not run:
+  nothing is pushed.
 
 ## Unreported sessions, the portfolio review and long files, 2026-10-20
 

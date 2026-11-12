@@ -1,0 +1,616 @@
+/* --- drawn agent files: charts, dashboards and diagrams in Knowledge ------- */
+
+.file-editor__views {
+  flex: none;
+}
+
+/* A drawn file fills the editor below its head, as the text area does. */
+.file-view {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 16rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.file-view__bar {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.file-view__save-as {
+  display: flex;
+  flex: 1;
+  gap: 0.45rem;
+  align-items: center;
+  min-width: 14rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.file-view__save-as input {
+  flex: 1;
+  min-width: 8rem;
+  font-family: var(--mono);
+}
+
+.file-view__error {
+  margin: 0.55rem 0.75rem 0;
+}
+
+.file-view__note {
+  max-width: 40rem;
+  margin: auto;
+  padding: 2rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.viz-chart__head,
+.viz-chart__actions,
+.mermaid-card__head {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.chart-editor,
+.diagram-editor {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+
+.chart-editor__controls,
+.dashboard-editor__controls,
+.diagram-editor__source {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.chart-editor__controls>label,
+.dashboard-editor__controls>label,
+.diagram-editor__source>label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: var(--muted);
+  font-size: 0.7333rem;
+  font-weight: 600;
+}
+
+/* Text fields and pickers fill the column; a checkbox keeps its own size, or
+   it takes the row and squeezes its label against the far edge. */
+.chart-editor__controls input:not([type="checkbox"]),
+.chart-editor__controls select,
+.dashboard-editor__controls input:not([type="checkbox"]),
+.dashboard-editor__controls select,
+.diagram-editor__source input {
+  width: 100%;
+}
+
+.chart-editor__values,
+.dashboard-editor__controls fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+}
+
+.chart-editor__values legend,
+.dashboard-editor__controls legend {
+  color: var(--muted);
+  font-size: 0.7333rem;
+  font-weight: 600;
+}
+
+.chart-editor__values label,
+.dashboard-editor__controls fieldset label {
+  display: flex;
+  gap: 0.45rem;
+  align-items: flex-start;
+  color: var(--text);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.chart-editor__values input[type="checkbox"],
+.dashboard-editor__controls fieldset input[type="checkbox"] {
+  flex: none;
+  margin: 0.1rem 0 0;
+}
+
+.chart-editor__preview,
+.diagram-editor__preview {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 1rem;
+  overflow: auto;
+  background: var(--bg);
+}
+
+.viz-chart,
+.mermaid-card {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.viz-chart__head {
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+
+.viz-chart__head h3,
+.mermaid-card__head h3 {
+  font-size: 1rem;
+}
+
+.viz-chart__head p {
+  margin: 0.1rem 0 0;
+  color: var(--muted);
+  font-size: 0.7333rem;
+}
+
+.viz-chart__actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.viz-chart__figure {
+  min-height: 10rem;
+}
+
+.viz-chart__svg {
+  display: block;
+  width: 100%;
+  min-width: 32rem;
+  max-height: 32rem;
+  color: var(--text);
+}
+
+.viz-chart__grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.viz-chart__axis {
+  stroke: var(--border-strong);
+  stroke-width: 1.2;
+}
+
+.viz-chart__axis-label,
+.viz-chart__legend,
+.viz-chart__metric-label,
+.viz-chart__metric-change,
+.viz-chart__empty-svg {
+  fill: var(--muted);
+  font: 12px system-ui, sans-serif;
+}
+
+.viz-chart__line {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.viz-chart__metric-value {
+  fill: var(--text);
+  font: 600 64px system-ui, sans-serif;
+}
+
+.viz-chart__metric-label {
+  font-size: 16px;
+}
+
+.viz-chart__metric-change {
+  fill: var(--good);
+  font-size: 14px;
+}
+
+.viz-chart__metric-change--down {
+  fill: var(--bad);
+}
+
+.viz-chart__note {
+  margin: 0.6rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.viz-chart__empty {
+  display: grid;
+  min-height: 12rem;
+  margin: 0;
+  place-items: center;
+  color: var(--muted);
+}
+
+.viz-table {
+  max-height: 24rem;
+  margin-top: 0.8rem;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.viz-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.viz-table th,
+.viz-table td {
+  max-width: 22rem;
+  padding: 0.4rem 0.55rem;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viz-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-2);
+}
+
+.dashboard-editor {
+  display: grid;
+  grid-template-columns: 16rem minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+
+.dashboard {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+  padding: 1rem;
+  overflow: auto;
+  background: var(--bg);
+}
+
+.dashboard--1 { grid-template-columns: minmax(0, 1fr); }
+.dashboard--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.dashboard--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.dashboard .viz-chart {
+  min-width: 0;
+}
+
+.dashboard .viz-chart__svg {
+  min-width: 20rem;
+}
+
+.diagram-editor__source textarea {
+  min-height: 24rem;
+  resize: vertical;
+  font: 0.8rem/1.5 var(--mono);
+}
+
+.diagram-editor__source p {
+  color: var(--muted);
+  font-size: 0.7333rem;
+}
+
+.mermaid-card__figure {
+  min-width: 30rem;
+  padding: 1rem;
+  overflow: auto;
+  text-align: center;
+}
+
+.mermaid-card__figure svg {
+  width: 100%;
+  max-height: 42rem;
+}
+
+/* Below the width where the rail becomes a drawer, three panes side by side
+   leave the chart narrower than its figure: the settings go above it, laid
+   out in columns so they do not push the chart far down. */
+@media (max-width: 1100px) {
+  .dashboard--3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .chart-editor,
+  .diagram-editor,
+  .dashboard-editor { grid-template-columns: 1fr; grid-template-rows: auto 1fr; overflow: auto; }
+  .chart-editor__controls,
+  .dashboard-editor__controls,
+  .diagram-editor__source { overflow: visible; border-right: 0; border-bottom: 1px solid var(--border); }
+  .chart-editor__controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+    align-items: start;
+  }
+  .chart-editor__preview,
+  .diagram-editor__preview { overflow: visible; }
+}
+
+@media (max-width: 850px) {
+  .chart-editor,
+  .diagram-editor,
+  .dashboard-editor { grid-template-columns: 1fr; overflow: auto; }
+  .chart-editor__controls,
+  .dashboard-editor__controls,
+  .diagram-editor__source { overflow: visible; border-right: 0; border-bottom: 1px solid var(--border); }
+  .dashboard--2,
+  .dashboard--3 { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ==========================================================================
+   Motion and interaction.
+
+   Chrome only (see the header of this file): sections, menus, dialogs,
+   toasts, buttons, cards and loading placeholders. Every rule here is
+   switched off by the reduced-motion block at the end.
+   ========================================================================== */
+
+@keyframes view-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+}
+
+@keyframes pop-out {
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+}
+
+@keyframes sink-out {
+  to {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 150% 0;
+  }
+
+  to {
+    background-position: -50% 0;
+  }
+}
+
+/* Moving between sections: the section eases up into place. `backwards`,
+   not `both`, so no transform is left behind once it has landed; a leftover
+   transform would become the containing block of the full-screen canvas. */
+.app__view:not([hidden]) {
+  animation: view-in var(--dur-slow) var(--ease-out) backwards;
+}
+
+/* Buttons answer the pointer: colours ease, a press sinks a little, and the
+   primary action lifts toward the pointer on hover. */
+.button,
+.link-button,
+.link,
+.rail__item,
+.switcher__current,
+.app__waiting {
+  transition:
+    background-color var(--dur-quick) var(--ease-out),
+    border-color var(--dur-quick) var(--ease-out),
+    color var(--dur-quick) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out),
+    transform var(--dur-quick) var(--ease-out);
+}
+
+.button:active:not(:disabled),
+.app__waiting:active {
+  transform: scale(0.97);
+}
+
+.button--primary:hover:not(:disabled) {
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 32%, transparent);
+  transform: translateY(-1px);
+}
+
+.button--primary:active:not(:disabled) {
+  box-shadow: none;
+  transform: translateY(0) scale(0.97);
+}
+
+/* A button waiting on the sidecar says so without changing its width much:
+   a small spinner before its label. Set `aria-busy="true"` on it. */
+.button[aria-busy="true"] {
+  cursor: progress;
+}
+
+.button[aria-busy="true"]::before {
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  margin-right: 0.45em;
+  border: 2px solid currentcolor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.1em;
+  animation: spin 700ms linear infinite;
+  content: "";
+}
+
+/* Cards that open something lift slightly under the pointer. */
+.run-card,
+.roster-card,
+.usage__card {
+  transition:
+    border-color var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+}
+
+.run-card:hover,
+.roster-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-2);
+}
+
+.run-card:active {
+  transform: translateY(0);
+}
+
+/* The rail's current section is marked by a bar that grows in from the edge. */
+.rail__item {
+  position: relative;
+}
+
+.rail__item::before {
+  position: absolute;
+  top: 22%;
+  bottom: 22%;
+  left: -0.75rem;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+  transform: scaleY(0);
+  transition: transform var(--dur-base) var(--ease-spring);
+  content: "";
+}
+
+.rail__item--active::before {
+  transform: scaleY(1);
+}
+
+.rail--collapsed .rail__item::before {
+  left: -0.5rem;
+}
+
+/* The active item's text is the stronger accent: 5:1 on its tinted fill. */
+.rail__item--active,
+.rail__item--active:hover {
+  color: var(--accent-strong);
+}
+
+/* The rail folds and unfolds rather than jumping. */
+.app {
+  transition: grid-template-columns var(--dur-slow) var(--ease-out);
+}
+
+/* Menus and dialogs. `--closing` is set by `usePresence` while an element
+   plays its way out before it is removed. */
+.switcher__menu {
+  transform-origin: top center;
+  animation: pop-in var(--dur-base) var(--ease-out) backwards;
+}
+
+.switcher__menu--closing {
+  pointer-events: none;
+  animation: pop-out var(--dur-quick) ease-in forwards;
+}
+
+.tour__card {
+  animation: rise-in var(--dur-slow) var(--ease-spring) backwards;
+}
+
+.tour--closing {
+  pointer-events: none;
+}
+
+.tour--closing .tour__card {
+  animation: sink-out var(--dur-base) ease-in forwards;
+}
+
+.tour--closing .tour__veil,
+.tour--closing .tour__spotlight {
+  animation: fade-out var(--dur-base) ease-in forwards;
+}
+
+.tour__veil {
+  animation: fade-in var(--dur-slow) var(--ease-out) backwards;
+}
+
+.tour__spotlight {
+  transition:
+    top var(--dur-slow) var(--ease-out),
+    left var(--dur-slow) var(--ease-out),
+    width var(--dur-slow) var(--ease-out),
+    height var(--dur-slow) var(--ease-out);
+}
+
+.quick-switcher,
+.knowledge__folder-confirm,
+.roster__confirm,
+.home__advanced-body {
+  animation: pop-in var(--dur-base) var(--ease-out) backwards;
+}
+
+.knowledge__toast {
+  animation: toast-in var(--dur-slow) var(--ease-spring) backwards;
+}
+
+.settings__saved {
+  animation: fade-in var(--dur-base) var(--ease-out) backwards;
+}
+

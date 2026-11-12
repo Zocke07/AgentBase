@@ -1,0 +1,98 @@
+/* --- badges --------------------------------------------------------------- */
+
+.status {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* A dot in the run's colour, then the word. */
+.status::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--status-pending);
+}
+
+.status--running {
+  color: var(--status-running);
+}
+
+.status--running::before {
+  background: var(--status-running);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.status--paused {
+  color: var(--status-paused);
+}
+
+.status--paused::before {
+  background: var(--status-paused);
+}
+
+.status--completed {
+  color: var(--status-completed);
+}
+
+.status--completed::before {
+  background: var(--status-completed);
+}
+
+.status--failed {
+  color: var(--status-failed);
+}
+
+.status--failed::before {
+  background: var(--status-failed);
+}
+
+.status--cancelled {
+  color: var(--status-cancelled);
+}
+
+.status--cancelled::before {
+  background: var(--status-cancelled);
+}
+
+.risk {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border: 1px solid currentcolor;
+  border-radius: 999px;
+  font-size: 0.7333rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.risk--low {
+  color: var(--risk-low);
+}
+
+.risk--medium {
+  color: var(--risk-medium);
+}
+
+.risk--high {
+  color: var(--risk-high);
+}
+
+.tag,
+.roster__builtin {
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--muted);
+  font-size: 0.7333rem;
+  font-weight: 500;
+  vertical-align: middle;
+  /* A badge is one word; "built-" on one line and "in" on the next is not. */
+  white-space: nowrap;
+}
+

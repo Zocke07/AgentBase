@@ -1,0 +1,153 @@
+/* --- app frame ------------------------------------------------------------ */
+
+.app {
+  display: grid;
+  grid-template-columns: var(--rail-width) minmax(0, 1fr);
+  height: 100vh;
+}
+
+.app__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Sidecar lost after startup: a banner over the window, not instead of it. */
+.app__lost {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.45rem 1.25rem;
+  background: var(--bad);
+  color: #fff;
+  font-size: 0.8667rem;
+  font-weight: 600;
+}
+
+.app__lost .dot--bad {
+  background: #fff;
+}
+
+.app__lost .button {
+  border-color: rgb(255 255 255 / 60%);
+  background: transparent;
+  color: #fff;
+}
+
+.app__header {
+  display: flex;
+  flex: none;
+  gap: 1.5rem;
+  align-items: center;
+  min-height: 3.25rem;
+  padding: 0.5rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.app__title {
+  font-size: 1.0625rem;
+}
+
+.app__workspace {
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+  margin-left: auto;
+}
+
+/* The model a task here uses, as a chip: the name its maker gives it. */
+.app__provider {
+  display: inline-flex;
+  gap: 0.45rem;
+  align-items: center;
+  padding: 0.2rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.app__provider-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--good);
+}
+
+/* Setup is unfinished: a way to finish it, rather than red text saying so. */
+.app__setup {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--warn);
+  border-radius: 999px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-quick) var(--ease-out),
+    transform var(--dur-quick) var(--ease-out);
+}
+
+.app__setup::before {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: currentcolor;
+  content: "";
+}
+
+.app__setup:hover {
+  background: color-mix(in srgb, var(--warn) 20%, transparent);
+}
+
+.app__setup:active {
+  transform: scale(0.97);
+}
+
+.app__unpriced {
+  margin-left: 0.5rem;
+  color: var(--bad);
+  font-weight: 600;
+}
+
+/* A question waiting on a run the user is not looking at. */
+.app__waiting {
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--warn);
+  border-radius: 999px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.app__body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app__view {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* The UA's `[hidden]` loses to any author `display`, so say it here. */
+.app__view[hidden] {
+  display: none;
+}
+

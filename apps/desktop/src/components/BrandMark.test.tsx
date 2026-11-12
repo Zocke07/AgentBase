@@ -1,11 +1,11 @@
-import { readFileSync } from "node:fs";
-
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { stylesheet } from "../test/stylesheet";
+
 import { BrandMark } from "./BrandMark";
 
-const css = readFileSync("src/index.css", "utf8");
+const css = stylesheet();
 
 describe("AgentBase brand mark", () => {
   it("uses a dedicated contrasting palette and stays crisp in the light rail", () => {

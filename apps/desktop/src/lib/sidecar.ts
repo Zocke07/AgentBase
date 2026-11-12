@@ -41,10 +41,27 @@ function insideTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
+/**
+ * Where a browser tab finds the sidecar. The dev server may name another
+ * port in `VITE_AGENTBASE_SIDECAR_PORT`, so a scratch sidecar can run beside
+ * an installed app that holds the default one (`just ui-shots`). Only the
+ * port moves: the host stays `127.0.0.1` (BUILD_SPEC §1 constraint 3), and a
+ * production build ignores the variable. The Tauri webview never comes here;
+ * the shell tells it where its own sidecar is.
+ */
+export function browserBaseUrl(dev: boolean, port: string | undefined): string {
+  if (!dev || port === undefined || !/^\d{4,5}$/.test(port)) return DEFAULT_BASE_URL;
+  const number = Number(port);
+  if (number < 1024 || number > 65535) return DEFAULT_BASE_URL;
+  return `http://127.0.0.1:${String(number)}`;
+}
+
+const BROWSER_BASE_URL = browserBaseUrl(import.meta.env.DEV, import.meta.env.VITE_AGENTBASE_SIDECAR_PORT);
+
 /** Resolve sidecar origin from the shell or default; dynamically import Tauri for tabs. */
 export async function resolveSidecarBaseUrl(): Promise<string> {
   if (!insideTauri()) {
-    return DEFAULT_BASE_URL;
+    return BROWSER_BASE_URL;
   }
 
   try {
@@ -58,7 +75,7 @@ export async function resolveSidecarBaseUrl(): Promise<string> {
 /** Ask the shell where the sidecar is and which launch it should answer as. */
 export async function resolveSidecarIdentity(): Promise<SidecarIdentity> {
   if (!insideTauri()) {
-    return { baseUrl: DEFAULT_BASE_URL, instance: null };
+    return { baseUrl: BROWSER_BASE_URL, instance: null };
   }
 
   try {

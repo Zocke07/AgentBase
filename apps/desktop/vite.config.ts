@@ -6,6 +6,11 @@ import { defineConfig } from "vite";
 /**
  * BUILD_SPEC §1 constraint 3: pin the dev server to 127.0.0.1 so `--host`
  * cannot widen it accidentally.
+ *
+ * `workbench.html` (`just workbench`) is a second page for the dev server
+ * only, which serves any HTML file under the root. The build has one input,
+ * `index.html`, so the workbench, its fixtures and the design tooling never
+ * reach `dist`; `src/workbench/build.test.ts` builds the app and checks.
  */
 export default defineConfig({
   plugins: [react()],

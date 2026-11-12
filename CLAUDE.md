@@ -13,6 +13,21 @@ future changes do not relocate users' data or disconnect their stored keys.
 
 ## Current state
 
+- **Phase 20, stage 20.1, 2026-11-12, on branch `phase-20-redesign`.** The
+  maintainer confirmed a redesign inspired by Apple's design principles for
+  Windows and macOS, with a run shown as a virtual office (BUILD_SPEC Phase
+  20, decisions D1 to D9). `docs/design/virtual-office-redesign.md` is the
+  specification, in six stages, one per session; read it before any
+  interface work. Stage 20.1 changed nothing a person can see. The
+  stylesheet is 42 files under `src/styles`, imported by `index.css` in the
+  old order. `just workbench` draws the tokens, controls, rail and the run
+  view for every scenario in `src/test/scenarios.ts` with no sidecar;
+  `just test-visual` compares those pages with committed screenshots in
+  Chromium and WebKit and runs axe; `just ui-shots` captures the real app
+  from a scratch sidecar on port 8790. `src/design` holds the design rules
+  as tests. Sixteen contrast pairs and three axe findings in today's
+  interface are listed for stage 20.2, which is next. See
+  docs/verification.md.
 - **Gaps and reading, 2026-10-20.** After three closed mornings the first
   chain on Claude ran cleanly, but nothing said 14 to 16 October had no
   research, the portfolio review stopped on a week-old holdings file, and a
@@ -455,6 +470,13 @@ second chronological log here.
   supervised adapter runs in-process and uses the same approval gate as the UI.
   Its one outbound path is `ChannelService.announce`, which posts market
   alerts to the configured channel with mentions disabled and reads nothing.
+- Fixtures and screenshots come from made-up content and scratch data only
+  (`src/test/scenarios.ts`, `just ui-shots`). Never copy a log, a file or a
+  capture from `.dev/data` or an installed app's data: the default space
+  holds a person's portfolio.
+- The workbench, the fixtures, `src/design` and `scripts/` are development
+  only. The build's one input is `index.html`, and
+  `src/workbench/build.test.ts` fails if any of them would ship.
 - The market watch's quote reads are app infrastructure, not tool calls: no
   agent chooses them, they hit one fixed Yahoo endpoint at a checked public
   address for symbols from the space's own files, and nothing fetched is
@@ -469,6 +491,9 @@ just setup             # install backend and frontend dependencies
 just check             # lint, formatting check, Python/TypeScript typechecks
 just ci                # check plus backend and frontend tests
 just test-backend-cov   # backend statement coverage, not branch coverage
+just workbench         # the interface drawn from fixtures, no sidecar
+just test-visual       # workbench pages in Chromium and WebKit, with axe
+just ui-shots          # screenshots of the real app from scratch data
 just schemas           # regenerate committed OpenAPI and TypeScript
 just build-installer   # freeze sidecar, then build NSIS or macOS .app
 just verify-build      # require built artifacts and verify their contents

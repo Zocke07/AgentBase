@@ -143,6 +143,10 @@ watches. `src/test/setup.ts` stubs `ResizeObserver` and gives React Flow nodes
 a fixed non-zero size: jsdom has no layout, and zero-sized nodes silently lose
 edges; the test must catch that condition.
 
+jsdom lays nothing out and computes no colour. To see a component, use
+`just workbench`; to see the app, `just ui-shots`; to hold a look in place,
+the visual tests ([Testing and CI](4_testing_and_ci.md)).
+
 ---
 
 ## Debugging the Tauri shell

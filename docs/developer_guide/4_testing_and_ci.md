@@ -9,6 +9,8 @@ just test-backend tests/test_sandbox.py -k symlink -v
 just test-backend-cov                       # with --cov=agentbase term-missing
 just test-desktop                           # vitest run
 just test-desktop src/state/reducer.test.ts
+just test-visual                            # workbench pages in Chromium and WebKit
+just test-visual --update                   # rewrite the screenshot baselines
 ```
 
 Backend tests use **anyio's** pytest plugin (asyncio only) with a **60-second
@@ -45,6 +47,43 @@ For critical guarantees, deliberately **break the guarantee**, confirm its test
 fails, then restore it. [Project history](../history/README.md) includes a
 mutation too small to fail despite leaving the supposed target intact. A passing
 mutation is not evidence of correctness.
+
+### Visual tests: `just test-visual`
+
+`vitest.browser.config.ts` runs `src/**/*.visual.tsx` in Vitest's browser
+mode with the Playwright provider, in headless Chromium (close to WebView2)
+and WebKit (close to WKWebView). `workbench/pages.visual.tsx` renders every
+workbench page, compares it with a committed screenshot
+(`workbench/__screenshots__/`) and runs axe on it; a serious or critical
+finding fails the page.
+
+- Baseline names carry the browser and the platform (`-chromium-darwin`),
+  because fonts differ between operating systems. A platform with no
+  baselines writes them on its first run and fails that run; commit them and
+  run again.
+- Every page is compared in light, and the pages in `DARK_TOO` also in dark.
+  A run page (`layout: "fill"`) is captured at 1,100 by 720, as a window
+  shows it; any other page (`"flow"`) at its whole height. Axe checks every
+  page in both themes.
+- A failed comparison leaves its actual and diff images in `.dev/visual/`.
+  After an intended change, look at them, then `just test-visual --update`.
+- The context is pinned to UTC and `en-US`, and animations end at once, so a
+  screenshot never depends on the machine's settings or on timing.
+- It is not part of `just ci` until Windows has baselines too.
+
+`src/workbench/build.test.ts` builds the app in memory in the ordinary suite
+and fails if anything from `workbench/`, `test/`, `design/` or `scripts/`
+would ship.
+
+### Fixture runs
+
+`src/test/scenarios.ts` holds one run per shape the interface draws: policy
+answers naming hosts, an open question, a sandbox refusal, a missed lookup,
+a stuck worker, budget warnings, failed and cancelled runs, a chat origin, a
+ghost handoff, and twelve and twenty agents. `scenarios.test.ts` holds each
+to what it says it shows, `replayIdentity.test.tsx` compares live with
+replay at several cursors of each, and the workbench and the visual tests
+draw them. Add a scenario there when a new state needs drawing.
 
 ### Tests that skip, and why
 

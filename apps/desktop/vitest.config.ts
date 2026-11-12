@@ -17,5 +17,8 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     restoreMocks: true,
+    // Stylesheets are empty in tests, except the token file: the workbench's
+    // token page reads its text (`tokens.css?raw`) to list what it defines.
+    css: { include: /styles\/tokens\.css/ },
   },
 });

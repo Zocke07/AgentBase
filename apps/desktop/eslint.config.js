@@ -89,9 +89,9 @@ export default tseslint.config(
     },
   },
 
-  // Config files run in Node.
+  // Config files and development scripts run in Node.
   {
-    files: ["vite.config.ts", "eslint.config.js"],
+    files: ["vite.config.ts", "vitest.browser.config.ts", "eslint.config.js", "scripts/**/*.ts"],
     languageOptions: { globals: globals.node },
   },
   {

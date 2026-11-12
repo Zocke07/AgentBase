@@ -49,6 +49,16 @@ apps/desktop/src/               React 19 + Vite + TypeScript
                                 RecentFiles, Journal, SummaryList, FilesPanel, FileViews,
                                 Schedules, MarketWatch, MarketAlerts, UsageView,
                                 Chart, MermaidDiagram, Tour
+  styles/                       the stylesheet's files, imported by index.css in order;
+                                tokens.css holds every colour
+  design/                       development only: colour arithmetic, the token reader
+                                and the design rules as tests
+  workbench/                    development only: the interface drawn from fixtures
+                                (`just workbench`) and the visual tests
+  test/                         log.ts and scenarios.ts (fixture runs), stylesheet.ts,
+                                and the unit and browser test setup
+apps/desktop/scripts/           ui-shots.ts: screenshots of the real app
+apps/desktop/workbench.html     the workbench's page, served by the dev server only
 apps/desktop/src-tauri/         Rust shell: spawns the sidecar, reads the keychain,
                                 opens validated folders and workbooks, shows alerts
   binaries/                     the frozen sidecar lands here (git-ignored)
@@ -346,7 +356,22 @@ write inline styles into that DOM. Exit animations use `state/usePresence.ts`,
 which keeps an element mounted for its exit and adds a `--closing` class; where
 motion is reduced or `matchMedia` is missing (tests), it removes the element
 at once, as before. A single `prefers-reduced-motion` block at the end of
-`index.css` shrinks every duration to 1 ms, so `animationend` still fires.
+`styles/accessibility.css` shrinks every duration to 1 ms, so `animationend`
+still fires.
+
+The stylesheet is `index.css`, which holds the header and imports the files
+under `src/styles/` in order; that order is the cascade, so a new file goes
+where its rules must sit. Every colour is a token in `styles/tokens.css`,
+defined for light, for dark by the system and for dark by the setting.
+`src/design/` reads that file and holds the rules as tests
+(`design/rules.test.ts`): each colour token is in all three blocks, raw
+colours and `color-mix()` outside the token file do not grow, and each listed
+text and surface pair meets 4.5:1 in both themes. Pairs and findings that
+fall short today are named in `KNOWN_SHORTFALLS` (`design/tokens.ts`) and
+`KNOWN_FINDINGS` (`workbench/pages.visual.tsx`); a listed one that starts
+passing fails its test, so the lists only shrink. Phase 20 is redesigning the
+interface in stages; [its brief](../design/virtual-office-redesign.md) is
+the specification until it is complete.
 
 Text colours meet WCAG AA (4.5:1) on every surface in both themes; `--faint`
 is the lightest text allowed, and white on `--accent` is 5:1. There is one

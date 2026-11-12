@@ -1,0 +1,363 @@
+/*
+ * The workbench's own chrome. It is drawn with the app's tokens and names no
+ * colour of its own, so it follows the theme switch like everything it shows.
+ * The `wb` prefix keeps it clear of the app's class names.
+ */
+
+.wb {
+  display: grid;
+  grid-template-columns: 13rem minmax(0, 1fr);
+  height: 100vh;
+}
+
+.wb__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem 0.75rem;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.wb__name {
+  margin: 0;
+  padding: 0 0.5rem;
+  font-weight: 650;
+}
+
+.wb__group ul {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wb__group-name {
+  margin: 0 0 0.25rem;
+  padding: 0 0.5rem;
+  color: var(--muted);
+  font-size: 0.8667rem;
+  font-weight: 600;
+}
+
+.wb__link {
+  width: 100%;
+  padding: 0.3rem 0.5rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9333rem;
+  text-align: left;
+}
+
+.wb__link:hover {
+  background: var(--surface-2);
+}
+
+.wb__link[aria-current="page"] {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+
+.wb__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.wb__bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.wb__heading {
+  min-width: 0;
+}
+
+.wb__title {
+  font-size: 1.1333rem;
+}
+
+.wb__about {
+  margin: 0.1rem 0 0;
+  color: var(--muted);
+  font-size: 0.8667rem;
+}
+
+.wb__switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.wb-choice,
+.wb-player__field {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.8667rem;
+}
+
+.wb-choice select,
+.wb-player__field select {
+  width: auto;
+}
+
+.wb__page {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* --- pages ---------------------------------------------------------------- */
+
+.wb-tokens,
+.wb-controls,
+.wb-frames {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.25rem;
+}
+
+.wb-frames {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.wb-group__title {
+  margin-bottom: 0.6rem;
+  font-size: 0.9333rem;
+}
+
+.wb-group__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.wb-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wb-swatch {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr);
+  gap: 0 0.6rem;
+  align-items: center;
+  padding: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.wb-swatch__chip {
+  grid-row: span 2;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.wb-swatch__name,
+.wb-swatch__value,
+.wb-table__mono {
+  font-family: var(--mono);
+  font-size: 0.8667rem;
+}
+
+.wb-swatch__value {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.wb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9333rem;
+}
+
+.wb-table th,
+.wb-table td {
+  padding: 0.45rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.wb-table thead th {
+  color: var(--muted);
+  font-size: 0.8667rem;
+  font-weight: 600;
+}
+
+.wb-table__note {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8667rem;
+  font-weight: 400;
+}
+
+.wb-table__figure {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* A pair below its minimum is said in words in the last column; the edge
+   only helps the eye find the row. */
+.wb-table tr[data-short="true"] td:first-child {
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+
+.wb-contrast__sample {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+}
+
+.wb-type__prose {
+  max-width: 34rem;
+  margin: 0;
+}
+
+.wb-type__prose--muted {
+  color: var(--muted);
+}
+
+.wb-type__prose--faint {
+  color: var(--faint);
+}
+
+.wb-type__numbers {
+  font-variant-numeric: tabular-nums;
+}
+
+.wb-controls__card {
+  width: 20rem;
+}
+
+.wb-controls__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 12rem;
+  color: var(--muted);
+  font-size: 0.8667rem;
+}
+
+.wb-controls__field--wide {
+  width: 24rem;
+}
+
+.wb-controls__check {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.wb-frame {
+  margin: 0;
+}
+
+.wb-frame__label {
+  margin-bottom: 0.4rem;
+  color: var(--muted);
+  font-size: 0.8667rem;
+}
+
+/* The rail fills the app's first grid column; here a frame stands in for it. */
+.wb-frame__rail {
+  display: grid;
+  grid-template-columns: var(--rail-width);
+  height: 34rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+/* --- the scenario player --------------------------------------------------- */
+
+.wb-player {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 42rem;
+}
+
+.wb-player__bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.9rem;
+  align-items: center;
+  padding: 0.5rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.wb-player__field--wide {
+  flex: 1;
+  min-width: 14rem;
+}
+
+.wb-player__field--wide input {
+  flex: 1;
+  min-width: 0;
+}
+
+.wb-player__count {
+  min-width: 5.5rem;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.wb-player__stage {
+  flex: 1;
+  min-height: 0;
+}
+
+/*
+ * The Motion switch. A page cannot change the OS's reduced-motion setting,
+ * so this repeats the app's own block (styles/accessibility.css) under an
+ * attribute the workbench sets. Keep the two in step.
+ */
+:root[data-motion="reduce"] *,
+:root[data-motion="reduce"] *::before,
+:root[data-motion="reduce"] *::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+  scroll-behavior: auto !important;
+}
+
+:root[data-motion="reduce"] .skeleton__bar {
+  animation: none;
+}
+
+:root[data-motion="reduce"] .button[aria-busy="true"]::before,
+:root[data-motion="reduce"] .spinner {
+  animation: spin 1.6s linear infinite !important;
+}

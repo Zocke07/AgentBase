@@ -1,0 +1,378 @@
+/* --- data files beside the notes ------------------------------------------ */
+
+.files {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-height: 0;
+  padding: 0 0.65rem 0.65rem;
+}
+
+.files__head {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.files__head > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.files__head strong {
+  font-size: 0.8rem;
+}
+
+.files__count,
+.files__meta {
+  color: var(--muted);
+  font-size: 0.6667rem;
+}
+
+.files__tools {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.files__tools label,
+.files__tools input,
+.files__tools select {
+  width: 100%;
+  min-width: 0;
+}
+
+.files__tools input,
+.files__tools select,
+.file-editor__path-field input {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.76rem;
+}
+
+.files__empty {
+  padding: 0.8rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.files__empty p {
+  margin: 0;
+}
+
+.files__empty p + p {
+  margin-top: 0.35rem;
+  font-size: 0.7333rem;
+}
+
+.files__no-match {
+  margin: 0;
+  padding: 0.6rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.files__groups {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.files__group + .files__group {
+  margin-top: 0.7rem;
+}
+
+.files__group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.15rem 0.35rem 0.25rem;
+  color: var(--muted);
+}
+
+.files__group-head h3 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 0.7rem;
+  font-weight: 650;
+  letter-spacing: 0.035em;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.files__group-head span {
+  font-size: 0.6667rem;
+}
+
+.files__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.files__item {
+  display: grid;
+  grid-template-columns: 1.7rem minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.45rem 0.5rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.files__item:hover {
+  background: var(--surface-2);
+}
+
+.files__item--active {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 var(--accent);
+}
+
+.files__file-icon {
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.8rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--muted);
+  font: 600 0.6rem var(--mono);
+}
+
+.files__identity {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+
+.files__name,
+.files__meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files__name {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+}
+
+.files__placeholder {
+  margin: auto;
+  padding: 1.5rem;
+  max-width: 32rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.file-editor {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-height: 0;
+  padding: 0.85rem 1.25rem;
+}
+
+.file-editor__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.file-editor__identity {
+  min-width: 0;
+}
+
+.file-editor__eyebrow {
+  color: var(--muted);
+  font-size: 0.6667rem;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.file-editor__identity h2 {
+  margin: 0.1rem 0 0;
+  overflow-wrap: anywhere;
+  font-size: 1.1rem;
+}
+
+.file-editor__identity p {
+  margin: 0.1rem 0 0;
+  color: var(--muted);
+  font: 0.7333rem var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.file-editor__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.file-editor__purpose {
+  max-width: 72rem;
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border-left: 3px solid var(--brand-base);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.file-editor__purpose strong {
+  color: var(--text);
+}
+
+.file-editor__dirty {
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.file-editor__path-field {
+  display: grid;
+  grid-template-columns: auto minmax(12rem, 1fr);
+  gap: 0.35rem 0.65rem;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.file-editor__path-field input {
+  font-family: var(--mono);
+}
+
+.file-editor__path-field small {
+  grid-column: 2;
+  color: var(--faint);
+  font-size: 0.7rem;
+}
+
+.file-editor__text {
+  flex: 1;
+  min-height: 16rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.8667rem;
+  line-height: 1.5;
+  resize: vertical;
+  tab-size: 2;
+}
+
+/* Preview: a file read, not edited; Text is where it changes. */
+.file-preview {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+}
+
+.file-preview__note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.7333rem;
+}
+
+.file-preview__scroll {
+  flex: 1;
+  min-height: 12rem;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.file-preview__table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.file-preview__table th,
+.file-preview__table td {
+  max-width: 28rem;
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.file-preview__table th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.file-preview__table td.file-preview__number {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.file-preview__text {
+  flex: 1;
+  min-height: 12rem;
+  margin: 0;
+  padding: 0.75rem;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.8667rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.file-editor__loading {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.file-editor__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.7333rem;
+}
+

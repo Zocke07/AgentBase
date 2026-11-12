@@ -1,0 +1,128 @@
+/* Market alerts on Home, and the watch in Automations (Phase 18). */
+.market-alerts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.market-alerts__head {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.market-alerts__head h2 {
+  font-size: 1.0625rem;
+}
+
+.market-alerts__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.market-alerts__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.market-alerts__item--new {
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 var(--accent);
+}
+
+.market-alerts__when {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.7333rem;
+}
+
+.market-alerts__badge {
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 650;
+}
+
+.market-alerts__moves {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8667rem;
+  overflow-wrap: anywhere;
+}
+
+.market-alerts__move--up strong {
+  color: var(--good);
+}
+
+.market-alerts__move--down strong {
+  color: var(--bad);
+}
+
+.market-alerts__why {
+  margin: 0;
+  font-size: 0.8667rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.market-alerts__label {
+  font-weight: 650;
+}
+
+.market-alerts__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.market-alerts__actions:empty {
+  display: none;
+}
+
+.market-watch__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.market-watch__head h2 {
+  margin-bottom: 0.25rem;
+}
+
+.market-watch__state,
+.market-watch__rules {
+  margin: 0.5rem 0 0;
+  font-size: 0.8667rem;
+  line-height: 1.5;
+}
+
+.market-watch__symbols {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font: 0.7333rem var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.market-watch__edit {
+  align-self: flex-start;
+  margin-top: 0.5rem;
+}

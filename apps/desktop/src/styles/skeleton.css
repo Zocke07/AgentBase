@@ -1,0 +1,52 @@
+/* --- loading placeholders ------------------------------------------------- */
+
+/* Grey bars in the shape of what is coming, instead of the word "Loading". */
+.skeleton {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.skeleton__bar {
+  height: 0.85rem;
+  border-radius: 999px;
+  background: linear-gradient(
+      90deg,
+      var(--surface-2) 0%,
+      var(--surface-3) 50%,
+      var(--surface-2) 100%
+    )
+    0 0 / 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.skeleton__bar--title {
+  height: 1.2rem;
+  width: 45%;
+}
+
+.skeleton--cards {
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+}
+
+.skeleton__card {
+  display: grid;
+  gap: 0.55rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+/* A small spinner for a status line: "Checking…", "Connecting…". */
+.spinner {
+  display: inline-block;
+  flex: none;
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentcolor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.15em;
+  animation: spin 800ms linear infinite;
+}
+

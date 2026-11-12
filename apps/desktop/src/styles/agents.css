@@ -1,0 +1,158 @@
+/* --- agents view ---------------------------------------------------------- */
+
+.agents-view {
+  display: grid;
+  grid-template-columns: 24rem minmax(0, 1fr);
+  height: 100%;
+  overflow: hidden;
+}
+
+.agents-view__editor {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 1.25rem 1.5rem;
+  overflow-y: auto;
+}
+
+.roster {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.roster__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.roster__head h2 {
+  font-size: 1rem;
+}
+
+.roster__empty {
+  color: var(--muted);
+  font-size: 0.8667rem;
+}
+
+.roster__error,
+.settings__error {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--bad);
+  border-radius: var(--radius-sm);
+  background: var(--bad-soft);
+  color: var(--bad);
+  font-size: 0.8667rem;
+}
+
+.roster__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.roster__item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.roster__item--selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.roster__item--disabled {
+  opacity: 0.6;
+}
+
+.roster__open {
+  display: block;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.roster__name {
+  display: block;
+  font-size: 0.9333rem;
+  font-weight: 600;
+}
+
+.roster__role,
+.roster__meta {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.roster__actions {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.roster__toggle {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.roster__confirm {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  color: var(--bad);
+  font-size: 0.8rem;
+}
+
+/* Move or copy a definition to another space, above the editor. */
+.transfer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  width: min(46rem, 100%);
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 0.8667rem;
+}
+
+.transfer__label {
+  color: var(--muted);
+}
+
+.transfer label {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.transfer select {
+  padding: 0.2rem 0.4rem;
+  font-size: 0.8667rem;
+}
+

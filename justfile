@@ -25,6 +25,9 @@ export AGENTBASE_DATA_DIR := dev_dir / "data"
 # Keep PyInstaller bootloader cache off the system drive.
 export PYINSTALLER_CONFIG_DIR := dev_dir / "cache" / "pyinstaller"
 
+# Headless Chromium and WebKit for the visual tests and screenshots.
+export PLAYWRIGHT_BROWSERS_PATH := dev_dir / "cache" / "playwright"
+
 # ---------------------------------------------------------------------------
 # Tauri appends the target triple to `externalBin`; any other sidecar name is
 # silently missing at bundle time (BUILD_SPEC §5 Phase 1).
@@ -88,6 +91,13 @@ setup-backend:
 [working-directory('apps/desktop')]
 setup-desktop:
     npm install --no-audit --no-fund
+
+# Download the headless Chromium and WebKit that `test-visual` and `ui-shots`
+# drive. Kept out of `setup`: `just ci` does not need a browser.
+[group('setup')]
+[working-directory('apps/desktop')]
+setup-browsers:
+    npx --no-install playwright install chromium webkit
 
 # ---------------------------------------------------------------------------
 # CI and clean clones must pass `just check`.
@@ -188,6 +198,14 @@ test-backend *ARGS:
 test-desktop *ARGS:
     npm run --silent test -- {{ ARGS }}
 
+# The workbench's pages in headless Chromium and WebKit: each compared with
+# its committed screenshot and checked by axe. Not part of `just ci` until
+# both platforms have baselines. `just test-visual --update` rewrites them.
+[group('test')]
+[working-directory('apps/desktop')]
+test-visual *ARGS: setup-browsers
+    npx --no-install vitest run --config vitest.browser.config.ts {{ ARGS }}
+
 # pytest with a coverage summary.
 [group('test')]
 [working-directory('apps/backend')]
@@ -245,6 +263,22 @@ dev_port := "5173"
 [working-directory('apps/desktop')]
 dev-desktop:
     npm run --silent dev
+
+# The workbench: every component and run scenario drawn from fixtures, with
+# switches for theme, motion and platform. No sidecar needed.
+[group('run')]
+[working-directory('apps/desktop')]
+workbench:
+    npm run --silent dev -- --open /workbench.html
+
+# Screenshot every section of the real app in both themes at three window
+# sizes into `.dev/shots/<label>/`, from a scratch sidecar on port 8790 with
+# made-up data. `just ui-shots after --reuse` repeats on the same data and
+# clock; `just ui-shots --compare before after` says whether two sets match.
+[group('run')]
+[working-directory('apps/desktop')]
+ui-shots *ARGS: setup-browsers
+    node scripts/ui-shots.ts {{ ARGS }}
 
 # Run against Vite, rebuilding sidecar first. Check port before rebuilding so a
 # leftover server fails early with a useful cause.
@@ -329,6 +363,7 @@ paths:
     @echo "cargo registry   {{ CARGO_HOME }}"
     @echo "uv cache         {{ UV_CACHE_DIR }}"
     @echo "npm cache        {{ npm_config_cache }}"
+    @echo "browsers         {{ PLAYWRIGHT_BROWSERS_PATH }}"
     @echo "dev runtime data {{ AGENTBASE_DATA_DIR }}"
     @echo "backend venv     {{ justfile_directory() / 'apps' / 'backend' / '.venv' }}"
     @echo "node_modules     {{ justfile_directory() / 'apps' / 'desktop' / 'node_modules' }}"

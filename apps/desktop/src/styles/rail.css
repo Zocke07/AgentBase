@@ -1,0 +1,111 @@
+/* --- the rail ------------------------------------------------------------- */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1rem 0.75rem;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.rail__brand {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  /* Room under the name for the space switcher, when spaces land. */
+  margin-bottom: 0.5rem;
+}
+
+.rail__logo {
+  flex: none;
+  width: 1.65rem;
+  height: 1.65rem;
+}
+
+.rail__name {
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+/* --- the folded rail: icons only, names in tooltips ------------------------ */
+
+.app--rail-collapsed {
+  --rail-width: 3.75rem;
+}
+
+.rail--collapsed {
+  padding-right: 0.5rem;
+  padding-left: 0.5rem;
+}
+
+.rail--collapsed .rail__brand {
+  justify-content: center;
+  padding: 0.25rem 0;
+}
+
+.rail--collapsed .rail__name,
+.rail--collapsed .switcher__label,
+.rail--collapsed .switcher__name,
+.rail--collapsed .switcher__chevron {
+  display: none;
+}
+
+/* Hidden from sight, not from screen readers: a folded rail's buttons keep
+   their names. `display: none` would have taken the names away too. */
+.rail--collapsed .rail__item > span:not(.rail__badge) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.rail--collapsed .rail__item {
+  position: relative;
+  justify-content: center;
+  padding: 0.55rem 0;
+}
+
+.rail--collapsed .rail__badge {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.2rem;
+}
+
+.rail__toggle-icon--flipped {
+  transform: scaleX(-1);
+}
+
+.switcher__initial {
+  display: none;
+}
+
+.rail--collapsed .switcher--compact .switcher__current {
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem 0;
+}
+
+.rail--collapsed .switcher--compact .switcher__initial {
+  display: inline-flex;
+  width: 1.6rem;
+  height: 1.6rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.rail--collapsed .switcher__menu {
+  right: auto;
+  left: 0;
+  width: 14rem;
+}
+

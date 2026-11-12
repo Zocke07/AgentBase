@@ -1,0 +1,93 @@
+/* ==========================================================================
+   Accessibility.
+   ========================================================================== */
+
+/* The first thing Tab reaches: straight to the section's content. */
+.skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 100;
+  padding: 0.5rem 0.9rem;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(-150%);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+  outline-offset: 2px;
+}
+
+/* One focus ring for everything that takes focus by keyboard, drawn outside
+   the element so it never hides a border that carries meaning. */
+:where(a, button, input, select, textarea, summary, [tabindex], [role="tab"]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  transition: outline-offset var(--dur-quick) var(--ease-out);
+}
+
+/* Main content takes focus from the skip link without drawing a ring round
+   the whole page. */
+.app__body:focus {
+  outline: none;
+}
+
+/* Comfortable targets: nothing clickable is shorter than 32 px. */
+.button,
+.rail__item,
+.switcher__current {
+  min-height: 2rem;
+}
+
+.button--small {
+  min-height: 1.75rem;
+}
+
+/* Windows High Contrast and other forced-colour modes: keep the edges and
+   the focus ring, which the flat fills otherwise lose. */
+@media (forced-colors: active) {
+  .button,
+  .card,
+  .run-card,
+  .rail__item--active {
+    border: 1px solid ButtonText;
+  }
+
+  .rail__item::before,
+  .skeleton__bar {
+    background: CanvasText;
+  }
+}
+
+/* Everything above stops for people who asked the OS for less motion. The
+   durations shrink to nothing rather than being removed, so anything that
+   waits for an animation to end still hears that it did. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .skeleton__bar {
+    animation: none;
+  }
+
+  .button[aria-busy="true"]::before,
+  .spinner {
+    animation: spin 1.6s linear infinite !important;
+  }
+}
+
+.runs-view__loading {
+  padding: 1.5rem;
+}
+

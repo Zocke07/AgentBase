@@ -1,0 +1,131 @@
+/* --- panel dividers -------------------------------------------------------
+   A `Splitter` sits on the edge of the panel it resizes, over the border,
+   and shows itself on hover, focus and while dragging. */
+.splitter {
+  position: absolute;
+  z-index: 3;
+  background: transparent;
+  transition: background 120ms ease-out;
+  touch-action: none;
+}
+
+/* Inside the panel's edge, not astride it: the panels clip their overflow,
+   and a handle half outside would be half unreachable. */
+.splitter--x {
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+}
+
+.splitter--x.splitter--end {
+  right: 0;
+}
+
+.splitter--x.splitter--start {
+  left: 0;
+}
+
+.splitter--y {
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: row-resize;
+}
+
+.splitter--y.splitter--end {
+  bottom: 0;
+}
+
+.splitter--y.splitter--start {
+  top: 0;
+}
+
+.splitter:hover,
+.splitter:focus-visible,
+.splitter:active {
+  background: var(--accent);
+  opacity: 0.55;
+  outline: none;
+}
+
+
+.runs-view__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.runs-view__head h2 {
+  font-size: 1rem;
+}
+
+.runs-view__filter select {
+  width: 100%;
+}
+
+/* Scrolls as a whole when the window is shorter than the panel's minimum
+   rows - at Tauri's 600px floor with a claim block open, the log used to be
+   clipped with no way to reach it. */
+.runs-view__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden auto;
+}
+
+.runs-view__placeholder,
+.agents-view__placeholder {
+  margin: auto;
+  max-width: 26rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.runs-view__strip {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.35rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.runs-view__connection {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.runs-view__strip-error {
+  margin: 0;
+  color: var(--bad);
+  font-size: 0.8rem;
+}
+
+.runs-view__strip .button {
+  margin-left: auto;
+}
+
+.run-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.run-list__more {
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem 0;
+}
+
+.run-list__empty {
+  color: var(--muted);
+  font-size: 0.8667rem;
+}
+

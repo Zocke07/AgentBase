@@ -1,0 +1,212 @@
+/* --- agent editor --------------------------------------------------------- */
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  width: min(46rem, 100%);
+}
+
+.editor h2 {
+  font-size: 1.125rem;
+}
+
+.editor__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1;
+}
+
+.editor__field>span:first-child {
+  color: var(--muted);
+  font-size: 0.8667rem;
+  font-weight: 500;
+}
+
+.editor__field--narrow {
+  max-width: 10rem;
+}
+
+.editor__row {
+  display: flex;
+  gap: 0.9rem;
+}
+
+.editor__error {
+  color: var(--bad);
+  font-size: 0.8rem;
+}
+
+.editor__error--form {
+  margin: 0;
+}
+
+.editor__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.editor__hint--field {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.7333rem;
+}
+
+.editor__risks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.editor__unsaved {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  width: min(46rem, 100%);
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--warn);
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 0.8667rem;
+}
+
+/* A space's provider switch, before saving: the agents left on the old
+   provider, each with the model it would move to. */
+.switch-plan {
+  display: grid;
+  gap: 0.5rem;
+  min-inline-size: 0;
+  margin: 0.75rem 0 0;
+  padding: 0.75rem 1rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  animation: pop-in var(--dur-base) var(--ease-out) backwards;
+}
+
+.switch-plan legend {
+  padding: 0 0.3rem;
+  font-weight: 600;
+}
+
+.switch-plan .settings__hint {
+  margin: 0;
+}
+
+.switch-plan__list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.switch-plan__agent {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.6rem;
+  align-items: baseline;
+  cursor: pointer;
+}
+
+.switch-plan__models {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.editor__tools {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  /* A fieldset refuses to shrink below its content's min-content width by
+     default, so the one-line tool descriptions pushed the whole editor past
+     the window's edge instead of being cut short. */
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0.75rem 1rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.editor__tools legend {
+  padding: 0 0.35rem;
+  color: var(--muted);
+  font-size: 0.8667rem;
+  font-weight: 500;
+}
+
+.editor__tool {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.8667rem;
+}
+
+.editor__tool-name {
+  min-width: 7rem;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+}
+
+.editor__tool-description {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A choice whose description is a sentence, not a label: it wraps, and the
+   control stays beside its first line. */
+.editor__tool--wrap {
+  align-items: flex-start;
+}
+
+.editor__tool--wrap input {
+  margin-top: 0.2rem;
+}
+
+.editor__tool-description--wrap {
+  overflow: visible;
+  white-space: normal;
+}
+
+/* A field with a long hint keeps its input short and lets the hint run wide. */
+.editor__input--narrow {
+  max-width: 10rem;
+}
+
+.settings__other-providers summary {
+  color: var(--muted);
+  font-size: 0.8667rem;
+  cursor: pointer;
+}
+
+.settings__other-providers[open] summary {
+  margin-bottom: 0.75rem;
+}
+
+.editor__tool-missing {
+  color: var(--warn);
+  font-size: 0.7333rem;
+}
+
+.editor__checkbox {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.8667rem;
+}
+
+.editor__actions {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: flex-end;
+}
+

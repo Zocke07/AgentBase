@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { connectWithRetry, fetchHealth, type SidecarStatus } from "./sidecar";
+import { browserBaseUrl, connectWithRetry, fetchHealth, type SidecarStatus } from "./sidecar";
 
 // The shell's two answers, for the tests that stand inside Tauri.
 vi.mock("@tauri-apps/api/core", () => ({
@@ -197,5 +197,24 @@ describe("fetchHealth", () => {
     await vi.advanceTimersByTimeAsync(2_500);
 
     await expect(attempt).rejects.toThrow();
+  });
+});
+
+describe("browserBaseUrl", () => {
+  it("is the default port unless the dev server names another", () => {
+    expect(browserBaseUrl(true, undefined)).toBe("http://127.0.0.1:8787");
+    expect(browserBaseUrl(true, "8790")).toBe("http://127.0.0.1:8790");
+  });
+
+  it("ignores the variable in a production build", () => {
+    expect(browserBaseUrl(false, "8790")).toBe("http://127.0.0.1:8787");
+  });
+
+  it("moves the port only, never the host", () => {
+    /* Anything that is not a plain unprivileged port number is refused, so the
+       variable cannot point the window at another machine. */
+    for (const value of ["", "80", "99999", "8790/x", "example.com:8790", "@example.com", " 8790", "0x1f90"]) {
+      expect(browserBaseUrl(true, value), value).toBe("http://127.0.0.1:8787");
+    }
   });
 });

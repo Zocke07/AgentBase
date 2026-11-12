@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { useRunStore } from "../state/runStore";
 import { twoAgentRun } from "../test/log";
+import { SCENARIOS } from "../test/scenarios";
 
 import { RunPanel } from "./RunPanel";
 
@@ -33,16 +34,19 @@ import { RunPanel } from "./RunPanel";
 
 const store = () => useRunStore.getState();
 
+/** The run a log belongs to; the store drops events from any other. */
+const runOf = (events: ReturnType<typeof twoAgentRun>) => events[0]?.run_id ?? "run-1";
+
 /** Drive the store the way the live SSE client does. */
 function live(events: ReturnType<typeof twoAgentRun>, upto = events.length) {
-  store().open("run-1");
+  store().open(runOf(events));
   for (const event of events.slice(0, upto)) store().appendEvent(event);
   return store();
 }
 
 /** Drive the store the way opening a finished run does. */
 function replay(events: ReturnType<typeof twoAgentRun>, cursor?: number) {
-  store().open("run-1", events);
+  store().open(runOf(events), events);
   if (cursor !== undefined) store().setCursor(cursor);
   return store();
 }
@@ -201,6 +205,36 @@ describe("replay renders identically to live", () => {
     const replayedEmpty = markup(replay(twoAgentRun(), 0));
 
     expect(replayedEmpty).toBe(empty);
+  });
+});
+
+/**
+ * The same promise for every shape of run the scenarios hold: a question
+ * left open, a refusal, a failure, a cancelled run, a crowded one. Phase 20's
+ * office joins the projection, so it is held to these cursors too.
+ */
+describe("every scenario replays identically", () => {
+  /** The ends, the quarters, and the event after each one that changes what a person must notice. */
+  function cursors(events: ReturnType<typeof twoAgentRun>): number[] {
+    const notable = new Set(["approval.requested", "tool.denied", "tool.error", "llm.error", "agent.handoff", "budget.warning"]);
+    const after = events.flatMap((event, index) => (notable.has(event.type) ? [index + 1] : []));
+    const spread = [0, 1, 2, 3, 4].map((quarter) => Math.floor((events.length * quarter) / 4));
+    // A crowded run has a notable event per desk; the first few say enough.
+    return [...new Set([...spread, ...after.slice(0, 6)])].sort((left, right) => left - right);
+  }
+
+  const logs = SCENARIOS.map((entry): [string, ReturnType<typeof twoAgentRun>] => [entry.id, [...entry.events]]);
+
+  it.each(logs)("%s", (_id, events) => {
+    for (const position of cursors(events)) {
+      useRunStore.getState().reset();
+      const watchedLive = markup(live(events, position));
+
+      useRunStore.getState().reset();
+      const replayed = markup(replay(events, position));
+
+      expect(replayed, `position ${String(position)}`).toBe(watchedLive);
+    }
   });
 });
 

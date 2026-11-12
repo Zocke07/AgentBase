@@ -1,0 +1,35 @@
+/* --- cards ---------------------------------------------------------------- */
+
+.card {
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.card--notice {
+  border-left: 4px solid var(--warn);
+}
+
+.card__title {
+  margin-bottom: 0.25rem;
+  font-size: 1rem;
+}
+
+.card p {
+  margin: 0;
+}
+
+.card__actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(17rem, 100%), 1fr));
+  gap: 0.75rem;
+}
+

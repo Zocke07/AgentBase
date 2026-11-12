@@ -111,6 +111,11 @@ or **Safari** on macOS (system WebKit). Outside Tauri, it uses
 `http://127.0.0.1:8787`; `ALLOWED_ORIGINS` includes both `127.0.0.1:5173` and
 `localhost:5173`.
 
+To point the tab at a sidecar on another port, start Vite with
+`VITE_AGENTBASE_SIDECAR_PORT` set (for example `8790`). Only the dev server
+reads it, only the port moves, and a production build ignores it
+(`lib/sidecar.ts`).
+
 <details>
 <summary>Hot reload for the backend (Windows: PowerShell)</summary>
 
@@ -142,6 +147,45 @@ This loses the stdin handshake (fine for keyless Ollama) and watchdog.
 with Activity Monitor or `kill`) can leave the worker and port 8787 alive. See
 [Gotchas](1_architecture.md#gotchas).
 </details>
+
+### The interface without a sidecar: `just workbench`
+
+`just workbench` opens `workbench.html` on the dev server: the colour tokens
+with each listed pair's contrast ratio, the type in use, the shared controls
+in their states, the rail, and the run view for every scenario in
+`src/test/scenarios.ts`. A run page has a cursor, playback from 1x to 8x,
+single steps, and a switch between events arriving live and a replayed log.
+The bar's switches set the theme, reduced motion and the platform, and the
+page, its conditions and a run page's cursor are in the link, so
+`workbench.html?page=run-shell-question&theme=dark&cursor=12` opens that
+state. Nothing in it calls the sidecar, and the app's build does not include
+it. Add a page in `src/workbench/pages.tsx`; the visual tests pick it up.
+
+Scenarios are written from made-up content. Never copy a log from `.dev/data`
+or an installed app's data into a fixture or a screenshot: the default space
+holds a person's portfolio.
+
+### Screenshots of the real app: `just ui-shots`
+
+```
+just ui-shots before             # every section, both themes, three window sizes
+just ui-shots after --reuse      # again, on the same scratch data and clock
+just ui-shots --compare before after
+```
+
+The script starts a scratch sidecar on port 8790 with its data under
+`.dev/shots/.scratch`, seeds made-up notes and the scripted debug run, starts
+Vite on 5173 and drives headless Chromium. PNGs land in
+`.dev/shots/<label>/`. Stop any dev server or dev app first: the sidecar's
+CORS list names port 5173 alone, so Vite cannot move. The browser's clock is
+pinned and every animation ends at once, so `--reuse` gives the same bytes
+for the same code, and `--compare` proves that a change is invisible. For a
+screenshot that differs it says how many pixels, by how much and where. A
+few pixels changed by a level or two on a control's rounded corner is the
+browser's rasteriser, seen once in eight captures; capture again to settle
+it. The sidecar's own clock is not pinned, so capture both sets in the same
+month. The first use downloads Chromium and WebKit into
+`.dev/cache/playwright` (`just setup-browsers`).
 
 ### The whole app: `just dev-app`
 

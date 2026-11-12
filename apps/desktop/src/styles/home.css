@@ -1,0 +1,314 @@
+/* --- Home ----------------------------------------------------------------- */
+
+.home {
+  height: 100%;
+  padding: 1.5rem 2rem 3rem;
+  overflow-y: auto;
+}
+
+.home__inner {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  width: min(66rem, 100%);
+  margin: 0 auto;
+}
+
+/* A fresh install: nothing to list, so the goal box is the screen. */
+.home--first {
+  display: grid;
+  place-items: center;
+}
+
+.home--first .home__inner {
+  width: min(44rem, 100%);
+  gap: 1rem;
+}
+
+.home__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.home__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.home__head h2 {
+  font-size: 1.0625rem;
+}
+
+.home__empty {
+  margin: 0;
+  color: var(--muted);
+}
+
+/* What runs on its own comes first: one line, and the pipeline offer when it waits. */
+.home__automations-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.home__automations-line p {
+  margin: 0;
+}
+
+.home__automations-actions {
+  display: flex;
+  flex: none;
+  gap: 0.5rem;
+}
+
+.pipeline-offer {
+  display: grid;
+  gap: 0.5rem;
+  border-left: 4px solid var(--accent);
+}
+
+.pipeline-offer__details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.pipeline-offer__details p {
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface-2);
+  overflow-wrap: anywhere;
+}
+
+.pipeline-offer__details strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: var(--text);
+}
+
+.pipeline-offer__limits {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .pipeline-offer__details {
+    grid-template-columns: 1fr;
+  }
+}
+
+.automations__intro {
+  max-width: 60rem;
+  margin: 0;
+  color: var(--muted);
+}
+
+.new-run__title {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.new-run__step {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 0.35rem;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.new-run {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1.25rem 1.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.new-run__label {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.home--first .new-run__label {
+  font-size: 1.5rem;
+}
+
+.new-run__goal {
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  resize: vertical;
+}
+
+.new-run__goal::placeholder {
+  color: var(--faint);
+}
+
+.new-run__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.new-run__actions {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: flex-end;
+  /* Stays at the right when it wraps below the hint. */
+  margin-left: auto;
+}
+
+.new-run__retrieval {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.new-run__retrieval legend {
+  padding: 0 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.new-run__retrieval>p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.7333rem;
+}
+
+.new-run__retrieval label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: flex-start;
+  font-size: 0.75rem;
+}
+
+.new-run__retrieval label>span {
+  display: flex;
+  flex-direction: column;
+}
+
+.new-run__retrieval code,
+.new-run__retrieval .citation {
+  align-self: flex-start;
+  color: var(--accent);
+}
+
+.new-run__excerpt {
+  max-height: 9rem;
+  margin: 0.2rem 0 0.25rem;
+  padding: 0.35rem 0.6rem;
+  overflow: hidden;
+  border-left: 2px solid var(--border-strong);
+  color: var(--text);
+  font-size: 0.8rem;
+  mask-image: linear-gradient(to bottom, #000 80%, transparent);
+}
+
+.new-run__retrieval small {
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.new-run__hint {
+  /* Wide enough to read as a sentence; the buttons wrap below it before it
+     is squeezed into a column. */
+  flex: 1 1 18rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8667rem;
+}
+
+.field-error {
+  margin: 0;
+  color: var(--bad);
+  font-size: 0.8667rem;
+}
+
+.roster-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.roster-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "name switch"
+    "role switch";
+  gap: 0.1rem 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.roster-card--off {
+  opacity: 0.6;
+}
+
+.roster-card__name {
+  grid-area: name;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roster-card__role {
+  grid-area: role;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.8667rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.switch {
+  display: flex;
+  grid-area: switch;
+  gap: 0.35rem;
+  align-items: center;
+  align-self: center;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+

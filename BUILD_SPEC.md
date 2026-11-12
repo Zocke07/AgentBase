@@ -484,6 +484,11 @@ Do not containerize the rest of the app.
   `run_shell` is visible at the moment of ticking it.
 - Generate TS types from the FastAPI OpenAPI schema; never hand-write the API types.
 
+*(2026-11-12, Phase 20: the run view gains an office beside this canvas,
+which stays as **Diagram** until the office has parity. The office is part
+of the same run projection, held by the same identity test; its motion rule
+is Phase 20's decision 1.)*
+
 **Accept when:** replaying a completed run is pixel-identical to live, and the
 app can create, edit, and run an agent.
 
@@ -1732,6 +1737,115 @@ tools alone.*
 - Knowledge's pipeline groups (decisions, portfolio and weekly reviews,
   market alerts, forecast workbooks) are the default space's; another space's
   User Summary groups notes, daily notes, workbooks and charts.
+
+### Phase 20: The virtual office and the interface redesign
+
+*Added 2026-11-12 at the maintainer's request: a polished interface inspired
+by Apple's design principles that stays at home on Windows and macOS, agent
+collaboration shown as a virtual office where each agent works at its own
+desk instead of a node graph, and a better loop for interface work. The
+detailed specification is
+[the design brief](docs/design/virtual-office-redesign.md) until the phase is
+complete; its lasting parts then move into the developer and user guides and
+the file is removed, as the Phase 17 roster design was.*
+
+**What does not change.** §1's constraints; the backend and the event
+contract (§4: the office needs no new event type); the meaning of everything
+`state/reducer.ts` computes; replay identity (Phase 7); questions answered
+only in the docked approval panel with Deny focused (Phase 11); the CSP and
+the webview's capabilities apart from the one permission in D5; Knowledge's
+file-safety rules; the default-space-only surfaces; AA text contrast; the 800
+by 600 minimum window and the drawer below 1,100 px; copy for someone who is
+not a developer (§0). Behaviour stays and presentation changes: every
+existing feature works as it did.
+
+**Decisions, confirmed by the maintainer on 2026-11-12** (the brief's
+recommended defaults D1 to D9, all accepted):
+
+1. **D1, motion.** The office may animate log-driven content when (a) the
+   motion depicts one cursor step and is produced by CSS from the new step's
+   DOM, so a step animates the same way live and in replay playback; (b) the
+   DOM at rest for any cursor is a pure function of the event prefix; and
+   (c) a looping animation runs only while the fold shows an operation open
+   (a model call without its response, a tool call without its result, a
+   question without its answer). The event log, the approval panel and the
+   run summary keep the old rule: they do not animate their arrival. Under
+   reduced motion every change is immediate. Phase 7's guarantee holds,
+   because the identity test compares DOM and CSS motion leaves the DOM
+   alone; whether a cursor move animates or settles is transport, outside
+   the compared subtree.
+2. **D2, renderer.** The office is DOM and inline SVG animated by CSS. No
+   canvas or WebGL renderer and no JavaScript animation library inside the
+   run projection: a canvas would make the identity test vacuous, Rive and
+   dotLottie need WebAssembly that the CSP refuses, and an animation library
+   writes inline styles into the compared DOM.
+3. **D3, characters.** Agents are abstract desk companions whose face is a
+   display of their state, never people. Identity comes from silhouette, by
+   a stable hash of the agent's name, and from the name plate; never from
+   colour, which already means status and risk.
+4. **D4, accent.** One accent, the brand orange, with text on it at 4.5:1 or
+   better.
+5. **D5, window chrome.** An overlay title bar on macOS through a
+   `tauri.macos.conf.json`, with the toolbar's empty space as the drag
+   region; this needs `core:window:allow-start-dragging`, the one capability
+   this phase adds, with its reason recorded in `capabilities/default.json`.
+   Windows keeps its native title bar. The window stays opaque: no vibrancy
+   or Mica in this phase; translucent materials appear only on floating
+   layers inside the window.
+6. **D6, dependencies.** No runtime dependency is added; the Lucide icons in
+   use are vendored as path data with their ISC notice. Development only:
+   `@vitest/browser-playwright`, `playwright` and `axe-core`. No Storybook,
+   CSS framework or animation library.
+7. **D7, type.** Prose stays 15 px at 1.5 (Phase 11). Controls and dense rows
+   are 14 px, captions 13 px and the smallest text; titles are 26, 22 and
+   17 px; numbers are tabular.
+8. **D8, the diagram.** The run view offers **Office** and **Diagram**
+   (today's React Flow canvas) until the office has parity. After stage
+   20.5's acceptance the maintainer decides whether to retire the diagram
+   and drop `@xyflow/react`.
+9. **D9, two kinds of office.** The run office projects the log alone and is
+   under replay identity. Home's office and the Agents floor plan project
+   API state (roster, runs), are not under replay identity, and open no
+   event stream of their own.
+
+**Stages.** One stage per session (§6), in this order; the brief's section
+10 lists each stage's work and acceptance.
+
+1. **20.1 Baseline, workbench and rules.** No visible change. *(Built
+   2026-11-12: see docs/verification.md.)*
+2. **20.2 Tokens, type, icons and primitives.**
+3. **20.3 The shell.**
+4. **20.4 The office, at rest.**
+5. **20.5 The office in motion.**
+6. **20.6 The office everywhere, every section, both platforms.**
+
+**Working rules** are the brief's section 11: the presentation layer is the
+session's to restructure, behaviour is not; anything touching §1, the event
+contract, the CSP or the capabilities beyond D5 is asked first; nothing is
+pushed, tagged or released by a session; and no screenshot or fixture ever
+comes from `.dev/data` or an installed app's data, because the default space
+holds a person's portfolio.
+
+**Accept when:**
+
+1. Any run, including one recorded before this phase, renders the same office
+   live and in replay at the same cursor.
+2. Every event type has a visible, worded consequence in the office or in the
+   log, and nothing in the office lacks a source in the log.
+3. Every existing feature works, and every pre-existing test passes or was
+   changed only for a listed, intended markup change.
+4. Text meets AA in both themes; every section and the office work by
+   keyboard alone; reduced motion and forced colours show a complete, still
+   office.
+5. Nothing clips at 800 by 600, and nothing scrolls sideways below 1,100 px.
+6. Installed on Windows and on macOS, the app shows each platform's title
+   bar, font and shortcut glyphs, and the maintainer has looked at both.
+7. The performance budgets in the brief's section 7.12 are met and recorded.
+8. The screenshot tests pass in Chromium and WebKit, and the workbench is not
+   in `dist`.
+9. §1's constraints, the CSP, the webview permissions (apart from the
+   recorded drag permission), the event contract, the gate, the sandbox and
+   the budget ledger are unchanged.
 
 ## 6. How you should work
 

@@ -1,0 +1,235 @@
+/* --- settings ------------------------------------------------------------- */
+
+.settings {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.settings__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: min(52rem, 100%);
+  margin: 0 auto;
+  padding: 1.5rem 2rem 3rem;
+}
+
+/* A form inside the settings column: the column already sets width and padding. */
+.settings__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.settings__group {
+  margin: 0.5rem 0 -0.5rem;
+  color: var(--muted);
+  font-size: 0.8667rem;
+  font-weight: 600;
+}
+
+.settings__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.settings__section h2 {
+  font-size: 1rem;
+}
+
+.settings__hint,
+.settings__loading {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.settings__loading {
+  padding: 2rem;
+  text-align: center;
+}
+
+.settings__verify {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.settings__verify-result {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--good);
+  font-size: 0.8667rem;
+}
+
+.settings__verify-result--bad {
+  color: var(--bad);
+}
+
+.settings__key-list,
+.settings__identities {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings__key,
+.settings__identity {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8667rem;
+}
+
+.settings__key:last-child,
+.settings__identity:last-child {
+  border-bottom: 0;
+}
+
+.settings__key-name,
+.settings__identity-id {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+}
+
+.settings__key-state {
+  color: var(--muted);
+}
+
+.settings__key-state--set {
+  color: var(--good);
+  font-weight: 600;
+}
+
+.settings__key-actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin-left: auto;
+}
+
+/* Offered only after a key changed: the one action that makes the change take effect. */
+.settings__restart {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin: 0.75rem 0 0;
+}
+
+.settings__key-actions input {
+  width: 18rem;
+  padding: 0.25rem 0.45rem;
+  font-size: 0.8667rem;
+}
+
+.settings__oauth {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.8667rem;
+}
+
+.settings__oauth-account {
+  color: var(--muted);
+}
+
+.settings__oauth-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+.settings__oauth .settings__error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.settings__channels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.settings__channel {
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.settings__channel-status {
+  margin-top: 0.4rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.settings__channel-error {
+  margin: 0.3rem 0 0;
+  color: var(--bad);
+  font-family: var(--mono);
+  font-size: 0.7333rem;
+  overflow-wrap: anywhere;
+}
+
+.settings__identity-channel {
+  color: var(--muted);
+}
+
+.settings__identity-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.settings__identity-add input,
+.settings__identity-add select {
+  padding: 0.25rem 0.45rem;
+  font-size: 0.8667rem;
+}
+
+.settings__actions {
+  align-items: center;
+}
+
+.settings__saved {
+  margin-right: auto;
+  color: var(--good);
+  font-size: 0.8667rem;
+}
+
+.settings__theme {
+  display: flex;
+  gap: 1rem;
+}
+
+.settings__folder {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.settings__folder-path {
+  overflow: hidden;
+  padding: 0.35rem 0.55rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
