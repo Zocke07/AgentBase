@@ -88,6 +88,29 @@ dark by system, dark by choice). No other file names a colour or uses
   1 ms so `animationend` still fires. `workbench.css` repeats it; keep them
   in step.
 
+## The office
+
+`state/office.ts` turns the fold into the room; `lib/officeLayout.ts` places
+it; `components/office/` draws it. The brief's section 13 has the map and
+what is unfinished.
+
+- Add a fact to the room by adding it to `OfficeModel`, with a test over the
+  scenarios in `office.test.ts`. Never read the event list or a clock in a
+  component.
+- Something that comes and goes lasts for a span of events. Read the span
+  from the reducer's positions (`latestSeq`, `modelCallSeq`,
+  `completedSeq`, `lastMessageSeq`); add a position test-first if one is
+  missing.
+- A claim (what a model said) is a bubble or the board's summary, labelled
+  as said, with no stamp. Evidence (calls, results, files, costs) is a
+  slip, a stamp, a count or a document.
+- Camera state goes on an element marked `data-transport`. Anything else
+  in the scene must be the same live and on replay.
+- Every state has a word in the model and a glyph in `office/glyphs.ts`; a
+  desk button's accessible name opens with the words on its plate.
+- The tool table is `lib/tools.ts`: a new backend tool needs an entry, or
+  its test fails.
+
 ## Accessibility checklist
 
 - Text meets AA in both themes; check the workbench's token page.

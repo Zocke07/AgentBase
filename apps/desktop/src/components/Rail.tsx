@@ -1,6 +1,8 @@
 import type { SpaceResponse } from "@agentbase/schemas";
 
-import { SECTION_ORDER, type Section } from "../lib/sections";
+import { currentPlatform } from "../lib/platform";
+import type { Section } from "../lib/sections";
+import { withShortcut } from "../lib/shortcuts";
 
 import { BrandMark } from "./BrandMark";
 import { SpaceSwitcher } from "./SpaceSwitcher";
@@ -53,16 +55,17 @@ export function Rail({
   onToggleCollapsed,
   drawer = false,
 }: RailProps) {
+  // Shortcuts are written the way this platform writes them.
+  const platform = currentPlatform();
   const entry = (id: Section, label: string, icon: IconName) => {
     const badge = badges?.[id] ?? 0;
-    const shortcut = SECTION_ORDER.indexOf(id) + 1;
     return (
       <button
         key={id}
         type="button"
         className={`rail__item${section === id ? " rail__item--active" : ""}`}
         aria-current={section === id ? "page" : undefined}
-        title={`${label} (Ctrl/Cmd+${String(shortcut)})`}
+        title={withShortcut(label, `section-${id}`, platform)}
         data-tour={`rail-${id}`}
         onClick={() => {
           onSelect(id);
@@ -107,7 +110,7 @@ export function Rail({
           <button
             type="button"
             className="rail__item rail__toggle"
-            title={`${collapsed ? "Show" : "Hide"} the sidebar (Ctrl/Cmd+B)`}
+            title={withShortcut(`${collapsed ? "Show" : "Hide"} the sidebar`, "rail", platform)}
             aria-label={collapsed ? "Show the sidebar" : "Hide the sidebar"}
             aria-pressed={collapsed}
             data-testid="rail-toggle"

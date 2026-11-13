@@ -31,9 +31,17 @@ export interface ScenarioPlayerProps {
   mode?: PlayerMode;
   /** Told where the cursor stands whenever it moves, so a link can hold it. */
   onCursor?: (cursor: number) => void;
+  /** Which drawing of the run the page is about; the diagram when omitted. */
+  canvas?: "office" | "diagram";
 }
 
-export function ScenarioPlayer({ scenario, cursor: startCursor, mode: startMode = "replay", onCursor }: ScenarioPlayerProps) {
+export function ScenarioPlayer({
+  scenario,
+  cursor: startCursor,
+  mode: startMode = "replay",
+  onCursor,
+  canvas = "diagram",
+}: ScenarioPlayerProps) {
   const { events } = scenario;
   const clamp = (value: number) => Math.min(events.length, Math.max(0, Math.round(value)));
 
@@ -160,6 +168,7 @@ export function ScenarioPlayer({ scenario, cursor: startCursor, mode: startMode 
           approvalReadOnly={finished ? "finished" : mode === "live" || atEnd ? null : "replay"}
           // The workbench has no sidecar: an answer goes nowhere.
           onResolveApproval={() => Promise.resolve()}
+          canvas={canvas}
         />
       </div>
     </div>

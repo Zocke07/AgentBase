@@ -764,3 +764,86 @@ describe("channel-originated runs", () => {
     expect(state.unrecognised).toEqual([]);
   });
 });
+
+// --- where each agent last acted ---------------------------------------------
+
+describe("the reducer's positions, for the office", () => {
+  /**
+   * The office draws things that last for a span of events: a folder in
+   * flight until its receiver's next event, a speech bubble until its
+   * speaker's. Those need to know where in the log each agent last acted,
+   * which is a fact of the fold, not something to scan the log for.
+   */
+  it("records the seq of each agent's latest event", () => {
+    const events = twoAgentRun();
+    const state = reduceAll(events);
+    for (const name of state.agentOrder) {
+      const latest = Math.max(...events.filter((event) => event.agent_id === name).map((event) => event.seq));
+      expect(state.agents[name]?.latestSeq, name).toBe(latest);
+    }
+  });
+
+  it("moves only the acting agent, and keeps every other agent's object", () => {
+    const events = twoAgentRun();
+    const head = events.findIndex((event) => event.agent_id === "researcher" && event.type === "llm.request");
+    const before = reduceAll(events.slice(0, head));
+    const event = events[head];
+    if (event === undefined) throw new Error("the fixture has no researcher model call");
+    const after = reduce(before, event);
+
+    expect(after.agents.researcher?.latestSeq).toBe(event.seq);
+    // Memoized desks depend on this: an event re-renders one desk.
+    expect(after.agents.supervisor).toBe(before.agents.supervisor);
+  });
+
+  it("starts an agent at the event that first named it", () => {
+    const log = new LogBuilder();
+    const state = reduceAll([log.add("run.started", { goal: "g" }), log.add("agent.thinking", { step: 1 }, "writer")]);
+    expect(state.agents.writer).toMatchObject({
+      seq: 2,
+      latestSeq: 2,
+      lastMessageSeq: null,
+      completedSeq: null,
+      modelCallSeq: null,
+    });
+  });
+
+  it("records where an agent last spoke and where it completed", () => {
+    const log = new LogBuilder();
+    const state = reduceAll([
+      log.add("run.started", { goal: "g" }),
+      log.add("agent.spawned", {}, "writer"),
+      log.add("agent.message", { text: "First draft is ready." }, "writer"),
+      log.add("agent.thinking", { step: 2 }, "writer"),
+      log.add("agent.message", { text: "Final draft is ready." }, "writer"),
+      log.add("agent.completed", { reason: "finished", steps: 2 }, "writer"),
+    ]);
+    expect(state.agents.writer).toMatchObject({ lastMessage: "Final draft is ready.", lastMessageSeq: 5, completedSeq: 6, latestSeq: 6 });
+  });
+
+  it("records where an agent's latest model call began, and forgets a completion on a new start", () => {
+    const log = new LogBuilder();
+    const events = [
+      log.add("run.started", { goal: "g" }),
+      log.add("agent.spawned", {}, "writer"),
+      log.add("llm.request", { step: 1 }, "writer"),
+      log.add("llm.response", { text: "" }, "writer"),
+      log.add("agent.completed", { reason: "finished" }, "writer"),
+    ];
+    expect(reduceAll(events.slice(0, 2)).agents.writer?.modelCallSeq).toBeNull();
+    const done = reduceAll(events);
+    expect(done.agents.writer).toMatchObject({ modelCallSeq: 3, completedSeq: 5 });
+
+    // The supervisor delegates to the same agent again: it is at work, not done.
+    const again = reduce(done, log.add("agent.spawned", {}, "writer"));
+    expect(again.agents.writer).toMatchObject({ activity: "spawned", completedSeq: null });
+  });
+
+  it("does not move an agent for an event that names none", () => {
+    const events = twoAgentRun();
+    const before = reduceAll(events);
+    const log = new LogBuilder();
+    const after = reduce(before, { ...log.add("budget.warning", { percent: 80 }), seq: events.length + 1 });
+    expect(after.agents).toBe(before.agents);
+  });
+});

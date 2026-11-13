@@ -1815,10 +1815,20 @@ recommended defaults D1 to D9, all accepted):
    2026-11-12: see docs/verification.md.)*
 2. **20.2 Tokens, type, icons and primitives.** *(Built 2026-11-13: see
    docs/verification.md.)*
-3. **20.3 The shell.**
-4. **20.4 The office, at rest.**
-5. **20.5 The office in motion.**
+3. **20.3 The shell.** *(The keyboard map is built; the rest is not.)*
+4. **20.4 The office, at rest.** *(Built in part on 2026-11-13: the
+   projection, the layout, the scene and its tests. The run view offers
+   Office and Diagram, with Diagram the default until the stage is
+   accepted.)*
+5. **20.5 The office in motion.** *(The timeline's pure functions are
+   built; no motion is.)*
 6. **20.6 The office everywhere, every section, both platforms.**
+
+*(Maintainer direction of 2026-11-13: after stage 20.2, lay the load-bearing
+foundations of every remaining stage before finishing any one of them, so
+that whoever continues builds on settled ground. Each stage's acceptance is
+unchanged and is still met in order. The brief's section 13 says where each
+stage stands and where to pick up.)*
 
 **Working rules** are the brief's section 11: the presentation layer is the
 session's to restructure, behaviour is not; anything touching §1, the event

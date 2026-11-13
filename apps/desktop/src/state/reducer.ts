@@ -39,6 +39,17 @@ export interface AgentNode {
   readonly lastMessage: string | null;
   /** First appearance; graph node sort order. */
   readonly seq: number;
+  /**
+   * Where in the log this agent last acted, last spoke and completed. The
+   * office draws things that last for a span of events (a folder in flight
+   * until its receiver's next event), and reads the span from these.
+   */
+  readonly latestSeq: number;
+  readonly lastMessageSeq: number | null;
+  /** Null again once the agent is started anew. */
+  readonly completedSeq: number | null;
+  /** Where its latest model call began: calls requested after it are this step's. */
+  readonly modelCallSeq: number | null;
   /** Agent model calls, summed from `llm.response`. */
   readonly calls: number;
   readonly inputTokens: number;
@@ -294,6 +305,10 @@ const newAgent = (name: string, seq: number): AgentNode => ({
   streamedText: "",
   lastMessage: null,
   seq,
+  latestSeq: seq,
+  lastMessageSeq: null,
+  completedSeq: null,
+  modelCallSeq: null,
   calls: 0,
   inputTokens: 0,
   outputTokens: 0,
@@ -335,6 +350,15 @@ function withAgent(
 
 /** Apply one event immutably. */
 export function reduce(state: RunView, event: Event): RunView {
+  const next = fold(state, event);
+  // Whatever the event did, the agent it names acted here.
+  const name = event.agent_id ?? null;
+  const agent = name === null ? undefined : next.agents[name];
+  if (name === null || agent === undefined || agent.latestSeq === event.seq) return next;
+  return { ...next, agents: { ...next.agents, [name]: { ...agent, latestSeq: event.seq } } };
+}
+
+function fold(state: RunView, event: Event): RunView {
   const payload = event.payload ?? {};
   const agent = event.agent_id ?? null;
   const seq = event.seq;
@@ -399,6 +423,7 @@ export function reduce(state: RunView, event: Event): RunView {
         autoApprove: strings(payload, "auto_approve"),
         maxSteps: int(payload, "max_steps") ?? node.maxSteps,
         activity: "spawned",
+        completedSeq: null,
       }));
 
     case "agent.thinking":
@@ -414,6 +439,7 @@ export function reduce(state: RunView, event: Event): RunView {
       return withAgent(next, agent, seq, (node) => ({
         ...node,
         lastMessage: text(payload, "text") ?? node.lastMessage,
+        lastMessageSeq: text(payload, "text") === null ? node.lastMessageSeq : seq,
       }));
 
     case "agent.handoff": {
@@ -431,6 +457,7 @@ export function reduce(state: RunView, event: Event): RunView {
       return withAgent(next, agent, seq, (node) => ({
         ...node,
         activity: "completed",
+        completedSeq: seq,
         finishedReason: text(payload, "reason") ?? node.finishedReason,
         steps: Math.max(node.steps, int(payload, "steps") ?? 0),
       }));
@@ -443,6 +470,7 @@ export function reduce(state: RunView, event: Event): RunView {
       return withAgent(next, agent, seq, (node) => ({
         ...node,
         activity: "calling",
+        modelCallSeq: seq,
         streamedText: "",
         lastError: null,
       }));

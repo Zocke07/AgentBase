@@ -15,6 +15,7 @@ import {
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { ellipsise } from "../lib/format";
+import { toolInfo } from "../lib/tools";
 import { activityLabel, STATUS_LABEL } from "../state/describe";
 import {
   layout,
@@ -68,26 +69,8 @@ const TOOLTIP_CHARS = 600;
  * Shorten built-in tool chips to distinguishing verbs; tooltips and inspector
  * retain full names. Keep unknown names unchanged.
  */
-const CHIP_LABEL: Readonly<Record<string, string>> = {
-  read_file: "read",
-  write_file: "write",
-  list_dir: "list",
-  search_knowledge: "search",
-  propose_memory: "memory",
-  http_get: "http",
-  read_feed: "feed",
-  read_prices: "prices",
-  read_market: "market",
-  read_company_reports: "reports",
-  track_forecasts: "forecasts",
-  compute_portfolio: "portfolio",
-  check_limits: "limits",
-  score_predictions: "scores",
-  run_shell: "shell",
-};
-
 function chipLabel(tool: string): string {
-  return CHIP_LABEL[tool] ?? tool;
+  return toolInfo(tool).chip;
 }
 
 function Ports() {

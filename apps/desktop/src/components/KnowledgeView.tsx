@@ -29,6 +29,8 @@ import { modelLabel } from "../lib/format";
 import { fuzzyFilter } from "../lib/fuzzy";
 import { forceLayout } from "../lib/graphLayout";
 import { countWords, toggleTaskLine } from "../lib/markdown";
+import { currentPlatform } from "../lib/platform";
+import { shortcut, shortcutLabel, withShortcut } from "../lib/shortcuts";
 import { uniquePath } from "../lib/visualization";
 import { journalDays, journalEntries, journalKinds } from "../state/journal";
 import { sectionOf, type KnowledgeSection } from "../state/sections";
@@ -88,6 +90,9 @@ type GraphScope = "vault" | "local";
 const EMPTY_GRAPH: KnowledgeGraph = { nodes: [], edges: [] };
 const TEMPLATE_FOLDER = "templates/";
 const DAILY_FOLDER = "daily/";
+/** A Knowledge shortcut as this platform writes it: "⌘S" or "Ctrl+S". */
+const keyLabel = (id: string): string => shortcutLabel(shortcut(id).keys, currentPlatform());
+
 const NEW_NOTE = "---\ntags: []\n---\n# New note\n\n";
 /** How long a confirmation stays on screen before it goes by itself. */
 const TOAST_MS = 6_000;
@@ -423,7 +428,7 @@ export function KnowledgeView({
       setNote({ ...note });
       return;
     }
-    setToast(`No note is called "${target}" yet. Create it from the Open dialog (Ctrl/Cmd+O).`);
+    setToast(`No note is called "${target}" yet. Create it from the Open dialog (${keyLabel("note-open")}).`);
   };
 
   /** A link in a Journal report opens its note where it belongs. */
@@ -946,7 +951,7 @@ export function KnowledgeView({
               <IconButton
                 icon="search"
                 label="Open a note"
-                title="Open a note (Ctrl/Cmd+O)"
+                title={withShortcut("Open a note", "note-open", currentPlatform())}
                 onClick={() => {
                   setSwitcher(true);
                 }}
@@ -1290,7 +1295,7 @@ export function KnowledgeView({
                 type="button"
                 key={choice}
                 aria-pressed={mode === choice}
-                title={choice === "split" ? "Source and preview side by side" : `${choice === "write" ? "Source" : "Reading view"} (Ctrl/Cmd+E cycles)`}
+                title={choice === "split" ? "Source and preview side by side" : `${choice === "write" ? "Source" : "Reading view"} (${keyLabel("note-view")} cycles)`}
                 onClick={() => {
                   setMode(choice);
                 }}
@@ -1393,7 +1398,7 @@ export function KnowledgeView({
                   type="button"
                   className={`button button--small${dirty || moving || creating ? " button--primary" : ""}`}
                   disabled={busy || path.trim() === ""}
-                  title="Ctrl/Cmd+S"
+                  title={keyLabel("note-save")}
                   onClick={() => void save()}
                 >
                   {moving ? "Move note" : "Save note"}
@@ -1638,7 +1643,8 @@ export function KnowledgeView({
               </span>
               {note !== null && <span>updated {new Date(note.updated_at).toLocaleString()}</span>}
               <span className="knowledge__status-hint">
-                Ctrl/Cmd+S saves · Ctrl/Cmd+E switches view · Ctrl/Cmd+O opens a note · type [[ to link
+                {keyLabel("note-save")} saves · {keyLabel("note-view")} switches view · {keyLabel("note-open")} opens a note · type [[
+                to link
               </span>
             </div>
           </>

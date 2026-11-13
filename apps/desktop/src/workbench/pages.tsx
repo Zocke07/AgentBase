@@ -31,7 +31,7 @@ export interface WorkbenchPage {
   /** Stable, used in URLs and screenshot names. */
   readonly id: string;
   readonly title: string;
-  readonly group: "Foundations" | "Components" | "Runs";
+  readonly group: "Foundations" | "Components" | "Office" | "Runs";
   /**
    * `flow` pages are as tall as their content; `fill` pages take the height
    * they are given, as the run view takes its window's.
@@ -41,7 +41,7 @@ export interface WorkbenchPage {
   readonly render: (context: PageContext) => ReactNode;
 }
 
-export const PAGE_GROUPS: readonly WorkbenchPage["group"][] = ["Foundations", "Components", "Runs"];
+export const PAGE_GROUPS: readonly WorkbenchPage["group"][] = ["Foundations", "Components", "Office", "Runs"];
 
 export const PAGES: readonly WorkbenchPage[] = [
   {
@@ -100,6 +100,26 @@ export const PAGES: readonly WorkbenchPage[] = [
     about: "The left rail, open and folded.",
     render: () => <RailPage />,
   },
+  // The same runs drawn as the office (stage 20.4), each from its own log.
+  ...SCENARIOS.map(
+    (scenario): WorkbenchPage => ({
+      id: `office-${scenario.id}`,
+      // Told apart from the same run's diagram page, in the list and in tests.
+      title: `Office: ${scenario.title}`,
+      group: "Office",
+      layout: "fill",
+      about: scenario.about,
+      render: ({ cursor, onCursor }) => (
+        <ScenarioPlayer
+          key={`office-${scenario.id}`}
+          scenario={scenario}
+          canvas="office"
+          {...(cursor === undefined ? {} : { cursor })}
+          {...(onCursor === undefined ? {} : { onCursor })}
+        />
+      ),
+    }),
+  ),
   ...SCENARIOS.map(
     (scenario): WorkbenchPage => ({
       id: `run-${scenario.id}`,

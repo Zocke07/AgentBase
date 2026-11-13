@@ -1,3 +1,5 @@
+import { toolInfo } from "../lib/tools";
+
 import type { RunView } from "./reducer";
 
 /** A space file a run wrote, and where it opens. */
@@ -12,15 +14,7 @@ export interface WrittenFile {
  * return read or fetched text, which is untrusted, so a `written` key in it
  * must not become a file link.
  */
-const REPORTS_WRITTEN: ReadonlySet<string> = new Set([
-  "read_prices",
-  "read_market",
-  "read_company_reports",
-  "track_forecasts",
-  "compute_portfolio",
-  "check_limits",
-  "score_predictions",
-]);
+const reportsWritten = (tool: string): boolean => toolInfo(tool).reportsWritten;
 
 /**
  * Files a run wrote, from its executed calls, once each in the order written.
@@ -38,7 +32,7 @@ export function writtenFiles(view: RunView): WrittenFile[] {
   for (const call of view.toolCalls) {
     if (call.result === null) continue;
     if (call.tool === "write_file") add(call.args.path);
-    else if (REPORTS_WRITTEN.has(call.tool)) reportedPaths(call.result).forEach(add);
+    else if (reportsWritten(call.tool)) reportedPaths(call.result).forEach(add);
   }
   return files;
 }

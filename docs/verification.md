@@ -1,8 +1,105 @@
 # Verification and remaining work
 
-Updated 2026-11-13. This is the current record; [history](history/README.md)
+Updated 2026-11-14. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
+
+## Phase 20, foundations of stages 20.3 to 20.5, 2026-11-13 and 14
+
+On branch `phase-20-redesign`, not merged, pushed or released. After stage
+20.2 the maintainer asked for the load-bearing foundations of every
+remaining stage to be laid before any one stage is finished. This entry
+records those; no stage after 20.2 is accepted yet.
+[The brief's section 13](design/virtual-office-redesign.md) says what
+remains in each, in order.
+
+- **One table of tools** (`lib/tools.ts`). Chip word, family, whether it
+  reaches the network and whether its `written` list is trusted, for the
+  fifteen built-in tools and three control calls. The diagram's chips, the
+  run's file list, the policy sentence and the schedules' notice read it
+  where each kept its own list, with the same answers. Its test reads the
+  tool names from the backend's sources, and holds the fetching tools to
+  the ones that name a host for the gate.
+- **The reducer** gained four positions per agent, test-first: `latestSeq`,
+  `lastMessageSeq`, `completedSeq` (cleared when an agent is started anew)
+  and `modelCallSeq`. Nothing it already computed changed meaning, and an
+  event still replaces only the acting agent's object. `channel.outbound`
+  is still left out of the fold, as its own test requires.
+- **The office's model** (`state/office.ts`), a pure function of the fold:
+  the lead desk and worker desks in the order each was first named, empty
+  chairs for work handed to nobody, each desk's face and words, the calls
+  of its current step with what became of them, bubbles for what an agent
+  says, folders by phase, and the reception, board, library, clock and
+  meter. 66 tests run every prefix of all fourteen scenarios: the same
+  room however the events arrived, a desk never changes place, every
+  reducer activity has its face and every tool family its object.
+- **The layout** (`lib/officeLayout.ts`): a desk's place depends on its own
+  index, the room grows at the back, and the cameras (fit, follow, centre,
+  zoom about the pointer) are arithmetic. 15 tests.
+- **The scene** (`components/office/`, `styles/office.css`, fourteen
+  `--office-*` tokens in all three theme blocks). An inline SVG room with
+  desk companions whose face is a display, hidden from screen readers,
+  under a layer of real elements: each desk a button, slips with stamps in
+  the log's words, the run's summary on the board as what the supervisor
+  said, a waiting question mirrored at the reception and answered only in
+  the docked panel. Arrow keys, Home and End move between desks. The run
+  view offers **Office** and **Diagram**; Diagram is the default until
+  stage 20.4 is accepted.
+- **Replay identity.** `replayIdentity.test.tsx` renders the office live
+  and replayed at a spread of cursors of every scenario and compares the
+  markup, leaving out only the camera's wrapper attributes and the view
+  buttons, which are transport. A second test renders the projection and
+  layout with `Date.now`, `performance.now`, `Math.random` and
+  `requestAnimationFrame` refusing; the drawing is held to all but
+  `performance.now`, which React's own scheduler reads.
+- **Axe** found two things in the first office, both fixed: a desk
+  button's accessible name did not open with the words on its plate, and
+  a cancelled run's dimming took the words' contrast with it. It now
+  reports nothing serious on any of the fourteen office pages in either
+  theme or engine.
+- **The timeline** (`state/timeline.ts`): which events get a mark, the next
+  and previous one, whether a cursor move is a step or a jump (a burst of
+  tokens counts once), and playback pacing at 1x to 8x. 11 tests. Nothing
+  draws it yet.
+- **The keyboard map** (`lib/shortcuts.ts`): every shortcut once, written
+  as each platform writes it. The rail's and Knowledge's tooltips read it,
+  so macOS shows the Command glyph and Windows shows Ctrl. 7 tests. The
+  palette and Settings shortcuts are in the map and not bound.
+- **Review.** The `code-review` skill ran at high effort on these commits
+  and returned ten findings, all fixed with a test each. In the office's
+  words: a desk waiting for an answer showed an error face when an earlier
+  call of the same step had failed; an agent that ran out of steps got a
+  tick and "Done"; a tool that is never allowed was stamped as a person's
+  no; a finished agent's words lasted one event, because the sidecar
+  reports and completes in the same breath, and now stay until its work is
+  back with the sender; a budget warning could never be announced once any
+  agent had finished, and now has a live region of its own; a worker's
+  handoff, which is a request the supervisor decides on, was drawn as work
+  delivered. Elsewhere: a tool named `constructor` by a model would have
+  taken the run view to its error boundary; a selected desk could not be
+  unselected by pressing it; a long error overflowed its desk; a pending
+  fetch's host was read wrongly from an address with a user name in it. The
+  office's view buttons and keys now read the keyboard map.
+- **Executed.** `just ci`: backend **1,447 passed, 12 skipped**; desktop
+  **952 passed in 81 files**; lint, formatting and both typecheckers
+  clean. `just test-visual`: **210 passed** in Chromium and WebKit (35
+  screenshot comparisons and 70 axe checks in each); five office pages are
+  compared in light and one in dark, all fourteen are checked by axe.
+- **Seen, and not yet right.** In the screenshots the office reads as an
+  office and every state is in words, but the run view gives it about
+  180 px of height at 1,100 by 720, so only a strip of the room shows and
+  the camera has to come in on one desk. At twelve desks and more,
+  neighbouring slips can overlap. One character style is drawn; the brief
+  asks for two or three for the maintainer to choose from. These are the
+  first three items for stage 20.4 in the brief's section 13.
+- **Unverified.** No motion exists, so nothing of stage 20.5 was measured.
+  The office was not captured under forced colours or reduced motion: it
+  has forced-colours rules, unseen. `just ui-shots` does not reach the
+  office, which is not the default view. Nothing ran on Windows or in the
+  Tauri window. The review's notes on cost were recorded, not acted on:
+  `officeOf` runs on every event, streamed tokens included, and the
+  reducer copies the agents map twice per event (the brief's section 13,
+  stage 20.4, item 5). CI on GitHub did not run: nothing is pushed.
 
 ## Phase 20, stage 20.2: tokens, type, icons and primitives, 2026-11-13
 

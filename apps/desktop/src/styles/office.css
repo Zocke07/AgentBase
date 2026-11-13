@@ -1,0 +1,668 @@
+/* --- the office ----------------------------------------------------------- */
+
+/*
+ * A run as a room (Phase 20, brief section 7). The room is an SVG drawn from
+ * the `--office-*` tokens: matte surfaces in two or three tones, soft contact
+ * shadows, no outlines. Over it lies a layer of real elements placed by the
+ * same layout, so text is sharp at any zoom and every desk is a button.
+ *
+ * Nothing here animates yet. Motion that follows the fold is stage 20.5,
+ * under BUILD_SPEC Phase 20 decision 1; until then the room is always the
+ * frame at rest, which is also what reduced motion will show.
+ */
+
+.office {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--window);
+  /* Chrome, not content: a drag pans the room instead of selecting labels. */
+  user-select: none;
+}
+
+.office__frame {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* The camera: three properties set by the scene. Transport, not the log.
+   The drawing is scaled; the words over it are only moved, and each keeps
+   its own size, as the labels of a map do. */
+.office__stage {
+  --office-zoom: 1;
+  --office-x: 0px;
+  --office-y: 0px;
+
+  position: absolute;
+  inset: 0;
+}
+
+.office__art {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translate(var(--office-x), var(--office-y)) scale(var(--office-zoom));
+  transform-origin: 0 0;
+}
+
+.office__layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translate(var(--office-x), var(--office-y));
+}
+
+.office__controls {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: calc(var(--radius-control) + 2px);
+  background: var(--material);
+  -webkit-backdrop-filter: var(--material-filter);
+  backdrop-filter: var(--material-filter);
+  box-shadow: var(--elevation-card);
+}
+
+/* --- the room's drawing ---------------------------------------------------- */
+
+.office-room {
+  position: absolute;
+  overflow: visible;
+}
+
+.office-floor {
+  fill: var(--office-floor);
+}
+
+.office-floor__line {
+  stroke: var(--office-floor-line);
+  stroke-width: 1;
+}
+
+.office-wall--back {
+  fill: var(--office-wall-back);
+}
+
+.office-wall--side {
+  fill: var(--office-wall-side);
+}
+
+.office-shadow {
+  fill: var(--office-shadow);
+}
+
+.office-box__top {
+  fill: var(--office-desk-top);
+}
+
+.office-box__left {
+  fill: var(--office-desk-left);
+}
+
+.office-box__right {
+  fill: var(--office-desk-right);
+}
+
+.office-box--chair .office-box__top,
+.office-box--chair .office-box__left,
+.office-box--chair .office-box__right {
+  fill: var(--office-body-shade);
+}
+
+/* Lights off before the run starts, and low for a cancelled or paused one.
+   Only the drawing dims: the words over it keep their contrast. */
+.office-room--unlit,
+.office-room--dimmed {
+  opacity: 0.6;
+}
+
+/* An empty chair at a desk nobody came to: drawn, but only just. */
+.office-desk-art--ghost {
+  opacity: 0.45;
+}
+
+.office-character__body,
+.office-character__head {
+  fill: var(--office-body);
+}
+
+.office-character__shade {
+  fill: var(--office-body-shade);
+}
+
+.office-character__part,
+.office-character__shade-line {
+  fill: none;
+  stroke: var(--office-body-shade);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.office-character__display {
+  fill: var(--office-display);
+}
+
+.office-face__ink {
+  fill: var(--office-display-ink);
+}
+
+.office-face__line,
+.office-face__tool {
+  fill: none;
+  stroke: var(--office-display-ink);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The icon is drawn at half size, so its stroke is doubled to match. */
+.office-face__tool {
+  stroke-width: 3;
+}
+
+/* A finished agent leans back: its display goes quiet. */
+.office-character--completed .office-character__display {
+  opacity: 0.75;
+}
+
+.office-desk-art--alarm .office-box--desk .office-box__top {
+  fill: var(--bad-soft);
+  stroke: var(--bad);
+  stroke-width: 1.5;
+}
+
+.office-folder__back {
+  fill: var(--office-folder);
+  filter: brightness(0.9);
+}
+
+.office-folder__front {
+  fill: var(--office-folder);
+}
+
+.office-shelf__board {
+  fill: var(--office-desk-right);
+}
+
+.office-shelf__book {
+  fill: var(--office-body);
+}
+
+.office-board__panel {
+  fill: var(--office-desk-top);
+  stroke: var(--office-desk-right);
+  stroke-width: 2;
+}
+
+.office-clock__face {
+  fill: var(--office-paper);
+  stroke: var(--office-desk-right);
+  stroke-width: 2;
+}
+
+.office-clock__hands {
+  fill: none;
+  stroke: var(--office-display);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.office-meter__case {
+  fill: var(--office-desk-left);
+}
+
+.office-meter__level {
+  fill: var(--good);
+}
+
+.office-meter--warn .office-meter__level {
+  fill: var(--warn);
+}
+
+.office-meter--over .office-meter__level {
+  fill: var(--bad);
+}
+
+.office-bell__dome {
+  fill: var(--warn);
+}
+
+.office-bell__base {
+  fill: var(--office-display);
+}
+
+/* --- words over the room ---------------------------------------------------- */
+
+/* Each label hangs from a point of the floor: the element's own top left is
+   that point, and its content is centred on it. */
+.office-desk,
+.office-board-card,
+.office-wall-label,
+.office-reception {
+  position: absolute;
+  top: calc(var(--office-zoom) * var(--y) * 1px);
+  left: calc(var(--office-zoom) * var(--x) * 1px);
+  width: 0;
+  height: 0;
+  margin: 0;
+}
+
+.office-desk__button {
+  position: absolute;
+  /* Over the character's head, wherever the zoom puts it. A plate over the
+     head covers floor behind the desk; one under the desk would cover the
+     desk in front. */
+  bottom: calc(var(--office-zoom) * 98px);
+  left: 0;
+  display: grid;
+  gap: 1px;
+  justify-items: center;
+  width: max-content;
+  max-width: 11rem;
+  padding: var(--space-1) var(--space-2);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-control);
+  background: var(--content);
+  box-shadow: var(--elevation-card);
+  color: var(--text);
+  font: inherit;
+  line-height: var(--leading-caption);
+  text-align: center;
+  transform: translateX(-50%);
+}
+
+.office-desk__button:hover:not(:disabled) {
+  box-shadow: var(--elevation-raised);
+}
+
+.office-desk__button[aria-pressed="true"] {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 1px var(--accent),
+    var(--elevation-raised);
+}
+
+.office-desk__button:disabled {
+  border-style: dashed;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+}
+
+.office-desk__name {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: var(--size-control);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.office-desk--lead .office-desk__name {
+  font-size: var(--size-headline);
+}
+
+.office-desk__state {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  color: var(--muted);
+  font-size: var(--size-caption);
+  white-space: nowrap;
+}
+
+.office-desk__state--asking,
+.office-desk__state--tool {
+  color: var(--accent-strong);
+}
+
+.office-desk__state--question {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.office-desk__state--tick {
+  color: var(--good);
+}
+
+.office-desk__state--knot,
+.office-desk__state--alert {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+.office-desk__model {
+  color: var(--faint);
+  font-size: var(--size-caption);
+  white-space: nowrap;
+}
+
+/* What an agent says floats above its head: a claim, in the claim's style. */
+.office-bubble {
+  position: absolute;
+  /* Over the name plate. */
+  bottom: calc(var(--office-zoom) * 98px + 4.4rem);
+  left: 0;
+  width: max-content;
+  max-width: 14rem;
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  background: var(--elevated);
+  box-shadow: var(--elevation-card);
+  color: var(--muted);
+  font-size: var(--size-caption);
+  font-style: italic;
+  line-height: var(--leading-caption);
+  overflow-wrap: anywhere;
+  transform: translateX(-50%);
+}
+
+.office-bubble--thought {
+  border-left-color: var(--accent);
+}
+
+/* The papers on a desk: an error or a note, then the call in hand. They
+   flow one under the other, so a long one pushes the next down. */
+.office-desk__papers {
+  position: absolute;
+  /* Under the desk's front edge. */
+  top: calc(var(--office-zoom) * 28px);
+  left: 0;
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  width: max-content;
+  max-width: 11rem;
+  transform: translateX(-50%);
+}
+
+/* A call in hand: evidence, so upright type, an icon and a stamp. */
+.office-slip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 var(--space-1);
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--radius-chip);
+  background: var(--content);
+  box-shadow: var(--elevation-card);
+  color: var(--text);
+  font-size: var(--size-caption);
+  line-height: var(--leading-caption);
+  text-align: left;
+}
+
+.office-slip--info {
+  border-left-color: var(--info);
+}
+
+.office-slip--warn {
+  border-left-color: var(--warn);
+}
+
+.office-slip--good {
+  border-left-color: var(--good);
+}
+
+.office-slip--bad {
+  border-left-color: var(--bad);
+}
+
+.office-slip__action {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.office-slip__label {
+  grid-column: 1 / -1;
+  color: var(--muted);
+}
+
+.office-slip__label .icon {
+  margin-right: var(--space-1);
+  vertical-align: -3px;
+}
+
+.office-slip__reason {
+  color: var(--muted);
+}
+
+.office-desk__more {
+  color: var(--muted);
+  font-size: var(--size-caption);
+}
+
+.office-trouble {
+  display: flex;
+  gap: var(--space-1);
+  align-items: flex-start;
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-chip);
+  background: var(--content);
+  box-shadow: var(--elevation-card);
+  color: var(--muted);
+  font-size: var(--size-caption);
+  line-height: var(--leading-caption);
+  /* A path or an address with no spaces still breaks inside the card. */
+  overflow-wrap: anywhere;
+}
+
+.office-trouble--alarm {
+  background: linear-gradient(var(--bad-soft), var(--bad-soft)), var(--content);
+  color: var(--bad);
+}
+
+/* Further out there is less room beside each desk: the name and state at
+   mid zoom, the name alone when far. The scene sets the band; the full
+   text is still in each desk's accessible name and tooltip. */
+.office__stage[data-zoom="mid"] .office-desk__model,
+.office__stage[data-zoom="mid"] .office-desk__papers,
+.office__stage[data-zoom="far"] .office-desk__model,
+.office__stage[data-zoom="far"] .office-desk__papers,
+.office__stage[data-zoom="far"] .office-desk__state,
+.office__stage[data-zoom="far"] .office-bubble,
+.office__stage[data-zoom="far"] .office-board-card__claim,
+.office__stage[data-zoom="far"] .office-board-card__files,
+.office__stage[data-zoom="far"] .office-board-card__note {
+  display: none;
+}
+
+/* The board's words hang on the wall as a card of their own, which holds
+   them at any zoom; the panel drawn behind is the wall's furniture. */
+.office-board-card {
+  display: grid;
+  gap: 2px;
+  width: 13rem;
+  height: auto;
+  padding: var(--space-2);
+  border-radius: var(--radius-control);
+  background: var(--content);
+  box-shadow: var(--elevation-card);
+  /* Above the wall's top edge, clear of the desks under it. */
+  transform: translate(-50%, calc(-100% - var(--office-zoom) * 34px));
+}
+
+.office-board-card > * {
+  margin: 0;
+}
+
+.office-board-card__goal {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--size-caption);
+  font-weight: 600;
+  line-height: var(--leading-caption);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.office-board-card__claim {
+  display: -webkit-box;
+  overflow: hidden;
+  padding-left: var(--space-2);
+  border-left: 3px solid var(--border-strong);
+  color: var(--muted);
+  font-size: var(--size-caption);
+  font-style: italic;
+  line-height: var(--leading-caption);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.office-board-card__said {
+  display: block;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.office-board-card__files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+  padding: 0;
+  font-size: var(--size-caption);
+  list-style: none;
+}
+
+.office-board-card__note {
+  color: var(--muted);
+  font-size: var(--size-caption);
+}
+
+.office-wall-label {
+  display: block;
+}
+
+.office-wall-label > * {
+  vertical-align: middle;
+}
+
+.office-wall-label,
+.office-reception {
+  white-space: nowrap;
+}
+
+.office-wall-label {
+  width: max-content;
+  height: auto;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-chip);
+  background: var(--content);
+  color: var(--muted);
+  font-size: var(--size-caption);
+  line-height: var(--leading-caption);
+  /* Beside its fitting on the wall, not over it. */
+  transform: translate(calc(var(--office-zoom) * 16px), -50%);
+}
+
+.office-wall-label--warn {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.office-wall-label--over {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+.office-reception {
+  display: grid;
+  gap: 1px;
+  justify-items: center;
+  width: max-content;
+  height: auto;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-control);
+  background: var(--content);
+  box-shadow: var(--elevation-card);
+  font-size: var(--size-caption);
+  line-height: var(--leading-caption);
+  transform: translate(-50%, calc(var(--office-zoom) * 44px));
+}
+
+.office-reception__you {
+  font-size: var(--size-control);
+  font-weight: 600;
+}
+
+.office-reception__origin {
+  color: var(--muted);
+}
+
+.office-reception__waiting {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  margin-top: 2px;
+  background: var(--content);
+}
+
+/* --- Office or Diagram ------------------------------------------------------ */
+
+.run-panel__view-switch {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 6;
+}
+
+/* Forced colours: fills are gone, so the room is outlined and every state
+   keeps the word and glyph it already has. */
+@media (forced-colors: active) {
+  .office-floor,
+  .office-wall,
+  .office-box polygon,
+  .office-character__body,
+  .office-character__head,
+  .office-character__display,
+  .office-board__panel,
+  .office-clock__face,
+  .office-meter__case,
+  .office-folder path {
+    fill: Canvas;
+    stroke: CanvasText;
+    stroke-width: 1;
+  }
+
+  .office-face__ink {
+    fill: CanvasText;
+  }
+
+  .office-face__line,
+  .office-face__tool,
+  .office-clock__hands {
+    stroke: CanvasText;
+  }
+
+  .office-shadow {
+    display: none;
+  }
+
+  .office-desk__button,
+  .office-slip,
+  .office-bubble,
+  .office-trouble,
+  .office-reception,
+  .office-board-card,
+  .office-wall-label {
+    border: 1px solid CanvasText;
+  }
+
+  .office-desk__button[aria-pressed="true"] {
+    outline: 2px solid Highlight;
+  }
+}

@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 import * as api from "../lib/api";
 import { ApiError } from "../lib/api";
 import { whenLabel } from "../lib/format";
+import { FETCHING_TOOLS } from "../lib/tools";
 import { useRunList } from "../state/runList";
 import { useFetched } from "../state/useFetched";
 
@@ -170,13 +171,7 @@ export function Schedules({ space, settings, onOpenRun, draftRequest, reloadNonc
   const never = Object.keys(policies).filter((tool) => policies[tool] === "deny");
   const hosts = settings?.settings.auto_approve_hosts ?? [];
   const anyHost = hosts.includes("*");
-  const fetchesByPolicy =
-    allowed.includes("medium") ||
-    always.includes("http_get") ||
-    always.includes("read_feed") ||
-    always.includes("read_prices") ||
-    always.includes("read_market") ||
-    always.includes("read_company_reports");
+  const fetchesByPolicy = allowed.includes("medium") || FETCHING_TOOLS.some((tool) => always.includes(tool));
   const questionSeconds = settings?.settings.unattended_question_seconds ?? null;
   const runSeconds = space.max_run_seconds ?? settings?.settings.max_run_seconds ?? null;
   const steps = space.max_steps_per_agent ?? settings?.settings.max_steps_per_agent ?? null;

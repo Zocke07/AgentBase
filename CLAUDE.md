@@ -34,8 +34,24 @@ future changes do not relocate users' data or disconnect their stored keys.
   the pages in Chromium and WebKit and runs axe; `just ui-shots` captures
   the real app, with `--forced-colors` and `--reduced-motion`. A
   `PostToolUse` hook (`.claude/settings.json`) lints an edited TypeScript
-  file and refuses an em dash. Stage 20.3, the shell, is next. See
-  docs/verification.md.
+  file and refuses an em dash. See docs/verification.md.
+- **Phase 20 after 20.2: foundations of every remaining stage,
+  2026-11-13.** At the maintainer's direction the load-bearing parts of
+  stages 20.3 to 20.5 were laid before any one is finished; none is
+  accepted yet. **The brief's section 13 says where each stage stands and
+  what to do next, in order: read it first.** Built: `lib/tools.ts` (one
+  table of tools, held to the backend's names); four positions per agent
+  in the reducer; `state/office.ts` (the run as a room, pure);
+  `lib/officeLayout.ts`; `components/office/` and `styles/office.css`; the
+  run view's **Office** and **Diagram** switch, with Diagram the default
+  until 20.4 is accepted; `state/timeline.ts` (markers, step or settle,
+  playback pacing; nothing draws it yet); `lib/shortcuts.ts` (the keyboard
+  map with platform glyphs). The office holds replay identity on all
+  fourteen scenarios, reads no clock, and animates nothing yet. A code
+  review at high effort ran on this work and its ten findings are fixed.
+  Waiting for
+  the maintainer: the character style, and how the run view makes room for
+  the office.
 - **Gaps and reading, 2026-10-20.** After three closed mornings the first
   chain on Claude ran cleanly, but nothing said 14 to 16 October had no
   research, the portfolio review stopped on a week-old holdings file, and a
@@ -478,6 +494,15 @@ second chronological log here.
   supervised adapter runs in-process and uses the same approval gate as the UI.
   Its one outbound path is `ChannelService.announce`, which posts market
   alerts to the configured channel with mentions disabled and reads nothing.
+- The office is a projection of the fold and nothing else. `state/office.ts`
+  and `lib/officeLayout.ts` read no clock, random source, network or roster
+  and keep no state; things that come and go last for a span of events,
+  read from the reducer's positions, never for a span of time. What a model
+  said (bubbles, the board's summary) is drawn as a claim and never gets a
+  stamp; what a tool did is evidence. Only the camera and its buttons are
+  transport, marked `data-transport`, and the identity test leaves out
+  exactly those. A question is mirrored in the office and answered only in
+  the docked panel.
 - No stylesheet but `styles/tokens.css` names a colour or mixes one, no
   text is set below 13 px, and every text and ground pairing is listed in
   `design/tokens.ts` and held to 4.5:1 in both themes. A floating layer

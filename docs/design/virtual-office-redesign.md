@@ -6,8 +6,10 @@ BUILD_SPEC Phase 20 records them with the acceptance list from section 10.
 This file stays as the detailed specification until the phase is complete.
 Then its lasting parts move into the developer guide (design system, the
 office) and the user guide, and this file is removed, as the Phase 17 roster
-design was. Stages 20.1 and 20.2 are built; the appendix holds what 20.1
-found, and `docs/verification.md` what each ran.*
+design was. Stages 20.1 and 20.2 are built, and the foundations of 20.3 to
+20.5 are laid: **section 13 says where the phase stands and where to pick
+up.** The appendix holds what 20.1 found, and `docs/verification.md` what
+each session ran.*
 
 Readers: the agent building Phase 20 (read this after CLAUDE.md and
 BUILD_SPEC), and the maintainer reviewing it.
@@ -1028,6 +1030,171 @@ of a stage is a deliberate stop.
 - Pipeline surfaces appear only in the default space.
 - Errors reach people through `lib/errors.ts`, never as "HTTP 500" or
   "Failed to fetch".
+
+---
+
+## 13. Where the phase stands, and where to pick up (2026-11-13)
+
+Read this before starting a Phase 20 session. It replaces guessing from the
+commit log.
+
+**A change of order, at the maintainer's direction (2026-11-13).** Section
+10 has one stage per session, in order. After stage 20.2 the maintainer
+asked for the load-bearing foundations of every remaining stage to be laid
+first, so that whoever continues, a person or another model, builds on
+settled ground. So the pure cores of stages 20.3 to 20.5 exist ahead of
+their stages. Each stage's acceptance in section 10 is unchanged and still
+has to be met in order; what changed is that part of each stage's work is
+already done.
+
+### What is built
+
+| Stage | Built | Not built |
+|---|---|---|
+| 20.1 | all of it | |
+| 20.2 | all of it; accepted | |
+| 20.3 the shell | the keyboard map with platform glyphs (`lib/shortcuts.ts`), used by the rail's and Knowledge's tooltips; `Popover`, `Menu`, `Sheet` and the layer registry from 20.2 | everything a person sees: toolbar, macOS title bar, rail restyle, inspector, command palette, context menus, section 6.7's details, view transitions, the inactive-window state |
+| 20.4 the office, at rest | `lib/tools.ts`, the reducer's four positions, `state/office.ts`, `lib/officeLayout.ts`, `lib/character.ts`, `components/office/`, `styles/office.css`, the `--office-*` tokens, Office and Diagram in the run view, office pages in the workbench, the identity, coverage and no-clock tests | the character style chosen by the maintainer; the run view's layout around the office; polish (below) |
+| 20.5 the office in motion | `state/timeline.ts`: markers, next and previous notable event, step or settle, playback pacing | all motion; the timeline's controls; camera easing; performance measurements |
+| 20.6 everywhere | nothing | all of it |
+
+### The office: how it is put together
+
+```
+events ─reduce─▶ RunView                         state/reducer.ts
+                    │   latestSeq, lastMessageSeq, completedSeq, modelCallSeq
+           officeOf(view) ─▶ OfficeModel          state/office.ts
+                    │   lead, desks[], folders[], reception, board,
+                    │   library, clock, meter, focus, announcement
+     placeOffice(deskCount) ─▶ OfficeLayout       lib/officeLayout.ts
+                    │   spots, corners, wall fittings, bounds; cameras
+     <OfficeScene>                                components/office/
+        ├─ <Room>   one SVG, aria-hidden: floor, walls, desks, characters
+        └─ layer    real elements: desk buttons, slips, bubbles, board
+     styles/office.css
+```
+
+- **Spans, not timers.** A folder is `arriving` until its receiver's next
+  event, `open` while the receiver works, `returning` until the sender's
+  next event, then `returned`. A slip belongs to its agent's current step:
+  it is listed from `tool.requested` until the agent's next `llm.request`.
+  A speech bubble stays until its speaker's next event. All read from the
+  reducer's positions; nothing scans the log during render.
+- **Two kinds of handoff.** The supervisor starts a worker
+  (`agent.spawned`) and then hands it its work (`agent.handoff` from
+  `supervisor`): that is a `delegated` folder, with the four phases. A
+  worker's own `handoff` call is a request: it emits `agent.handoff`, tells
+  the supervisor, and completes with reason `handoff`. That is a
+  `requested` folder, drawn only while nobody of the named name exists (an
+  empty chair), and never counted as work that came back.
+- **A finish is not always a success.** Only reasons `finished`, `handoff`
+  or none get a tick. `max_steps`, `stuck` and anything else are a stop,
+  with their own words and no tick.
+- **Pairing a call's events.** The orchestrator handles a model's calls one
+  after another, so everything that happened to a call lies between its
+  request and the same agent's next request. `slipsFor` relies on that.
+- **Claims and evidence.** `Bubble` and `Board.claim` are claims. Slips,
+  stamps, result counts, documents and costs are evidence. A claim never
+  gets a stamp; a test holds that.
+- **Transport.** The camera is three custom properties and two data
+  attributes on `.office__stage[data-transport="camera"]`; the view buttons
+  are `[data-transport="controls"]`. `replayIdentity.test.tsx` strips
+  exactly those and compares everything else.
+- **Labels keep their size.** The SVG is scaled by the camera; the layer of
+  words is only moved, and each label multiplies its own point by
+  `--office-zoom`. How much a desk shows depends on the zoom band
+  (`near`, `mid`, `far`), set as `data-zoom` and applied in CSS, so the DOM
+  the identity test compares does not depend on the camera.
+- **Accessible names open with the visible words**, in their order (WCAG
+  2.5.3): axe fails the page otherwise.
+- **`channel.outbound` stays out of the fold.** A reducer test says a
+  delivery must not change the run, so the office shows only where a run
+  came from; the log shows deliveries. Acceptance item 2 allows "in the
+  office or in the log".
+
+### To finish stage 20.4
+
+1. **The maintainer chooses the character style.** Section 10 asks for two
+   or three directions drawn in the workbench. One is built (`Room.tsx`,
+   `Character`: a rounded body, a head whose face is a dark display,
+   antennae, ear pods and a visor by hash of the name). Draw the
+   alternatives as a workbench page and ask.
+2. **Give the office room.** The run view's grid gives the canvas what is
+   left between the summary and the log: about 180 px at 1,100 by 720, a
+   strip of a room that needs 400. Decide, with screenshots: fold the
+   summary into the board when the office shows, start the log folded, or
+   give the canvas a larger default share. Then `followCamera`'s constants
+   (`READABLE_ZOOM`, `FOLLOW_ZOOM`) want retuning.
+3. **Make Office the default** once 1 and 2 are settled: `RunPanel.tsx`,
+   `useStoredFlag("runs.office")`, one word. It is Diagram today so that
+   nothing unfinished is the first thing a person sees.
+4. **Crowded rooms.** At twelve desks and more, slips and bubbles of
+   neighbours can overlap at `near` zoom. Stack or cap them, and check the
+   twelve and twenty desk pages.
+5. **Per-desk memo of the word layer.** `Room`'s desks are memoized
+   (`sameDeskArt`); `DeskButton` is not, and `officeOf` makes new desk
+   objects on every event. Before the 4 ms token budget of 7.12 is
+   measured, memoize `DeskButton` on the fields it shows, or cache desks by
+   agent object in `officeOf` (`withAgent` keeps the other agents' objects).
+   The review of 2026-11-14 measured nothing but named the costs: `officeOf`
+   runs on every event, re-running `writtenFiles` (a `JSON.parse` of every
+   reporting tool's result) and the quadratic `foldersOf`; and `reduce`
+   copies the agents map a second time per event to stamp `latestSeq`,
+   which `withAgent` could do in its one copy.
+6. **What the table in 7.5 still lacks:** documents landing in a desk's
+   tray (the board lists the run's files; a desk shows only a count), the
+   library handing books to the lead desk (the shelf is drawn and counted),
+   the wall calendar. Status glyphs beside status words elsewhere in the
+   app (4.1) were also left for this stage.
+7. **Acceptance checks not yet run:** forced colours and reduced motion
+   screenshots of the office (`just ui-shots` cannot reach the office until
+   it is the default or the script clicks the switch); Windows.
+
+### To do stage 20.3
+
+In this order, because each needs the one before:
+
+1. Lift the header out of `App.tsx` into a `Toolbar` component, so the
+   workbench can draw the shell with no sidecar (the appendix notes why).
+2. Bind the map's two unbound shortcuts, `palette` and `settings`, and
+   route `App.tsx`'s and `KnowledgeView.tsx`'s handlers through
+   `matchesKeys` and `shouldIgnoreKey`.
+3. The command palette on `Sheet` (placement `top`), ranking with
+   `lib/fuzzy.ts` as `QuickSwitcher` does; default-space-only actions only
+   in the default space.
+4. The rail (6.2), the inspector (6.3, and the `Splitter` value noted in
+   the appendix), context menus on `Menu` (6.6), section 6.7's details
+   (59 `cursor: pointer` declarations, selection, focus rings), view
+   transitions (5.3), the inactive-window state (6.1).
+5. `tauri.macos.conf.json`, the drag region and
+   `core:window:allow-start-dragging` (D5), then the `security-review`
+   skill on the configuration. This needs a build to check
+   (`just check-tauri` needs a frozen sidecar) and the maintainer's eyes on
+   both title bars; it was deliberately not attempted without either.
+
+### To do stage 20.5
+
+1. A motion wrapper outside the compared subtree carrying
+   `data-motion="step"` or `"settle"` from `motionMode(events, from, to)`.
+2. CSS entrances and transitions in `styles/office.css`, keyed on the
+   attributes already in the DOM: `data-activity`, `data-face`,
+   `data-state` on slips, the folder phase classes, `office-face__dots
+   --asking` for the one loop an open model call allows. Springs are
+   tokens.
+3. The scrubber's new controls from `state/timeline.ts`, keeping its
+   labels, values and test ids. Add the icons then (a test fails an icon
+   nothing uses).
+4. Camera easing with `--spring-smooth`; pause on `visibilitychange`.
+5. Measure 7.12 and record it. Update the header of `index.css` and the
+   developer guide's motion section to the rule in D1.
+
+### Decisions waiting for the maintainer
+
+- The character style (20.4, item 1).
+- How the run view makes room for the office (20.4, item 2).
+- Whether the edit hook's three seconds per TypeScript edit are welcome
+  (`.claude/settings.json`; remove the entry to turn it off).
+- After 20.5, D8: whether to retire the diagram and drop `@xyflow/react`.
 
 ---
 

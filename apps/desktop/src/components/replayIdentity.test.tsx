@@ -62,7 +62,7 @@ function finished(snapshot: ReturnType<typeof store>): boolean {
  * read-only state exactly as `RunsView` does: from the *transport* (`following`)
  * and the terminal status, never from the folded approval alone.
  */
-function panel(snapshot: ReturnType<typeof store>) {
+function panel(snapshot: ReturnType<typeof store>, canvas: "office" | "diagram" = "diagram") {
   return render(
     <RunPanel
       view={snapshot.view}
@@ -73,6 +73,7 @@ function panel(snapshot: ReturnType<typeof store>) {
       onCursorChange={() => undefined}
       approvalReadOnly={finished(snapshot) ? "finished" : snapshot.following ? null : "replay"}
       onResolveApproval={() => Promise.resolve()}
+      canvas={canvas}
     />,
   );
 }
@@ -88,12 +89,29 @@ function panel(snapshot: ReturnType<typeof store>) {
  * are buttons, replayed to the same position there are none), so it sits
  * beside the scrubber on the transport side of the line.
  */
-function markup(snapshot: ReturnType<typeof store>): string {
-  const rendered = panel(snapshot).container;
+function markup(snapshot: ReturnType<typeof store>, canvas: "office" | "diagram" = "diagram"): string {
+  const rendered = panel(snapshot, canvas).container;
   const projection = rendered.querySelector('[data-testid="run-projection"]');
   if (projection === null) throw new Error("no run-projection was rendered");
   const question = rendered.querySelector('[data-testid="approval-question"]');
-  return `${question?.innerHTML ?? ""}\n${projection.innerHTML}`;
+  return `${question?.innerHTML ?? ""}\n${withoutTransport(projection)}`;
+}
+
+/**
+ * The projection's markup without the office's transport. The office's camera
+ * (where the viewer is looking from, and how far out) and its view buttons
+ * follow the window and the viewer, not the log: the same exclusion as the
+ * scrubber, for the same reason. They are marked `data-transport` so that
+ * this is the only place that needs to know. Everything else in the office,
+ * every desk, slip, stamp, folder and word, is compared.
+ */
+function withoutTransport(projection: Element): string {
+  const copy = projection.cloneNode(true) as Element;
+  for (const controls of copy.querySelectorAll('[data-transport="controls"]')) controls.remove();
+  for (const camera of copy.querySelectorAll('[data-transport="camera"]')) {
+    for (const name of ["style", "data-zoom", "data-follow"]) camera.removeAttribute(name);
+  }
+  return copy.innerHTML;
 }
 
 /** The whole panel, transport included. Identical only at the head of a run. */
@@ -235,6 +253,34 @@ describe("every scenario replays identically", () => {
 
       expect(replayed, `position ${String(position)}`).toBe(watchedLive);
     }
+  });
+});
+
+describe("the office renders identically live and in replay", () => {
+  /* Phase 20's first acceptance item: any run renders the same office live
+     and in replay at the same cursor. Every position of the short runs, and
+     a spread of positions of the crowded ones. */
+  const logs = SCENARIOS.map((entry): [string, ReturnType<typeof twoAgentRun>] => [entry.id, [...entry.events]]);
+
+  it.each(logs)("%s", (_id, events) => {
+    const step = Math.max(1, Math.floor(events.length / 24));
+    const positions = [...new Set([...Array.from({ length: Math.ceil(events.length / step) + 1 }, (_, index) => Math.min(index * step, events.length)), events.length])];
+    for (const position of positions) {
+      useRunStore.getState().reset();
+      const watchedLive = markup(live(events, position), "office");
+
+      useRunStore.getState().reset();
+      const replayed = markup(replay(events, position), "office");
+
+      expect(replayed, `position ${String(position)}`).toBe(watchedLive);
+      // The comparison is of an office, not of an empty region.
+      expect(watchedLive).toContain('data-testid="office"');
+    }
+  });
+
+  it("renders the same office twice in a row from the same state", () => {
+    const snapshot = replay(twoAgentRun());
+    expect(markup(snapshot, "office")).toBe(markup(snapshot, "office"));
   });
 });
 

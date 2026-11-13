@@ -116,6 +116,24 @@
   /* A switch's thumb when it is off. */
   --thumb: #ffffff;
 
+  /* The office (brief 7.1): a calm miniature. Matte surfaces, two or three
+     tones per object from its top, left and right faces. The room is
+     neutral; colour in it marks state, as everywhere else. */
+  --office-floor: #e9e9ee;
+  --office-floor-line: rgb(60 60 67 / 8%);
+  --office-wall-back: #f7f7fa;
+  --office-wall-side: #e2e2e8;
+  --office-desk-top: #fbfbfd;
+  --office-desk-left: #d6d6dd;
+  --office-desk-right: #c6c6cf;
+  --office-body: #b9bac6;
+  --office-body-shade: #9fa0ae;
+  --office-display: #1d1d1f;
+  --office-display-ink: #f5f5f7;
+  --office-paper: #ffffff;
+  --office-folder: #e6c98a;
+  --office-shadow: rgb(20 20 30 / 14%);
+
   /* Elevation: card, raised (hover and selection), floating (menus,
      popovers, the palette) and modal (sheets). A wide soft ambient and a
      short key; floating layers add a hairline so their edge reads on any
@@ -263,6 +281,21 @@
     --scrim: rgb(0 0 0 / 48%);
     --thumb: #e6e6ea;
 
+    --office-floor: #2a2a2d;
+    --office-floor-line: rgb(255 255 255 / 6%);
+    --office-wall-back: #343437;
+    --office-wall-side: #2f2f32;
+    --office-desk-top: #4a4a4f;
+    --office-desk-left: #3a3a3e;
+    --office-desk-right: #323236;
+    --office-body: #8e8f9c;
+    --office-body-shade: #747581;
+    --office-display: #101012;
+    --office-display-ink: #f2f2f4;
+    --office-paper: #e8e8ec;
+    --office-folder: #b89a5a;
+    --office-shadow: rgb(0 0 0 / 40%);
+
     --elevation-card: 0 1px 2px rgb(0 0 0 / 28%), 0 2px 8px rgb(0 0 0 / 20%);
     --elevation-raised: inset 0 1px 0 rgb(255 255 255 / 6%), 0 1px 2px rgb(0 0 0 / 36%), 0 6px 18px rgb(0 0 0 / 30%);
     --elevation-floating: inset 0 1px 0 rgb(255 255 255 / 6%), 0 0 0 0.5px rgb(0 0 0 / 60%), 0 2px 6px rgb(0 0 0 / 36%), 0 12px 32px rgb(0 0 0 / 44%);
@@ -334,6 +367,21 @@
   --material: rgb(44 44 46 / 84%);
   --scrim: rgb(0 0 0 / 48%);
   --thumb: #e6e6ea;
+
+  --office-floor: #2a2a2d;
+  --office-floor-line: rgb(255 255 255 / 6%);
+  --office-wall-back: #343437;
+  --office-wall-side: #2f2f32;
+  --office-desk-top: #4a4a4f;
+  --office-desk-left: #3a3a3e;
+  --office-desk-right: #323236;
+  --office-body: #8e8f9c;
+  --office-body-shade: #747581;
+  --office-display: #101012;
+  --office-display-ink: #f2f2f4;
+  --office-paper: #e8e8ec;
+  --office-folder: #b89a5a;
+  --office-shadow: rgb(0 0 0 / 40%);
 
   --elevation-card: 0 1px 2px rgb(0 0 0 / 28%), 0 2px 8px rgb(0 0 0 / 20%);
   --elevation-raised: inset 0 1px 0 rgb(255 255 255 / 6%), 0 1px 2px rgb(0 0 0 / 36%), 0 6px 18px rgb(0 0 0 / 30%);

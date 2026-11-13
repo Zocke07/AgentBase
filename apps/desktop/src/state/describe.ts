@@ -2,6 +2,7 @@ import type { Event } from "@agentbase/schemas";
 
 import { ellipsise, summariseArgs } from "../lib/format";
 import { display, flag, int, record, strings, text, type Payload } from "../lib/payload";
+import { FETCHING_TOOLS } from "../lib/tools";
 
 import {
   pendingApprovals,
@@ -373,13 +374,7 @@ function plural(count: number, noun: string): string {
  */
 export function policySentence(policy: RunApprovalPolicy): string {
   if (policy.supervised) return "Stepped through: every call asked first.";
-  const fetches =
-    policy.levels.includes("medium") ||
-    policy.allowTools.includes("http_get") ||
-    policy.allowTools.includes("read_feed") ||
-    policy.allowTools.includes("read_prices") ||
-    policy.allowTools.includes("read_market") ||
-    policy.allowTools.includes("read_company_reports");
+  const fetches = policy.levels.includes("medium") || FETCHING_TOOLS.some((tool) => policy.allowTools.includes(tool));
   const parts = [
     policy.levels.length > 0
       ? `${list(policy.levels)} risk ran on its own`

@@ -1,8 +1,9 @@
 import type { Event } from "@agentbase/schemas";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 
 import { ellipsise, formatCount, formatMicros, summariseArgs } from "../lib/format";
 import { activityLabel, nowLine } from "../state/describe";
+import { officeOf } from "../state/office";
 import type { AgentNode, Denial, Handoff, RunView, ToolCall } from "../state/reducer";
 import { useStoredFlag } from "../state/useStoredFlag";
 import { useStoredSize } from "../state/useStoredSize";
@@ -13,6 +14,8 @@ import { Markdown } from "./Markdown";
 import { RunGraph } from "./RunGraph";
 import { RunSummary, type RunSummaryProps } from "./RunSummary";
 import { Splitter } from "./Splitter";
+import { OfficeScene } from "./office/OfficeScene";
+import { Segmented } from "./ui/controls";
 
 /**
  * Run dashboard splits pure `run-projection` from scrubber transport. Given the
@@ -53,6 +56,11 @@ export interface RunPanelProps {
   spaceId?: RunSummaryProps["spaceId"];
   onOpenMemory?: RunSummaryProps["onOpenMemory"];
   onMemoryChanged?: RunSummaryProps["onMemoryChanged"];
+  /**
+   * Which drawing of the run to show, whatever the viewer last chose: the
+   * workbench and tests use it. Left out, the viewer's choice applies.
+   */
+  canvas?: "office" | "diagram" | undefined;
 }
 
 export function RunPanel({
@@ -72,6 +80,7 @@ export function RunPanel({
   spaceId,
   onOpenMemory,
   onMemoryChanged,
+  canvas: canvasChoice,
 }: RunPanelProps) {
   const scrubbed = cursor < events.length;
   // Reserve counter width so scrubber track does not shift.
@@ -87,6 +96,15 @@ export function RunPanel({
   const [summaryHeight, setSummaryHeight] = useStoredSize("runs.summary");
   const [canvasHeight, setCanvasHeight] = useStoredSize("runs.canvas");
   const [detailWidth, setDetailWidth] = useStoredSize("runs.detail");
+  // Office or Diagram (decision D8): the viewer's choice, kept on this
+  // computer. The diagram stays the default until the office has parity.
+  const [officeChosen, setOfficeChosen] = useStoredFlag("runs.office");
+  // Where a caller names the drawing, that is where this panel starts, and
+  // the switch then changes this panel alone, not the viewer's stored choice.
+  const [officeHere, setOfficeHere] = useState(canvasChoice === "office");
+  const showOffice = canvasChoice === undefined ? officeChosen : officeHere;
+  // Projected only when it is shown: the diagram needs none of it.
+  const office = useMemo(() => (showOffice ? officeOf(view) : null), [showOffice, view]);
   // A viewer can fold the log to its latest step; the canvas takes the room.
   const [logCollapsed, setLogCollapsed] = useStoredFlag("runs.log.collapsed");
   const projection = useRef<HTMLDivElement>(null);
@@ -216,15 +234,40 @@ export function RunPanel({
         </p>
 
         <div className={`run-panel__canvas${expanded ? " run-panel__canvas--expanded" : ""}`} ref={canvas}>
-          <RunGraph
-            view={view}
-            selectedAgent={selectedName}
-            onSelectAgent={onSelectAgent}
-            expanded={expanded}
-            onToggleExpand={() => {
-              setExpanded((current) => !current);
-            }}
-          />
+          <div className="run-panel__view-switch">
+            <Segmented
+              label="How the run is drawn"
+              value={showOffice ? "office" : "diagram"}
+              options={[
+                { value: "office", label: "Office", icon: "users" },
+                { value: "diagram", label: "Diagram", icon: "network" },
+              ]}
+              onChange={(next) => {
+                if (canvasChoice === undefined) setOfficeChosen(next === "office");
+                else setOfficeHere(next === "office");
+              }}
+              testId="run-view-switch"
+            />
+          </div>
+          {office !== null ? (
+            <OfficeScene
+              model={office}
+              description={nowLine(view)}
+              selectedAgent={selectedName}
+              onSelectAgent={onSelectAgent}
+              onOpenFile={onOpenFile === undefined ? undefined : (path) => { onOpenFile(path); }}
+            />
+          ) : (
+            <RunGraph
+              view={view}
+              selectedAgent={selectedName}
+              onSelectAgent={onSelectAgent}
+              expanded={expanded}
+              onToggleExpand={() => {
+                setExpanded((current) => !current);
+              }}
+            />
+          )}
 
           {selected !== null && selectedName !== null && (
             <AgentDetail

@@ -1,0 +1,458 @@
+import {
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type PointerEvent,
+  type WheelEvent,
+} from "react";
+
+import { ellipsise, formatDuration, moneyShort } from "../../lib/format";
+import {
+  fitCamera,
+  followCamera,
+  labelDensity,
+  placeOffice,
+  project,
+  zoomCamera,
+  type Camera,
+  type Point,
+  type Size,
+  type Spot,
+  zoomBand,
+} from "../../lib/officeLayout";
+import { currentPlatform } from "../../lib/platform";
+import { matchesKeys, shortcut, withShortcut } from "../../lib/shortcuts";
+import { splitPath } from "../../state/files";
+import { stampReason, type Desk, type OfficeModel, type Slip } from "../../state/office";
+import { Icon } from "../icons/Icon";
+import { IconButton } from "../ui/controls";
+
+import { Room } from "./Room";
+import { FACE_ICON, FAMILY_ICON, SLIP_TONE, STAMP_ICON } from "./glyphs";
+
+/**
+ * A run as an office (Phase 20, brief section 7): each agent at its own desk,
+ * the calls in hand as slips with their stamps, delegated work as folders,
+ * and the goal, the outcome, the clock and the meter on the walls.
+ *
+ * Everything inside the stage is drawn from `model`, a pure projection of
+ * the log, so the room is the same live and on replay. The drawing is an
+ * SVG hidden from screen readers; over it lies a layer of real elements, so
+ * every desk is a button with a name and every state is a word.
+ *
+ * The camera is transport, like the scrubber: it follows the viewport and
+ * the viewer, not the log. It lives on the stage's wrapper, which carries
+ * `data-transport` so the identity test can leave it out.
+ */
+
+export interface OfficeSceneProps {
+  model: OfficeModel;
+  /** One sentence about the run at this cursor, read out as the room's description. */
+  description: string;
+  selectedAgent: string | null;
+  onSelectAgent: (name: string | null) => void;
+  /** Open a file the run wrote. Without it the board lists them as text. */
+  onOpenFile?: ((path: string) => void) | undefined;
+}
+
+const clockLabel = (seconds: number): string => formatDuration(seconds * 1000);
+
+/** How much of an error a desk shows; the whole message is in its tooltip and the log. */
+const TROUBLE_CHARS = 110;
+
+/** How far above a desk's floor spot the camera aims, in room pixels. */
+const FOCUS_LIFT = 64;
+
+/**
+ * Where a label hangs, as a point of the room. The stylesheet multiplies it
+ * by the camera's zoom, so a label follows its desk while keeping its own
+ * size, and nothing about the camera is written into the label itself.
+ */
+const at = (point: Point): CSSProperties => ({ "--x": point.x, "--y": point.y }) as CSSProperties;
+
+function SlipCard({ slip }: { slip: Slip }) {
+  const reason = slip.stamp === null ? null : stampReason(slip.stamp, slip);
+  return (
+    <span className={`office-slip office-slip--${SLIP_TONE[slip.state]}`} data-state={slip.state}>
+      <Icon name={FAMILY_ICON[slip.family]} size={16} />
+      <span className="office-slip__action">{slip.action}</span>
+      <span className="office-slip__label">
+        {slip.stamp !== null && <Icon name={STAMP_ICON[slip.stamp.kind]} size={16} />}
+        {slip.label}
+        {reason !== null && <span className="office-slip__reason">: {reason}</span>}
+      </span>
+    </span>
+  );
+}
+
+function DeskButton({
+  desk,
+  spot,
+  dense,
+  selected,
+  tabbable,
+  onSelect,
+}: {
+  desk: Desk;
+  spot: Spot;
+  dense: boolean;
+  selected: boolean;
+  tabbable: boolean;
+  onSelect: (name: string | null) => void;
+}) {
+  // Handing work on is shown by the folder, not by a slip of paper.
+  const slips = desk.slips.filter((entry) => entry.family !== "delegation");
+  const slip = slips.at(-1);
+  const earlier = slips.length - 1;
+  const glyph = desk.face === "tool" ? FAMILY_ICON[desk.family ?? "unknown"] : FACE_ICON[desk.face];
+  return (
+    <div
+      className={`office-desk${desk.lead ? " office-desk--lead" : ""}${desk.ghost ? " office-desk--ghost" : ""}`}
+      style={at(spot)}
+      data-activity={desk.activity}
+      data-face={desk.face}
+    >
+      {desk.bubble !== null && (
+        <p className={`office-bubble office-bubble--${desk.bubble.kind}`}>
+          <span className="sr-only">{desk.bubble.kind === "thought" ? `${desk.name} is saying: ` : `${desk.name} said: `}</span>
+          {desk.bubble.text === "" ? "…" : desk.bubble.text}
+        </p>
+      )}
+      <button
+        type="button"
+        className="office-desk__button"
+        data-desk={desk.name}
+        data-testid={`office-desk-${desk.name}`}
+        aria-label={desk.accessibleName}
+        aria-pressed={selected}
+        title={desk.ghost ? desk.accessibleName : `${desk.role ?? desk.name}. ${desk.activityLabel}.`}
+        tabIndex={tabbable ? 0 : -1}
+        disabled={desk.ghost}
+        onClick={() => {
+          // A pressed desk is unpressed by pressing it again, as in the diagram.
+          onSelect(selected ? null : desk.name);
+        }}
+      >
+        {/* The spaces between the parts are for anything that reads the plate
+            as one line of text; the grid does not draw them. */}
+        <span className="office-desk__name">{desk.name}</span>
+        {!dense && " "}
+        {!dense && (
+          <span className={`office-desk__state office-desk__state--${desk.face}`}>
+            <Icon name={glyph} size={16} />
+            {desk.stateLabel}
+          </span>
+        )}
+        {!dense && desk.model !== null && " "}
+        {!dense && desk.model !== null && <span className="office-desk__model">{desk.model}</span>}
+      </button>
+      {/* The papers on the desk, one under the other however long each runs. */}
+      {!dense && (desk.trouble !== null || slip !== undefined) && (
+        <div className="office-desk__papers">
+          {desk.trouble !== null && (
+            <p className={`office-trouble office-trouble--${desk.trouble.kind}`} title={desk.trouble.message}>
+              <Icon name={desk.trouble.kind === "alarm" ? "triangle-alert" : "info"} size={16} />
+              <span>{ellipsise(desk.trouble.message, TROUBLE_CHARS)}</span>
+            </p>
+          )}
+          {slip !== undefined && <SlipCard slip={slip} />}
+          {earlier > 0 && <span className="office-desk__more">and {earlier} more this step</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function OfficeScene({ model, description, selectedAgent, onSelectAgent, onOpenFile }: OfficeSceneProps) {
+  const layout = useMemo(() => placeOffice(model.desks.length), [model.desks.length]);
+  const dense = labelDensity(model.desks.length + (model.lead === null ? 0 : 1)) === "names";
+
+  // --- transport: the camera ---------------------------------------------
+  const frame = useRef<HTMLDivElement>(null);
+  const [viewport, setViewport] = useState<Size>({ width: 0, height: 0 });
+  /** Null follows the work; a camera is where the viewer left it. */
+  const [held, setHeld] = useState<Camera | null>(null);
+  useLayoutEffect(() => {
+    const element = frame.current;
+    if (element === null) return undefined;
+    const observer = new ResizeObserver(([entry]) => {
+      const box = entry?.contentRect;
+      if (box !== undefined) setViewport({ width: box.width, height: box.height });
+    });
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  const spots = useMemo(() => {
+    const found = new Map<string, Spot>();
+    model.desks.forEach((desk, index) => {
+      const spot = layout.desks[index];
+      if (spot !== undefined) found.set(desk.name, spot);
+    });
+    if (model.lead !== null) found.set(model.lead.name, layout.lead);
+    return found;
+  }, [model.desks, model.lead, layout]);
+
+  // The middle of what belongs to a desk is above its floor spot: the
+  // character and the name plate over its head.
+  const focusSpot = model.focus === null ? undefined : spots.get(model.focus);
+  const focus: Point | null = focusSpot === undefined ? null : { x: focusSpot.x, y: focusSpot.y - FOCUS_LIFT };
+  const camera = held ?? followCamera(layout, viewport, focus);
+  const centre: Point = { x: viewport.width / 2, y: viewport.height / 2 };
+
+  const drag = useRef<{ x: number; y: number; camera: Camera } | null>(null);
+  const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    // A press on a desk or a link is that control's, not the start of a pan.
+    if (event.button !== 0 || (event.target as Element).closest("button, a") !== null) return;
+    drag.current = { x: event.clientX, y: event.clientY, camera };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const start = drag.current;
+    if (start === null) return;
+    setHeld({ ...start.camera, x: start.camera.x + event.clientX - start.x, y: start.camera.y + event.clientY - start.y });
+  };
+  const onPointerUp = () => {
+    drag.current = null;
+  };
+  const onWheel = (event: WheelEvent<HTMLDivElement>) => {
+    // Chromium reports a trackpad pinch as a wheel with Ctrl held; a plain
+    // wheel zooms too, as on a map. The page behind does not scroll.
+    const box = event.currentTarget.getBoundingClientRect();
+    const factor = Math.exp(-event.deltaY * (event.ctrlKey ? 0.01 : 0.002));
+    setHeld(zoomCamera(camera, factor, { x: event.clientX - box.left, y: event.clientY - box.top }));
+  };
+
+  // --- the keyboard ---------------------------------------------------------
+  const order = useMemo(() => [...(model.lead === null ? [] : [model.lead]), ...model.desks].filter((desk) => !desk.ghost), [model.lead, model.desks]);
+  const tabStop = order.find((desk) => desk.name === selectedAgent)?.name ?? order.find((desk) => desk.name === model.focus)?.name ?? order[0]?.name ?? null;
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("[data-desk]:not(:disabled)")];
+    const current = buttons.findIndex((button) => button === document.activeElement);
+    const go = (index: number) => {
+      event.preventDefault();
+      buttons[(index + buttons.length) % buttons.length]?.focus();
+    };
+    switch (event.key) {
+      case "ArrowRight":
+      case "ArrowDown":
+        if (current >= 0) go(current + 1);
+        return;
+      case "ArrowLeft":
+      case "ArrowUp":
+        if (current >= 0) go(current - 1);
+        return;
+      case "Home":
+        if (current >= 0) go(0);
+        return;
+      case "End":
+        if (current >= 0) go(buttons.length - 1);
+        return;
+      case "Escape":
+        if (selectedAgent !== null) onSelectAgent(null);
+        return;
+      default:
+    }
+    // The camera's keys, from the keyboard map.
+    if (matchesKeys(event, shortcut("office-follow").keys)) setHeld(null);
+    else if (matchesKeys(event, shortcut("office-fit").keys)) setHeld(fitCamera(layout, viewport));
+    else if (matchesKeys(event, shortcut("office-zoom-in").keys) || event.key === "=") setHeld(zoomCamera(camera, 1.25, centre));
+    else if (matchesKeys(event, shortcut("office-zoom-out").keys)) setHeld(zoomCamera(camera, 0.8, centre));
+  };
+
+  const { board, reception, clock, meter } = model;
+  const platform = currentPlatform();
+  const receptionLabel = project(layout.reception.across, layout.reception.depth, 34);
+
+  return (
+    <div className="office" data-testid="office" role="region" aria-label="The office">
+      <p className="sr-only" data-testid="office-description">
+        {description}
+      </p>
+      {/* Completions, the run's end and budget warnings, said once each. Questions
+          are announced by the approval panel, and are not repeated here. */}
+      <p className="sr-only" aria-live="polite" data-testid="office-announcement">
+        {model.announcement?.text ?? ""}
+      </p>
+      {/* Apart from the above, so that a desk finishing never talks over it. */}
+      <p className="sr-only" aria-live="polite" data-testid="office-budget-announcement">
+        {meter.announcement ?? ""}
+      </p>
+
+      <div
+        ref={frame}
+        className="office__frame"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onWheel={onWheel}
+        onKeyDown={onKeyDown}
+      >
+        <div
+          className="office__stage"
+          data-transport="camera"
+          data-follow={held === null ? "true" : "false"}
+          data-zoom={zoomBand(camera.scale)}
+          style={
+            {
+              "--office-zoom": camera.scale,
+              "--office-x": `${String(Math.round(camera.x))}px`,
+              "--office-y": `${String(Math.round(camera.y))}px`,
+            } as CSSProperties
+          }
+        >
+          <div className="office__art">
+            <Room model={model} layout={layout} />
+          </div>
+
+          <div className="office__layer">
+            <div className="office-board-card" style={at(layout.board)}>
+              <p className="office-board-card__status">
+                <span className={`status status--${board.status}`}>{board.statusLabel}</span>
+              </p>
+              <p className="office-board-card__goal" title={board.goal ?? undefined}>
+                {board.goal ?? "Waiting for the run to start"}
+              </p>
+              {board.claim !== null && (
+                <p className="office-board-card__claim">
+                  <span className="office-board-card__said">{board.claim.kind === "summary" ? "The supervisor said" : "Why it stopped"}</span>
+                  {board.claim.text}
+                </p>
+              )}
+              {board.documents.length > 0 && (
+                <ul className="office-board-card__files" aria-label="Files this run wrote">
+                  {board.documents.slice(0, 4).map((file) => (
+                    <li key={file.path}>
+                      {onOpenFile === undefined ? (
+                        <span title={file.path}>{splitPath(file.path).name}</span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="link"
+                          title={file.path}
+                          onClick={() => {
+                            onOpenFile(file.path);
+                          }}
+                        >
+                          {splitPath(file.path).name}
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                  {board.documents.length > 4 && <li>and {board.documents.length - 4} more</li>}
+                </ul>
+              )}
+              {board.memoryPath !== null && <p className="office-board-card__note">A note of this run was saved for later.</p>}
+              {board.unrecognised.map((type) => (
+                <p key={type} className="office-board-card__note">
+                  This version does not know the event {type}.
+                </p>
+              ))}
+            </div>
+
+            <p className="office-wall-label" style={at(layout.clock)}>
+              <Icon name="clock" size={16} />
+              <span className="num">
+                {clock.elapsedSeconds === null ? "Not started" : clockLabel(clock.elapsedSeconds)}
+                {clock.limitSeconds !== null && ` of ${clockLabel(clock.limitSeconds)}`}
+              </span>
+            </p>
+            <p className={`office-wall-label office-wall-label--meter office-wall-label--${meter.level}`} style={at(layout.meter)}>
+              <Icon name="circle-dollar-sign" size={16} />
+              <span className="num">{moneyShort(meter.costMicros)}</span>
+              {meter.level !== "ok" && <span>{meter.level === "over" ? "Monthly limit reached" : "Close to the monthly limit"}</span>}
+            </p>
+            {model.library.length > 0 && (
+              <p className="office-wall-label" style={at(layout.library)}>
+                <Icon name="library" size={16} />
+                {model.library.length} from your notes
+              </p>
+            )}
+
+            <p className="office-reception" style={at(receptionLabel)}>
+              <span className="office-reception__you">You</span>
+              <span className="office-reception__origin">
+                {reception.origin}
+                {reception.sender !== null && `, ${reception.sender}`}
+              </span>
+              {reception.waiting > 0 && (
+                <span className={`office-reception__waiting risk risk--${reception.waitingRisk ?? "medium"}`}>
+                  <Icon name="bell" size={16} />
+                  {reception.waiting} question{reception.waiting === 1 ? "" : "s"} waiting: answer above
+                </span>
+              )}
+            </p>
+
+            {model.lead !== null && (
+              <DeskButton
+                desk={model.lead}
+                spot={layout.lead}
+                dense={dense}
+                selected={selectedAgent === model.lead.name}
+                tabbable={tabStop === model.lead.name}
+                onSelect={onSelectAgent}
+              />
+            )}
+            {model.desks.map((desk, index) => {
+              const spot = layout.desks[index];
+              return spot === undefined ? null : (
+                <DeskButton
+                  key={desk.name}
+                  desk={desk}
+                  spot={spot}
+                  dense={dense}
+                  selected={selectedAgent === desk.name}
+                  tabbable={tabStop === desk.name}
+                  onSelect={onSelectAgent}
+                />
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="office__controls" data-transport="controls" role="group" aria-label="View of the office">
+        <IconButton
+          icon="locate-fixed"
+          label="Follow the work"
+          title={withShortcut("Follow the work", "office-follow", platform)}
+          pressed={held === null}
+          onClick={() => {
+            setHeld(null);
+          }}
+        />
+        <IconButton
+          icon="scan"
+          label="Show the whole room"
+          title={withShortcut("Show the whole room", "office-fit", platform)}
+          onClick={() => {
+            setHeld(fitCamera(layout, viewport));
+          }}
+        />
+        <IconButton
+          icon="zoom-in"
+          label="Zoom in"
+          title={withShortcut("Zoom in", "office-zoom-in", platform)}
+          onClick={() => {
+            setHeld(zoomCamera(camera, 1.25, centre));
+          }}
+        />
+        <IconButton
+          icon="zoom-out"
+          label="Zoom out"
+          title={withShortcut("Zoom out", "office-zoom-out", platform)}
+          onClick={() => {
+            setHeld(zoomCamera(camera, 0.8, centre));
+          }}
+        />
+      </div>
+    </div>
+  );
+}
