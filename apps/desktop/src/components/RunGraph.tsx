@@ -29,6 +29,8 @@ import {
 } from "../state/graph";
 import type { Activity, RunView } from "../state/reducer";
 
+import { Icon } from "./icons/Icon";
+
 import "@xyflow/react/dist/style.css";
 
 /**
@@ -118,7 +120,7 @@ function AgentCard({ data }: { data: AgentNodeData }) {
       <Ports />
       <div className="flow-node__head">
         <span className={`flow-node__icon flow-node__icon--${supervisor ? "supervisor" : "worker"}`} aria-hidden="true">
-          {supervisor ? <SupervisorGlyph /> : <WorkerGlyph />}
+          {supervisor ? <Icon name="network" size={16} /> : <Icon name="user-round" size={16} />}
         </span>
         <span className="flow-node__title" title={agent.name}>
           {agent.name}
@@ -187,7 +189,7 @@ function GoalCard({ data }: { data: GoalNodeData }) {
       <Ports />
       <div className="flow-node__head">
         <span className="flow-node__icon flow-node__icon--goal" aria-hidden="true">
-          <GoalGlyph />
+          <Icon name="flag" size={16} />
         </span>
         <span className="flow-node__title">Goal</span>
       </div>
@@ -199,14 +201,6 @@ function GoalCard({ data }: { data: GoalNodeData }) {
         {data.excerpts > 0 && ` · ${String(data.excerpts)} vault excerpt${data.excerpts === 1 ? "" : "s"}`}
       </div>
     </div>
-  );
-}
-
-function GoalGlyph() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true">
-      <path d="M5 3v14h1.5v-5.5H15l-2-3 2-3H6.5V3z" />
-    </svg>
   );
 }
 
@@ -225,7 +219,7 @@ function OutcomeCard({ data }: { data: OutcomeNodeData }) {
       <Ports />
       <div className="flow-node__head">
         <span className={`flow-node__icon flow-node__icon--${data.status}`} aria-hidden="true">
-          {data.status === "completed" ? <DoneGlyph /> : data.status === "failed" ? <FailedGlyph /> : <ClockGlyph />}
+          {data.status === "completed" ? <Icon name="check" size={16} /> : data.status === "failed" ? <Icon name="x" size={16} /> : <Icon name="clock" size={16} />}
         </span>
         <span className="flow-node__title">Outcome</span>
         <span className={`flow-node__state flow-node__state--${data.status}`}>{STATUS_LABEL[data.status]}</span>
@@ -240,62 +234,6 @@ function OutcomeCard({ data }: { data: OutcomeNodeData }) {
         {data.memoryPath !== null && " · saved as memory"}
       </div>
     </div>
-  );
-}
-
-function ExpandGlyph() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true">
-      <path d="M3 3h6v2H5v4H3zm8 0h6v6h-2V5h-4zM3 11h2v4h4v2H3zm12 0h2v6h-6v-2h4z" />
-    </svg>
-  );
-}
-
-function CollapseGlyph() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true">
-      <path d="M9 3v6H3V7h4V3zm2 0h2v4h4v2h-6zM3 11h6v6H7v-4H3zm8 0h6v2h-4v4h-2z" />
-    </svg>
-  );
-}
-
-function DoneGlyph() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true">
-      <path d="M4 10.5 8.2 14.5 16 6.5 14.6 5 8.2 11.6 5.4 9z" />
-    </svg>
-  );
-}
-
-function FailedGlyph() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true">
-      <path d="M5.5 4 10 8.5 14.5 4 16 5.5 11.5 10l4.5 4.5-1.5 1.5-4.5-4.5L5.5 16 4 14.5 8.5 10 4 5.5z" />
-    </svg>
-  );
-}
-
-function ClockGlyph() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true">
-      <path d="M10 2.5a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 0 0-15zm0 1.6a5.9 5.9 0 1 1 0 11.8 5.9 5.9 0 0 1 0-11.8zM9.2 6h1.6v4.2l3 1.8-.8 1.3-3.8-2.3z" />
-    </svg>
-  );
-}
-
-function SupervisorGlyph() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true">
-      <path d="M10 3a2.2 2.2 0 1 1 0 4.4A2.2 2.2 0 0 1 10 3zM4 12.6a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4zm12 0a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4zM9.3 7.8h1.4v2.4l4.2 2.4-.7 1.2L10 11.4l-4.2 2.4-.7-1.2 4.2-2.4z" />
-    </svg>
-  );
-}
-
-function WorkerGlyph() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true">
-      <path d="M10 3a3.2 3.2 0 1 1 0 6.4A3.2 3.2 0 0 1 10 3zm0 7.6c3.6 0 6.5 2 6.5 4.6V17h-13v-1.8c0-2.6 2.9-4.6 6.5-4.6z" />
-    </svg>
   );
 }
 
@@ -467,7 +405,7 @@ export function RunGraph({ view, selectedAgent, onSelectAgent, expanded, onToggl
               aria-pressed={expanded ?? false}
               data-testid="graph-expand"
             >
-              {expanded ? <CollapseGlyph /> : <ExpandGlyph />}
+              {expanded ? <Icon name="minimize-2" size={16} /> : <Icon name="maximize-2" size={16} />}
             </ControlButton>
           )}
         </Controls>

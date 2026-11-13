@@ -20,19 +20,19 @@
   align-items: center;
   padding: 0.45rem 1.25rem;
   background: var(--bad);
-  color: #fff;
-  font-size: 0.8667rem;
+  color: var(--on-bad);
+  font-size: var(--size-control);
   font-weight: 600;
 }
 
 .app__lost .dot--bad {
-  background: #fff;
+  background: var(--on-bad);
 }
 
 .app__lost .button {
-  border-color: rgb(255 255 255 / 60%);
+  border-color: currentcolor;
   background: transparent;
-  color: #fff;
+  color: var(--on-bad);
 }
 
 .app__header {
@@ -42,12 +42,12 @@
   align-items: center;
   min-height: 3.25rem;
   padding: 0.5rem 1.5rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  border-bottom: var(--hairline) solid var(--separator);
+  background: var(--content);
 }
 
 .app__title {
-  font-size: 1.0625rem;
+  font-size: var(--size-title-2);
 }
 
 .app__workspace {
@@ -63,11 +63,11 @@
   gap: 0.45rem;
   align-items: center;
   padding: 0.2rem 0.65rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-2);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-capsule);
+  background: var(--fill);
   color: var(--text);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
   font-weight: 500;
   white-space: nowrap;
   cursor: default;
@@ -87,11 +87,11 @@
   align-items: center;
   padding: 0.25rem 0.75rem;
   border: 1px solid var(--warn);
-  border-radius: 999px;
+  border-radius: var(--radius-capsule);
   background: var(--warn-soft);
   color: var(--warn);
   font: inherit;
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
@@ -109,7 +109,8 @@
 }
 
 .app__setup:hover {
-  background: color-mix(in srgb, var(--warn) 20%, transparent);
+  background: var(--warn-tint);
+  color: var(--text);
 }
 
 .app__setup:active {
@@ -126,11 +127,11 @@
 .app__waiting {
   padding: 0.25rem 0.7rem;
   border: 1px solid var(--warn);
-  border-radius: 999px;
+  border-radius: var(--radius-capsule);
   background: var(--warn-soft);
   color: var(--warn);
   font: inherit;
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
   font-weight: 600;
   cursor: pointer;
 }

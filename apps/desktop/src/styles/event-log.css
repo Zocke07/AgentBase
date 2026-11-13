@@ -5,7 +5,7 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: var(--surface);
+  background: var(--content);
 }
 
 .log__filters {
@@ -14,8 +14,8 @@
   gap: 0.5rem 1rem;
   align-items: center;
   padding: 0.4rem 1.25rem;
-  border-bottom: 1px solid var(--border);
-  font-size: 0.8rem;
+  border-bottom: var(--hairline) solid var(--separator);
+  font-size: var(--size-caption);
 }
 
 .log__filters label {
@@ -27,7 +27,7 @@
 .log__filters select,
 .log__filters input {
   padding: 0.15rem 0.4rem;
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .log__filter-label,
@@ -53,7 +53,7 @@
   position: absolute;
   right: 1.5rem;
   bottom: 0.75rem;
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--elevation-floating);
 }
 
 .log__rows {
@@ -94,14 +94,14 @@
   background: none;
   color: inherit;
   font: inherit;
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
   text-align: left;
   cursor: pointer;
 }
 
 .log__row:hover,
 .log__row--open {
-  background: var(--surface-2);
+  background: var(--fill-hover);
 }
 
 .log__row--run {
@@ -136,8 +136,8 @@
 .log__time {
   overflow: hidden;
   color: var(--faint);
-  font-family: var(--mono);
-  font-size: 0.7333rem;
+  font-family: var(--font-mono);
+  font-size: var(--size-caption);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -151,22 +151,22 @@
 /* The raw type, as a chip: what a bug report needs, muted beside the sentence. */
 .log__type {
   padding: 0.05rem 0.45rem;
-  border-radius: 999px;
-  background: var(--surface-2);
+  border-radius: var(--radius-capsule);
+  background: var(--fill);
   color: var(--muted);
-  font-family: var(--mono);
-  font-size: 0.7333rem;
+  font-family: var(--font-mono);
+  font-size: var(--size-caption);
   white-space: nowrap;
 }
 
 .log__row:hover .log__type,
 .log__row--open .log__type {
-  background: var(--surface-3);
+  background: var(--fill-strong);
 }
 
 .log__detail {
-  border-bottom: 1px solid var(--border);
-  background: var(--bg);
+  border-bottom: var(--hairline) solid var(--separator);
+  background: var(--window);
 }
 
 .log__prose {
@@ -175,9 +175,9 @@
   align-items: flex-start;
   justify-content: space-between;
   padding: 0.6rem 1.25rem 0.5rem 4rem;
-  border-bottom: 1px dashed var(--border);
-  background: var(--surface);
-  font-size: 0.8667rem;
+  border-bottom: var(--hairline) dashed var(--separator);
+  background: var(--content);
+  font-size: var(--size-control);
 }
 
 .log__prose>.md {
@@ -191,7 +191,7 @@
   max-height: 24rem;
   overflow: auto;
   color: var(--text);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
   line-height: 1.45;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -201,6 +201,6 @@
   position: static;
   padding: 1rem 1.25rem;
   color: var(--muted);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 

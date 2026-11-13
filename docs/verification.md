@@ -1,8 +1,129 @@
 # Verification and remaining work
 
-Updated 2026-11-12. This is the current record; [history](history/README.md)
+Updated 2026-11-13. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
+
+## Phase 20, stage 20.2: tokens, type, icons and primitives, 2026-11-13
+
+On branch `phase-20-redesign`, not merged, pushed or released. This stage
+changes what people see in every section; behaviour is unchanged apart from
+the one addition the brief asks for, a **Reduce transparency** switch.
+
+- **Tokens.** `styles/tokens.css` holds 56 colour tokens by role: four
+  planes (`--window`, `--sidebar`, `--content`, `--elevated`), control
+  fills, four translucent fills, lines, three text levels, the accent, four
+  status colours each with a soft tint, an edge and a colour for text on a
+  solid fill, the floating material and four elevations. Dark moved from
+  blue-black to neutral greys. The ramp names (`--bg`, `--surface`,
+  `--surface-2`, `--surface-3`, `--border`, the two shadows, the two radii)
+  are gone from all 44 stylesheets: a script mapped each use by its
+  selector, and the uses it could not decide were moved by hand. Twelve raw
+  colours and thirty `color-mix()` colours outside the token file became
+  tokens, and the rule test now allows none.
+- **Contrast.** The rule test holds 203 text and ground pairs in each theme
+  (text on each plane, on each fill laid over each plane, on controls, on
+  the material, on solid and soft status fills) and all pass. The sixteen
+  shortfalls stage 20.1 listed are fixed: `KNOWN_SHORTFALLS` is empty. As
+  text the accent is `--accent-strong`; `--accent` is for fills and marks,
+  held to 3:1. In dark the three text levels sit closer together than
+  before, which is the price of AA on every fill.
+- **Type.** System stacks per the brief (`-apple-system`, Segoe UI Variable
+  named for text and for display), a seven-step scale as tokens and
+  classes, and 13 px as the smallest text: every `font-size` and `font`
+  shorthand in the stylesheets is on the scale, and a new rule test fails
+  on any size below 13 px. Text that was 10 to 12 px is now 13 px and 13 px
+  controls are 14 px, so every section is a little less dense. Five
+  uppercase labels are sentence case, as Phase 11 asks.
+- **Shape and motion.** Radii, a 4 px spacing grid, hairlines (0.5 px from
+  2x), elevation and three springs are tokens. `lib/springs.ts` generates
+  the springs as CSS `linear()` curves from a damped spring (290, 440 and
+  520 ms; the bouncy one overshoots 3.8%), with a `cubic-bezier` fallback,
+  and its test holds the committed tokens to the function. Primary buttons
+  and cards no longer lift toward the pointer.
+- **Icons.** 21 Lucide icons (ISC, with the Feather MIT notice) are vendored
+  as shapes in `components/icons/paths.ts` beside their licence, drawn by
+  one `Icon` at a constant 1.5 px stroke. They replace the 21 inline SVGs
+  in the rail, the space switcher, the diagram and Knowledge. No runtime
+  dependency was added; the package was downloaded once to copy from.
+- **Primitives.** `components/ui/` has `Popover` (anchored, flips at the
+  window's edges, takes and returns focus, closes on Escape, a press
+  outside, or Tab leaving it), `Menu` and `MenuButton` (roving focus,
+  type-ahead, disabled rows announced), `Sheet` (modal, focus kept inside,
+  optional blocking), `IconButton`, `Switch` and `Segmented`. Moved onto
+  them: the space switcher's menu, the header's spending panel, the note
+  palette, Knowledge's three icon buttons and its template picker (a select
+  used as a menu, now a menu), and Settings' theme choice. Floating layers
+  render into `document.body`; `ui/layers.ts` gives Escape to the topmost
+  and closes a layer whose section is hidden under it.
+- **Platform and transparency.** `lib/platform.ts` sets `data-platform` on
+  `<html>` before the first paint; Windows gets thin themed scrollbars.
+  Settings, Appearance has **Reduce transparency**: floating layers use a
+  translucent material over a blur, opaque with the switch on, under forced
+  colours and where the engine has no `backdrop-filter`. It follows the
+  system's setting live until a person chooses otherwise, and is kept in
+  browser storage like the theme, so the backend did not change.
+- **Axe.** The three findings stage 20.1 listed are fixed (the dark Allow
+  button's text, the error count badge, the space switcher's name) and
+  `KNOWN_FINDINGS` is empty: axe reports nothing serious on any of the 21
+  workbench pages in either theme or engine.
+- **Workbench.** New pages: the type scale, icons, shape with depth and
+  motion (space, radii, elevation, planes and fills, the material, the
+  spring curves), and primitives, live and at rest. The token page's 203
+  pairs are a grid of samples. A Transparency switch joined the conditions.
+- **Forced colours and reduced motion.** `just ui-shots` takes
+  `--forced-colors` and `--reduced-motion`. Captured under each, 66
+  screenshots apiece, and read: every section is complete, the rail's
+  selection and every button keep an edge, and each status keeps its word.
+  The coloured dot before a status word and the header's spending bar have
+  no fill under forced colours; the word and the figure remain. The
+  primitives were captured in the workbench under forced colours in
+  Chromium and under reduced motion with reduced transparency in WebKit:
+  each state stays distinct (the switch by position and system colours, the
+  chosen segment and the focused menu row by an outline).
+- **Tests changed.** Four pre-existing test files changed, each for an
+  intended change: `App.test.tsx` expects the Usage row's icon to be named
+  `circle-dollar-sign`, Lucide's name, where it was `usage`;
+  `design/rules.test.ts` holds the new pairs and allows no raw or mixed
+  colour; `workbench/workbench.test.tsx` knows the Transparency condition;
+  `workbench/pages.visual.tsx` has empty lists and compares the dark token
+  page no longer (its baseline alone was 1.6 MB; the rule test holds its
+  values). All 58 screenshot baselines were regenerated, as every page
+  changed; they are macOS only, 7.9 MB.
+- **Review.** The `code-review` skill ran at high effort on the stage's
+  diff and returned ten findings; all were fixed. Two sticky table headers
+  had become see-through; the Windows scrollbar rule outranked a rule that
+  hides one; the note palette and any popover stayed floating when a
+  shortcut hid their section; Tab ran off the end of a popover; a popover
+  told to focus something unfocusable left the keyboard outside it; a menu
+  opened from a sheet would have been under it; Reduce transparency ignored
+  later changes of the system's setting and could not return to following
+  it; eight rules still set text below 13 px through the `font` shorthand,
+  with no test; the note palette handled Escape and focus twice; and the
+  records were stale.
+- **Claude Code.** The project skill `.claude/skills/agentbase-ui/` and a
+  `PostToolUse` hook (`.claude/settings.json`, `.claude/hooks/check-edit.mjs`)
+  exist. The hook was piped a file with an em dash and a lint error and
+  reported both, exited 0 on a clean file, and fired on a real edit in the
+  session. It takes about three seconds on a TypeScript file.
+- **Executed.** `just ci`: backend **1,447 passed, 12 skipped**; desktop
+  **803 passed in 73 files** (739 in 67 before the stage); lint, formatting
+  and both typecheckers clean. `just test-visual`: **142 passed** in
+  Chromium and WebKit (29 screenshot comparisons and 42 axe checks in
+  each), twice after the last change. `just ui-shots`: 66 screenshots in
+  `.dev/shots/stage-20.2`, and 66 each under forced colours and reduced
+  motion.
+- **Unverified.** Nothing ran on Windows: the Segoe UI Variable stacks, the
+  thin scrollbars and the hairlines at 100% scaling were not seen there,
+  and Windows still has no screenshot baselines. The Tauri window was not
+  opened; the screenshots are the same interface in a browser against the
+  dev server, so `backdrop-filter` in the real WKWebView and WebView2 was
+  not seen. Forced colours were emulated by Chromium, not by Windows High
+  Contrast itself. The hook was not run on Windows. At 800 by 600 the
+  larger type wraps a few more labels (Knowledge's two section tabs, its
+  shortcut footer); nothing was seen clipped that the 20.1 baseline did not
+  already clip, by eye over the screenshots, not by a test. CI on GitHub
+  did not run: nothing is pushed.
 
 ## Phase 20, stage 20.1: baseline, workbench and rules, 2026-11-12
 

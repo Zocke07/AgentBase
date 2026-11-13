@@ -15,7 +15,7 @@
   align-items: center;
   padding: 0 0.35rem 0.35rem;
   color: var(--muted);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
 }
 
 .journal-index__filter select {
@@ -24,7 +24,7 @@
 }
 
 .journal-index__badge {
-  font-size: 0.6667rem;
+  font-size: var(--size-caption);
 }
 
 .journal-index__day {
@@ -36,7 +36,7 @@
   min-height: 0;
   padding: 0 1.5rem 2rem;
   overflow-y: auto;
-  background: var(--bg);
+  background: var(--window);
 }
 
 .journal__inner {
@@ -50,13 +50,13 @@
 
 .journal__head h2 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: var(--size-title-2);
 }
 
 .journal__head p {
   margin: 0.25rem 0 0;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 /* The date stays in view while its reports scroll under it. */
@@ -66,18 +66,18 @@
   z-index: 1;
   margin: 1.25rem 0 0.6rem;
   padding: 0.55rem 0;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg);
-  font-size: 0.95rem;
+  border-bottom: var(--hairline) solid var(--separator);
+  background: var(--window);
+  font-size: var(--size-body);
 }
 
 .journal__entry {
   margin-bottom: 0.9rem;
   padding: 0.9rem 1.1rem 1.1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow-1);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-card);
+  background: var(--content);
+  box-shadow: var(--elevation-card);
 }
 
 .journal__entry-head {
@@ -88,7 +88,7 @@
   justify-content: space-between;
   margin-bottom: 0.7rem;
   padding-bottom: 0.6rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--hairline) solid var(--separator);
 }
 
 .journal__entry-name {
@@ -100,32 +100,32 @@
 
 .journal__path {
   color: var(--muted);
-  font: 0.7333rem var(--mono);
+  font: var(--size-caption) var(--font-mono);
   overflow-wrap: anywhere;
 }
 
 .journal__loading {
   margin: 0;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 /* A report's own headings sit under the page's date and kind. */
 .journal__body {
-  font-size: 0.9rem;
+  font-size: var(--size-control);
   line-height: 1.55;
 }
 
 .journal__body h1 {
-  font-size: 1.15rem;
+  font-size: var(--size-title-2);
 }
 
 .journal__body h2 {
-  font-size: 1.05rem;
+  font-size: var(--size-title-2);
 }
 
 .journal__body h3 {
-  font-size: 0.95rem;
+  font-size: var(--size-body);
 }
 
 .journal__more {

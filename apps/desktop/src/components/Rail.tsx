@@ -1,10 +1,10 @@
 import type { SpaceResponse } from "@agentbase/schemas";
-import type { ReactNode } from "react";
 
 import { SECTION_ORDER, type Section } from "../lib/sections";
 
 import { BrandMark } from "./BrandMark";
 import { SpaceSwitcher } from "./SpaceSwitcher";
+import { Icon, type IconName } from "./icons/Icon";
 
 /**
  * Left rail with product, space switcher, current-space sections, and pinned
@@ -31,73 +31,14 @@ export interface RailProps {
 }
 
 
-const SECTIONS: readonly { id: Section; label: string; icon: ReactNode }[] = [
-  {
-    id: "home",
-    label: "Home",
-    icon: (
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <path d="M3 9.5 10 3l7 6.5V17h-4.5v-4.5h-5V17H3z" />
-      </svg>
-    ),
-  },
-  {
-    id: "automations",
-    label: "Automations",
-    icon: (
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <path d="M10 2.5a7.5 7.5 0 1 0 7.5 7.5H16a6 6 0 1 1-1.8-4.3L12 7.9h5.5V2.4l-2.2 2.2A7.5 7.5 0 0 0 10 2.5zm-.8 3.5h1.6v4.2l3 1.8-.8 1.3-3.8-2.3z" />
-      </svg>
-    ),
-  },
-  {
-    id: "runs",
-    label: "Runs",
-    icon: (
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <path d="M5 3.5v13l10-6.5z" />
-      </svg>
-    ),
-  },
-  {
-    id: "agents",
-    label: "Agents",
-    icon: (
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <circle cx="7" cy="6.5" r="3" />
-        <circle cx="14" cy="7.5" r="2.25" />
-        <path d="M1.5 16a5.5 5.5 0 0 1 11 0zM12.5 15.5a4 4 0 0 1 6 0z" />
-      </svg>
-    ),
-  },
-  {
-    id: "knowledge",
-    label: "Knowledge",
-    icon: (
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <path d="M3 3.5h5.2c.7 0 1.3.3 1.8.8.5-.5 1.1-.8 1.8-.8H17V16h-5.2c-.7 0-1.3.3-1.8.8-.5-.5-1.1-.8-1.8-.8H3zm6.2 2A1.8 1.8 0 0 0 8 5H4.5v9.5H8c.4 0 .8.1 1.2.3zm1.6 9.3c.4-.2.8-.3 1.2-.3h3.5V5H12c-.5 0-.9.2-1.2.5z" />
-      </svg>
-    ),
-  },
-  {
-    id: "usage",
-    label: "Usage",
-    icon: (
-      <svg viewBox="0 0 20 20" aria-hidden="true" data-icon="usage">
-        <path d="M10 2.5a7.5 7.5 0 1 0 7.5 7.5A7.5 7.5 0 0 0 10 2.5zm0 1.6A5.9 5.9 0 1 1 4.1 10 5.9 5.9 0 0 1 10 4.1z" />
-        <path d="M10.7 5.6H9.3v1c-1.2.2-2.1 1-2.1 2.1 0 1.5 1.3 2 2.7 2.3 1.2.3 1.5.5 1.5 1s-.5.8-1.4.8c-1 0-1.8-.4-2.5-1l-.8 1.2c.7.6 1.6 1 2.6 1.2v1h1.4v-1c1.4-.2 2.3-1.1 2.3-2.3 0-1.5-1.2-2-2.8-2.4-1.1-.3-1.4-.5-1.4-.9 0-.4.4-.7 1.2-.7.8 0 1.5.3 2.1.8l.8-1.2a5.2 5.2 0 0 0-2.2-.9z" />
-      </svg>
-    ),
-  },
-  {
-    id: "space",
-    label: "Space settings",
-    icon: (
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <path d="M3 5.5A1.5 1.5 0 0 1 4.5 4h3.6l1.6 1.6h5.8A1.5 1.5 0 0 1 17 7.1V15a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 15z" />
-      </svg>
-    ),
-  },
+const SECTIONS: readonly { id: Section; label: string; icon: IconName }[] = [
+  { id: "home", label: "Home", icon: "house" },
+  { id: "automations", label: "Automations", icon: "calendar-clock" },
+  { id: "runs", label: "Runs", icon: "play" },
+  { id: "agents", label: "Agents", icon: "users" },
+  { id: "knowledge", label: "Knowledge", icon: "book-open" },
+  { id: "usage", label: "Usage", icon: "circle-dollar-sign" },
+  { id: "space", label: "Space settings", icon: "folder-cog" },
 ];
 
 export function Rail({
@@ -112,7 +53,7 @@ export function Rail({
   onToggleCollapsed,
   drawer = false,
 }: RailProps) {
-  const entry = (id: Section, label: string, icon: ReactNode) => {
+  const entry = (id: Section, label: string, icon: IconName) => {
     const badge = badges?.[id] ?? 0;
     const shortcut = SECTION_ORDER.indexOf(id) + 1;
     return (
@@ -127,7 +68,8 @@ export function Rail({
           onSelect(id);
         }}
       >
-        {icon}
+        {/* The selected row's icon is filled, as a Mac sidebar's is. */}
+        <Icon name={icon} filled={section === id} />
         <span>{label}</span>
         {badge > 0 && (
           <span className="rail__badge" aria-label={`${String(badge)} waiting`}>
@@ -160,13 +102,7 @@ export function Rail({
       <div className="rail__sections">{SECTIONS.map(({ id, label, icon }) => entry(id, label, icon))}</div>
 
       <div className="rail__bottom">
-        {entry(
-          "settings",
-          "Settings",
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="M10 6.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm7.2 4.5.1-1-1.6-1.2a5.6 5.6 0 0 0-.5-1.2l.7-1.9-.7-.7-1.9.7a5.6 5.6 0 0 0-1.2-.5L10.9 2H9.1L8 3.7a5.6 5.6 0 0 0-1.2.5L4.9 3.5l-.7.7.7 1.9a5.6 5.6 0 0 0-.5 1.2L2.8 9v1l1.6 1.2c.1.4.3.8.5 1.2l-.7 1.9.7.7 1.9-.7c.4.2.8.4 1.2.5L9.1 18h1.8l1.1-1.7c.4-.1.8-.3 1.2-.5l1.9.7.7-.7-.7-1.9c.2-.4.4-.8.5-1.2z" />
-          </svg>,
-        )}
+        {entry("settings", "Settings", "settings")}
         {onToggleCollapsed !== undefined && (
           <button
             type="button"
@@ -177,9 +113,7 @@ export function Rail({
             data-testid="rail-toggle"
             onClick={onToggleCollapsed}
           >
-            <svg viewBox="0 0 20 20" aria-hidden="true" className={collapsed ? "rail__toggle-icon--flipped" : ""}>
-              <path d="M12.5 4 6.5 10l6 6 1.4-1.4L9.3 10l4.6-4.6z" />
-            </svg>
+            <Icon name="panel-left" />
             <span>{collapsed ? "Show" : "Hide"} the sidebar</span>
           </button>
         )}

@@ -4,7 +4,7 @@
   display: flex;
   gap: 0.5rem;
   align-items: center;
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
   white-space: nowrap;
   cursor: default;
 }
@@ -22,8 +22,8 @@
   width: 6rem;
   height: 0.4rem;
   overflow: hidden;
-  border-radius: 0.2rem;
-  background: var(--surface-3);
+  border-radius: var(--radius-chip);
+  background: var(--fill-strong);
 }
 
 .budget__fill {
@@ -62,13 +62,13 @@
   position: relative;
   padding: 0.3rem 0.55rem;
   margin: -0.3rem -0.55rem;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   transition: background-color var(--dur-quick) var(--ease-out);
 }
 
 .budget-anchor > .budget:hover,
 .budget--open {
-  background: var(--surface-2);
+  background: var(--fill-hover);
 }
 
 .budget__toggle {
@@ -110,32 +110,14 @@
   transform: translateY(0.1rem) rotate(-135deg);
 }
 
+/* A `Popover` under the chip: it places itself and brings its own surface. */
 .cost-panel {
-  position: absolute;
-  top: calc(100% + 0.6rem);
-  right: -0.55rem;
-  z-index: 40;
   display: grid;
   gap: 0.9rem;
   width: min(22rem, calc(100vw - 2rem));
-  padding: 1rem 1.1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow-2);
-  font-size: 0.875rem;
+  padding: var(--space-4);
   white-space: normal;
   transform-origin: top right;
-  animation: pop-in var(--dur-base) var(--ease-out) backwards;
-}
-
-.cost-panel:focus {
-  outline: none;
-}
-
-.cost-panel--closing {
-  pointer-events: none;
-  animation: pop-out var(--dur-quick) ease-in forwards;
 }
 
 .cost-panel__head {
@@ -146,19 +128,18 @@
 .cost-panel__title {
   margin: 0;
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: var(--size-caption);
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .cost-panel__total {
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--size-body);
 }
 
 .cost-panel__total b {
-  font-size: 1.25rem;
+  font-family: var(--font-display);
+  font-size: var(--size-title-1);
   font-variant-numeric: tabular-nums;
 }
 
@@ -166,7 +147,7 @@
 .cost-panel__more {
   margin: 0;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .cost-panel__facts {
@@ -174,8 +155,8 @@
   gap: 0.35rem;
   margin: 0;
   padding: 0.7rem 0;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
+  border-top: var(--hairline) solid var(--separator);
+  border-bottom: var(--hairline) solid var(--separator);
 }
 
 .cost-panel__facts > div {
@@ -195,7 +176,7 @@
 
 .cost-panel__split h3 {
   margin: 0 0 0.4rem;
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
   font-weight: 600;
 }
 
@@ -227,8 +208,8 @@
   grid-column: 1 / -1;
   height: 0.3rem;
   overflow: hidden;
-  border-radius: 0.15rem;
-  background: var(--surface-3);
+  border-radius: var(--radius-chip);
+  background: var(--fill-strong);
 }
 
 .cost-panel__share > span {

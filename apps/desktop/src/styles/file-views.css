@@ -11,9 +11,9 @@
   flex-direction: column;
   min-height: 16rem;
   overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-control);
+  background: var(--content);
 }
 
 .file-view__bar {
@@ -23,8 +23,8 @@
   gap: 0.5rem;
   align-items: center;
   padding: 0.55rem 0.75rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-2);
+  border-bottom: var(--hairline) solid var(--separator);
+  background: var(--fill);
 }
 
 .file-view__save-as {
@@ -34,13 +34,13 @@
   align-items: center;
   min-width: 14rem;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .file-view__save-as input {
   flex: 1;
   min-width: 8rem;
-  font-family: var(--mono);
+  font-family: var(--font-mono);
 }
 
 .file-view__error {
@@ -80,8 +80,8 @@
   gap: 0.75rem;
   padding: 1rem;
   overflow-y: auto;
-  border-right: 1px solid var(--border);
-  background: var(--surface-2);
+  border-right: var(--hairline) solid var(--separator);
+  background: var(--fill);
 }
 
 .chart-editor__controls>label,
@@ -91,7 +91,7 @@
   flex-direction: column;
   gap: 0.25rem;
   color: var(--muted);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
   font-weight: 600;
 }
 
@@ -112,15 +112,15 @@
   gap: 0.3rem;
   margin: 0;
   padding: 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: 0.8rem;
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-control);
+  font-size: var(--size-caption);
 }
 
 .chart-editor__values legend,
 .dashboard-editor__controls legend {
   color: var(--muted);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
   font-weight: 600;
 }
 
@@ -149,16 +149,16 @@
   min-height: 0;
   padding: 1rem;
   overflow: auto;
-  background: var(--bg);
+  background: var(--window);
 }
 
 .viz-chart,
 .mermaid-card {
   padding: 1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow-1);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-card);
+  background: var(--content);
+  box-shadow: var(--elevation-card);
 }
 
 .viz-chart__head {
@@ -168,13 +168,13 @@
 
 .viz-chart__head h3,
 .mermaid-card__head h3 {
-  font-size: 1rem;
+  font-size: var(--size-body);
 }
 
 .viz-chart__head p {
   margin: 0.1rem 0 0;
   color: var(--muted);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
 }
 
 .viz-chart__actions {
@@ -195,7 +195,7 @@
 }
 
 .viz-chart__grid {
-  stroke: var(--border);
+  stroke: var(--separator);
   stroke-width: 1;
 }
 
@@ -210,7 +210,7 @@
 .viz-chart__metric-change,
 .viz-chart__empty-svg {
   fill: var(--muted);
-  font: 12px system-ui, sans-serif;
+  font: var(--size-caption) var(--font-sans);
 }
 
 .viz-chart__line {
@@ -226,12 +226,12 @@
 }
 
 .viz-chart__metric-label {
-  font-size: 16px;
+  font-size: var(--size-title-2);
 }
 
 .viz-chart__metric-change {
   fill: var(--good);
-  font-size: 14px;
+  font-size: var(--size-control);
 }
 
 .viz-chart__metric-change--down {
@@ -241,7 +241,7 @@
 .viz-chart__note {
   margin: 0.6rem 0 0;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .viz-chart__empty {
@@ -256,14 +256,14 @@
   max-height: 24rem;
   margin-top: 0.8rem;
   overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-control);
 }
 
 .viz-table table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .viz-table th,
@@ -271,7 +271,7 @@
   max-width: 22rem;
   padding: 0.4rem 0.55rem;
   overflow: hidden;
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--hairline) solid var(--separator);
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -281,7 +281,8 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--surface-2);
+  /* Opaque under the fill: rows scroll beneath a sticky header. */
+  background: linear-gradient(var(--fill), var(--fill)), var(--content);
 }
 
 .dashboard-editor {
@@ -297,7 +298,7 @@
   align-content: start;
   padding: 1rem;
   overflow: auto;
-  background: var(--bg);
+  background: var(--window);
 }
 
 .dashboard--1 { grid-template-columns: minmax(0, 1fr); }
@@ -315,12 +316,12 @@
 .diagram-editor__source textarea {
   min-height: 24rem;
   resize: vertical;
-  font: 0.8rem/1.5 var(--mono);
+  font: var(--size-caption) / 1.5 var(--font-mono);
 }
 
 .diagram-editor__source p {
   color: var(--muted);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
 }
 
 .mermaid-card__figure {
@@ -345,7 +346,7 @@
   .dashboard-editor { grid-template-columns: 1fr; grid-template-rows: auto 1fr; overflow: auto; }
   .chart-editor__controls,
   .dashboard-editor__controls,
-  .diagram-editor__source { overflow: visible; border-right: 0; border-bottom: 1px solid var(--border); }
+  .diagram-editor__source { overflow: visible; border-right: 0; border-bottom: var(--hairline) solid var(--separator); }
   .chart-editor__controls {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
@@ -361,7 +362,7 @@
   .dashboard-editor { grid-template-columns: 1fr; overflow: auto; }
   .chart-editor__controls,
   .dashboard-editor__controls,
-  .diagram-editor__source { overflow: visible; border-right: 0; border-bottom: 1px solid var(--border); }
+  .diagram-editor__source { overflow: visible; border-right: 0; border-bottom: var(--hairline) solid var(--separator); }
   .dashboard--2,
   .dashboard--3 { grid-template-columns: minmax(0, 1fr); }
 }
@@ -451,8 +452,8 @@
   animation: view-in var(--dur-slow) var(--ease-out) backwards;
 }
 
-/* Buttons answer the pointer: colours ease, a press sinks a little, and the
-   primary action lifts toward the pointer on hover. */
+/* Buttons answer the pointer: colours ease and a press sinks a little.
+   Nothing lifts toward the pointer; a fill change is enough (brief 5.2). */
 .button,
 .link-button,
 .link,
@@ -470,16 +471,6 @@
 .button:active:not(:disabled),
 .app__waiting:active {
   transform: scale(0.97);
-}
-
-.button--primary:hover:not(:disabled) {
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 32%, transparent);
-  transform: translateY(-1px);
-}
-
-.button--primary:active:not(:disabled) {
-  box-shadow: none;
-  transform: translateY(0) scale(0.97);
 }
 
 /* A button waiting on the sidecar says so without changing its width much:
@@ -501,20 +492,18 @@
   content: "";
 }
 
-/* Cards that open something lift slightly under the pointer. */
+/* Cards that open something gain elevation under the pointer. */
 .run-card,
 .roster-card,
 .usage__card {
   transition:
     border-color var(--dur-base) var(--ease-out),
-    box-shadow var(--dur-base) var(--ease-out),
-    transform var(--dur-base) var(--ease-out);
+    box-shadow var(--dur-base) var(--ease-out);
 }
 
 .run-card:hover,
 .roster-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--elevation-raised);
 }
 
 .run-card:active {
@@ -535,7 +524,7 @@
   border-radius: 0 3px 3px 0;
   background: var(--accent);
   transform: scaleY(0);
-  transition: transform var(--dur-base) var(--ease-spring);
+  transition: transform var(--spring-snappy-duration) var(--spring-snappy);
   content: "";
 }
 
@@ -558,20 +547,10 @@
   transition: grid-template-columns var(--dur-slow) var(--ease-out);
 }
 
-/* Menus and dialogs. `--closing` is set by `usePresence` while an element
-   plays its way out before it is removed. */
-.switcher__menu {
-  transform-origin: top center;
-  animation: pop-in var(--dur-base) var(--ease-out) backwards;
-}
-
-.switcher__menu--closing {
-  pointer-events: none;
-  animation: pop-out var(--dur-quick) ease-in forwards;
-}
-
+/* Dialogs. `--closing` is set by `usePresence` while an element plays its
+   way out before it is removed. Popovers and sheets bring their own. */
 .tour__card {
-  animation: rise-in var(--dur-slow) var(--ease-spring) backwards;
+  animation: rise-in var(--spring-smooth-duration) var(--spring-smooth) backwards;
 }
 
 .tour--closing {
@@ -607,7 +586,7 @@
 }
 
 .knowledge__toast {
-  animation: toast-in var(--dur-slow) var(--ease-spring) backwards;
+  animation: toast-in var(--spring-bouncy-duration) var(--spring-bouncy) backwards;
 }
 
 .settings__saved {

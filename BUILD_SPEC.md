@@ -1813,7 +1813,8 @@ recommended defaults D1 to D9, all accepted):
 
 1. **20.1 Baseline, workbench and rules.** No visible change. *(Built
    2026-11-12: see docs/verification.md.)*
-2. **20.2 Tokens, type, icons and primitives.**
+2. **20.2 Tokens, type, icons and primitives.** *(Built 2026-11-13: see
+   docs/verification.md.)*
 3. **20.3 The shell.**
 4. **20.4 The office, at rest.**
 5. **20.5 The office in motion.**

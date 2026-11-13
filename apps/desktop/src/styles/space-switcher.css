@@ -14,9 +14,9 @@
   align-items: center;
   width: 100%;
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-control);
+  background: var(--fill);
   color: var(--text);
   font: inherit;
   text-align: left;
@@ -30,14 +30,14 @@
 .switcher__label {
   grid-area: label;
   color: var(--muted);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
   font-weight: 500;
 }
 
 .switcher__name {
   grid-area: name;
   overflow: hidden;
-  font-size: 0.9333rem;
+  font-size: var(--size-control);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -50,20 +50,13 @@
   color: var(--muted);
 }
 
+/* A `Popover`: it places itself under the button and brings its own surface. */
 .switcher__menu {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 0.35rem);
-  right: 0;
-  left: 0;
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  padding: 0.4rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow-2);
+  width: 15rem;
+  padding: var(--space-1);
 }
 
 .switcher__list {
@@ -82,48 +75,48 @@
   width: 100%;
   padding: 0.45rem 0.6rem;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   background: none;
   color: var(--text);
   font: inherit;
-  font-size: 0.9333rem;
+  font-size: var(--size-control);
   text-align: left;
   cursor: pointer;
 }
 
 .switcher__item:hover {
-  background: var(--surface-2);
+  background: var(--fill-hover);
 }
 
 .switcher__item--current {
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-strong);
   font-weight: 600;
 }
 
 .switcher__item--new {
-  border-top: 1px solid var(--border);
-  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
-  color: var(--accent);
+  border-top: var(--hairline) solid var(--separator);
+  border-radius: 0 0 var(--radius-control) var(--radius-control);
+  color: var(--accent-strong);
   font-weight: 500;
 }
 
 .switcher__default {
   margin-left: auto;
   color: var(--faint);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
   font-weight: 500;
 }
 
 .switcher__archived {
-  border-top: 1px solid var(--border);
+  border-top: var(--hairline) solid var(--separator);
   padding-top: 0.35rem;
 }
 
 .switcher__archived summary {
   padding: 0.25rem 0.6rem;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
   cursor: pointer;
 }
 
@@ -132,7 +125,7 @@
   flex-direction: column;
   gap: 0.6rem;
   padding: 0.5rem 0.4rem 0.25rem;
-  border-top: 1px solid var(--border);
+  border-top: var(--hairline) solid var(--separator);
 }
 
 .switcher__seed {
@@ -147,12 +140,12 @@
 .switcher__seed legend {
   margin-bottom: 0.25rem;
   color: var(--muted);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
   font-weight: 500;
 }
 
 .switcher__seed .editor__tool {
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .switcher__actions {
@@ -179,32 +172,30 @@
   width: 100%;
   padding: 0.5rem 0.75rem;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   background: none;
   color: var(--muted);
   font: inherit;
-  font-size: 0.9333rem;
+  font-size: var(--size-control);
   font-weight: 500;
   text-align: left;
   cursor: pointer;
 }
 
-.rail__item svg {
-  flex: none;
-  width: 1.125rem;
-  height: 1.125rem;
-  fill: currentcolor;
+.rail__item .icon {
+  width: 1.2rem;
+  height: 1.2rem;
 }
 
 .rail__item:hover {
-  background: var(--surface-2);
+  background: var(--fill-hover);
   color: var(--text);
 }
 
 .rail__item--active,
 .rail__item--active:hover {
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-strong);
 }
 
 .rail__item>span:first-of-type {
@@ -213,10 +204,10 @@
 
 .rail__badge {
   padding: 0 0.45rem;
-  border-radius: 999px;
+  border-radius: var(--radius-capsule);
   background: var(--warn);
-  color: #1a1200;
-  font-size: 0.6667rem;
+  color: var(--on-warn);
+  font-size: var(--size-caption);
   font-weight: 700;
   line-height: 1.5;
 }

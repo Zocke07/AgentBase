@@ -10,8 +10,8 @@
   margin: 1rem;
   padding: 1rem 1.25rem;
   border: 1px solid var(--bad);
-  border-radius: var(--radius);
-  background: var(--surface);
+  border-radius: var(--radius-card);
+  background: var(--content);
 }
 
 .boundary__title {
@@ -22,17 +22,17 @@
 .boundary__message {
   margin: 0 0 0.5rem;
   padding: 0.5rem 0.65rem;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  border-radius: var(--radius-control);
+  background: var(--fill);
   color: var(--bad);
-  font-family: var(--mono);
-  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  font-size: var(--size-caption);
   white-space: pre-wrap;
 }
 
 .boundary__hint {
   margin: 0 0 0.75rem;
   color: var(--muted);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 

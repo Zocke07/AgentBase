@@ -1,24 +1,64 @@
 /* --- tokens --------------------------------------------------------------- */
 
+/*
+ * Components use these roles and never a ramp value (Phase 20, brief 4.1).
+ *
+ * Planes       --window (behind everything), --sidebar (the rail and other
+ *              navigation columns), --content (cards, panels, notes),
+ *              --elevated (menus, popovers, sheets).
+ * Controls     --control and its hover and pressed fills: buttons and fields.
+ * Fills        translucent, so one value sits on any plane: --fill (a quiet
+ *              inset: code, chips, table heads, readouts), --fill-hover,
+ *              --fill-selected, --fill-strong (tracks and tags).
+ * Lines        --separator (hairlines), --border-strong (control outlines).
+ * Text         --text, --muted, --faint. Faint is the lightest text allowed
+ *              and sits on a plane, a control, --fill or --fill-hover; on
+ *              a selected or strong fill use --muted or --text.
+ * Accent       --accent fills and marks; --accent-strong is the accent as
+ *              text; --accent-soft a tint; --accent-line a tinted edge.
+ * Status       --good, --bad, --warn, --info as text and marks, each with a
+ *              -soft tint and a -line edge, and an --on- colour for text on
+ *              a solid fill of it. --warn-tint and --info-tint are stronger
+ *              tints for a highlight and a hovered soft fill; text on one is
+ *              --text.
+ * Material     --material and --material-filter: the floating plane only.
+ *
+ * Every colour is defined three times: light here, dark under the OS
+ * preference, and dark again under the explicit override. `design/` holds
+ * that, the contrast of every listed text and ground pair, and the spring
+ * tokens as tests.
+ */
+
 :root {
   color-scheme: light;
 
-  --bg: #f3f4f7;
-  --surface: #ffffff;
-  --surface-2: #eceef3;
-  --surface-3: #e2e5ec;
-  --border: #dcdfe7;
-  --border-strong: #bfc5d2;
-  --text: #1a1e29;
-  /* 6.5:1 on a surface, 5.9:1 on the page. */
-  --muted: #555e70;
-  /* The lightest text allowed: 5.0:1 on a surface, 4.6:1 on the page. */
-  --faint: #666f82;
+  --window: #f5f5f7;
+  --sidebar: #ededf0;
+  --content: #ffffff;
+  --elevated: #ffffff;
 
-  /* White on the accent is 5.0:1; the brighter orange it replaced was 3.8:1. */
+  --control: #ffffff;
+  --control-hover: #f2f2f4;
+  --control-pressed: #e6e6e9;
+
+  --fill: rgb(118 118 128 / 8%);
+  --fill-hover: rgb(118 118 128 / 12%);
+  --fill-selected: rgb(118 118 128 / 16%);
+  --fill-strong: rgb(118 118 128 / 20%);
+
+  --separator: rgb(60 60 67 / 14%);
+  --border-strong: rgb(60 60 67 / 28%);
+
+  --text: #1d1d1f;
+  --muted: #4f4f55;
+  /* The lightest text allowed. */
+  --faint: #626269;
+
+  /* White on the accent is 5.0:1. As text the accent is --accent-strong. */
   --accent: #b8501e;
   --accent-strong: #9c4218;
   --accent-soft: rgb(184 80 30 / 12%);
+  --accent-line: rgb(184 80 30 / 45%);
   --on-accent: #ffffff;
 
   /* The product mark keeps one identity instead of borrowing status colours. */
@@ -28,14 +68,23 @@
   --brand-ring: #ffffff;
   --brand-shadow: rgb(20 24 40 / 12%);
 
-  --good: #1a7a50;
-  --good-soft: rgb(26 122 80 / 12%);
-  --bad: #c43d2c;
-  --bad-soft: rgb(196 61 44 / 10%);
-  --warn: #8f5e0a;
-  --warn-soft: rgb(143 94 10 / 12%);
-  --info: #2a6bb0;
-  --info-soft: rgb(42 107 176 / 12%);
+  --good: #176a3c;
+  --good-soft: rgb(23 106 60 / 12%);
+  --good-line: rgb(23 106 60 / 45%);
+  --on-good: #ffffff;
+  --bad: #b3261e;
+  --bad-soft: rgb(179 38 30 / 10%);
+  --bad-line: rgb(179 38 30 / 45%);
+  --on-bad: #ffffff;
+  --warn: #7a5200;
+  --warn-soft: rgb(122 82 0 / 12%);
+  --warn-line: rgb(122 82 0 / 45%);
+  --warn-tint: rgb(122 82 0 / 22%);
+  --on-warn: #ffffff;
+  --info: #1d5ba6;
+  --info-soft: rgb(29 91 166 / 12%);
+  --info-line: rgb(29 91 166 / 45%);
+  --info-tint: rgb(29 91 166 / 20%);
 
   --viz-1: #2a6bb0;
   --viz-2: #d4622a;
@@ -51,31 +100,100 @@
 
   /* The run's states. */
   --status-pending: var(--faint);
-  --status-running: var(--accent);
+  --status-running: var(--accent-strong);
   --status-paused: var(--warn);
   --status-completed: var(--good);
   --status-failed: var(--bad);
   --status-cancelled: var(--muted);
 
-  --shadow-1: 0 1px 2px rgb(20 24 40 / 6%), 0 4px 14px rgb(20 24 40 / 6%);
-  --shadow-2: 0 2px 6px rgb(20 24 40 / 10%), 0 12px 32px rgb(20 24 40 / 12%);
-  --radius: 10px;
-  --radius-sm: 6px;
+  /* A floating layer's surface: translucent over a blur, never below about
+     80% so text on it keeps its contrast. Opaque where the filter is missing,
+     under forced colours and when Reduce transparency is on (below). */
+  --material: rgb(255 255 255 / 86%);
+  --material-filter: blur(24px) saturate(160%);
+  /* The dim behind a sheet, a drawer and the tour. */
+  --scrim: rgb(20 20 24 / 32%);
+  /* A switch's thumb when it is off. */
+  --thumb: #ffffff;
 
-  /* Motion: three speeds and two curves; nothing else moves. */
+  /* Elevation: card, raised (hover and selection), floating (menus,
+     popovers, the palette) and modal (sheets). A wide soft ambient and a
+     short key; floating layers add a hairline so their edge reads on any
+     ground. */
+  --elevation-card: 0 1px 2px rgb(0 0 0 / 4%), 0 2px 8px rgb(0 0 0 / 4%);
+  --elevation-raised: 0 1px 2px rgb(0 0 0 / 6%), 0 6px 18px rgb(0 0 0 / 9%);
+  --elevation-floating: 0 0 0 0.5px rgb(0 0 0 / 14%), 0 2px 6px rgb(0 0 0 / 8%), 0 12px 32px rgb(0 0 0 / 16%);
+  --elevation-modal: 0 0 0 0.5px rgb(0 0 0 / 16%), 0 8px 24px rgb(0 0 0 / 14%), 0 32px 72px rgb(0 0 0 / 24%);
+
+  /* Hairlines are 1 px at 1x, so Windows at 100% never loses a separator,
+     and 0.5 px from 2x (below). */
+  --hairline: 1px;
+
+  /* Radii. Nested corners are concentric: inner = outer - the padding. */
+  --radius-chip: 4px;
+  --radius-control: 6px;
+  --radius-card: 10px;
+  --radius-panel: 14px;
+  --radius-tile: 20px;
+  --radius-capsule: 999px;
+
+  /* A 4 px grid. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Type (brief 4.2). The Mac's system font is reached through
+     `-apple-system` and never bundled; Windows 11 has Segoe UI Variable with
+     optical sizes, named explicitly, and Windows 10 has Segoe UI. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  /* Only for IDs, payloads and code. */
+  --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+
+  --size-large-title: 26px;
+  --leading-large-title: 32px;
+  --size-title-1: 22px;
+  --leading-title-1: 28px;
+  --size-title-2: 17px;
+  --leading-title-2: 24px;
+  --size-headline: 15px;
+  --leading-headline: 22px;
+  --size-body: 15px;
+  --leading-body: 1.5;
+  --size-control: 14px;
+  --leading-control: 20px;
+  /* The smallest text. */
+  --size-caption: 13px;
+  --leading-caption: 18px;
+
+  /* Motion: three fade durations, one curve, and three springs. The springs
+     are generated by `lib/springs.ts`; its test holds these values to it. */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-spring: cubic-bezier(0.34, 1.35, 0.64, 1);
   --dur-quick: 120ms;
   --dur-base: 200ms;
   --dur-slow: 320ms;
+  --spring-snappy: linear(0, 0.061, 0.188, 0.333, 0.47, 0.589, 0.686, 0.764, 0.825, 0.871, 0.906, 0.931, 0.95, 0.964, 0.974, 0.982, 0.987, 0.991, 0.993, 0.995, 0.997, 0.998, 0.998, 1);
+  --spring-snappy-duration: 290ms;
+  --spring-smooth: linear(0, 0.062, 0.192, 0.338, 0.476, 0.595, 0.692, 0.77, 0.829, 0.875, 0.909, 0.934, 0.953, 0.966, 0.976, 0.983, 0.988, 0.991, 0.994, 0.996, 0.997, 0.998, 0.999, 1);
+  --spring-smooth-duration: 440ms;
+  --spring-bouncy: linear(0, 0.079, 0.253, 0.452, 0.635, 0.784, 0.894, 0.967, 1.01, 1.031, 1.038, 1.036, 1.03, 1.023, 1.015, 1.009, 1.005, 1.002, 1, 0.999, 0.999, 0.999, 0.999, 1);
+  --spring-bouncy-duration: 520ms;
+
+  /* Floating layers. A popover is above a sheet: a menu can open from one. */
+  --layer-sheet: 70;
+  --layer-popover: 80;
 
   --rail-width: 13.5rem;
 
-  --mono: ui-monospace, "Cascadia Code", Consolas, "SF Mono", Menlo, monospace;
-
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  font-size: 15px;
-  line-height: 1.5;
+  font-family: var(--font-sans);
+  font-size: var(--size-body);
+  line-height: var(--leading-body);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -83,35 +201,56 @@
   :root:not([data-theme="light"]) {
     color-scheme: dark;
 
-    --bg: #0e1016;
-    --surface: #161922;
-    --surface-2: #1e222d;
-    --surface-3: #272c39;
-    --border: #2a2f3c;
-    --border-strong: #3c4354;
-    --text: #e7e9f0;
-    --muted: #8d95a9;
-    --faint: #7e869c;
+    --window: #1c1c1e;
+    --sidebar: #212123;
+    --content: #242426;
+    --elevated: #2c2c2e;
+
+    --control: #343437;
+    --control-hover: #3c3c3f;
+    --control-pressed: #454548;
+
+    --fill: rgb(255 255 255 / 5%);
+    --fill-hover: rgb(255 255 255 / 8%);
+    --fill-selected: rgb(255 255 255 / 12%);
+    --fill-strong: rgb(255 255 255 / 14%);
+
+    --separator: rgb(255 255 255 / 10%);
+    --border-strong: rgb(255 255 255 / 20%);
+
+    --text: #f2f2f4;
+    --muted: #bcbcc3;
+    --faint: #a9a9b0;
 
     --accent: #ff8f52;
     --accent-strong: #ffa672;
     --accent-soft: rgb(255 143 82 / 14%);
+    --accent-line: rgb(255 143 82 / 45%);
     --on-accent: #1a0f06;
 
     --brand-lead: #ff8f52;
     --brand-base: #6bc1d4;
     --brand-links: #74809e;
-    --brand-ring: #161922;
+    --brand-ring: #212123;
     --brand-shadow: rgb(0 0 0 / 32%);
 
     --good: #6fcf8e;
     --good-soft: rgb(111 207 142 / 14%);
-    --bad: #f2705d;
-    --bad-soft: rgb(242 112 93 / 14%);
+    --good-line: rgb(111 207 142 / 45%);
+    --on-good: #06210f;
+    --bad: #ff8a7c;
+    --bad-soft: rgb(255 138 124 / 14%);
+    --bad-line: rgb(255 138 124 / 45%);
+    --on-bad: #2a0a06;
     --warn: #e8c468;
     --warn-soft: rgb(232 196 104 / 14%);
+    --warn-line: rgb(232 196 104 / 45%);
+    --warn-tint: rgb(232 196 104 / 26%);
+    --on-warn: #1a1200;
     --info: #6cb4e6;
     --info-soft: rgb(108 180 230 / 14%);
+    --info-line: rgb(108 180 230 / 45%);
+    --info-tint: rgb(108 180 230 / 26%);
 
     --viz-1: #6cb4e6;
     --viz-2: #ff8f52;
@@ -120,43 +259,70 @@
     --viz-5: #e8c468;
     --viz-6: #ed82a0;
 
-    --shadow-1: 0 1px 2px rgb(0 0 0 / 40%), 0 4px 14px rgb(0 0 0 / 30%);
-    --shadow-2: 0 2px 6px rgb(0 0 0 / 45%), 0 12px 32px rgb(0 0 0 / 40%);
+    --material: rgb(44 44 46 / 84%);
+    --scrim: rgb(0 0 0 / 48%);
+    --thumb: #e6e6ea;
+
+    --elevation-card: 0 1px 2px rgb(0 0 0 / 28%), 0 2px 8px rgb(0 0 0 / 20%);
+    --elevation-raised: inset 0 1px 0 rgb(255 255 255 / 6%), 0 1px 2px rgb(0 0 0 / 36%), 0 6px 18px rgb(0 0 0 / 30%);
+    --elevation-floating: inset 0 1px 0 rgb(255 255 255 / 6%), 0 0 0 0.5px rgb(0 0 0 / 60%), 0 2px 6px rgb(0 0 0 / 36%), 0 12px 32px rgb(0 0 0 / 44%);
+    --elevation-modal: inset 0 1px 0 rgb(255 255 255 / 6%), 0 0 0 0.5px rgb(0 0 0 / 60%), 0 8px 24px rgb(0 0 0 / 40%), 0 32px 72px rgb(0 0 0 / 56%);
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --bg: #0e1016;
-  --surface: #161922;
-  --surface-2: #1e222d;
-  --surface-3: #272c39;
-  --border: #2a2f3c;
-  --border-strong: #3c4354;
-  --text: #e7e9f0;
-  --muted: #8d95a9;
-  --faint: #7e869c;
+  --window: #1c1c1e;
+  --sidebar: #212123;
+  --content: #242426;
+  --elevated: #2c2c2e;
+
+  --control: #343437;
+  --control-hover: #3c3c3f;
+  --control-pressed: #454548;
+
+  --fill: rgb(255 255 255 / 5%);
+  --fill-hover: rgb(255 255 255 / 8%);
+  --fill-selected: rgb(255 255 255 / 12%);
+  --fill-strong: rgb(255 255 255 / 14%);
+
+  --separator: rgb(255 255 255 / 10%);
+  --border-strong: rgb(255 255 255 / 20%);
+
+  --text: #f2f2f4;
+  --muted: #bcbcc3;
+  --faint: #a9a9b0;
 
   --accent: #ff8f52;
   --accent-strong: #ffa672;
   --accent-soft: rgb(255 143 82 / 14%);
+  --accent-line: rgb(255 143 82 / 45%);
   --on-accent: #1a0f06;
 
   --brand-lead: #ff8f52;
   --brand-base: #6bc1d4;
   --brand-links: #74809e;
-  --brand-ring: #161922;
+  --brand-ring: #212123;
   --brand-shadow: rgb(0 0 0 / 32%);
 
   --good: #6fcf8e;
   --good-soft: rgb(111 207 142 / 14%);
-  --bad: #f2705d;
-  --bad-soft: rgb(242 112 93 / 14%);
+  --good-line: rgb(111 207 142 / 45%);
+  --on-good: #06210f;
+  --bad: #ff8a7c;
+  --bad-soft: rgb(255 138 124 / 14%);
+  --bad-line: rgb(255 138 124 / 45%);
+  --on-bad: #2a0a06;
   --warn: #e8c468;
   --warn-soft: rgb(232 196 104 / 14%);
+  --warn-line: rgb(232 196 104 / 45%);
+  --warn-tint: rgb(232 196 104 / 26%);
+  --on-warn: #1a1200;
   --info: #6cb4e6;
   --info-soft: rgb(108 180 230 / 14%);
+  --info-line: rgb(108 180 230 / 45%);
+  --info-tint: rgb(108 180 230 / 26%);
 
   --viz-1: #6cb4e6;
   --viz-2: #ff8f52;
@@ -165,7 +331,53 @@
   --viz-5: #e8c468;
   --viz-6: #ed82a0;
 
-  --shadow-1: 0 1px 2px rgb(0 0 0 / 40%), 0 4px 14px rgb(0 0 0 / 30%);
-  --shadow-2: 0 2px 6px rgb(0 0 0 / 45%), 0 12px 32px rgb(0 0 0 / 40%);
+  --material: rgb(44 44 46 / 84%);
+  --scrim: rgb(0 0 0 / 48%);
+  --thumb: #e6e6ea;
+
+  --elevation-card: 0 1px 2px rgb(0 0 0 / 28%), 0 2px 8px rgb(0 0 0 / 20%);
+  --elevation-raised: inset 0 1px 0 rgb(255 255 255 / 6%), 0 1px 2px rgb(0 0 0 / 36%), 0 6px 18px rgb(0 0 0 / 30%);
+  --elevation-floating: inset 0 1px 0 rgb(255 255 255 / 6%), 0 0 0 0.5px rgb(0 0 0 / 60%), 0 2px 6px rgb(0 0 0 / 36%), 0 12px 32px rgb(0 0 0 / 44%);
+  --elevation-modal: inset 0 1px 0 rgb(255 255 255 / 6%), 0 0 0 0.5px rgb(0 0 0 / 60%), 0 8px 24px rgb(0 0 0 / 40%), 0 32px 72px rgb(0 0 0 / 56%);
 }
 
+/* From 2x, a hairline is half a pixel. */
+@media (min-resolution: 2dppx), (-webkit-min-device-pixel-ratio: 2) {
+  :root {
+    --hairline: 0.5px;
+  }
+}
+
+/* An engine without `linear()` gets curves of the same character. */
+@supports not (transition-timing-function: linear(0, 1)) {
+  :root {
+    --spring-snappy: cubic-bezier(0.2, 0.9, 0.3, 1);
+    --spring-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+    --spring-bouncy: cubic-bezier(0.34, 1.35, 0.64, 1);
+  }
+}
+
+/*
+ * A material is opaque wherever its blur would not be there to hold the
+ * text's contrast: an engine without `backdrop-filter`, forced colours, and
+ * the Reduce transparency setting (`lib/transparency.ts`). These follow the
+ * theme blocks so that they win over them.
+ */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root:root {
+    --material: var(--elevated);
+    --material-filter: none;
+  }
+}
+
+@media (forced-colors: active) {
+  :root:root {
+    --material: var(--elevated);
+    --material-filter: none;
+  }
+}
+
+:root[data-transparency="reduce"]:root {
+  --material: var(--elevated);
+  --material-filter: none;
+}

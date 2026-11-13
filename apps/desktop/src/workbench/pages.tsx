@@ -4,7 +4,10 @@ import { SCENARIOS } from "../test/scenarios";
 
 import { ScenarioPlayer } from "./ScenarioPlayer";
 import { ControlsPage } from "./pages/ControlsPage";
+import { IconsPage } from "./pages/IconsPage";
+import { PrimitivesPage } from "./pages/PrimitivesPage";
 import { RailPage } from "./pages/RailPage";
+import { ShapePage } from "./pages/ShapePage";
 import { TokensPage } from "./pages/TokensPage";
 import { TypePage } from "./pages/TypePage";
 
@@ -12,8 +15,7 @@ import { TypePage } from "./pages/TypePage";
  * The workbench's pages. Each renders one part of the interface from
  * fixtures alone, so it can be looked at, screenshotted and checked for
  * accessibility without a sidecar. A later stage adds its pages here (the
- * icons, the primitives, the shell, the office), and the browser tests pick
- * them up from this list.
+ * shell, the office), and the browser tests pick them up from this list.
  */
 
 export interface PageContext {
@@ -55,8 +57,24 @@ export const PAGES: readonly WorkbenchPage[] = [
     title: "Type",
     group: "Foundations",
     layout: "flow",
-    about: "The type each kind of text has today, as the browser computed it.",
+    about: "The type scale, with what the browser computed for each style.",
     render: () => <TypePage />,
+  },
+  {
+    id: "icons",
+    title: "Icons",
+    group: "Foundations",
+    layout: "flow",
+    about: "Every vendored icon at 16, 20 and 24 px, and filled.",
+    render: () => <IconsPage />,
+  },
+  {
+    id: "shape",
+    title: "Shape, depth and motion",
+    group: "Foundations",
+    layout: "flow",
+    about: "Space, radii, elevation, planes and fills, the floating material and the springs.",
+    render: () => <ShapePage />,
   },
   {
     id: "controls",
@@ -65,6 +83,14 @@ export const PAGES: readonly WorkbenchPage[] = [
     layout: "flow",
     about: "Buttons, badges, cards, fields and loading placeholders in their states.",
     render: () => <ControlsPage />,
+  },
+  {
+    id: "primitives",
+    title: "Primitives",
+    group: "Components",
+    layout: "flow",
+    about: "Icon buttons, the switch, the segmented choice, and the menu, popover and sheet, live and at rest.",
+    render: () => <PrimitivesPage />,
   },
   {
     id: "rail",

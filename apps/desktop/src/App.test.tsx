@@ -318,7 +318,10 @@ describe("switching sections", () => {
 
     expect(screen.queryByRole("button", { name: "Visualize" })).toBeNull();
     expect(screen.getByRole("button", { name: "Knowledge" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Usage" }).querySelector("svg")?.getAttribute("data-icon")).toBe("usage");
+    // Its own icon, not the one another section has: the name is Lucide's.
+    expect(screen.getByRole("button", { name: "Usage" }).querySelector("svg")?.getAttribute("data-icon")).toBe(
+      "circle-dollar-sign",
+    );
   });
 
   it("folds the sidebar to icons from its button or Ctrl/Cmd+B, and remembers it", async () => {

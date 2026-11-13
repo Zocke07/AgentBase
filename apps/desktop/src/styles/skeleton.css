@@ -8,12 +8,12 @@
 
 .skeleton__bar {
   height: 0.85rem;
-  border-radius: 999px;
+  border-radius: var(--radius-capsule);
   background: linear-gradient(
       90deg,
-      var(--surface-2) 0%,
-      var(--surface-3) 50%,
-      var(--surface-2) 100%
+      var(--fill) 0%,
+      var(--fill-strong) 50%,
+      var(--fill) 100%
     )
     0 0 / 200% 100%;
   animation: shimmer 1.4s ease-in-out infinite;
@@ -32,9 +32,9 @@
   display: grid;
   gap: 0.55rem;
   padding: 1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-card);
+  background: var(--content);
 }
 
 /* A small spinner for a status line: "Checking…", "Connecting…". */

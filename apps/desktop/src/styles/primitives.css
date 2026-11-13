@@ -1,0 +1,332 @@
+/* --- primitives ----------------------------------------------------------- */
+
+/*
+ * The shared parts every section is built from (Phase 20, stage 20.2): the
+ * icon, the icon button, the popover and the menu on it, the sheet, the
+ * switch and the segmented choice. Their behaviour is in `components/ui/`.
+ * This file sits before the sections' own, so a section can adjust a
+ * primitive where it must without raising specificity.
+ */
+
+/* An icon is stroked in the text's colour: 1.5 px, round caps and joins. The
+   component sets the size and the stroke width that keeps it 1.5 px. */
+.icon {
+  flex: none;
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The selected row of the rail: a soft fill behind the strokes. */
+.icon--filled {
+  fill: currentcolor;
+  fill-opacity: 0.18;
+}
+
+/* --- icon button ---------------------------------------------------------- */
+
+.icon-button {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--muted);
+  transition:
+    background-color var(--dur-quick) var(--ease-out),
+    color var(--dur-quick) var(--ease-out);
+}
+
+.icon-button:hover:not(:disabled) {
+  background: var(--fill-hover);
+  color: var(--text);
+}
+
+.icon-button:active:not(:disabled),
+.icon-button[aria-pressed="true"],
+.icon-button[aria-expanded="true"] {
+  background: var(--fill-selected);
+  color: var(--text);
+}
+
+.icon-button:disabled {
+  opacity: 0.4;
+}
+
+/* --- popover -------------------------------------------------------------- */
+
+/* Placed by `Popover` with `top` and `left`; only its entrance moves it. */
+.popover {
+  position: fixed;
+  z-index: var(--layer-popover);
+  min-width: 11rem;
+  max-width: min(24rem, calc(100vw - 16px));
+  overflow: auto;
+  border-radius: var(--radius-panel);
+  box-shadow: var(--elevation-floating);
+  color: var(--text);
+  font-size: var(--size-control);
+  transform-origin: top center;
+  animation: pop-in var(--spring-snappy-duration) var(--spring-snappy) backwards;
+}
+
+.popover[data-side="top"] {
+  transform-origin: bottom center;
+}
+
+/* An exit runs at about 70% of its entrance. */
+.popover--closing {
+  pointer-events: none;
+  animation: pop-out var(--dur-quick) ease-in forwards;
+}
+
+/* The panel takes focus so that Escape and Tab start from it; it is not a
+   control, and draws no ring. */
+.popover:focus {
+  outline: none;
+}
+
+/* --- menu ----------------------------------------------------------------- */
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-1);
+}
+
+.menu__item {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  width: 100%;
+  min-height: 28px;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  /* Concentric with the panel: its radius less the padding between them. */
+  border-radius: calc(var(--radius-panel) - var(--space-1));
+  background: none;
+  color: var(--text);
+  font: inherit;
+  line-height: var(--leading-control);
+  text-align: left;
+}
+
+/* The pointer and the keyboard share one highlight: the focused row. */
+.menu__item:focus {
+  outline: none;
+  background: var(--fill-selected);
+}
+
+.menu__item[aria-disabled="true"] {
+  opacity: 0.4;
+}
+
+.menu__item--danger {
+  color: var(--bad);
+}
+
+.menu__mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+
+.menu__label {
+  flex: 1;
+  min-width: 0;
+}
+
+.menu__shortcut {
+  margin-left: var(--space-4);
+  color: var(--muted);
+  font-size: var(--size-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.menu__separator {
+  height: var(--hairline);
+  margin: var(--space-1) var(--space-2);
+  background: var(--separator);
+}
+
+/* --- sheet ---------------------------------------------------------------- */
+
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-sheet);
+  display: grid;
+  place-items: center;
+  padding: var(--space-6);
+  background: var(--scrim);
+  animation: fade-in var(--dur-base) var(--ease-out) backwards;
+}
+
+.sheet--top {
+  place-items: start center;
+  padding-top: 12vh;
+}
+
+.sheet--small {
+  --sheet-width: 24rem;
+}
+
+.sheet--medium {
+  --sheet-width: 34rem;
+}
+
+.sheet--large {
+  --sheet-width: 46rem;
+}
+
+.sheet__panel {
+  display: flex;
+  flex-direction: column;
+  width: min(var(--sheet-width), 100%);
+  max-height: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-panel);
+  box-shadow: var(--elevation-modal);
+  color: var(--text);
+  animation: rise-in var(--spring-smooth-duration) var(--spring-smooth) backwards;
+}
+
+.sheet__panel:focus {
+  outline: none;
+}
+
+.sheet--closing {
+  pointer-events: none;
+  animation: fade-out var(--dur-base) ease-in forwards;
+}
+
+.sheet--closing .sheet__panel {
+  animation: sink-out var(--dur-base) ease-in forwards;
+}
+
+.sheet__head {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-4) var(--space-2) var(--space-5);
+}
+
+.sheet__title {
+  margin: 0;
+  font-size: var(--size-title-2);
+  line-height: var(--leading-title-2);
+}
+
+.sheet__body {
+  min-height: 0;
+  padding: var(--space-2) var(--space-5) var(--space-5);
+  overflow: auto;
+}
+
+.sheet__body > :first-child {
+  margin-top: 0;
+}
+
+.sheet__body > :last-child {
+  margin-bottom: 0;
+}
+
+.sheet__foot {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  padding: var(--space-3) var(--space-5) var(--space-4);
+  border-top: var(--hairline) solid var(--separator);
+}
+
+/* --- switch --------------------------------------------------------------- */
+
+/* On is the accent and the thumb at the right; off is a neutral track and
+   the thumb at the left. Position carries the state as well as colour. */
+.switch {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-capsule);
+  background: var(--fill-strong);
+  box-shadow: inset 0 0 0 var(--hairline) var(--border-strong);
+  transition: background-color var(--dur-base) var(--ease-out);
+}
+
+.switch::after {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--thumb);
+  box-shadow: var(--elevation-card);
+  transition: transform var(--spring-snappy-duration) var(--spring-snappy);
+  content: "";
+}
+
+.switch[aria-checked="true"] {
+  background: var(--accent);
+  box-shadow: none;
+}
+
+.switch[aria-checked="true"]::after {
+  background: var(--on-accent);
+  transform: translateX(14px);
+}
+
+.switch:disabled {
+  opacity: 0.4;
+}
+
+/* --- segmented choice ----------------------------------------------------- */
+
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: calc(var(--radius-control) + 2px);
+  background: var(--fill-strong);
+}
+
+.segmented__option {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--size-control);
+  font-weight: 500;
+  line-height: var(--leading-control);
+  transition:
+    background-color var(--dur-quick) var(--ease-out),
+    color var(--dur-quick) var(--ease-out);
+}
+
+.segmented__option:hover {
+  color: var(--text);
+}
+
+.segmented__option[aria-checked="true"] {
+  background: var(--control);
+  box-shadow: var(--elevation-card);
+  color: var(--text);
+}

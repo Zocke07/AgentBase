@@ -1,12 +1,12 @@
 import type { BudgetResponse, UsageBucket, UsageReport } from "@agentbase/schemas";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import * as api from "../lib/api";
 import { modelLabel, moneyShort, periodLabel } from "../lib/format";
 import { useFetched } from "../state/useFetched";
-import { usePresence } from "../state/usePresence";
 
 import { Skeleton } from "./Skeleton";
+import { Popover } from "./ui/Popover";
 
 /**
  * Month-to-date cap usage from `GET /budget`, not a single run-log projection;
@@ -37,33 +37,12 @@ function money(micros: number): string {
 
 export function BudgetMeter({ budget, spaceName, runLimitMicros, onOpenUsage, onOpenSettings }: BudgetMeterProps) {
   const [open, setOpen] = useState(false);
-  const panel = usePresence(open, 140);
   const anchor = useRef<HTMLDivElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
-  const dialog = useRef<HTMLDivElement>(null);
 
-  const close = useCallback((refocus: boolean) => {
+  const close = useCallback(() => {
     setOpen(false);
-    if (refocus) toggle.current?.focus();
   }, []);
-
-  // Escape or a click elsewhere closes it, like any other popover here.
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close(true);
-    };
-    const onPointer = (event: PointerEvent) => {
-      if (!(event.target instanceof Node) || anchor.current?.contains(event.target) !== true) close(false);
-    };
-    document.addEventListener("keydown", onKey);
-    document.addEventListener("pointerdown", onPointer);
-    dialog.current?.focus();
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.removeEventListener("pointerdown", onPointer);
-    };
-  }, [open, close]);
 
   if (budget === null) {
     return (
@@ -79,7 +58,7 @@ export function BudgetMeter({ budget, spaceName, runLimitMicros, onOpenUsage, on
     then === undefined
       ? undefined
       : () => {
-          close(false);
+          close();
           then();
         };
 
@@ -127,25 +106,29 @@ export function BudgetMeter({ budget, spaceName, runLimitMicros, onOpenUsage, on
         {level === "over" && <span className="budget__note">Monthly limit reached: new tasks will not start.</span>}
       </div>
 
-      {panel.mounted && (
-        <div
-          id="cost-panel"
-          ref={dialog}
-          className={`cost-panel${panel.closing ? " cost-panel--closing" : ""}`}
-          role="dialog"
-          aria-label="Spending this month"
-          tabIndex={-1}
-          data-testid="cost-panel"
-        >
-          <CostBreakdown
-            budget={budget}
-            spaceName={spaceName ?? null}
-            runLimitMicros={runLimitMicros ?? null}
-            onOpenUsage={go(onOpenUsage)}
-            onOpenSettings={go(onOpenSettings)}
-          />
-        </div>
-      )}
+      {/* The whole chip is the anchor, so a press anywhere on it is not a
+          press outside; focus goes back to the button inside it. */}
+      <Popover
+        open={open}
+        onClose={close}
+        anchor={anchor}
+        returnFocus={toggle}
+        align="end"
+        id="cost-panel"
+        className="cost-panel"
+        role="dialog"
+        label="Spending this month"
+        testId="cost-panel"
+        exitMs={140}
+      >
+        <CostBreakdown
+          budget={budget}
+          spaceName={spaceName ?? null}
+          runLimitMicros={runLimitMicros ?? null}
+          onOpenUsage={go(onOpenUsage)}
+          onOpenSettings={go(onOpenSettings)}
+        />
+      </Popover>
     </div>
   );
 }

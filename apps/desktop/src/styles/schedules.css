@@ -10,11 +10,11 @@
 .schedules__warning {
   margin: 0;
   padding: 0.5rem 0.75rem;
-  border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
-  border-radius: var(--radius-sm);
+  border: 1px solid var(--warn-line);
+  border-radius: var(--radius-control);
   background: var(--warn-soft);
   color: var(--warn);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 /* What an unattended run here will do, in one paragraph; amber while it
@@ -22,11 +22,11 @@
 .schedules__readout {
   margin: 0;
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-control);
+  background: var(--fill);
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .schedules__readout p {
@@ -38,7 +38,7 @@
 }
 
 .schedules__readout--warn {
-  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  border-color: var(--warn-line);
   background: var(--warn-soft);
   color: var(--warn);
 }
@@ -54,7 +54,7 @@
 .schedules__empty {
   margin: 0;
   color: var(--muted);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .schedules__list {
@@ -71,9 +71,9 @@
   gap: 0.75rem;
   align-items: flex-start;
   padding: 0.6rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-control);
+  background: var(--fill);
 }
 
 .schedule--off {
@@ -105,7 +105,7 @@
 
 .schedule__summary {
   color: var(--muted);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .schedule__goal {
@@ -114,13 +114,13 @@
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .schedule__when {
   margin: 0;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .schedule__outcome {
@@ -139,7 +139,7 @@
   padding: 0;
   border: 0;
   background: none;
-  color: var(--accent);
+  color: var(--accent-strong);
   font: inherit;
   text-decoration: underline;
   text-underline-offset: 0.15em;
@@ -156,12 +156,12 @@
   gap: 0.75rem;
   padding: 0.85rem 1rem 1rem;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  border-radius: var(--radius-control);
+  background: var(--fill);
 }
 
 .schedule-editor h3 {
-  font-size: 0.9333rem;
+  font-size: var(--size-control);
 }
 
 .schedule-editor__cadence {
@@ -185,9 +185,9 @@
   gap: 0.3rem;
   align-items: center;
   padding: 0.2rem 0.55rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  font-size: 0.8rem;
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-capsule);
+  font-size: var(--size-caption);
   cursor: pointer;
 }
 
@@ -200,17 +200,10 @@
 .schedule-editor__preview {
   margin: 0;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .settings__section--danger {
   border-color: var(--bad);
-}
-
-.settings__theme label {
-  display: flex;
-  gap: 0.4rem;
-  align-items: center;
-  font-size: 0.8667rem;
 }
 

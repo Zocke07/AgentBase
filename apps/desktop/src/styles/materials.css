@@ -1,0 +1,22 @@
+/* --- materials ------------------------------------------------------------ */
+
+/*
+ * The floating plane's surface (Phase 20, brief 4.3): a translucent token
+ * over a blur of what is behind it. Only layers that float over the window
+ * use it; everything set into the window is opaque. `--material` and
+ * `--material-filter` turn opaque in `tokens.css` where the blur would be
+ * missing, under forced colours and when Reduce transparency is on, so these
+ * rules never need to know.
+ */
+.popover,
+.sheet__panel,
+.source__completions,
+.knowledge__toast,
+.tour__card,
+.graph__legend,
+.note-bubble {
+  background: var(--material);
+  /* The prefixed form first: WebKit before 18 reads only that one. */
+  -webkit-backdrop-filter: var(--material-filter);
+  backdrop-filter: var(--material-filter);
+}

@@ -11,7 +11,8 @@
 }
 
 .shell__title {
-  font-size: 2rem;
+  font-family: var(--font-display);
+  font-size: var(--size-large-title);
   font-weight: 650;
   letter-spacing: -0.03em;
 }
@@ -20,7 +21,7 @@
   width: 3.75rem;
   height: 3.75rem;
   filter: drop-shadow(0 2px 3px var(--brand-shadow));
-  animation: rise-in var(--dur-slow) var(--ease-spring) backwards;
+  animation: rise-in var(--spring-smooth-duration) var(--spring-smooth) backwards;
 }
 
 .brand-mark {
@@ -53,7 +54,7 @@
 .shell__technical {
   max-width: 32rem;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
   text-align: left;
 }
 
@@ -71,7 +72,7 @@
 .shell__detail {
   margin: 0;
   color: var(--muted);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 /* The start screen's stages: a bar that fills as each one finishes, and the
@@ -82,8 +83,8 @@
   height: 4px;
   margin-top: 0.5rem;
   overflow: hidden;
-  border-radius: 999px;
-  background: var(--surface-3);
+  border-radius: var(--radius-capsule);
+  background: var(--fill-strong);
 }
 
 .startup__fill {
@@ -136,20 +137,20 @@
   height: 1.25rem;
   border: 1.5px solid var(--border-strong);
   border-radius: 50%;
-  font-size: 0.75rem;
+  font-size: var(--size-caption);
   font-weight: 700;
   line-height: 1;
 }
 
 .startup__stage--active .startup__mark {
   border-color: transparent;
-  color: var(--accent);
+  color: var(--accent-strong);
 }
 
 .startup__stage--done .startup__mark {
   border-color: var(--good);
   color: var(--good);
-  animation: pop-in var(--dur-base) var(--ease-spring) backwards;
+  animation: pop-in var(--spring-bouncy-duration) var(--spring-bouncy) backwards;
 }
 
 .startup__stage--failed .startup__mark {
@@ -163,7 +164,7 @@
 
 .startup__detail {
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
   font-weight: 400;
 }
 

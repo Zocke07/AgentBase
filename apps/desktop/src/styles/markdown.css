@@ -33,25 +33,27 @@
 }
 
 .md h1 {
-  font-size: 1.75rem;
+  font-family: var(--font-display);
+  font-size: var(--size-large-title);
 }
 
 .md h2 {
-  font-size: 1.35rem;
+  font-family: var(--font-display);
+  font-size: var(--size-title-1);
 }
 
 .md h3 {
-  font-size: 1.1rem;
+  font-size: var(--size-title-2);
 }
 
 .md h4 {
-  font-size: 1rem;
+  font-size: var(--size-body);
 }
 
 .md h5,
 .md h6 {
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: var(--size-control);
 }
 
 .md p {
@@ -60,8 +62,8 @@
 
 .md code {
   padding: 0.1em 0.35em;
-  border-radius: 4px;
-  background: var(--surface-2);
+  border-radius: var(--radius-chip);
+  background: var(--fill);
   font-size: 0.85em;
 }
 
@@ -70,10 +72,10 @@
   margin: 0 0 1em;
   padding: 0.8rem 0.95rem;
   overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  font-size: 0.8267rem;
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-control);
+  background: var(--fill);
+  font-size: var(--size-caption);
   line-height: 1.55;
 }
 
@@ -89,14 +91,14 @@
   top: 0.35rem;
   right: 0.6rem;
   color: var(--faint);
-  font: 0.6667rem var(--mono);
+  font: var(--size-caption) var(--font-mono);
   text-transform: lowercase;
 }
 
 .md mark {
   padding: 0 0.15em;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--warn) 32%, transparent);
+  border-radius: var(--radius-chip);
+  background: var(--warn-tint);
   color: inherit;
 }
 
@@ -108,7 +110,7 @@
   height: 1px;
   margin: 1.5em 0;
   border: 0;
-  background: var(--border);
+  background: var(--separator);
 }
 
 .md .md__quote {
@@ -180,13 +182,13 @@
   width: 100%;
   min-width: 20rem;
   border-collapse: collapse;
-  font-size: 0.9333rem;
+  font-size: var(--size-control);
 }
 
 .md .md__table th,
 .md .md__table td {
   padding: 0.4rem 0.7rem;
-  border: 1px solid var(--border);
+  border: var(--hairline) solid var(--separator);
   text-align: left;
   vertical-align: top;
   overflow-wrap: break-word;
@@ -194,14 +196,14 @@
 }
 
 .md .md__table th {
-  background: var(--surface-2);
+  background: var(--fill);
   font-weight: 600;
 }
 
 .md .md__link {
-  color: var(--accent);
+  color: var(--accent-strong);
   text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  text-decoration-color: var(--accent-line);
   text-underline-offset: 0.15em;
 }
 
@@ -216,10 +218,10 @@
   padding: 0;
   border: 0;
   background: none;
-  color: var(--accent);
+  color: var(--accent-strong);
   font: inherit;
   text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  text-decoration-color: var(--accent-line);
   text-underline-offset: 0.15em;
   text-align: left;
 }
@@ -236,8 +238,8 @@ button.md__wikilink:hover {
 .md .md__wikilink--embed {
   display: inline-block;
   padding: 0.1em 0.5em;
-  border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent);
-  border-radius: var(--radius-sm);
+  border: 1px dashed var(--accent-line);
+  border-radius: var(--radius-control);
   text-decoration: none;
 }
 
@@ -251,7 +253,7 @@ button.md__wikilink:hover {
   display: inline-block;
   padding: 0 0.5em;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-capsule);
   background: var(--info-soft);
   color: var(--info);
   font: inherit;
@@ -265,7 +267,8 @@ button.md__tag {
 }
 
 button.md__tag:hover {
-  background: color-mix(in srgb, var(--info) 24%, transparent);
+  background: var(--info-tint);
+  color: var(--text);
 }
 
 /* Properties, the way Obsidian shows frontmatter: a key column and a value column. */
@@ -275,10 +278,10 @@ button.md__tag:hover {
   gap: 0.2rem 1rem;
   margin: 0 0 1.4rem;
   padding: 0.7rem 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  font-size: 0.8667rem;
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-control);
+  background: var(--fill);
+  font-size: var(--size-control);
 }
 
 .md .md__property {
@@ -287,8 +290,8 @@ button.md__tag:hover {
 
 .md .md__property dt {
   color: var(--muted);
-  font-family: var(--mono);
-  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  font-size: var(--size-caption);
   line-height: 1.7;
 }
 
@@ -303,9 +306,9 @@ button.md__tag:hover {
 
 .md .md__property-item {
   padding: 0 0.5em;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-capsule);
+  background: var(--content);
   font-size: 0.85em;
   line-height: 1.6;
 }
@@ -318,11 +321,12 @@ button.md__tag:hover {
 /* Callouts: the family's colour on the edge and the title, a glyph before the title. */
 .md .md__callout {
   --callout: var(--info);
+  --callout-soft: var(--info-soft);
   margin: 0 0 1em;
   padding: 0.7rem 0.9rem;
   border-left: 3px solid var(--callout);
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--callout) 9%, var(--surface));
+  border-radius: var(--radius-control);
+  background: var(--callout-soft);
 }
 
 .md .md__callout-title {
@@ -374,6 +378,7 @@ button.md__tag:hover {
 
 .md .md__callout--note {
   --callout: var(--info);
+  --callout-soft: var(--info-soft);
 }
 
 .md .md__callout--note .md__callout-title::before {
@@ -382,6 +387,7 @@ button.md__tag:hover {
 
 .md .md__callout--abstract {
   --callout: var(--info);
+  --callout-soft: var(--info-soft);
 }
 
 .md .md__callout--abstract .md__callout-title::before {
@@ -394,6 +400,7 @@ button.md__tag:hover {
 
 .md .md__callout--tip {
   --callout: var(--good);
+  --callout-soft: var(--good-soft);
 }
 
 .md .md__callout--tip .md__callout-title::before {
@@ -402,6 +409,7 @@ button.md__tag:hover {
 
 .md .md__callout--success {
   --callout: var(--good);
+  --callout-soft: var(--good-soft);
 }
 
 .md .md__callout--success .md__callout-title::before {
@@ -410,6 +418,7 @@ button.md__tag:hover {
 
 .md .md__callout--question {
   --callout: var(--warn);
+  --callout-soft: var(--warn-soft);
 }
 
 .md .md__callout--question .md__callout-title::before {
@@ -418,6 +427,7 @@ button.md__tag:hover {
 
 .md .md__callout--warning {
   --callout: var(--warn);
+  --callout-soft: var(--warn-soft);
 }
 
 .md .md__callout--warning .md__callout-title::before {
@@ -428,6 +438,7 @@ button.md__tag:hover {
 .md .md__callout--danger,
 .md .md__callout--bug {
   --callout: var(--bad);
+  --callout-soft: var(--bad-soft);
 }
 
 .md .md__callout--failure .md__callout-title::before {
@@ -444,6 +455,7 @@ button.md__tag:hover {
 
 .md .md__callout--example {
   --callout: var(--accent);
+  --callout-soft: var(--accent-soft);
 }
 
 .md .md__callout--example .md__callout-title::before {
@@ -452,6 +464,7 @@ button.md__tag:hover {
 
 .md .md__callout--quote {
   --callout: var(--muted);
+  --callout-soft: var(--fill);
 }
 
 .md .md__callout--quote .md__callout-title::before {
@@ -460,7 +473,7 @@ button.md__tag:hover {
 
 /* A compact reading: an excerpt in a list, an agent's message in a card. */
 .md--compact {
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .md--compact h1,

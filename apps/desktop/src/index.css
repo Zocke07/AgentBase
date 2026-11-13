@@ -7,10 +7,13 @@
  * of the five states a run can be in. Each is a projection of the event log
  * like everything else on screen. One accent, for the thing to do next.
  *
- * Every colour is a token, and every token is defined twice - the light
- * palette on `:root`, the dark one under the OS preference and again under
- * the explicit override - so no colour has a single definition and nothing
- * below this block knows which theme it is in.
+ * Every colour is a token with a role (a plane, a control, a fill, a line, a
+ * text level, the accent, a status, the floating material), defined three
+ * times - light on `:root`, dark under the OS preference and again under the
+ * explicit override - so no colour has a single definition and nothing below
+ * the token file knows which theme it is in or names a colour of its own.
+ * Type, space, radii, elevation and the springs are tokens too. The rules are
+ * tests, in `src/design`.
  *
  * Nothing here animates a value that comes from the log. §5 Phase 7 asks that a
  * replayed run render identically to the live one, and a transition keyed on
@@ -21,12 +24,14 @@
  * not animate their arrival. Every animation stops under
  * `prefers-reduced-motion`.
  *
- * Text colours are chosen to meet WCAG AA (4.5:1 for body text) on every
- * surface they sit on, in both themes; `--faint` is the lightest text allowed.
+ * Text colours meet WCAG AA (4.5:1 for body text) on every ground the token
+ * file says they may sit on, in both themes; `--faint` is the lightest text
+ * allowed, and 13 px the smallest.
  */
 
 @import "./styles/tokens.css";
 @import "./styles/base.css";
+@import "./styles/primitives.css";
 @import "./styles/startup.css";
 @import "./styles/app.css";
 @import "./styles/rail.css";
@@ -60,6 +65,7 @@
 @import "./styles/files.css";
 @import "./styles/file-views.css";
 @import "./styles/skeleton.css";
+@import "./styles/materials.css";
 @import "./styles/accessibility.css";
 @import "./styles/responsive.css";
 @import "./styles/settings-nav.css";

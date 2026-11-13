@@ -15,6 +15,11 @@
  *   node scripts/ui-shots.ts [label] --reuse     the previous data and clock
  *   node scripts/ui-shots.ts --compare a b       are two labels identical?
  *
+ * `--forced-colors` and `--reduced-motion` capture under those settings, as
+ * Windows High Contrast and the OS's Reduce motion would show the app:
+ *
+ *   node scripts/ui-shots.ts contrast --reuse --forced-colors
+ *
  * `--reuse` exists to prove a change is invisible: the same data and the same
  * pinned clock give the same pixels, so any difference is the change's.
  */
@@ -222,7 +227,13 @@ async function shot(page: Page, folder: string, name: string): Promise<void> {
   await page.screenshot({ path: join(folder, `${name}.png`), animations: "disabled", caret: "hide" });
 }
 
-async function capture(browser: Browser, folder: string, seeded: Seed): Promise<number> {
+/** Operating system settings a capture is taken under. */
+interface Conditions {
+  forcedColors: boolean;
+  reducedMotion: boolean;
+}
+
+async function capture(browser: Browser, folder: string, seeded: Seed, conditions: Conditions): Promise<number> {
   let count = 0;
   for (const theme of THEMES) {
     for (const size of SIZES) {
@@ -230,6 +241,8 @@ async function capture(browser: Browser, folder: string, seeded: Seed): Promise<
         viewport: size,
         deviceScaleFactor: 1,
         colorScheme: theme,
+        forcedColors: conditions.forcedColors ? "active" : "none",
+        reducedMotion: conditions.reducedMotion ? "reduce" : "no-preference",
         locale: "en-US",
         timezoneId: "UTC",
       });
@@ -387,14 +400,22 @@ async function main(): Promise<number> {
     return (await compare(left, right)) ? 0 : 1;
   }
 
-  const unknown = args.filter((arg) => arg.startsWith("--") && arg !== "--reuse");
+  const flags = ["--reuse", "--forced-colors", "--reduced-motion"];
+  const unknown = args.filter((arg) => arg.startsWith("--") && !flags.includes(arg));
   const labels = args.filter((arg) => !arg.startsWith("--"));
   if (unknown.length > 0 || labels.length > 1) {
     // A mistyped --reuse must not be read as a fresh run: that deletes the
     // scratch data an earlier label was captured on.
-    throw new Error(`Usage: ui-shots [label] [--reuse], or ui-shots --compare <label> <label>. Not understood: ${[...unknown, ...labels.slice(1)].join(" ")}`);
+    throw new Error(
+      `Usage: ui-shots [label] [--reuse] [--forced-colors] [--reduced-motion], or ui-shots --compare <label> <label>. ` +
+        `Not understood: ${[...unknown, ...labels.slice(1)].join(" ")}`,
+    );
   }
   const reuse = args.includes("--reuse");
+  const conditions: Conditions = {
+    forcedColors: args.includes("--forced-colors"),
+    reducedMotion: args.includes("--reduced-motion"),
+  };
   const label = labels[0] ?? "latest";
   if (!/^[\w.-]+$/.test(label) || label.startsWith(".")) throw new Error(`"${label}" is not a usable label.`);
 
@@ -445,7 +466,7 @@ async function main(): Promise<number> {
     // The label's earlier screenshots go only now, with everything running.
     await rm(folder, { recursive: true, force: true });
     await mkdir(folder, { recursive: true });
-    const count = await capture(browser, folder, seeded);
+    const count = await capture(browser, folder, seeded, conditions);
     console.error(`${String(count)} screenshots in ${folder}`);
     return 0;
   } finally {

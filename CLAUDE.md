@@ -13,20 +13,28 @@ future changes do not relocate users' data or disconnect their stored keys.
 
 ## Current state
 
-- **Phase 20, stage 20.1, 2026-11-12, on branch `phase-20-redesign`.** The
+- **Phase 20, stage 20.2, 2026-11-13, on branch `phase-20-redesign`.** The
   maintainer confirmed a redesign inspired by Apple's design principles for
   Windows and macOS, with a run shown as a virtual office (BUILD_SPEC Phase
   20, decisions D1 to D9). `docs/design/virtual-office-redesign.md` is the
-  specification, in six stages, one per session; read it before any
-  interface work. Stage 20.1 changed nothing a person can see. The
-  stylesheet is 42 files under `src/styles`, imported by `index.css` in the
-  old order. `just workbench` draws the tokens, controls, rail and the run
-  view for every scenario in `src/test/scenarios.ts` with no sidecar;
-  `just test-visual` compares those pages with committed screenshots in
-  Chromium and WebKit and runs axe; `just ui-shots` captures the real app
-  from a scratch sidecar on port 8790. `src/design` holds the design rules
-  as tests. Sixteen contrast pairs and three axe findings in today's
-  interface are listed for stage 20.2, which is next. See
+  specification, in six stages; read it before any interface work, and use
+  the project skill `.claude/skills/agentbase-ui/`. Stage 20.1 built the
+  workbench, the visual tests and the design rules. Stage 20.2 changed what
+  people see: every colour is a token with a role in `styles/tokens.css`
+  (planes, controls, fills, lines, text, accent, status, material), on
+  neutral greys in dark; type is a scale with 13 px the smallest; radii,
+  elevation, a 4 px grid and three generated springs are tokens; icons are
+  Lucide's, vendored in `components/icons/`; and `components/ui/` holds
+  `Popover`, `Menu`, `Sheet`, `IconButton`, `Switch` and `Segmented`, which
+  the space switcher, the spending panel, the note palette, Knowledge's
+  toolbar and Settings' Appearance now use. Settings gained **Reduce
+  transparency** (browser storage, like the theme). The sixteen contrast
+  shortfalls and three axe findings are fixed and their lists are empty.
+  `just workbench` draws it all with no sidecar; `just test-visual` compares
+  the pages in Chromium and WebKit and runs axe; `just ui-shots` captures
+  the real app, with `--forced-colors` and `--reduced-motion`. A
+  `PostToolUse` hook (`.claude/settings.json`) lints an edited TypeScript
+  file and refuses an em dash. Stage 20.3, the shell, is next. See
   docs/verification.md.
 - **Gaps and reading, 2026-10-20.** After three closed mornings the first
   chain on Claude ran cleanly, but nothing said 14 to 16 October had no
@@ -470,6 +478,12 @@ second chronological log here.
   supervised adapter runs in-process and uses the same approval gate as the UI.
   Its one outbound path is `ChannelService.announce`, which posts market
   alerts to the configured channel with mentions disabled and reads nothing.
+- No stylesheet but `styles/tokens.css` names a colour or mixes one, no
+  text is set below 13 px, and every text and ground pairing is listed in
+  `design/tokens.ts` and held to 4.5:1 in both themes. A floating layer
+  (popover, menu, sheet) renders into `document.body` through
+  `components/ui/`, which closes it when its section is hidden: every
+  section stays mounted.
 - Fixtures and screenshots come from made-up content and scratch data only
   (`src/test/scenarios.ts`, `just ui-shots`). Never copy a log, a file or a
   capture from `.dev/data` or an installed app's data: the default space

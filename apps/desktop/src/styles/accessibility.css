@@ -9,7 +9,7 @@
   left: 0.5rem;
   z-index: 100;
   padding: 0.5rem 0.9rem;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   background: var(--accent);
   color: var(--on-accent);
   font-weight: 600;
@@ -60,6 +60,45 @@
 
   .rail__item::before,
   .skeleton__bar {
+    background: CanvasText;
+  }
+
+  /* The primitives: fills are gone, so edges and system colours carry each
+     state, and position still says whether a switch is on. */
+  .popover,
+  .sheet__panel,
+  .segmented,
+  .switch {
+    border: 1px solid CanvasText;
+    box-shadow: none;
+  }
+
+  .switch::after {
+    background: CanvasText;
+    box-shadow: none;
+  }
+
+  .switch[aria-checked="true"] {
+    background: Highlight;
+  }
+
+  .switch[aria-checked="true"]::after {
+    background: HighlightText;
+  }
+
+  .segmented__option[aria-checked="true"],
+  .icon-button[aria-pressed="true"],
+  .menu__item:focus {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  .menu__item[aria-disabled="true"] {
+    color: GrayText;
+    opacity: 1;
+  }
+
+  .menu__separator {
     background: CanvasText;
   }
 }

@@ -3,18 +3,18 @@
 .button {
   padding: 0.45rem 0.95rem;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
+  border-radius: var(--radius-control);
+  background: var(--control);
   color: var(--text);
   font: inherit;
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
   font-weight: 500;
   line-height: 1.3;
   cursor: pointer;
 }
 
 .button:hover:not(:disabled) {
-  background: var(--surface-2);
+  background: var(--control-hover);
 }
 
 .button:disabled {
@@ -36,7 +36,7 @@
 
 .button--small {
   padding: 0.25rem 0.6rem;
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .button--danger:hover:not(:disabled) {
@@ -48,7 +48,7 @@
 .button--allow {
   border-color: var(--good);
   background: var(--good);
-  color: #fff;
+  color: var(--on-good);
   font-weight: 600;
 }
 
@@ -62,7 +62,7 @@
 }
 
 .button--allow-run:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--good) 12%, transparent);
+  background: var(--good-soft);
 }
 
 .button--allow:hover:not(:disabled) {

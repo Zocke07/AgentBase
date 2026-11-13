@@ -1,7 +1,7 @@
 /* --- React Flow overrides ------------------------------------------------- */
 
 .react-flow__attribution {
-  font-size: 0.6rem;
+  font-size: var(--size-caption);
 }
 
 .react-flow__attribution a {

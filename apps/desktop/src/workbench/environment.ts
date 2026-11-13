@@ -7,18 +7,26 @@
 export type ThemeChoice = "system" | "light" | "dark";
 export type MotionChoice = "system" | "reduce";
 export type PlatformChoice = "mac" | "windows";
+export type TransparencyChoice = "system" | "reduce";
 
 export interface Environment {
   readonly theme: ThemeChoice;
   readonly motion: MotionChoice;
   readonly platform: PlatformChoice;
+  readonly transparency: TransparencyChoice;
 }
 
 export const THEME_CHOICES: readonly ThemeChoice[] = ["system", "light", "dark"];
 export const MOTION_CHOICES: readonly MotionChoice[] = ["system", "reduce"];
 export const PLATFORM_CHOICES: readonly PlatformChoice[] = ["mac", "windows"];
+export const TRANSPARENCY_CHOICES: readonly TransparencyChoice[] = ["system", "reduce"];
 
-export const DEFAULT_ENVIRONMENT: Environment = { theme: "system", motion: "system", platform: "mac" };
+export const DEFAULT_ENVIRONMENT: Environment = {
+  theme: "system",
+  motion: "system",
+  platform: "mac",
+  transparency: "system",
+};
 
 const oneOf = <Choice extends string>(choices: readonly Choice[], value: string | null, fallback: Choice): Choice =>
   choices.find((choice) => choice === value) ?? fallback;
@@ -29,6 +37,7 @@ export function environmentFrom(query: URLSearchParams): Environment {
     theme: oneOf(THEME_CHOICES, query.get("theme"), DEFAULT_ENVIRONMENT.theme),
     motion: oneOf(MOTION_CHOICES, query.get("motion"), DEFAULT_ENVIRONMENT.motion),
     platform: oneOf(PLATFORM_CHOICES, query.get("platform"), DEFAULT_ENVIRONMENT.platform),
+    transparency: oneOf(TRANSPARENCY_CHOICES, query.get("transparency"), DEFAULT_ENVIRONMENT.transparency),
   };
 }
 
@@ -40,8 +49,10 @@ export function environmentFrom(query: URLSearchParams): Environment {
  *   page cannot change a media query, so `workbench.css` repeats the app's
  *   reduced-motion block under this attribute. The browser tests use the real
  *   media feature instead.
- * - `data-platform` is where the app will say which platform it is on
- *   (`lib/platform.ts`, stage 20.2). Nothing reads it before then.
+ * - `data-platform` is where the app says which platform it is on
+ *   (`lib/platform.ts`); the stylesheet reads it for the scrollbars.
+ * - `data-transparency="reduce"` is the app's own Reduce transparency
+ *   setting (`lib/transparency.ts`): floating layers turn opaque.
  */
 export function applyEnvironment(environment: Environment, root: HTMLElement = document.documentElement): void {
   if (environment.theme === "system") delete root.dataset.theme;
@@ -51,6 +62,9 @@ export function applyEnvironment(environment: Environment, root: HTMLElement = d
   else root.dataset.motion = environment.motion;
 
   root.dataset.platform = environment.platform;
+
+  if (environment.transparency === "system") delete root.dataset.transparency;
+  else root.dataset.transparency = environment.transparency;
 }
 
 /** The theme a page is drawn in, once "system" is resolved. */

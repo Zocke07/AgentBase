@@ -45,6 +45,8 @@ import { NoteTree } from "./NoteTree";
 import { QuickSwitcher } from "./QuickSwitcher";
 import { RecentFiles } from "./RecentFiles";
 import { SummaryList, type NewKind } from "./SummaryList";
+import { MenuButton } from "./ui/Menu";
+import { IconButton } from "./ui/controls";
 
 /**
  * Space-local Markdown vault in two sections. User Summary lists what was
@@ -941,60 +943,42 @@ export function KnowledgeView({
           </div>
           {browserMode === "notes" && (
             <div className="knowledge__new">
-              <button
-                type="button"
-                className="knowledge__icon-button"
+              <IconButton
+                icon="search"
+                label="Open a note"
                 title="Open a note (Ctrl/Cmd+O)"
-                aria-label="Open a note"
                 onClick={() => {
                   setSwitcher(true);
                 }}
-              >
-                <svg viewBox="0 0 20 20" aria-hidden="true">
-                  <path d="M8.5 3a5.5 5.5 0 0 1 4.4 8.8l4 4-1.1 1.1-4-4A5.5 5.5 0 1 1 8.5 3zm0 1.6a3.9 3.9 0 1 0 0 7.8 3.9 3.9 0 0 0 0-7.8z" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                className="knowledge__icon-button"
-                title="New note"
-                aria-label="New note"
+              />
+              <IconButton
+                icon="file-plus"
+                label="New note"
                 onClick={() => {
                   startNote(freeNotePath(), NEW_NOTE);
                 }}
-              >
-                <svg viewBox="0 0 20 20" aria-hidden="true">
-                  <path d="M5 2.5h6.5L15.5 6.5V17.5h-10.5zm1.5 1.5v12h7.5V7.5h-3V4zM9.2 9h1.6v2.2H13v1.6h-2.2V15H9.2v-2.2H7v-1.6h2.2z" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                className="knowledge__icon-button"
+              />
+              <IconButton
+                icon="calendar-days"
+                label="Daily note"
                 title="Today's daily note"
-                aria-label="Daily note"
                 disabled={busy}
                 onClick={() => void dailyNote()}
-              >
-                <svg viewBox="0 0 20 20" aria-hidden="true">
-                  <path d="M4 4h12v13H4zm1.5 4.5v7h9v-7zM6 2.5h1.8V5H6zm6.2 0H14V5h-1.8zM7 10h2v2H7zm4 0h2v2h-2zm-4 3h2v2H7z" />
-                </svg>
-              </button>
+              />
               {templates.length > 0 && (
-                <select
-                  aria-label="New note from template"
-                  value=""
+                <MenuButton
+                  label="New note from template"
+                  className="button button--small"
                   disabled={busy}
-                  onChange={(event) => {
-                    if (event.target.value !== "") void newFromTemplate(event.target.value);
-                  }}
+                  align="end"
+                  items={templates.map((template) => ({
+                    id: template.path,
+                    label: template.title,
+                    onSelect: () => void newFromTemplate(template.path),
+                  }))}
                 >
-                  <option value="">Template…</option>
-                  {templates.map((template) => (
-                    <option key={template.path} value={template.path}>
-                      {template.title}
-                    </option>
-                  ))}
-                </select>
+                  Template…
+                </MenuButton>
               )}
             </div>
           )}

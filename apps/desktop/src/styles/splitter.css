@@ -57,7 +57,7 @@
 }
 
 .runs-view__head h2 {
-  font-size: 1rem;
+  font-size: var(--size-body);
 }
 
 .runs-view__filter select {
@@ -87,20 +87,20 @@
   gap: 1rem;
   align-items: center;
   padding: 0.35rem 1.25rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  border-bottom: var(--hairline) solid var(--separator);
+  background: var(--content);
 }
 
 .runs-view__connection {
   margin: 0;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .runs-view__strip-error {
   margin: 0;
   color: var(--bad);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .runs-view__strip .button {
@@ -126,6 +126,6 @@
 
 .run-list__empty {
   color: var(--muted);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 

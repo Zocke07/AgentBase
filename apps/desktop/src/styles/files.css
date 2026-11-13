@@ -23,13 +23,13 @@
 }
 
 .files__head strong {
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .files__count,
 .files__meta {
   color: var(--muted);
-  font-size: 0.6667rem;
+  font-size: var(--size-caption);
 }
 
 .files__tools {
@@ -49,19 +49,19 @@
 .file-editor__path-field input {
   padding: 0.4rem 0.5rem;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
+  border-radius: var(--radius-control);
+  background: var(--control);
   color: var(--text);
   font: inherit;
-  font-size: 0.76rem;
+  font-size: var(--size-caption);
 }
 
 .files__empty {
   padding: 0.8rem;
   border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  font-size: 0.8rem;
+  border-radius: var(--radius-control);
+  background: var(--content);
+  font-size: var(--size-caption);
   color: var(--muted);
 }
 
@@ -71,14 +71,14 @@
 
 .files__empty p + p {
   margin-top: 0.35rem;
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
 }
 
 .files__no-match {
   margin: 0;
   padding: 0.6rem;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .files__groups {
@@ -102,7 +102,7 @@
   min-width: 0;
   margin: 0;
   overflow: hidden;
-  font-size: 0.7rem;
+  font-size: var(--size-caption);
   font-weight: 650;
   letter-spacing: 0.035em;
   text-overflow: ellipsis;
@@ -111,7 +111,7 @@
 }
 
 .files__group-head span {
-  font-size: 0.6667rem;
+  font-size: var(--size-caption);
 }
 
 .files__list {
@@ -128,7 +128,7 @@
   width: 100%;
   padding: 0.45rem 0.5rem;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   background: none;
   color: var(--text);
   font: inherit;
@@ -137,7 +137,7 @@
 }
 
 .files__item:hover {
-  background: var(--surface-2);
+  background: var(--fill-hover);
 }
 
 .files__item--active {
@@ -148,13 +148,14 @@
 .files__file-icon {
   display: grid;
   place-items: center;
-  width: 1.6rem;
+  min-width: 1.8rem;
   height: 1.8rem;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--surface);
+  padding: 0 var(--space-1);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-chip);
+  background: var(--content);
   color: var(--muted);
-  font: 600 0.6rem var(--mono);
+  font: 600 var(--size-caption) var(--font-mono);
 }
 
 .files__identity {
@@ -172,8 +173,8 @@
 }
 
 .files__name {
-  font-family: var(--mono);
-  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  font-size: var(--size-caption);
 }
 
 .files__placeholder {
@@ -200,7 +201,7 @@
   align-items: flex-start;
   justify-content: space-between;
   padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--hairline) solid var(--separator);
 }
 
 .file-editor__identity {
@@ -209,22 +210,20 @@
 
 .file-editor__eyebrow {
   color: var(--muted);
-  font-size: 0.6667rem;
+  font-size: var(--size-caption);
   font-weight: 650;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
 }
 
 .file-editor__identity h2 {
   margin: 0.1rem 0 0;
   overflow-wrap: anywhere;
-  font-size: 1.1rem;
+  font-size: var(--size-title-2);
 }
 
 .file-editor__identity p {
   margin: 0.1rem 0 0;
   color: var(--muted);
-  font: 0.7333rem var(--mono);
+  font: var(--size-caption) var(--font-mono);
   overflow-wrap: anywhere;
 }
 
@@ -240,9 +239,9 @@
   margin: 0;
   padding: 0.55rem 0.7rem;
   border-left: 3px solid var(--brand-base);
-  background: var(--surface-2);
+  background: var(--fill);
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
   overflow-wrap: anywhere;
 }
 
@@ -252,10 +251,10 @@
 
 .file-editor__dirty {
   padding: 0.1rem 0.45rem;
-  border-radius: 999px;
+  border-radius: var(--radius-capsule);
   background: var(--warn-soft);
   color: var(--warn);
-  font-size: 0.7rem;
+  font-size: var(--size-caption);
   font-weight: 600;
 }
 
@@ -265,29 +264,29 @@
   gap: 0.35rem 0.65rem;
   align-items: center;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .file-editor__path-field input {
-  font-family: var(--mono);
+  font-family: var(--font-mono);
 }
 
 .file-editor__path-field small {
   grid-column: 2;
   color: var(--faint);
-  font-size: 0.7rem;
+  font-size: var(--size-caption);
 }
 
 .file-editor__text {
   flex: 1;
   min-height: 16rem;
   padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-control);
+  background: var(--content);
   color: var(--text);
-  font-family: var(--mono);
-  font-size: 0.8667rem;
+  font-family: var(--font-mono);
+  font-size: var(--size-control);
   line-height: 1.5;
   resize: vertical;
   tab-size: 2;
@@ -305,30 +304,30 @@
 .file-preview__note {
   margin: 0;
   color: var(--muted);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
 }
 
 .file-preview__scroll {
   flex: 1;
   min-height: 12rem;
   overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-control);
+  background: var(--content);
 }
 
 .file-preview__table {
   width: max-content;
   min-width: 100%;
   border-collapse: collapse;
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .file-preview__table th,
 .file-preview__table td {
   max-width: 28rem;
   padding: 0.35rem 0.6rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--hairline) solid var(--separator);
   text-align: left;
   vertical-align: top;
   overflow-wrap: anywhere;
@@ -337,7 +336,8 @@
 .file-preview__table th {
   position: sticky;
   top: 0;
-  background: var(--surface-2);
+  /* Opaque under the fill: rows scroll beneath a sticky header. */
+  background: linear-gradient(var(--fill), var(--fill)), var(--content);
   color: var(--text);
   font-weight: 600;
 }
@@ -353,12 +353,12 @@
   margin: 0;
   padding: 0.75rem;
   overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-control);
+  background: var(--content);
   color: var(--text);
-  font-family: var(--mono);
-  font-size: 0.8667rem;
+  font-family: var(--font-mono);
+  font-size: var(--size-control);
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -367,12 +367,12 @@
 .file-editor__loading {
   margin: 0;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .file-editor__hint {
   margin: 0;
   color: var(--muted);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
 }
 

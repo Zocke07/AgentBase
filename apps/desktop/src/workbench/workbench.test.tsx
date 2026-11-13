@@ -21,23 +21,25 @@ afterEach(() => {
 
 describe("the workbench's conditions", () => {
   it("reads theme, motion and platform from a link, falling back on anything else", () => {
-    expect(environmentFrom(new URLSearchParams("theme=dark&motion=reduce&platform=windows"))).toEqual({
+    expect(environmentFrom(new URLSearchParams("theme=dark&motion=reduce&platform=windows&transparency=reduce"))).toEqual({
       theme: "dark",
       motion: "reduce",
       platform: "windows",
+      transparency: "reduce",
     });
     expect(environmentFrom(new URLSearchParams("theme=neon&motion=fast&platform=amiga"))).toEqual(DEFAULT_ENVIRONMENT);
     expect(environmentFrom(new URLSearchParams(""))).toEqual(DEFAULT_ENVIRONMENT);
   });
 
   it("puts each choice where the stylesheet reads it, and takes it away again", () => {
-    applyEnvironment({ theme: "dark", motion: "reduce", platform: "windows" });
-    expect(root.dataset).toMatchObject({ theme: "dark", motion: "reduce", platform: "windows" });
+    applyEnvironment({ theme: "dark", motion: "reduce", platform: "windows", transparency: "reduce" });
+    expect(root.dataset).toMatchObject({ theme: "dark", motion: "reduce", platform: "windows", transparency: "reduce" });
 
     // "System" is the absence of an override, as in the app's own theme setting.
     applyEnvironment(DEFAULT_ENVIRONMENT);
     expect(root.dataset.theme).toBeUndefined();
     expect(root.dataset.motion).toBeUndefined();
+    expect(root.dataset.transparency).toBeUndefined();
     expect(root.dataset.platform).toBe("mac");
   });
 });

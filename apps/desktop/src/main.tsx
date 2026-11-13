@@ -3,7 +3,11 @@ import { createRoot } from "react-dom/client";
 
 import { App } from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { applyPlatform } from "./lib/platform";
 import "./index.css";
+
+// Before the first paint, so the platform's styles never arrive late.
+applyPlatform();
 
 const container = document.getElementById("root");
 

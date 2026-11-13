@@ -2,7 +2,9 @@ import type { CreateSpaceRequest, SpaceResponse } from "@agentbase/schemas";
 import { useEffect, useRef, useState } from "react";
 
 import * as api from "../lib/api";
-import { usePresence } from "../state/usePresence";
+
+import { Icon } from "./icons/Icon";
+import { Popover } from "./ui/Popover";
 
 /**
  * Rail-top space switcher with current/list/new-space flow. Archived spaces
@@ -23,13 +25,12 @@ type Seed = CreateSpaceRequest["seed"];
 
 export function SpaceSwitcher({ spaces, currentId, onSelect, onCreated, compact = false }: SpaceSwitcherProps) {
   const [open, setOpen] = useState(false);
-  const menu = usePresence(open, 120);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [seed, setSeed] = useState<"builtins" | "empty" | "copy">("builtins");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const root = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
   const nameInput = useRef<HTMLInputElement>(null);
 
   const current = spaces.find((space) => space.id === currentId) ?? null;
@@ -45,23 +46,6 @@ export function SpaceSwitcher({ spaces, currentId, onSelect, onCreated, compact 
     setCreating(false);
     setError(null);
   };
-
-  // Click outside, or Escape, closes it.
-  useEffect(() => {
-    if (!open) return undefined;
-    const onPointer = (pressed: MouseEvent) => {
-      if (root.current !== null && !root.current.contains(pressed.target as Node)) close();
-    };
-    const onKey = (pressed: KeyboardEvent) => {
-      if (pressed.key === "Escape") close();
-    };
-    document.addEventListener("mousedown", onPointer);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onPointer);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
 
   useEffect(() => {
     if (creating) nameInput.current?.focus();
@@ -87,13 +71,16 @@ export function SpaceSwitcher({ spaces, currentId, onSelect, onCreated, compact 
   };
 
   return (
-    <div className={`switcher${compact ? " switcher--compact" : ""}`} ref={root} data-testid="space-switcher" data-tour="space">
+    <div className={`switcher${compact ? " switcher--compact" : ""}`} data-testid="space-switcher" data-tour="space">
       <button
+        ref={button}
         type="button"
         className="switcher__current"
-        aria-haspopup="listbox"
+        aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={`Space: ${current?.name ?? "loading"}`}
+        // The open rail's button is named by what it shows, "Space: Main".
+        // Folded, it shows an initial alone, so the name is given here.
+        aria-label={compact ? `Space: ${current?.name ?? "loading"}` : undefined}
         title={compact ? `Space: ${current?.name ?? "…"}` : undefined}
         onClick={() => {
           setOpen((was) => !was);
@@ -102,15 +89,23 @@ export function SpaceSwitcher({ spaces, currentId, onSelect, onCreated, compact 
         <span className="switcher__initial" aria-hidden="true">
           {(current?.name ?? "…").slice(0, 1).toLocaleUpperCase()}
         </span>
-        <span className="switcher__label">Space</span>
+        <span className="switcher__label">
+          Space<span className="sr-only">:</span>
+        </span>{" "}
         <span className="switcher__name">{current?.name ?? "…"}</span>
-        <svg viewBox="0 0 20 20" aria-hidden="true" className="switcher__chevron">
-          <path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.8" />
-        </svg>
+        <Icon name="chevrons-up-down" size={16} className="switcher__chevron" />
       </button>
 
-      {menu.mounted && (
-        <div className={`switcher__menu${menu.closing ? " switcher__menu--closing" : ""}`}>
+      <Popover
+        open={open}
+        onClose={close}
+        anchor={button}
+        role="dialog"
+        label="Switch space"
+        className="switcher__menu"
+        // Focus lands on the space the window is in, the menu's own "you are here".
+        focus={(panel) => panel.querySelector<HTMLElement>(".switcher__item--current")}
+      >
           <ul className="switcher__list" role="listbox" aria-label="Spaces">
             {live.map((space) => (
               <li key={space.id} role="option" aria-selected={space.id === currentId}>
@@ -231,8 +226,7 @@ export function SpaceSwitcher({ spaces, currentId, onSelect, onCreated, compact 
               New space…
             </button>
           )}
-        </div>
-      )}
+      </Popover>
     </div>
   );
 }

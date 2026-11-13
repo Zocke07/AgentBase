@@ -23,9 +23,11 @@ import { providerLabel } from "../lib/format";
 import { clearSecret, keychainAvailable, setSecret } from "../lib/keychain";
 import { restartApp, restartAvailable } from "../lib/shell";
 import { THEMES, useThemeStore, type Theme } from "../lib/theme";
+import { useTransparencyStore } from "../lib/transparency";
 import { useFetched } from "../state/useFetched";
 
 import { Skeleton } from "./Skeleton";
+import { Segmented, Switch } from "./ui/controls";
 
 /**
  * Workspace settings and keys.
@@ -992,28 +994,39 @@ function AboutSection({
 function AppearanceSection() {
   const theme = useThemeStore((state) => state.theme);
   const setTheme = useThemeStore((state) => state.setTheme);
+  const reduce = useTransparencyStore((state) => state.reduce);
+  const setReduce = useTransparencyStore((state) => state.setReduce);
   const label: Record<Theme, string> = { system: "Follow the system", light: "Light", dark: "Dark" };
 
   return (
     <section className="settings__section" id="settings-appearance" data-testid="appearance">
       <h2>Appearance</h2>
-      <div className="settings__theme" role="radiogroup" aria-label="Theme">
-        {THEMES.map((choice) => (
-          <label key={choice}>
-            <input
-              type="radio"
-              name="theme"
-              checked={theme === choice}
-              onChange={() => {
-                setTheme(choice);
-              }}
-              data-testid={`theme-${choice}`}
-            />
-            <span>{label[choice]}</span>
-          </label>
-        ))}
+      <div className="settings__appearance-row">
+        <span>Theme</span>
+        <Segmented
+          label="Theme"
+          value={theme}
+          options={THEMES.map((choice) => ({ value: choice, label: label[choice] }))}
+          onChange={setTheme}
+          testId="theme"
+        />
       </div>
-      <p className="settings__hint">Applies to this window straight away, and is remembered on this computer.</p>
+      <div className="settings__appearance-row">
+        <span>
+          <span id="settings-transparency-label">Reduce transparency</span>
+          <span className="settings__hint" id="settings-transparency-hint">
+            Menus and pop-up panels are solid instead of see-through.
+          </span>
+        </span>
+        <Switch
+          checked={reduce}
+          onChange={setReduce}
+          labelledBy="settings-transparency-label"
+          describedBy="settings-transparency-hint"
+          testId="reduce-transparency"
+        />
+      </div>
+      <p className="settings__hint">Both apply to this window straight away, and are remembered on this computer.</p>
     </section>
   );
 }

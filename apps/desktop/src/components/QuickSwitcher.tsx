@@ -1,7 +1,9 @@
 import type { NoteSummary } from "@agentbase/schemas";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import { fuzzyFilter } from "../lib/fuzzy";
+
+import { Sheet } from "./ui/Sheet";
 
 /**
  * Obsidian-style quick switcher: type title/path, navigate matches, Enter opens.
@@ -20,12 +22,6 @@ const LIMIT = 12;
 export function QuickSwitcher({ notes, onOpen, onCreate, onClose }: QuickSwitcherProps) {
   const [query, setQuery] = useState("");
   const [cursor, setCursor] = useState(0);
-  const input = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    input.current?.focus();
-  }, []);
-
   const matches = fuzzyFilter(query.trim(), notes, (note) => `${note.title} ${note.path}`).slice(0, LIMIT);
   const trimmed = query.trim();
   const exact = notes.some(
@@ -48,16 +44,9 @@ export function QuickSwitcher({ notes, onOpen, onCreate, onClose }: QuickSwitche
   };
 
   return (
-    <div
-      className="palette"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <div className="palette__panel" role="dialog" aria-label="Open a note">
+    <Sheet open onClose={onClose} label="Open a note" placement="top" className="palette__panel">
+        {/* The sheet puts focus on its first control, this field, and closes on Escape. */}
         <input
-          ref={input}
           className="palette__input"
           aria-label="Find a note by title or path"
           placeholder="Type a note name; Enter opens it, Esc closes"
@@ -67,10 +56,7 @@ export function QuickSwitcher({ notes, onOpen, onCreate, onClose }: QuickSwitche
             setCursor(0);
           }}
           onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              event.preventDefault();
-              onClose();
-            } else if (event.key === "ArrowDown") {
+            if (event.key === "ArrowDown") {
               event.preventDefault();
               setCursor((current) => Math.min(current + 1, Math.max(rows - 1, 0)));
             } else if (event.key === "ArrowUp") {
@@ -122,7 +108,6 @@ export function QuickSwitcher({ notes, onOpen, onCreate, onClose }: QuickSwitche
           )}
           {rows === 0 && <li className="palette__empty">No notes yet. Type a name to create one.</li>}
         </ol>
-      </div>
-    </div>
+    </Sheet>
   );
 }

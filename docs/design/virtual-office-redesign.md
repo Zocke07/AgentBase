@@ -6,7 +6,8 @@ BUILD_SPEC Phase 20 records them with the acceptance list from section 10.
 This file stays as the detailed specification until the phase is complete.
 Then its lasting parts move into the developer guide (design system, the
 office) and the user guide, and this file is removed, as the Phase 17 roster
-design was. Stage 20.1 is built; the appendix holds what it found.*
+design was. Stages 20.1 and 20.2 are built; the appendix holds what 20.1
+found, and `docs/verification.md` what each ran.*
 
 Readers: the agent building Phase 20 (read this after CLAUDE.md and
 BUILD_SPEC), and the maintainer reviewing it.
@@ -812,7 +813,9 @@ requests. Recipes must also work under PowerShell 5.1.
 - A `PostToolUse` hook, set up with the `update-config` skill, lints an
   edited `.ts` or `.tsx` file and looks for em dashes in any edited file, so
   mistakes show at once rather than at `just ci`. It runs under Node on both
-  platforms and adds no shell script.
+  platforms and adds no shell script. *(Both exist since stage 20.2:
+  `.claude/skills/agentbase-ui/`, and `.claude/settings.json` with
+  `.claude/hooks/check-edit.mjs`.)*
 - Browser MCP servers, where installed (Playwright MCP; Chrome DevTools MCP
   for performance traces), can drive the dev server headless. They do not
   replace the committed tests.
@@ -850,6 +853,12 @@ The order of the stages is fixed; within a stage, use judgment.
   pre-existing test passes (each one changed for an intended markup change is
   listed in the report), and forced colours and reduced motion have been
   checked in screenshots.
+- *(Built 2026-11-13. Left for the stages that draw them: the `--office-*`
+  tokens (20.4), glyphs beside the status words (20.4, with the office's
+  states), and moving every section's own spacing onto the 4 px grid (20.3
+  and 20.6, as each section is redrawn). `--fill`, `--fill-strong`,
+  `-line`, `-tint` and `--on-*` tokens were added to the role table's set;
+  the token file's header is the current list.)*
 
 **20.3 The shell.**
 

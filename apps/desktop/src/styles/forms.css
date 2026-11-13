@@ -9,11 +9,17 @@ textarea,
 select {
   padding: 0.45rem 0.6rem;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
+  border-radius: var(--radius-control);
+  background: var(--control);
   color: var(--text);
   font: inherit;
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
+}
+
+/* A placeholder is the lightest text allowed, not the engine's own grey. */
+::placeholder {
+  color: var(--faint);
+  opacity: 1;
 }
 
 textarea {

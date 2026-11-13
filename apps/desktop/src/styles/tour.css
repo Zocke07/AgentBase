@@ -10,8 +10,8 @@
 /* The spotlight is a hole: its shadow is the veil over everything else. */
 .tour__spotlight {
   position: fixed;
-  border-radius: var(--radius-sm);
-  box-shadow: 0 0 0 9999px color-mix(in srgb, var(--bg) 62%, transparent);
+  border-radius: var(--radius-control);
+  box-shadow: 0 0 0 9999px var(--scrim);
   outline: 2px solid var(--accent);
   transition:
     top 160ms ease,
@@ -23,7 +23,7 @@
 .tour__veil {
   position: fixed;
   inset: 0;
-  background: color-mix(in srgb, var(--bg) 62%, transparent);
+  background: var(--scrim);
 }
 
 .tour__card {
@@ -33,9 +33,9 @@
   gap: 0.5rem;
   padding: 1rem 1.1rem 0.9rem;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow-2);
+  border-radius: var(--radius-panel);
+  background: var(--elevated);
+  box-shadow: var(--elevation-floating);
   pointer-events: auto;
 }
 
@@ -49,20 +49,18 @@
 .tour__count {
   margin: 0;
   color: var(--muted);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .tour__title {
-  font-size: 1.0625rem;
+  font-size: var(--size-title-2);
 }
 
 .tour__body {
   margin: 0;
   color: var(--text);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
   line-height: 1.5;
 }
 
@@ -82,7 +80,7 @@
   border: 0;
   background: none;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
   cursor: pointer;
 }
 

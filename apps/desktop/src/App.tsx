@@ -26,6 +26,7 @@ import { notifyDesktop } from "./lib/notify";
 import { SECTION_ORDER } from "./lib/sections";
 import { connectWithRetry, type SidecarStatus } from "./lib/sidecar";
 import { useTheme } from "./lib/theme";
+import { useTransparency } from "./lib/transparency";
 import { pendingNotices, readRaised, writeRaised } from "./state/alerts";
 import { useRoster } from "./state/roster";
 import { unfinished, useRunList } from "./state/runList";
@@ -93,6 +94,7 @@ export function App() {
 
   // Per-window, browser-persisted theme applied to the document root.
   useTheme();
+  useTransparency();
 
   // Window-selected space.
   const spaces = useSpaces((state) => state.spaces);

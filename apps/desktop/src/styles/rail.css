@@ -5,8 +5,8 @@
   flex-direction: column;
   gap: 1.25rem;
   padding: 1rem 0.75rem;
-  border-right: 1px solid var(--border);
-  background: var(--surface);
+  border-right: var(--hairline) solid var(--separator);
+  background: var(--sidebar);
 }
 
 .rail__brand {
@@ -25,7 +25,7 @@
 }
 
 .rail__name {
-  font-size: 1rem;
+  font-size: var(--size-body);
   font-weight: 650;
   letter-spacing: -0.02em;
 }
@@ -70,14 +70,11 @@
   padding: 0.55rem 0;
 }
 
+/* The count sits on the icon's corner, clear of its shape. */
 .rail--collapsed .rail__badge {
   position: absolute;
-  top: 0.2rem;
-  right: 0.2rem;
-}
-
-.rail__toggle-icon--flipped {
-  transform: scaleX(-1);
+  top: -0.3rem;
+  right: -0.3rem;
 }
 
 .switcher__initial {
@@ -96,16 +93,11 @@
   height: 1.6rem;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: var(--radius-capsule);
   background: var(--accent);
-  color: #fff;
-  font-size: 0.8rem;
+  color: var(--on-accent);
+  font-size: var(--size-caption);
   font-weight: 650;
 }
 
-.rail--collapsed .switcher__menu {
-  right: auto;
-  left: 0;
-  width: 14rem;
-}
 

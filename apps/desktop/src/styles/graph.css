@@ -4,7 +4,7 @@
   position: relative;
   display: flex;
   min-height: 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--hairline) solid var(--separator);
 }
 
 /* Full screen: the canvas and its inspector over the whole window, above
@@ -14,28 +14,28 @@
   inset: 0;
   z-index: 55;
   border-bottom: 0;
-  background: var(--bg);
+  background: var(--window);
 }
 
 .graph {
   position: relative;
   flex: 1;
   min-height: 0;
-  background: var(--bg);
+  background: var(--window);
 
   /* React Flow's own controls, edges and pattern, in this theme's colours.
      The un-suffixed names: the `-default` ones are set on `.react-flow`
      itself and would win over anything declared out here. */
   --xy-background-pattern-dots-color: var(--border-strong);
-  --xy-controls-button-background-color: var(--surface);
-  --xy-controls-button-background-color-hover: var(--surface-2);
+  --xy-controls-button-background-color: var(--control);
+  --xy-controls-button-background-color-hover: var(--control-hover);
   --xy-controls-button-color: var(--text);
   --xy-controls-button-color-hover: var(--text);
-  --xy-controls-button-border-color: var(--border);
-  --xy-controls-box-shadow: var(--shadow-1);
+  --xy-controls-button-border-color: var(--separator);
+  --xy-controls-box-shadow: var(--elevation-card);
   --xy-edge-stroke: var(--border-strong);
   --xy-edge-stroke-width: 1.5;
-  --xy-edge-label-background-color: var(--surface);
+  --xy-edge-label-background-color: var(--content);
   --xy-edge-label-color: var(--muted);
   --xy-attribution-background-color: transparent;
 }
@@ -44,7 +44,7 @@
   display: grid;
   place-content: center;
   color: var(--muted);
-  font-size: 0.9333rem;
+  font-size: var(--size-control);
 }
 
 /*
@@ -54,18 +54,18 @@
  */
 .flow-node {
   --tone: var(--faint);
-  --tone-soft: var(--surface-2);
+  --tone-soft: var(--fill);
   position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
   overflow: hidden;
   padding: 0.6rem 0.75rem 0.55rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow-1);
-  font-size: 0.8rem;
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-card);
+  background: var(--content);
+  box-shadow: var(--elevation-card);
+  font-size: var(--size-caption);
   line-height: 1.35;
 }
 
@@ -90,22 +90,29 @@
   place-items: center;
   width: 1.6rem;
   height: 1.6rem;
-  border-radius: 7px;
+  border-radius: var(--radius-control);
   background: var(--tone-soft);
   color: var(--tone);
 }
 
-.flow-node__icon svg {
+.flow-node__icon .icon {
   width: 1rem;
   height: 1rem;
-  fill: currentColor;
+}
+
+/* React Flow fills and shrinks the glyphs in its own buttons; ours are
+   stroked icons at their own size. */
+.graph .react-flow__controls-button .icon {
+  max-width: none;
+  max-height: none;
+  fill: none;
 }
 
 .flow-node__title {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  font-size: 0.9333rem;
+  font-size: var(--size-control);
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -114,10 +121,10 @@
 .flow-node__state {
   flex: none;
   padding: 0.05rem 0.45rem;
-  border-radius: 999px;
+  border-radius: var(--radius-capsule);
   background: var(--tone-soft);
   color: var(--tone);
-  font-size: 0.6667rem;
+  font-size: var(--size-caption);
   font-weight: 600;
   letter-spacing: 0.01em;
   white-space: nowrap;
@@ -173,7 +180,7 @@
 
 .agent-node--selected {
   border-color: var(--text);
-  box-shadow: var(--shadow-2), 0 0 0 2px color-mix(in srgb, var(--text) 12%, transparent);
+  box-shadow: var(--elevation-raised), 0 0 0 2px var(--border-strong);
 }
 
 /* A name that was handed off to and never spawned. */
@@ -213,7 +220,7 @@
   gap: 0.25rem;
   margin-top: auto;
   min-width: 0;
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
 }
 
 .agent-node__meta {
@@ -235,12 +242,12 @@
   align-items: center;
   flex: none;
   padding: 0 0.4rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-2);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-capsule);
+  background: var(--fill);
   color: var(--muted);
-  font-family: var(--mono);
-  font-size: 0.6667rem;
+  font-family: var(--font-mono);
+  font-size: var(--size-caption);
   line-height: 1.5;
   white-space: nowrap;
 }
@@ -263,7 +270,7 @@
 }
 
 .agent-node__tool--denied {
-  border-color: color-mix(in srgb, var(--bad) 45%, transparent);
+  border-color: var(--bad-line);
 }
 
 .agent-node__tool--running {
@@ -290,13 +297,13 @@
 .end-node--goal.end-node--cancelled,
 .end-node--goal.end-node--pending {
   --tone: var(--muted);
-  --tone-soft: var(--surface-2);
+  --tone-soft: var(--fill);
 }
 
 .end-node__text {
   overflow: hidden;
   color: var(--text);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -305,7 +312,7 @@
   margin-top: auto;
   overflow: hidden;
   color: var(--muted);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -357,11 +364,11 @@
   position: absolute;
   max-width: 11rem;
   padding: 0.1rem 0.4rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-capsule);
+  background: var(--content);
   color: var(--muted);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
   line-height: 1.3;
   white-space: nowrap;
   overflow: hidden;
@@ -385,11 +392,11 @@
   display: flex;
   gap: 0.6rem;
   padding: 0.25rem 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-capsule);
+  background: var(--material);
   color: var(--muted);
-  font-size: 0.6667rem;
+  font-size: var(--size-caption);
   pointer-events: none;
 }
 
@@ -429,13 +436,13 @@
   width: 21rem;
   padding: 0.85rem 1rem;
   overflow-y: auto;
-  border-left: 1px solid var(--border);
-  background: var(--surface);
-  font-size: 0.8667rem;
+  border-left: var(--hairline) solid var(--separator);
+  background: var(--content);
+  font-size: var(--size-control);
 }
 
 .agent-detail h3 {
-  font-size: 1rem;
+  font-size: var(--size-body);
 }
 
 .agent-detail__head {
@@ -458,7 +465,7 @@
 }
 
 .agent-detail__close:hover {
-  background: var(--surface-2);
+  background: var(--fill-hover);
   color: var(--text);
 }
 
@@ -466,17 +473,17 @@
   display: inline-block;
   margin: 0 0 0.6rem;
   padding: 0.1rem 0.55rem;
-  border-radius: 999px;
-  background: var(--surface-2);
+  border-radius: var(--radius-capsule);
+  background: var(--fill);
   color: var(--muted);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
   font-weight: 600;
 }
 
 .agent-detail__state--thinking,
 .agent-detail__state--calling {
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-strong);
 }
 
 .agent-detail__state--executing {
@@ -497,13 +504,13 @@
 .agent-detail__section {
   margin-top: 0.8rem;
   padding-top: 0.6rem;
-  border-top: 1px solid var(--border);
+  border-top: var(--hairline) solid var(--separator);
 }
 
 .agent-detail__section h4 {
   margin: 0 0 0.35rem;
   color: var(--muted);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
   font-weight: 600;
   letter-spacing: 0.02em;
 }
@@ -515,7 +522,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .agent-detail__list li {
@@ -541,8 +548,8 @@
 .agent-detail__args {
   margin-left: 0.4rem;
   color: var(--muted);
-  font-family: var(--mono);
-  font-size: 0.7333rem;
+  font-family: var(--font-mono);
+  font-size: var(--size-caption);
   font-weight: 400;
   overflow-wrap: anywhere;
 }
@@ -552,14 +559,14 @@
   margin-top: 0.35rem;
   padding: 0.5rem;
   overflow: auto;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  border-radius: var(--radius-control);
+  background: var(--fill);
 }
 
 .agent-detail__role {
   margin: 0.15rem 0 0.6rem;
   color: var(--muted);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .agent-detail dl {
@@ -575,12 +582,12 @@
 
 .agent-detail dt {
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .agent-detail dd {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
   overflow-wrap: anywhere;
 }
 
@@ -590,7 +597,7 @@
 
 .agent-detail summary {
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
   cursor: pointer;
 }
 
@@ -599,9 +606,9 @@
   padding: 0.5rem;
   max-height: 14rem;
   overflow: auto;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  font-size: 0.7333rem;
+  border-radius: var(--radius-control);
+  background: var(--fill);
+  font-size: var(--size-caption);
   white-space: pre-wrap;
 }
 

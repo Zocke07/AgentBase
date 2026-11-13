@@ -14,7 +14,7 @@
 .tree__file {
   overflow: hidden;
   color: var(--faint);
-  font: 0.6667rem var(--mono);
+  font: var(--size-caption) var(--font-mono);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -32,7 +32,7 @@
 .recent__day {
   margin: 0.25rem 0.35rem 0.15rem;
   color: var(--muted);
-  font-size: 0.7rem;
+  font-size: var(--size-caption);
   font-weight: 650;
   letter-spacing: 0.035em;
 }
@@ -45,17 +45,17 @@
   width: 100%;
   padding: 0.35rem 0.5rem;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   background: none;
   color: var(--muted);
   font: inherit;
-  font-size: 0.75rem;
+  font-size: var(--size-caption);
   text-align: left;
   cursor: pointer;
 }
 
 .recent__fold:hover {
-  background: var(--surface-2);
+  background: var(--fill-hover);
   color: var(--text);
 }
 

@@ -26,9 +26,12 @@ const HEIGHT = 720;
  * both themes, which costs no file.
  */
 const DARK_TOO: ReadonlySet<string> = new Set([
-  "tokens",
+  // Not the token page: it is the largest baseline by far, the rule test
+  // holds every value on it, and the shape page shows the dark planes.
   "type",
+  "shape",
   "controls",
+  "primitives",
   "rail",
   "run-two-agents",
   "run-shell-question",
@@ -68,22 +71,13 @@ describe.each(["light", "dark"] as const)("workbench pages, %s", (theme) => {
 });
 
 /**
- * Serious findings in the interface as it is today, by page and theme.
- * Stage 20.1 changes nothing a person can see, so it lists them; stage 20.2
- * fixes them and empties this list. A finding listed here that no longer
- * occurs fails the test, so the list cannot outlive its reason.
+ * Serious findings allowed to stand, by page and theme. Stage 20.1 listed
+ * three in the interface it found (the dark Allow button, the error count
+ * badge, the space switcher's name); stage 20.2 fixed them and emptied the
+ * list. It stays as the place a finding would have to be confessed: one
+ * listed here that no longer occurs fails the test.
  */
-const KNOWN_FINDINGS: Readonly<Record<string, readonly string[]>> = {
-  // The dark theme's Allow button: dark text on the green fill.
-  "controls/dark": ["color-contrast: .button--allow"],
-  "run-shell-question/dark": ["color-contrast: .button--allow"],
-  // The count beside "Errors" in a failed run's summary.
-  "run-failed-run/light": ["color-contrast: .run-summary__issue-badge"],
-  "run-stuck-worker/light": ["color-contrast: .run-summary__issue-badge"],
-  // The space switcher is named "Space: Main" but reads "Space Main".
-  "rail/light": ["label-content-name-mismatch: .switcher__current"],
-  "rail/dark": ["label-content-name-mismatch: .switcher__current"],
-};
+const KNOWN_FINDINGS: Readonly<Record<string, readonly string[]>> = {};
 
 /** The element a finding is about, without the path axe took to reach it. */
 function where(target: readonly unknown[]): string {

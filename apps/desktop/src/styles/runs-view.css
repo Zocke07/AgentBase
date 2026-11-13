@@ -16,7 +16,7 @@
   gap: 0.75rem;
   padding: 1rem;
   overflow: hidden;
-  border-right: 1px solid var(--border);
-  background: var(--surface);
+  border-right: var(--hairline) solid var(--separator);
+  background: var(--content);
 }
 

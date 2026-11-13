@@ -2,10 +2,10 @@
 
 .card {
   padding: 1rem 1.25rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow-1);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-card);
+  background: var(--content);
+  box-shadow: var(--elevation-card);
 }
 
 .card--notice {
@@ -14,7 +14,7 @@
 
 .card__title {
   margin-bottom: 0.25rem;
-  font-size: 1rem;
+  font-size: var(--size-body);
 }
 
 .card p {

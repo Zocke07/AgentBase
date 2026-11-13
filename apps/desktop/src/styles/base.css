@@ -8,7 +8,7 @@
 
 body {
   margin: 0;
-  background: var(--bg);
+  background: var(--window);
   color: var(--text);
 }
 
@@ -18,11 +18,85 @@ h3 {
   margin: 0;
   font-weight: 600;
   letter-spacing: -0.01em;
+  /* Where the engine has it: a heading's lines come out even. */
+  text-wrap: balance;
+}
+
+/* --- type ----------------------------------------------------------------- */
+
+/*
+ * The type scale (Phase 20, brief 4.2), as classes for new markup. Existing
+ * components set `font-size` from the same `--size-*` tokens. Titles of
+ * 20 px and over use the display stack, which on Windows 11 names the
+ * optical size made for them.
+ */
+.type-large-title {
+  font-family: var(--font-display);
+  font-size: var(--size-large-title);
+  font-weight: 700;
+  line-height: var(--leading-large-title);
+  letter-spacing: -0.02em;
+}
+
+.type-title-1 {
+  font-family: var(--font-display);
+  font-size: var(--size-title-1);
+  font-weight: 700;
+  line-height: var(--leading-title-1);
+  letter-spacing: -0.015em;
+}
+
+.type-title-2 {
+  font-size: var(--size-title-2);
+  font-weight: 600;
+  line-height: var(--leading-title-2);
+}
+
+.type-headline {
+  font-size: var(--size-headline);
+  font-weight: 600;
+  line-height: var(--leading-headline);
+}
+
+.type-body {
+  font-size: var(--size-body);
+  line-height: var(--leading-body);
+}
+
+.type-control {
+  font-size: var(--size-control);
+  line-height: var(--leading-control);
+}
+
+.type-caption {
+  font-size: var(--size-caption);
+  line-height: var(--leading-caption);
+}
+
+/* Money, counts and times line up in columns and do not jitter as they
+   change. */
+.num,
+time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- platform ------------------------------------------------------------- */
+
+/* `lib/platform.ts` names the platform once, on the root. macOS keeps the
+   system's overlay scrollbars; Windows gets thin ones in the theme. */
+:root[data-platform="windows"] {
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+/* `:where` adds no specificity, so a rule that hides a scrollbar still wins. */
+:where(:root[data-platform="windows"] *) {
+  scrollbar-width: thin;
 }
 
 code,
-pre {
-  font-family: var(--mono);
+pre,
+kbd {
+  font-family: var(--font-mono);
 }
 
 .sr-only {
@@ -41,7 +115,7 @@ pre {
   padding: 0;
   border: 0;
   background: none;
-  color: var(--accent);
+  color: var(--accent-strong);
   font: inherit;
   text-decoration: underline;
   text-underline-offset: 0.15em;

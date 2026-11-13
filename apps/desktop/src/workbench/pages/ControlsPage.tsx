@@ -3,9 +3,9 @@ import type { ReactNode } from "react";
 import { Skeleton } from "../../components/Skeleton";
 
 /**
- * The shared controls as the stylesheet draws them today: buttons, status
- * and risk badges, cards, form fields and loading placeholders, each in the
- * states it has. Stage 20.2's primitives replace these one by one.
+ * The shared controls the stylesheet draws from a class: buttons, status and
+ * risk badges, cards, form fields and loading placeholders, each in the
+ * states it has. The primitives with behaviour of their own have their page.
  */
 
 function Group({ title, children }: { title: string; children: ReactNode }) {

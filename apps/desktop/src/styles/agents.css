@@ -22,8 +22,8 @@
   gap: 0.6rem;
   padding: 1rem;
   overflow-y: auto;
-  border-right: 1px solid var(--border);
-  background: var(--surface);
+  border-right: var(--hairline) solid var(--separator);
+  background: var(--content);
 }
 
 .roster__head {
@@ -33,12 +33,12 @@
 }
 
 .roster__head h2 {
-  font-size: 1rem;
+  font-size: var(--size-body);
 }
 
 .roster__empty {
   color: var(--muted);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .roster__error,
@@ -46,10 +46,10 @@
   margin: 0;
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--bad);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   background: var(--bad-soft);
   color: var(--bad);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .roster__list {
@@ -62,9 +62,9 @@
 }
 
 .roster__item {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-card);
+  background: var(--content);
 }
 
 .roster__item--selected {
@@ -90,7 +90,7 @@
 
 .roster__name {
   display: block;
-  font-size: 0.9333rem;
+  font-size: var(--size-control);
   font-weight: 600;
 }
 
@@ -98,7 +98,7 @@
 .roster__meta {
   display: block;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .roster__actions {
@@ -106,7 +106,7 @@
   gap: 0.6rem;
   align-items: center;
   padding: 0.35rem 0.75rem;
-  border-top: 1px solid var(--border);
+  border-top: var(--hairline) solid var(--separator);
 }
 
 .roster__toggle {
@@ -115,7 +115,7 @@
   align-items: center;
   margin-right: auto;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .roster__confirm {
@@ -123,7 +123,7 @@
   gap: 0.4rem;
   align-items: center;
   color: var(--bad);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 /* Move or copy a definition to another space, above the editor. */
@@ -135,10 +135,10 @@
   width: min(46rem, 100%);
   margin-bottom: 0.75rem;
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  font-size: 0.8667rem;
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-control);
+  background: var(--content);
+  font-size: var(--size-control);
 }
 
 .transfer__label {
@@ -153,6 +153,6 @@
 
 .transfer select {
   padding: 0.2rem 0.4rem;
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 

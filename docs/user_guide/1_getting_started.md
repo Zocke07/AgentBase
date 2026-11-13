@@ -320,7 +320,7 @@ The default space cannot be archived or deleted.
 | **Keys** | Store or clear cloud API keys and the Discord bot token; restart to apply. |
 | **Monthly budget** | **Monthly cap (USD)**, $20.00 by default, shared across spaces. Enter dollars directly. |
 | **Chat channels** | Enable Discord, allow accounts, choose approval responders and the destination space. |
-| **Appearance** | **Follow the system**, **Light**, or **Dark**; changes immediately. |
+| **Appearance** | **Follow the system**, **Light**, or **Dark**, and **Reduce transparency**, which makes menus and pop-up panels solid instead of see-through. Both change immediately and are remembered on this computer. |
 | **About AgentBase** | The version that is running, the data folder with **Open folder**, and **Replay the tour**. |
 
 Click **Save settings** for changed settings. Model, limit and approval

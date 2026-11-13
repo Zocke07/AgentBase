@@ -9,7 +9,7 @@
 
 .run-files__label {
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .run-files__list {
@@ -27,11 +27,11 @@
   display: inline-flex;
   max-width: 100%;
   padding: 0.15rem 0.55rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-capsule);
+  background: var(--content);
   color: var(--text);
-  font: 0.75rem var(--mono);
+  font: var(--size-caption) var(--font-mono);
   overflow-wrap: anywhere;
 }
 
@@ -43,7 +43,7 @@ button.run-files__file,
 button.run-files__file:hover,
 .run-files__more:hover {
   border-color: var(--accent);
-  color: var(--accent);
+  color: var(--accent-strong);
 }
 
 .run-files__folder {

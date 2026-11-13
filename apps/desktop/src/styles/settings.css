@@ -24,7 +24,7 @@
 .settings__group {
   margin: 0.5rem 0 -0.5rem;
   color: var(--muted);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
   font-weight: 600;
 }
 
@@ -33,21 +33,21 @@
   flex-direction: column;
   gap: 0.75rem;
   padding: 1rem 1.25rem 1.1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow-1);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-card);
+  background: var(--content);
+  box-shadow: var(--elevation-card);
 }
 
 .settings__section h2 {
-  font-size: 1rem;
+  font-size: var(--size-body);
 }
 
 .settings__hint,
 .settings__loading {
   margin: 0;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .settings__loading {
@@ -66,7 +66,7 @@
   flex-basis: 100%;
   margin: 0;
   color: var(--good);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .settings__verify-result--bad {
@@ -87,8 +87,8 @@
   gap: 0.6rem;
   align-items: center;
   padding: 0.45rem 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 0.8667rem;
+  border-bottom: var(--hairline) solid var(--separator);
+  font-size: var(--size-control);
 }
 
 .settings__key:last-child,
@@ -98,8 +98,8 @@
 
 .settings__key-name,
 .settings__identity-id {
-  font-family: var(--mono);
-  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  font-size: var(--size-caption);
 }
 
 .settings__key-state {
@@ -130,7 +130,7 @@
 .settings__key-actions input {
   width: 18rem;
   padding: 0.25rem 0.45rem;
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .settings__oauth {
@@ -139,8 +139,8 @@
   gap: 0.6rem;
   align-items: center;
   padding-top: 0.35rem;
-  border-top: 1px solid var(--border);
-  font-size: 0.8667rem;
+  border-top: var(--hairline) solid var(--separator);
+  font-size: var(--size-control);
 }
 
 .settings__oauth-account {
@@ -166,22 +166,22 @@
 
 .settings__channel {
   padding: 0.65rem 0.85rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-control);
+  background: var(--fill);
 }
 
 .settings__channel-status {
   margin-top: 0.4rem;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .settings__channel-error {
   margin: 0.3rem 0 0;
   color: var(--bad);
-  font-family: var(--mono);
-  font-size: 0.7333rem;
+  font-family: var(--font-mono);
+  font-size: var(--size-caption);
   overflow-wrap: anywhere;
 }
 
@@ -199,7 +199,7 @@
 .settings__identity-add input,
 .settings__identity-add select {
   padding: 0.25rem 0.45rem;
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .settings__actions {
@@ -209,12 +209,27 @@
 .settings__saved {
   margin-right: auto;
   color: var(--good);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
-.settings__theme {
+/* A label on the left and its control on the right, as System Settings
+   lays them out. */
+.settings__appearance-row {
   display: flex;
-  gap: 1rem;
+  gap: var(--space-4);
+  align-items: center;
+  justify-content: space-between;
+  min-height: 2rem;
+}
+
+.settings__appearance-row + .settings__appearance-row {
+  padding-top: var(--space-3);
+  border-top: var(--hairline) solid var(--separator);
+}
+
+.settings__appearance-row .settings__hint {
+  display: block;
+  margin: 0;
 }
 
 .settings__folder {
@@ -226,9 +241,9 @@
 .settings__folder-path {
   overflow: hidden;
   padding: 0.35rem 0.55rem;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  font-size: 0.8rem;
+  border-radius: var(--radius-control);
+  background: var(--fill);
+  font-size: var(--size-caption);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

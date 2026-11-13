@@ -11,11 +11,11 @@
   align-items: start;
   margin: 0.75rem 1.25rem 0.25rem;
   padding: 0.85rem 1.1rem;
-  border: 1px solid var(--border);
+  border: var(--hairline) solid var(--separator);
   border-left: 4px solid var(--warn);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow-2);
+  border-radius: var(--radius-panel);
+  background: var(--elevated);
+  box-shadow: var(--elevation-floating);
 }
 
 .approval--low {
@@ -37,18 +37,18 @@
 }
 
 .approval__title {
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
   font-weight: 600;
 }
 
 .approval__queue {
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .approval__prompt {
   margin: 0.4rem 0 0.25rem;
-  font-size: 1.0625rem;
+  font-size: var(--size-title-2);
   font-weight: 500;
   line-height: 1.4;
 }
@@ -56,12 +56,12 @@
 .approval__agent {
   margin: 0;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .approval__history {
   margin-top: 0.5rem;
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .approval__history summary {
@@ -121,19 +121,19 @@
 
 .approval__buttons .button {
   padding: 0.5rem 1.25rem;
-  font-size: 0.9333rem;
+  font-size: var(--size-control);
 }
 
 .approval__error {
   margin: 0;
   color: var(--bad);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .approval__readonly,
 .approval__note {
   margin: 0;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 

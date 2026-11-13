@@ -17,14 +17,15 @@
 }
 
 .usage__title {
-  font-size: 1.25rem;
+  font-family: var(--font-display);
+  font-size: var(--size-title-1);
 }
 
 .usage__hint {
   max-width: 44rem;
   margin: 0.25rem 0 0;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .usage__controls {
@@ -36,17 +37,17 @@
 
 .usage__scope {
   display: inline-flex;
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-capsule);
   overflow: hidden;
 }
 
 .usage__scope-choice {
   padding: 0.3rem 0.75rem;
   border: 0;
-  background: var(--surface);
+  background: var(--control);
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
   cursor: pointer;
 }
 
@@ -60,7 +61,7 @@
 .usage__empty {
   margin: 0;
   color: var(--muted);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .usage__body {
@@ -87,10 +88,10 @@
   flex-direction: column;
   gap: 0.2rem;
   padding: 0.85rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow-1);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-card);
+  background: var(--content);
+  box-shadow: var(--elevation-card);
 }
 
 .usage__card--spend {
@@ -99,36 +100,35 @@
 
 .usage__card-label {
   color: var(--muted);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
   font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
 }
 
 .usage__card-value {
-  font-size: 1.5rem;
+  font-family: var(--font-display);
+  font-size: var(--size-title-1);
   font-weight: 650;
   font-variant-numeric: tabular-nums;
 }
 
 .usage__card-note {
   color: var(--muted);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
 }
 
 .usage__meter {
   display: block;
   height: 4px;
   margin-top: 0.4rem;
-  border-radius: 999px;
-  background: var(--surface-2);
+  border-radius: var(--radius-capsule);
+  background: var(--fill);
   overflow: hidden;
 }
 
 .usage__meter > span {
   display: block;
   height: 100%;
-  border-radius: 999px;
+  border-radius: var(--radius-capsule);
   background: var(--accent);
 }
 
@@ -138,14 +138,14 @@
   gap: 0.6rem;
   min-width: 0;
   padding: 0.9rem 1rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow-1);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-card);
+  background: var(--content);
+  box-shadow: var(--elevation-card);
 }
 
 .usage__section h3 {
-  font-size: 0.9333rem;
+  font-size: var(--size-control);
 }
 
 .usage__columns {
@@ -170,7 +170,7 @@
   height: 6.75rem;
   margin-top: 0.5rem;
   color: var(--muted);
-  font-size: 0.6667rem;
+  font-size: var(--size-caption);
   font-variant-numeric: tabular-nums;
   line-height: 1;
   text-align: right;
@@ -198,7 +198,7 @@
   flex: 1;
   align-items: flex-end;
   justify-content: center;
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--hairline) solid var(--separator);
 }
 
 /* The slots touch so the baseline under them is one line; the bar leaves the
@@ -223,7 +223,7 @@
   overflow: hidden;
   line-height: 1rem;
   color: var(--muted);
-  font-size: 0.6667rem;
+  font-size: var(--size-caption);
   text-align: center;
   text-overflow: clip;
   white-space: nowrap;
@@ -237,27 +237,27 @@
 .usage__chart-note {
   margin: 0.5rem 0 0;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .usage__table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .usage__table th {
   padding: 0.3rem 0.5rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--hairline) solid var(--separator);
   color: var(--muted);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
   font-weight: 600;
   text-align: left;
 }
 
 .usage__table td {
   padding: 0.4rem 0.5rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--hairline) solid var(--separator);
   vertical-align: top;
 }
 
@@ -284,6 +284,6 @@
 .usage__mean,
 .usage__deleted {
   color: var(--muted);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
 }
 

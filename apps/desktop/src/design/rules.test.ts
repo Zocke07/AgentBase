@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { styleFiles } from "../test/stylesheet";
 
-import { mixedColours, rawColours } from "./colour";
+import { mixedColours, rawColours, withoutComments } from "./colour";
 import {
   colourTokens,
   CONTRAST_PAIRS,
@@ -73,35 +73,6 @@ describe("colour tokens", () => {
 });
 
 describe("raw colours", () => {
-  /**
-   * What is left outside the token file today, by file. Stage 20.2 moves
-   * these into tokens; until then a file may not gain one, and a file that
-   * loses one must lower its number here, so the count only goes down.
-   */
-  const ALLOWED: Readonly<Record<string, number>> = {
-    "styles/app.css": 4,
-    "styles/buttons.css": 1,
-    "styles/home.css": 1,
-    "styles/knowledge.css": 3,
-    "styles/rail.css": 1,
-    "styles/responsive.css": 1,
-    "styles/space-switcher.css": 1,
-  };
-
-  /** Colours mixed from tokens where they are used, held the same way. */
-  const MIXED: Readonly<Record<string, number>> = {
-    "styles/app.css": 1,
-    "styles/buttons.css": 1,
-    "styles/file-views.css": 1,
-    "styles/graph.css": 3,
-    "styles/knowledge.css": 5,
-    "styles/markdown.css": 6,
-    "styles/run-panel.css": 6,
-    "styles/schedules.css": 2,
-    "styles/settings-nav.css": 3,
-    "styles/tour.css": 2,
-  };
-
   const imported = new Set(files.map((file) => file.path));
   const sheets = sources([".css"]).filter((path) => path !== TOKEN_FILE);
 
@@ -121,12 +92,15 @@ describe("raw colours", () => {
   });
 
   it("are named only in the token file", () => {
-    expect(counted(rawColours)).toEqual(ALLOWED);
+    // Stage 20.1 found twelve in seven files; stage 20.2 moved each to a token.
+    expect(counted(rawColours)).toEqual({});
   });
 
-  it("are not mixed in place beyond what is already there", () => {
+  it("are not mixed in place", () => {
+    // A `color-mix()` is a colour with no name and no dark value of its own.
+    // The thirty that stage 20.1 found are tokens now: -soft, -line and -tint.
     expect(mixedColours(tokenCss)).toEqual([]);
-    expect(counted(mixedColours)).toEqual(MIXED);
+    expect(counted(mixedColours)).toEqual({});
   });
 
   it("do not appear in component or library code", () => {
@@ -136,6 +110,45 @@ describe("raw colours", () => {
     );
     const literal = /#[0-9a-f]{6}\b|#[0-9a-f]{3}\b(?![\w-])|\b(?:rgba?|hsla?)\(/i;
     expect(code.filter((path) => literal.test(readFileSync(join(SRC, path), "utf8")))).toEqual([]);
+  });
+});
+
+describe("text size", () => {
+  /** The root size the stylesheet's rem values are multiples of. */
+  const ROOT_PX = 15;
+  const SMALLEST_PX = 13;
+
+  /** A length in px, when the value states one in px or rem. */
+  function pixels(length: string): number | null {
+    const match = /^([\d.]+)(px|rem)$/.exec(length);
+    if (match === null) return null;
+    return Number(match[1]) * (match[2] === "rem" ? ROOT_PX : 1);
+  }
+
+  it("is never set below 13 px, by font-size or by the font shorthand", () => {
+    // D7: captions are 13 px and the smallest text. A size relative to its
+    // parent (em, %) is not read here.
+    const small: string[] = [];
+    for (const path of sources([".css"])) {
+      const css = withoutComments(readFileSync(join(SRC, path), "utf8"));
+      for (const [, property = "", value = ""] of css.matchAll(/(?<![-\w])(font-size|font)\s*:\s*([^;{}]+)/g)) {
+        // In the shorthand the size is the token before the family, with an
+        // optional line height after a slash.
+        const sizes = property === "font-size" ? [value.trim()] : value.trim().split(/\s+/).map((part) => part.split("/")[0] ?? "");
+        for (const size of sizes) {
+          const px = pixels(size);
+          if (px !== null && px < SMALLEST_PX && px > 0) small.push(`${path}: ${property}: ${value.trim()}`);
+        }
+      }
+    }
+    expect(small).toEqual([]);
+  });
+
+  it("has a caption token of 13 px, the smallest size token", () => {
+    const sizes = [...blocks.light].filter(([name]) => name.startsWith("--size-")).map(([, value]) => pixels(value) ?? 0);
+    expect(sizes.length).toBeGreaterThanOrEqual(7);
+    expect(Math.min(...sizes)).toBe(SMALLEST_PX);
+    expect(pixels(blocks.light.get("--size-caption") ?? "")).toBe(SMALLEST_PX);
   });
 });
 
@@ -157,12 +170,14 @@ describe("text contrast", () => {
     expect(fixed.map((pair) => pair.name)).toEqual([]);
   });
 
-  it("keeps the header's promises about the palette", () => {
+  it("keeps the token file's promises about the palette", () => {
     const ratio = (name: string) => measured.find((pair) => pair.name === name)?.ratio ?? 0;
     // "White on the accent is 5.0:1", and `--faint` is the lightest text allowed.
     expect(ratio("light: --on-accent on --accent")).toBeGreaterThanOrEqual(4.5);
-    expect(ratio("light: --faint on --surface")).toBeGreaterThanOrEqual(4.5);
-    expect(ratio("dark: --faint on --surface")).toBeGreaterThanOrEqual(4.5);
-    expect(ratio("light: --faint on --bg")).toBeLessThan(ratio("light: --muted on --bg"));
+    for (const theme of ["light", "dark"]) {
+      expect(ratio(`${theme}: --faint on --content`)).toBeGreaterThanOrEqual(4.5);
+      expect(ratio(`${theme}: --faint on --window`)).toBeLessThan(ratio(`${theme}: --muted on --window`));
+      expect(ratio(`${theme}: --muted on --window`)).toBeLessThan(ratio(`${theme}: --text on --window`));
+    }
   });
 });

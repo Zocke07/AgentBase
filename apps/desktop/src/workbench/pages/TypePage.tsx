@@ -1,9 +1,9 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 /**
- * The type the stylesheet gives each kind of text today, with the size,
- * line height and weight the browser actually computed for it. Stage 20.2
- * replaces these with the type scale; this page is its before.
+ * The type scale (Phase 20, brief 4.2): each style with the size, line
+ * height and weight the browser computed for it, and the family it resolved
+ * to, so a wrong font on either platform shows here first.
  */
 
 interface Sample {
@@ -13,25 +13,44 @@ interface Sample {
 }
 
 const SAMPLES: readonly Sample[] = [
-  { name: "Heading 1", use: "h1", render: () => <h1>Quarterly report summarised</h1> },
-  { name: "Heading 2", use: "h2", render: () => <h2>Recent runs</h2> },
-  { name: "Heading 3", use: "h3", render: () => <h3>What this creates</h3> },
+  {
+    name: "Large title",
+    use: "section titles",
+    render: () => <p className="type-large-title">Quarterly report summarised</p>,
+  },
+  { name: "Title 1", use: "page and sheet titles", render: () => <p className="type-title-1">Recent runs</p> },
+  {
+    name: "Title 2",
+    use: "card and group headings, the toolbar title",
+    render: () => <p className="type-title-2">What this creates</p>,
+  },
+  { name: "Headline", use: "emphasis in lists", render: () => <p className="type-headline">Daily decision</p> },
   {
     name: "Body",
     use: "prose",
-    render: () => <p className="wb-type__prose">The decision is a recommendation for you to review; nothing is bought or sold.</p>,
+    render: () => (
+      <p className="type-body">The decision is a recommendation for you to review; nothing is bought or sold.</p>
+    ),
+  },
+  {
+    name: "Control",
+    use: "buttons, fields, rail, rows",
+    render: () => <p className="type-control">Your holdings, cash and limits for this space.</p>,
+  },
+  {
+    name: "Caption",
+    use: "metadata and chips; the smallest text",
+    render: () => <p className="type-caption">Updated Thu, Sep 10, 12:00 PM</p>,
   },
   {
     name: "Muted",
     use: "--muted",
-    render: () => (
-      <p className="wb-type__prose wb-type__prose--muted">Your holdings, cash and limits for this space's stock research.</p>
-    ),
+    render: () => <p className="type-body wb-type__muted">Your holdings, cash and limits for this space's stock research.</p>,
   },
   {
     name: "Faint",
     use: "--faint, the lightest text allowed",
-    render: () => <p className="wb-type__prose wb-type__prose--faint">Updated Thu, Sep 10, 12:00 PM</p>,
+    render: () => <p className="type-caption wb-type__faint">Updated Thu, Sep 10, 12:00 PM</p>,
   },
   {
     name: "Link",
@@ -42,11 +61,17 @@ const SAMPLES: readonly Sample[] = [
       </button>
     ),
   },
-  { name: "Mono", use: "ids, payloads and code", render: () => <code>tool.called call-12</code> },
+  { name: "Mono", use: "ids, payloads and code only", render: () => <code>tool.called call-12</code> },
   {
     name: "Numbers",
-    use: "money, counts and times",
-    render: () => <span className="wb-type__numbers">$1,204.50 · 18 of 151 · 04:30:54</span>,
+    use: "money, counts and times: tabular",
+    render: () => (
+      <span className="num">
+        $1,204.50 · 18 of 151 · 04:30:54
+        <br />
+        $1,111.11 · 11 of 111 · 01:11:11
+      </span>
+    ),
   },
 ];
 

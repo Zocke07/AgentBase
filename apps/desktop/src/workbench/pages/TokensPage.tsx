@@ -72,48 +72,42 @@ export function TokensPage({ theme }: { theme: "light" | "dark" }) {
       </section>
 
       <section>
-        <h3 className="wb-group__title">Text contrast, {theme}</h3>
-        <table className="wb-table">
-          <thead>
-            <tr>
-              <th scope="col">Sample</th>
-              <th scope="col">Text</th>
-              <th scope="col">On</th>
-              <th scope="col">Ratio</th>
-              <th scope="col">Against {String(CONTRAST_PAIRS[0]?.min ?? 4.5)}:1</th>
-            </tr>
-          </thead>
-          <tbody>
-            {CONTRAST_PAIRS.map((pair) => {
-              const name = pairName(pair, theme);
-              let ratio: number | null;
-              try {
-                ratio = pairContrast(tokens, pair);
-              } catch {
-                ratio = null;
-              }
-              const ground =
-                pair.tint === undefined
-                  ? `var(${pair.surface})`
-                  : `linear-gradient(var(${pair.tint}), var(${pair.tint})), var(${pair.surface})`;
-              return (
-                <tr key={name} data-short={ratio !== null && ratio < pair.min ? "true" : undefined}>
-                  <td>
-                    <span className="wb-contrast__sample" style={{ color: `var(${pair.text})`, background: ground }}>
-                      Sample text
-                    </span>
-                  </td>
-                  <td className="wb-table__mono">{pair.text}</td>
-                  <td className="wb-table__mono">
-                    {pair.tint === undefined ? pair.surface : `${pair.tint} over ${pair.surface}`}
-                  </td>
-                  <td className="wb-table__figure">{ratio === null ? "?" : `${ratio.toFixed(2)}:1`}</td>
-                  <td>{ratio === null ? "not measured" : verdict(pair, ratio, theme)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <h3 className="wb-group__title">
+          Text contrast, {theme}: {String(CONTRAST_PAIRS.length)} pairs
+        </h3>
+        {/* A grid of small samples, not a table: there are a few hundred. */}
+        <ul className="wb-pairs">
+          {CONTRAST_PAIRS.map((pair) => {
+            const name = pairName(pair, theme);
+            let ratio: number | null;
+            try {
+              ratio = pairContrast(tokens, pair);
+            } catch {
+              ratio = null;
+            }
+            const ground =
+              pair.tint === undefined
+                ? `var(${pair.surface})`
+                : `linear-gradient(var(${pair.tint}), var(${pair.tint})), var(${pair.surface})`;
+            const on = pair.tint === undefined ? pair.surface : `${pair.tint} over ${pair.surface}`;
+            return (
+              <li
+                key={name}
+                className="wb-pair"
+                data-short={ratio !== null && ratio < pair.min ? "true" : undefined}
+                title={`${pair.text} on ${on}, against ${String(pair.min)}:1`}
+              >
+                <span className="wb-contrast__sample" style={{ color: `var(${pair.text})`, background: ground }}>
+                  {pair.text.slice(2)}
+                </span>
+                <span className="wb-pair__on">{on.replaceAll("--", "")}</span>
+                <span className="wb-pair__ratio">
+                  {ratio === null ? "not measured" : `${ratio.toFixed(2)}:1, ${verdict(pair, ratio, theme)}`}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
       </section>
     </div>
   );

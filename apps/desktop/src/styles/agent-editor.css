@@ -8,7 +8,7 @@
 }
 
 .editor h2 {
-  font-size: 1.125rem;
+  font-size: var(--size-title-2);
 }
 
 .editor__field {
@@ -20,7 +20,7 @@
 
 .editor__field>span:first-child {
   color: var(--muted);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
   font-weight: 500;
 }
 
@@ -35,7 +35,7 @@
 
 .editor__error {
   color: var(--bad);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .editor__error--form {
@@ -45,13 +45,13 @@
 .editor__hint {
   margin: 0;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .editor__hint--field {
   display: block;
   margin-top: 0.25rem;
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
 }
 
 .editor__risks {
@@ -68,10 +68,10 @@
   margin-bottom: 0.75rem;
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--warn);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   background: var(--warn-soft);
   color: var(--warn);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 /* A space's provider switch, before saving: the agents left on the old
@@ -82,9 +82,9 @@
   min-inline-size: 0;
   margin: 0.75rem 0 0;
   padding: 0.75rem 1rem 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-control);
+  background: var(--fill);
   animation: pop-in var(--dur-base) var(--ease-out) backwards;
 }
 
@@ -115,7 +115,7 @@
 
 .switch-plan__models {
   color: var(--muted);
-  font-size: 0.875rem;
+  font-size: var(--size-control);
 }
 
 .editor__tools {
@@ -128,14 +128,14 @@
   min-inline-size: 0;
   margin: 0;
   padding: 0.75rem 1rem 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-control);
 }
 
 .editor__tools legend {
   padding: 0 0.35rem;
   color: var(--muted);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
   font-weight: 500;
 }
 
@@ -143,13 +143,13 @@
   display: flex;
   gap: 0.5rem;
   align-items: center;
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .editor__tool-name {
   min-width: 7rem;
-  font-family: var(--mono);
-  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  font-size: var(--size-caption);
 }
 
 .editor__tool-description {
@@ -157,7 +157,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -184,7 +184,7 @@
 
 .settings__other-providers summary {
   color: var(--muted);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
   cursor: pointer;
 }
 
@@ -194,14 +194,14 @@
 
 .editor__tool-missing {
   color: var(--warn);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
 }
 
 .editor__checkbox {
   display: flex;
   gap: 0.5rem;
   align-items: center;
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .editor__actions {

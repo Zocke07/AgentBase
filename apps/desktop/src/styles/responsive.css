@@ -23,7 +23,7 @@
   left: 0;
   z-index: 45;
   width: 13.5rem;
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--elevation-modal);
   animation: drawer-in var(--dur-base) var(--ease-out) backwards;
 }
 
@@ -31,7 +31,7 @@
   position: fixed;
   inset: 0;
   z-index: 44;
-  background: rgb(10 12 20 / 35%);
+  background: var(--scrim);
   animation: fade-in var(--dur-base) var(--ease-out) backwards;
 }
 
@@ -154,7 +154,7 @@
   margin-left: -0.45rem;
   padding: 0.2rem 0.5rem 0.2rem 0.45rem;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   background: none;
   color: var(--text);
   font: inherit;
@@ -164,7 +164,7 @@
 }
 
 .log__fold:hover {
-  background: var(--surface-2);
+  background: var(--fill-hover);
 }
 
 /* A chevron drawn from two borders: down while open, right while folded. */

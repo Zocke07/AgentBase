@@ -6,6 +6,7 @@ import {
   MOTION_CHOICES,
   PLATFORM_CHOICES,
   THEME_CHOICES,
+  TRANSPARENCY_CHOICES,
   type Environment,
 } from "./environment";
 import { PAGE_GROUPS, pageById, PAGES } from "./pages";
@@ -102,6 +103,7 @@ export function Workbench({ initialPage, initialEnvironment, initialCursor }: Wo
     if (environment.theme !== "system") query.set("theme", environment.theme);
     if (environment.motion !== "system") query.set("motion", environment.motion);
     if (environment.platform !== "mac") query.set("platform", environment.platform);
+    if (environment.transparency !== "system") query.set("transparency", environment.transparency);
     if (cursor !== undefined) query.set("cursor", String(cursor));
     window.history.replaceState(null, "", `${window.location.pathname}?${query.toString()}`);
   }, [pageId, environment, cursor]);
@@ -166,6 +168,14 @@ export function Workbench({ initialPage, initialEnvironment, initialCursor }: Wo
               choices={PLATFORM_CHOICES}
               onChange={(platform) => {
                 change({ ...environment, platform });
+              }}
+            />
+            <Choice
+              label="Transparency"
+              value={environment.transparency}
+              choices={TRANSPARENCY_CHOICES}
+              onChange={(transparency) => {
+                change({ ...environment, transparency });
               }}
             />
           </div>

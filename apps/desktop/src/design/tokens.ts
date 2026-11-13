@@ -87,51 +87,78 @@ export interface ContrastPair {
 }
 
 const TEXT_MIN = 4.5;
-const pairs = (texts: readonly string[], surfaces: readonly string[], tint?: (text: string) => string): ContrastPair[] =>
+/** Large text, icons and marks. */
+const MARK_MIN = 3;
+
+/** The four planes text sits on. */
+const PLANES = ["--window", "--sidebar", "--content", "--elevated"] as const;
+const STATUS = ["--good", "--bad", "--warn", "--info"] as const;
+/** Words in a colour: the accent as text, and the status words. */
+const WORDS = ["--accent-strong", ...STATUS] as const;
+
+/** Every text on every ground, with an optional tint laid over the ground. */
+const pairs = (
+  texts: readonly string[],
+  surfaces: readonly string[],
+  tint?: string | ((text: string) => string),
+  min = TEXT_MIN,
+): ContrastPair[] =>
   texts.flatMap((text) =>
-    surfaces.map((surface) => ({ text, surface, ...(tint === undefined ? {} : { tint: tint(text) }), min: TEXT_MIN })),
+    surfaces.map((surface) => ({
+      text,
+      surface,
+      ...(tint === undefined ? {} : { tint: typeof tint === "string" ? tint : tint(text) }),
+      min,
+    })),
   );
 
-const STATUS = ["--good", "--bad", "--warn", "--info"] as const;
-
-/** Every pair the interface sets text in, and so must hold to AA. */
+/**
+ * Every pair the interface sets text in, and so must hold to AA. The list
+ * follows the token file's own rules for where each text level may sit:
+ * `--faint` and coloured words on a plane, a quiet fill or a hovered one;
+ * `--text` and `--muted` anywhere, a selected or strong fill included.
+ */
 export const CONTRAST_PAIRS: readonly ContrastPair[] = [
-  ...pairs(["--text", "--muted"], ["--bg", "--surface", "--surface-2", "--surface-3"]),
-  // The lightest text allowed, and words in the accent or a status colour.
-  ...pairs(["--faint", "--accent", "--accent-strong", ...STATUS], ["--bg", "--surface", "--surface-2", "--surface-3"]),
-  { text: "--on-accent", surface: "--accent", min: TEXT_MIN },
-  // A status word on its own soft fill: badges, notices and chips.
-  ...pairs(["--accent-strong"], ["--bg", "--surface"], () => "--accent-soft"),
-  ...pairs(STATUS, ["--bg", "--surface"], (text) => `${text}-soft`),
+  // On the planes themselves.
+  ...pairs(["--text", "--muted", "--faint", ...WORDS], PLANES),
+  // On a fill laid over a plane.
+  ...pairs(["--text", "--muted", "--faint", ...WORDS], PLANES, "--fill"),
+  ...pairs(["--text", "--muted", "--faint", ...WORDS], PLANES, "--fill-hover"),
+  ...pairs(["--text", "--muted", "--accent-strong"], PLANES, "--fill-selected"),
+  ...pairs(["--text", "--muted"], PLANES, "--fill-strong"),
+  // On buttons and fields. A placeholder is faint on a resting field.
+  ...pairs(["--text", "--muted"], ["--control", "--control-hover", "--control-pressed"]),
+  ...pairs(["--faint", "--accent-strong", "--good", "--bad"], ["--control", "--control-hover"]),
+  // On a floating layer's material, over whatever plane it floats above.
+  ...pairs(["--text", "--muted", "--faint", ...WORDS], PLANES, "--material"),
+  // Text on a solid fill of the accent or a status colour.
+  ...pairs(["--on-accent"], ["--accent", "--accent-strong"]),
+  { text: "--on-good", surface: "--good", min: TEXT_MIN },
+  { text: "--on-bad", surface: "--bad", min: TEXT_MIN },
+  { text: "--on-warn", surface: "--warn", min: TEXT_MIN },
+  // A coloured word on its own soft fill: badges, notices, chips, the
+  // selected row of the rail.
+  ...pairs(["--accent-strong"], PLANES, "--accent-soft"),
+  ...pairs(STATUS, PLANES, (text) => `${text}-soft`),
+  // A highlight in prose, and a hovered soft chip, whose words turn to --text.
+  ...pairs(["--text"], PLANES, "--warn-tint"),
+  ...pairs(["--text"], PLANES, "--info-tint"),
+  // The accent as a mark or an icon, never as running text.
+  ...pairs(["--accent"], PLANES, undefined, MARK_MIN),
+  ...pairs(["--accent"], PLANES, "--fill-hover", MARK_MIN),
 ];
 
 export const pairName = (pair: ContrastPair, theme: string): string =>
   `${theme}: ${pair.text} on ${pair.tint === undefined ? "" : `${pair.tint} over `}${pair.surface}`;
 
 /**
- * Pairs below their minimum in today's palette, by `pairName`. Stage 20.1
- * changes nothing a person can see, so it records them instead of retuning a
- * colour; stage 20.2's tokens must empty this list. A pair listed here that
- * now passes fails the rule test, so the list cannot outlive its reason.
+ * Pairs below their minimum, by `pairName`. Stage 20.1 listed sixteen in the
+ * palette it found; stage 20.2's tokens emptied the list, and it stays as the
+ * place a later palette change would have to confess a shortfall. A pair
+ * listed here that passes fails the rule test, so an entry cannot outlive its
+ * reason.
  */
-export const KNOWN_SHORTFALLS: ReadonlySet<string> = new Set([
-  "light: --faint on --surface-2",
-  "light: --faint on --surface-3",
-  "light: --accent on --surface-2",
-  "light: --accent on --surface-3",
-  "light: --good on --surface-3",
-  "light: --bad on --surface-2",
-  "light: --bad on --surface-3",
-  "light: --warn on --surface-3",
-  "light: --info on --surface-3",
-  "light: --good on --good-soft over --bg",
-  "light: --bad on --bad-soft over --bg",
-  "light: --bad on --bad-soft over --surface",
-  "light: --warn on --warn-soft over --bg",
-  "light: --info on --info-soft over --bg",
-  "dark: --faint on --surface-2",
-  "dark: --faint on --surface-3",
-]);
+export const KNOWN_SHORTFALLS: ReadonlySet<string> = new Set<string>([]);
 
 function colourOf(tokens: Tokens, name: string): Rgba {
   const value = resolveToken(tokens, name);

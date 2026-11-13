@@ -3,13 +3,13 @@
 .policy-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .policy-table th,
 .policy-table td {
   padding: 0.4rem 0.5rem;
-  border-top: 1px solid var(--border);
+  border-top: var(--hairline) solid var(--separator);
   text-align: left;
   vertical-align: middle;
 }

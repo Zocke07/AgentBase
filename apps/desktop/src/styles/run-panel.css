@@ -16,8 +16,8 @@
 
 .run-summary {
   padding: 0.85rem 1.25rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  border-bottom: var(--hairline) solid var(--separator);
+  background: var(--content);
 }
 
 .run-summary__head {
@@ -30,7 +30,7 @@
 .run-summary__goal {
   grid-column: 1 / -1;
   margin: 0.15rem 0 0;
-  font-size: 1.0625rem;
+  font-size: var(--size-title-2);
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
@@ -39,7 +39,7 @@
 .run-summary__brief {
   grid-column: 1 / -1;
   color: var(--muted);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .run-summary__brief>summary {
@@ -59,10 +59,10 @@
   align-items: center;
   width: fit-content;
   padding: 0.1rem 0.45rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--bad) 10%, var(--surface));
+  border-radius: var(--radius-capsule);
+  background: var(--bad-soft);
   color: var(--bad);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
   font-weight: 650;
 }
 
@@ -73,7 +73,7 @@
   grid-column: 1 / -1;
   margin: 0;
   color: var(--muted);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .run-summary__facts {
@@ -91,12 +91,12 @@
 
 .run-summary__facts dt {
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .run-summary__facts dd {
   margin: 0;
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
   font-variant-numeric: tabular-nums;
 }
 
@@ -113,25 +113,25 @@
 .run-summary__cap {
   margin: 0.5rem 0 0;
   color: var(--bad);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .run-summary__problems {
   margin-top: 0.65rem;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--bad) 30%, var(--border));
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--bad) 3%, var(--surface));
+  border: 1px solid var(--bad-line);
+  border-radius: var(--radius-control);
+  background: var(--content);
 }
 
 /* Only missed lookups and refused calls sent again: nothing failed or changed, so no alarm colours. */
 .run-summary__problems--calm {
-  border-color: var(--border);
-  background: var(--surface);
+  border-color: var(--separator);
+  background: var(--content);
 }
 
 .run-summary__problems--calm .run-summary__problem-mark {
-  background: color-mix(in srgb, var(--muted) 14%, var(--surface));
+  background: var(--fill-strong);
   color: var(--muted);
 }
 
@@ -160,9 +160,9 @@
   height: 1.35rem;
   place-items: center;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--bad) 12%, var(--surface));
+  background: var(--bad-soft);
   color: var(--bad);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
   font-weight: 750;
 }
 
@@ -177,18 +177,18 @@
 
 .run-summary__problem-copy strong {
   color: var(--bad);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .run-summary__problem-copy small {
   margin-top: 0.1rem;
   color: var(--muted);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
 }
 
 .run-summary__problem-action {
   color: var(--muted);
-  font-size: 0.7333rem;
+  font-size: var(--size-caption);
   font-weight: 600;
 }
 
@@ -208,7 +208,7 @@
   margin: 0;
   padding: 0 0.7rem 0.55rem 2.7rem;
   list-style: none;
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
 }
 
 .run-summary__error {
@@ -216,7 +216,7 @@
   grid-template-columns: minmax(7.5rem, auto) minmax(0, 1fr);
   gap: 0.75rem;
   padding: 0.35rem 0;
-  border-top: 1px solid var(--border);
+  border-top: var(--hairline) solid var(--separator);
 }
 
 .run-summary__error-who {
@@ -233,7 +233,7 @@
 .run-summary__unknown {
   margin: 0.6rem 0 0;
   color: var(--warn);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 /* The terminal summary is a claim, and is styled to read as one. */
@@ -241,8 +241,8 @@
   margin-top: 0.75rem;
   padding: 0.6rem 0.85rem;
   border-left: 3px solid var(--border-strong);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  background: var(--surface-2);
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+  background: var(--fill);
 }
 
 .claim--reason {
@@ -251,13 +251,13 @@
 
 .claim__label {
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
   font-weight: 600;
 }
 
 .claim__text {
   margin: 0.2rem 0 0;
-  font-size: 0.9333rem;
+  font-size: var(--size-control);
 }
 
 .claim__text p {
@@ -277,11 +277,11 @@
   padding: 0;
   border: 0;
   background: none;
-  color: var(--accent);
-  font: 0.8267rem var(--mono);
+  color: var(--accent-strong);
+  font: var(--size-caption) var(--font-mono);
   text-align: left;
   text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  text-decoration-color: var(--accent-line);
   text-underline-offset: 0.15em;
   cursor: pointer;
   overflow-wrap: anywhere;
@@ -294,7 +294,7 @@
 .claim__caveat {
   margin: 0.35rem 0 0;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--size-caption);
   font-style: italic;
 }
 
@@ -302,9 +302,9 @@
 .now-line {
   margin: 0;
   padding: 0.6rem 1.25rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-  font-size: 1rem;
+  border-bottom: var(--hairline) solid var(--separator);
+  background: var(--content);
+  font-size: var(--size-body);
   font-weight: 500;
 }
 

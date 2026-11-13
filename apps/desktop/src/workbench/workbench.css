@@ -16,8 +16,8 @@
   gap: 1rem;
   padding: 1rem 0.75rem;
   overflow-y: auto;
-  border-right: 1px solid var(--border);
-  background: var(--surface);
+  border-right: var(--hairline) solid var(--separator);
+  background: var(--content);
 }
 
 .wb__name {
@@ -39,7 +39,7 @@
   margin: 0 0 0.25rem;
   padding: 0 0.5rem;
   color: var(--muted);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
   font-weight: 600;
 }
 
@@ -47,16 +47,16 @@
   width: 100%;
   padding: 0.3rem 0.5rem;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   background: none;
   color: var(--text);
   font: inherit;
-  font-size: 0.9333rem;
+  font-size: var(--size-control);
   text-align: left;
 }
 
 .wb__link:hover {
-  background: var(--surface-2);
+  background: var(--fill-hover);
 }
 
 .wb__link[aria-current="page"] {
@@ -79,8 +79,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem 1.25rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  border-bottom: var(--hairline) solid var(--separator);
+  background: var(--content);
 }
 
 .wb__heading {
@@ -88,13 +88,13 @@
 }
 
 .wb__title {
-  font-size: 1.1333rem;
+  font-size: var(--size-title-2);
 }
 
 .wb__about {
   margin: 0.1rem 0 0;
   color: var(--muted);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .wb__switches {
@@ -109,7 +109,7 @@
   gap: 0.4rem;
   align-items: center;
   color: var(--muted);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .wb-choice select,
@@ -142,7 +142,7 @@
 
 .wb-group__title {
   margin-bottom: 0.6rem;
-  font-size: 0.9333rem;
+  font-size: var(--size-control);
 }
 
 .wb-group__row {
@@ -167,9 +167,9 @@
   gap: 0 0.6rem;
   align-items: center;
   padding: 0.4rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-control);
+  background: var(--content);
 }
 
 .wb-swatch__chip {
@@ -177,14 +177,14 @@
   width: 2.25rem;
   height: 2.25rem;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
 }
 
 .wb-swatch__name,
 .wb-swatch__value,
 .wb-table__mono {
-  font-family: var(--mono);
-  font-size: 0.8667rem;
+  font-family: var(--font-mono);
+  font-size: var(--size-control);
 }
 
 .wb-swatch__value {
@@ -195,27 +195,27 @@
 .wb-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.9333rem;
+  font-size: var(--size-control);
 }
 
 .wb-table th,
 .wb-table td {
   padding: 0.45rem 0.75rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--hairline) solid var(--separator);
   text-align: left;
   vertical-align: middle;
 }
 
 .wb-table thead th {
   color: var(--muted);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
   font-weight: 600;
 }
 
 .wb-table__note {
   display: block;
   color: var(--muted);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
   font-weight: 400;
 }
 
@@ -233,8 +233,8 @@
 .wb-contrast__sample {
   display: inline-block;
   padding: 0.2rem 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-control);
   font-weight: 500;
 }
 
@@ -265,7 +265,7 @@
   gap: 0.25rem;
   width: 12rem;
   color: var(--muted);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 .wb-controls__field--wide {
@@ -285,7 +285,7 @@
 .wb-frame__label {
   margin-bottom: 0.4rem;
   color: var(--muted);
-  font-size: 0.8667rem;
+  font-size: var(--size-control);
 }
 
 /* The rail fills the app's first grid column; here a frame stands in for it. */
@@ -293,9 +293,213 @@
   display: grid;
   grid-template-columns: var(--rail-width);
   height: 34rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-card);
   overflow: hidden;
+}
+
+/* --- foundations ----------------------------------------------------------- */
+
+.wb-pairs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wb-pair {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-2);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-control);
+  font-size: var(--size-caption);
+  line-height: var(--leading-caption);
+}
+
+.wb-pair[data-short="true"] {
+  border-color: var(--bad);
+  box-shadow: inset 3px 0 var(--bad);
+}
+
+.wb-pair__on {
+  color: var(--muted);
+}
+
+.wb-pair__ratio {
+  font-variant-numeric: tabular-nums;
+}
+
+.wb-type__muted {
+  color: var(--muted);
+}
+
+.wb-type__faint {
+  color: var(--faint);
+}
+
+.wb-icons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wb-icon {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-card);
+  background: var(--content);
+}
+
+.wb-icon__sizes {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.wb-icon__name {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: var(--size-caption);
+}
+
+.wb-space {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: flex-start;
+}
+
+.wb-space__bar {
+  height: var(--space-4);
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.wb-space__name,
+.wb-plane__fill {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: var(--size-caption);
+}
+
+.wb-tile {
+  display: grid;
+  place-items: center;
+  width: 7rem;
+  height: 4.5rem;
+  border: var(--hairline) solid var(--border-strong);
+  background: var(--content);
+  color: var(--muted);
+  font-size: var(--size-caption);
+}
+
+.wb-tile--raised {
+  margin: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--elevated);
+}
+
+.wb-plane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 11rem;
+  padding: var(--space-3);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-card);
+}
+
+.wb-plane__name {
+  font-size: var(--size-control);
+  font-weight: 600;
+}
+
+.wb-plane__fill {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-control);
+}
+
+.wb-material {
+  position: relative;
+  width: 26rem;
+  height: 9rem;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  background: var(--content);
+}
+
+.wb-material__behind {
+  margin: 0;
+  padding: var(--space-3);
+  color: var(--accent-strong);
+  font-size: var(--size-title-1);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+/* Drawn in the page rather than floating: the popover's own surface. */
+.wb-material__panel.popover {
+  position: absolute;
+  inset: var(--space-5) var(--space-8) auto;
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  animation: none;
+}
+
+.wb-spring {
+  margin: 0;
+}
+
+.wb-spring__plot {
+  display: block;
+  width: 12.5rem;
+  height: 5rem;
+  overflow: visible;
+}
+
+.wb-spring__curve {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.wb-spring__target {
+  stroke: var(--border-strong);
+  stroke-dasharray: 3 3;
+}
+
+/* A floating layer drawn in the page, at rest, for a screenshot to hold. */
+.wb-static.popover,
+.wb-static.sheet__panel {
+  position: static;
+  animation: none;
+}
+
+.wb-static--sheet {
+  --sheet-width: 24rem;
+}
+
+.wb-popover {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+}
+
+.wb-popover p,
+.wb-material__panel p {
+  margin: 0;
 }
 
 /* --- the scenario player --------------------------------------------------- */
@@ -313,8 +517,8 @@
   gap: 0.5rem 0.9rem;
   align-items: center;
   padding: 0.5rem 1.25rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-2);
+  border-bottom: var(--hairline) solid var(--separator);
+  background: var(--fill);
 }
 
 .wb-player__field--wide {
