@@ -66,7 +66,7 @@ export interface OfficeSceneProps {
    * at once (decision D1). Transport: it goes on the stage beside the camera.
    */
   motion?: MotionMode | undefined;
-  /** The room fills the window, as the diagram can. Without `onToggleExpand` no button offers it. */
+  /** The room fills the window. Without `onToggleExpand` no button offers it. */
   expanded?: boolean | undefined;
   onToggleExpand?: (() => void) | undefined;
 }
@@ -124,7 +124,7 @@ function DeskWords({ desk, spot, dense, selected, tabbable, onSelect }: DeskWord
       tabIndex={tabbable ? 0 : -1}
       disabled={desk.ghost}
       onClick={() => {
-        // A pressed desk is unpressed by pressing it again, as in the diagram.
+        // A pressed desk is unpressed by pressing it again, which closes its inspector.
         onSelect(selected ? null : desk.name);
       }}
     >

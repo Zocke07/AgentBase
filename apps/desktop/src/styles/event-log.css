@@ -204,3 +204,6 @@
   font-size: var(--size-control);
 }
 
+.log__capture {
+  flex: none;
+}

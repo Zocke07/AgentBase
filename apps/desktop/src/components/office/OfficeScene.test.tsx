@@ -57,7 +57,7 @@ describe("the office reads no clock", () => {
         rendered.unmount();
       }
     }
-  });
+  }, 20_000);
 });
 
 describe("the office in words", () => {
@@ -154,7 +154,7 @@ describe("the office by keyboard", () => {
     expect(onSelect).toHaveBeenCalledExactlyOnceWith("news-scanner");
   });
 
-  it("unselects a selected desk when it is pressed again, as the diagram does", async () => {
+  it("unselects a selected desk when it is pressed again", async () => {
     const user = userEvent.setup();
     const { onSelect } = show(twoAgentRun(), "researcher");
     const researcher = screen.getByTestId("office-desk-researcher");

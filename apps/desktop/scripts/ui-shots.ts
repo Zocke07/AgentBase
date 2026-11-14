@@ -264,8 +264,7 @@ async function capture(browser: Browser, folder: string, seeded: Seed, condition
         await take(section);
 
         if (section === "runs") {
-          // The run view opens on the office: the room, then a desk's
-          // inspector, then the same run as the diagram behind the switch.
+          // The run view is the office: the room, then a desk's inspector.
           await page.locator(`[data-testid$="-${seeded.runId}"]:visible`).first().click();
           await page.locator('[data-testid="office"]:visible').waitFor();
           await take("run");
@@ -276,11 +275,6 @@ async function capture(browser: Browser, folder: string, seeded: Seed, condition
             // On a narrow canvas the inspector covers the room, desk included.
             await page.getByRole("button", { name: "Close the agent detail" }).click();
           }
-          const drawings = page.locator('[data-testid="run-view-switch"]:visible');
-          await drawings.getByRole("radio", { name: "Diagram" }).click();
-          await page.locator('[data-testid="run-graph"]:visible').waitFor();
-          await take("run-diagram");
-          await drawings.getByRole("radio", { name: "Office" }).click();
         }
 
         if (section === "knowledge") {
@@ -289,6 +283,15 @@ async function capture(browser: Browser, folder: string, seeded: Seed, condition
             await result.click();
             await take("knowledge-note");
           }
+          // The note graph. React Flow's stylesheet reached it through the
+          // run diagram until D8 retired that; it must still arrive.
+          await page.getByRole("tab", { name: "Technical Details" }).click();
+          await page.getByRole("tab", { name: "Notes" }).click();
+          await page.getByRole("button", { name: "Graph", exact: true }).click();
+          await page.locator(".react-flow__node:visible").first().waitFor();
+          const node = await page.locator(".react-flow__node:visible").first().evaluate((element) => getComputedStyle(element).position);
+          if (node !== "absolute") throw new Error("Knowledge's graph is drawn without React Flow's stylesheet.");
+          await take("knowledge-graph");
         }
       }
       await context.close();

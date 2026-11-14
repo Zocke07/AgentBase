@@ -100,8 +100,8 @@ set, so an app-default change may not auto-approve a run.
 ## Debugging the frontend
 
 Run `just dev-desktop`, open `http://127.0.0.1:5173`, and keep the console
-open. Phase 7's missing-handoff-edge bug appeared only as a React Flow warning
-while every test passed.
+open. Phase 7's missing-handoff-edge bug, in the run diagram retired on
+2026-11-14, appeared only as a React Flow warning while every test passed.
 
 ### Where state lives
 
@@ -111,10 +111,10 @@ while every test passed.
 - **`state/runStore.ts`** (Zustand) holds `events`, `cursor`, and `connection`:
   `view === reduceAll(events.slice(0, cursor))`. Backward scrubbing refolds
   from zero because the reducer has no inverse; tests protect this design.
-- **`state/graph.ts`** arithmetically derives workflow nodes (goal, supervisor,
-  workers, outcome, and per-tool counts), edges (return handoffs use bottom
-  ports), and camera. It never uses `fitView`, whose measurement timing caused
-  10% live/replay pixel drift.
+- **`state/office.ts`** turns the fold into the room (desks, slips, stamps,
+  folders, the board) and **`lib/officeLayout.ts`** places it and fits the
+  camera by arithmetic. Nothing is measured: the run diagram's `fitView`
+  once caused 10% live/replay pixel drift through its measurement timing.
 - **`lib/markdown.ts`** parses the Obsidian dialect into a tree and
   **`components/Markdown.tsx`** renders it; strings never become HTML. Blocks
   retain source lines so ticking a vault-preview task rewrites the right line.
@@ -140,8 +140,8 @@ stores/API state.
 
 `just test-desktop` runs Vitest once; `npm run test:watch` in `apps/desktop`
 watches. `src/test/setup.ts` stubs `ResizeObserver` and gives React Flow nodes
-a fixed non-zero size: jsdom has no layout, and zero-sized nodes silently lose
-edges; the test must catch that condition.
+(Knowledge's graph) and every other observed element a fixed non-zero size:
+jsdom has no layout, and zero-sized nodes silently lose edges.
 
 jsdom lays nothing out and computes no colour. To see a component, use
 `just workbench`; to see the app, `just ui-shots`; to hold a look in place,

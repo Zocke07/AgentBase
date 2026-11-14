@@ -56,13 +56,13 @@ describe("the tool table", () => {
   });
 
   it("gives an unknown tool its own name and the unknown family", () => {
-    expect(toolInfo("mystery_tool")).toMatchObject({ chip: "mystery_tool", family: "unknown", fetches: false, reportsWritten: false });
+    expect(toolInfo("mystery_tool")).toMatchObject({ family: "unknown", fetches: false, reportsWritten: false });
   });
 
   it("treats a name a model made up as unknown, even one every object has", () => {
     // A tool name is whatever the model sent.
     for (const name of ["constructor", "toString", "valueOf", "hasOwnProperty", "__proto__"]) {
-      expect(toolInfo(name), name).toEqual({ chip: name, family: "unknown", fetches: false, reportsWritten: false });
+      expect(toolInfo(name), name).toEqual({ family: "unknown", fetches: false, reportsWritten: false });
     }
   });
 

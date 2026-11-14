@@ -128,24 +128,10 @@
   max-height: 45vh;
 }
 
-@media (max-height: 760px) {
-  .run-projection {
-    grid-template-rows: auto auto minmax(12rem, 1.6fr) minmax(7rem, 1fr);
-  }
-}
-
 /* The event log folded to its newest step: one line under the canvas, which
-   takes the room the rows had. Two classes, so the short-window rows above
-   do not win. */
+   takes the room the rows had. */
 .run-projection.run-projection--log-collapsed {
   grid-template-rows: auto auto minmax(12rem, 1fr) auto;
-}
-
-/* Beside the office the room is the picture and most of the summary, so
-   it takes the height the summary gave up, and the log keeps a few rows
-   until the viewer drags the divider or folds it. */
-.run-projection.run-projection--office:not(.run-projection--log-collapsed) {
-  grid-template-rows: auto auto minmax(13rem, 1fr) minmax(7rem, 9.5rem);
 }
 
 .log--collapsed .log__filters {

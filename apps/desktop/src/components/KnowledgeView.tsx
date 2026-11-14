@@ -50,6 +50,10 @@ import { SummaryList, type NewKind } from "./SummaryList";
 import { MenuButton } from "./ui/Menu";
 import { IconButton } from "./ui/controls";
 
+// React Flow's own stylesheet, which the note graph needs; `react-flow.css`
+// sets this theme over it.
+import "@xyflow/react/dist/style.css";
+
 /**
  * Space-local Markdown vault in two sections. User Summary lists what was
  * written to be read (reports, notes, workbooks and charts) and opens each in

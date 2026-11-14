@@ -1,4 +1,4 @@
-/* --- React Flow overrides ------------------------------------------------- */
+/* --- React Flow overrides: Knowledge's graph ----------------------------- */
 
 .react-flow__attribution {
   font-size: var(--size-caption);
@@ -7,27 +7,3 @@
 .react-flow__attribution a {
   color: var(--faint);
 }
-
-@keyframes pulse {
-
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.35;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-
-  .dot--pending,
-  .status--running > .icon {
-    animation: none;
-  }
-}
-.log__capture {
-  flex: none;
-}
-

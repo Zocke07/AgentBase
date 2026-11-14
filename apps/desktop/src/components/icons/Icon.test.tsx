@@ -42,8 +42,8 @@ describe("Icon", () => {
   it("is hidden from a screen reader beside a word, and an image when it stands alone", () => {
     const { container } = render(<Icon name="clock" />);
     expect(container.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
-    render(<Icon name="flag" label="The goal" />);
-    expect(screen.getByRole("img", { name: "The goal" })).toBeDefined();
+    render(<Icon name="stamp" label="Approved" />);
+    expect(screen.getByRole("img", { name: "Approved" })).toBeDefined();
   });
 
   it("marks the filled variant for the selected row", () => {

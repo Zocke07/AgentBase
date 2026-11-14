@@ -13,7 +13,6 @@
 .source__completions,
 .knowledge__toast,
 .tour__card,
-.graph__legend,
 .note-bubble {
   background: var(--material);
   /* The prefixed form first: WebKit before 18 reads only that one. */

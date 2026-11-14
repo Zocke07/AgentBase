@@ -33,27 +33,11 @@ const DARK_TOO: ReadonlySet<string> = new Set([
   "controls",
   "primitives",
   "rail",
-  "run-two-agents",
-  "run-shell-question",
-  "run-stuck-worker",
+  "office-two-agents",
   "office-shell-question",
+  "office-stuck-worker",
   // Every pose, the lamp and the risk colours of a raised card.
   "office-characters",
-]);
-
-/**
- * Office pages compared with a screenshot. Every scenario has an office
- * page and axe checks each one, but a baseline per scenario would double
- * the images kept in the repository, so a few that between them show a
- * question, a refusal, a finished run and a crowded room are compared.
- */
-const OFFICE_COMPARED: ReadonlySet<string> = new Set([
-  "office-characters",
-  "office-two-agents",
-  "office-morning-collection",
-  "office-shell-question",
-  "office-sandbox-denial",
-  "office-twelve-desks",
 ]);
 
 /**
@@ -79,9 +63,7 @@ async function show(entry: WorkbenchPage, theme: Theme) {
 }
 
 const cases = (theme: Theme) =>
-  PAGES.filter((entry) => theme === "light" || DARK_TOO.has(entry.id))
-    .filter((entry) => entry.group !== "Office" || OFFICE_COMPARED.has(entry.id))
-    .map((entry) => [entry.id, entry] as const);
+  PAGES.filter((entry) => theme === "light" || DARK_TOO.has(entry.id)).map((entry) => [entry.id, entry] as const);
 
 describe.each(["light", "dark"] as const)("workbench pages, %s", (theme) => {
   it.each(cases(theme))("%s matches its screenshot", async (id, entry) => {

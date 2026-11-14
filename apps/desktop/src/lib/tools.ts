@@ -1,6 +1,5 @@
 /**
- * How each tool is presented: one table for the diagram's chips, the run's
- * file list, the policy sentence, the schedules' notice and the office
+ * How each tool is presented: one table for the run's file list, the policy sentence, the schedules' notice and the office
  * (Phase 20, brief 7.2 and 7.6). Before it, four files each named tools on
  * their own.
  *
@@ -43,8 +42,6 @@ export const TOOL_FAMILIES: readonly ToolFamily[] = [
 ];
 
 export interface ToolInfo {
-  /** One distinguishing word for a chip; the full name stays in tooltips. */
-  readonly chip: string;
   readonly family: ToolFamily;
   /** Reaches the network, so the host list bounds it. */
   readonly fetches: boolean;
@@ -56,8 +53,7 @@ export interface ToolInfo {
   readonly reportsWritten: boolean;
 }
 
-const tool = (chip: string, family: ToolFamily, traits: { fetches?: true; reportsWritten?: true } = {}): ToolInfo => ({
-  chip,
+const tool = (family: ToolFamily, traits: { fetches?: true; reportsWritten?: true } = {}): ToolInfo => ({
   family,
   fetches: traits.fetches ?? false,
   reportsWritten: traits.reportsWritten ?? false,
@@ -68,30 +64,30 @@ export const CONTROL_TOOLS = ["spawn_agent", "handoff", "finish"] as const;
 
 /** Every tool the sidecar ships, and the orchestrator's control calls. */
 export const TOOLS: Readonly<Record<string, ToolInfo>> = {
-  spawn_agent: tool("spawn", "delegation"),
-  handoff: tool("handoff", "delegation"),
-  finish: tool("finish", "delegation"),
-  read_file: tool("read", "reading"),
-  list_dir: tool("list", "reading"),
-  write_file: tool("write", "writing"),
-  search_knowledge: tool("search", "knowledge"),
-  propose_memory: tool("memory", "knowledge"),
-  http_get: tool("http", "network", { fetches: true }),
-  read_feed: tool("feed", "network", { fetches: true }),
-  read_prices: tool("prices", "market", { fetches: true, reportsWritten: true }),
-  read_market: tool("market", "market", { fetches: true, reportsWritten: true }),
-  read_company_reports: tool("reports", "market", { fetches: true, reportsWritten: true }),
-  compute_portfolio: tool("portfolio", "computation", { reportsWritten: true }),
-  check_limits: tool("limits", "computation", { reportsWritten: true }),
-  score_predictions: tool("scores", "computation", { reportsWritten: true }),
-  track_forecasts: tool("forecasts", "computation", { reportsWritten: true }),
-  run_shell: tool("shell", "shell"),
+  spawn_agent: tool("delegation"),
+  handoff: tool("delegation"),
+  finish: tool("delegation"),
+  read_file: tool("reading"),
+  list_dir: tool("reading"),
+  write_file: tool("writing"),
+  search_knowledge: tool("knowledge"),
+  propose_memory: tool("knowledge"),
+  http_get: tool("network", { fetches: true }),
+  read_feed: tool("network", { fetches: true }),
+  read_prices: tool("market", { fetches: true, reportsWritten: true }),
+  read_market: tool("market", { fetches: true, reportsWritten: true }),
+  read_company_reports: tool("market", { fetches: true, reportsWritten: true }),
+  compute_portfolio: tool("computation", { reportsWritten: true }),
+  check_limits: tool("computation", { reportsWritten: true }),
+  score_predictions: tool("computation", { reportsWritten: true }),
+  track_forecasts: tool("computation", { reportsWritten: true }),
+  run_shell: tool("shell"),
 };
 
 /** A tool's presentation. One this build does not know keeps its own name. */
 export function toolInfo(name: string): ToolInfo {
   // The name is a model's: `constructor` must not find `Object.prototype`'s.
-  return Object.hasOwn(TOOLS, name) ? (TOOLS[name] ?? tool(name, "unknown")) : tool(name, "unknown");
+  return Object.hasOwn(TOOLS, name) ? (TOOLS[name] ?? tool("unknown")) : tool("unknown");
 }
 
 export const toolFamily = (name: string): ToolFamily => toolInfo(name).family;

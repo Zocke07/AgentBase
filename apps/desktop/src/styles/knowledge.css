@@ -1305,6 +1305,8 @@
   --xy-controls-button-border-color: var(--separator);
   --xy-edge-stroke: var(--border-strong);
   --xy-edge-stroke-width: 1.2;
+  /* The credit's text is --faint, which needs the plane behind it. */
+  --xy-attribution-background-color: transparent;
 }
 
 .knowledge__graph .react-flow__node {

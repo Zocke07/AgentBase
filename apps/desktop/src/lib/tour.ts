@@ -63,8 +63,8 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     title: "Watch the run",
     body:
-      "A run is drawn left to right: goal, supervisor, workers, outcome. Click a card for what that agent " +
-      "said and did. Calls your approval policy allows run on their own, and the log says which rule let " +
+      "A run is drawn as an office: the supervisor's desk in front, a desk for each worker behind. Click " +
+      "a desk for what that agent said and did. Calls your approval policy allows run on their own, and the log says which rule let " +
       "them; a shell command, or anything else the policy does not answer, docks at the top until you do.",
     target: "rail-runs",
     section: "runs",

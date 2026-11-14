@@ -37,12 +37,13 @@ apps/desktop/src/               React 19 + Vite + TypeScript
                                 markdown.ts (the Obsidian dialect), visualization.ts,
                                 fileViews.ts, fuzzy.ts, graphLayout.ts,
                                 sections.ts (rail order), tour.ts (the tour's script)
-  state/                        reducer.ts: the fold; runStore, graph, spaces, hooks;
+  state/                        reducer.ts: the fold; runStore, office (the run as a
+                                room), timeline, spaces, hooks;
                                 files.ts, journal.ts and sections.ts for Knowledge's
                                 lists and its two sections;
                                 alerts.ts for market alerts and their notices
   components/                   Rail, SpaceSwitcher, HomeView, RunsView, AgentsView,
-                                SpaceSettingsView, SettingsView, RunGraph, EventLog,
+                                SpaceSettingsView, SettingsView, office/, EventLog,
                                 ApprovalPanel, AgentEditor, BudgetMeter, RunPanel,
                                 Markdown, KnowledgeView, NoteTree, NoteEditor,
                                 QuickSwitcher, MemoryInbox, KnowledgeEvaluation,

@@ -1,0 +1,235 @@
+/* --- the run canvas and the agent inspector ------------------------------- */
+
+.run-panel__canvas {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  border-bottom: var(--hairline) solid var(--separator);
+  /* The inspector's place depends on the canvas's width, not the window's. */
+  container: run-canvas / inline-size;
+}
+
+/* Full screen: the canvas and its inspector over the whole window, above
+   the rail and the header, until Esc or the same button. */
+.run-panel__canvas--expanded {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  border-bottom: 0;
+  background: var(--window);
+}
+
+.agent-detail {
+  position: relative;
+  flex: none;
+  width: 21rem;
+  padding: 0.85rem 1rem;
+  overflow-y: auto;
+  border-left: var(--hairline) solid var(--separator);
+  background: var(--content);
+  font-size: var(--size-control);
+}
+
+/* Too narrow for the room and the inspector side by side (brief 6.3): the
+   inspector opens as a sheet over the whole canvas, above the room's view
+   buttons, and closing it shows the room as it was. Beside a strip of
+   room a selected desk would be under the panel, and the room too small to
+   read. `AgentDetail` takes the focus while it covers. */
+@container run-canvas (width < 46rem) {
+  .agent-detail {
+    position: absolute;
+    inset: 0;
+    z-index: 7;
+    min-width: 100%;
+    border-left: 0;
+  }
+
+  .agent-detail > .splitter {
+    display: none;
+  }
+}
+
+.agent-detail h3 {
+  font-size: var(--size-body);
+}
+
+.agent-detail__head {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.agent-detail__close {
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.agent-detail__close:hover {
+  background: var(--fill-hover);
+  color: var(--text);
+}
+
+.agent-detail__state {
+  display: inline-block;
+  margin: 0 0 0.6rem;
+  padding: 0.1rem 0.55rem;
+  border-radius: var(--radius-capsule);
+  background: var(--fill);
+  color: var(--muted);
+  font-size: var(--size-caption);
+  font-weight: 600;
+}
+
+.agent-detail__state--thinking,
+.agent-detail__state--calling {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.agent-detail__state--executing {
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.agent-detail__state--waiting {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.agent-detail__state--completed {
+  background: var(--good-soft);
+  color: var(--good);
+}
+
+.agent-detail__section {
+  margin-top: 0.8rem;
+  padding-top: 0.6rem;
+  border-top: var(--hairline) solid var(--separator);
+}
+
+.agent-detail__section h4 {
+  margin: 0 0 0.35rem;
+  color: var(--muted);
+  font-size: var(--size-caption);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.agent-detail__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--size-caption);
+}
+
+.agent-detail__list li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.agent-detail__list li>span {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+/* A path, as the run summary's file chips show it. */
+.agent-detail__list li > .agent-detail__file {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--size-caption);
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.agent-detail__list li > button.agent-detail__file {
+  color: var(--accent-strong);
+}
+
+.agent-detail__call {
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--good);
+}
+
+.agent-detail__call--denied {
+  border-left-color: var(--bad);
+}
+
+.agent-detail__args {
+  margin-left: 0.4rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: var(--size-caption);
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.agent-detail__stream-text {
+  max-height: 14rem;
+  margin-top: 0.35rem;
+  padding: 0.5rem;
+  overflow: auto;
+  border-radius: var(--radius-control);
+  background: var(--fill);
+}
+
+.agent-detail__role {
+  margin: 0.15rem 0 0.6rem;
+  color: var(--muted);
+  font-size: var(--size-control);
+}
+
+.agent-detail dl {
+  margin: 0;
+}
+
+.agent-detail dl div {
+  display: grid;
+  grid-template-columns: 8rem 1fr;
+  gap: 0.5rem;
+  padding: 0.15rem 0;
+}
+
+.agent-detail dt {
+  color: var(--muted);
+  font-size: var(--size-caption);
+}
+
+.agent-detail dd {
+  margin: 0;
+  font-size: var(--size-caption);
+  overflow-wrap: anywhere;
+}
+
+.agent-detail details {
+  margin-top: 0.6rem;
+}
+
+.agent-detail summary {
+  color: var(--muted);
+  font-size: var(--size-caption);
+  cursor: pointer;
+}
+
+.agent-detail pre {
+  margin: 0.35rem 0 0;
+  padding: 0.5rem;
+  max-height: 14rem;
+  overflow: auto;
+  border-radius: var(--radius-control);
+  background: var(--fill);
+  font-size: var(--size-caption);
+  white-space: pre-wrap;
+}
+

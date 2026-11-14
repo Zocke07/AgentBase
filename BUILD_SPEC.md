@@ -141,7 +141,7 @@ agent-workspace/
 │       │   │   └── api.ts        # generated from OpenAPI
 │       │   ├── state/            # Zustand run store
 │       │   └── components/
-│       │       ├── RunGraph.tsx  # React Flow canvas
+│       │       ├── office/       # the run drawn as a room (Phase 20)
 │       │       ├── EventLog.tsx
 │       │       ├── ApprovalDialog.tsx
 │       │       ├── AgentList.tsx   # roster of defined agents
@@ -244,8 +244,8 @@ budget.warning     budget.exceeded
 channel.inbound    channel.outbound
 ```
 
-New event types update `events/types.py`, generated TS types, and the `RunGraph`
-reducer in one commit.
+New event types update `events/types.py`, generated TS types, and the run
+reducer (`state/reducer.ts`) in one commit.
 
 ---
 
@@ -487,7 +487,8 @@ Do not containerize the rest of the app.
 *(2026-11-12, Phase 20: the run view gains an office beside this canvas,
 which stays as **Diagram** until the office has parity. The office is part
 of the same run projection, held by the same identity test; its motion rule
-is Phase 20's decision 1.)*
+is Phase 20's decision 1. 2026-11-14: decision D8 retired this canvas; the
+office is the run's only drawing.)*
 
 **Accept when:** replaying a completed run is pixel-identical to live, and the
 app can create, edit, and run an agent.
@@ -524,7 +525,7 @@ simultaneously, and channel-originated calls hit the approval gate.
 ### Phase 9: CI and release
 
 - **Tests gate builds.** Run backend `pytest` (at least event store, budget,
-  sandbox, registry) and frontend `vitest` reducers (`RunGraph`, `EventLog`)
+  sandbox, registry) and frontend `vitest` (the run reducer, `EventLog`)
   first; red tests block build.
 - Matrix: `windows-latest` and `macos-latest`. Build the non-cross-compilable
   PyInstaller sidecar on each, then Tauri bundle.
@@ -1802,7 +1803,9 @@ recommended defaults D1 to D9, all accepted):
 8. **D8, the diagram.** The run view offers **Office** and **Diagram**
    (today's React Flow canvas) until the office has parity. After stage
    20.5's acceptance the maintainer decides whether to retire the diagram
-   and drop `@xyflow/react`.
+   and drop `@xyflow/react`. *(Decided 2026-11-14: retired. The office is
+   the run's only drawing. `@xyflow/react` stays, because Knowledge's note
+   graph draws with it.)*
 9. **D9, two kinds of office.** The run office projects the log alone and is
    under replay identity. Home's office and the Agents floor plan project
    API state (roster, runs), are not under replay identity, and open no
@@ -1818,9 +1821,10 @@ recommended defaults D1 to D9, all accepted):
 3. **20.3 The shell.** *(The keyboard map is built; the rest is not.)*
 4. **20.4 The office, at rest.** *(Built in part on 2026-11-13 and 14:
    the projection, the layout, the scene and its tests. The run view
-   offers Office and Diagram and opens on Office since 2026-11-14, when
-   the maintainer handed over the open decisions; the brief's section 13
-   records them. Its polish was done on 2026-11-14: crowded rooms, trays
+   opened on Office beside Diagram from 2026-11-14, when the maintainer
+   handed over the open decisions (the brief's section 13 records them),
+   and has drawn only the office since the diagram was retired the same
+   day (D8). Its polish was done on 2026-11-14: crowded rooms, trays
    and books, status glyphs, poses and the lamp. Not accepted: Windows.)*
 5. **20.5 The office in motion.** *(Built on 2026-11-14: a step animates
    under D1, the camera eases, the timeline plays, steps and jumps, and the

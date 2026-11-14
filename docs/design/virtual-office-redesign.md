@@ -162,7 +162,8 @@ text. Titles are 26, 22 and 17 px. Numbers are tabular.
 **D8. The diagram stays until the office has parity.** The run view offers
 **Office** and **Diagram** (today's React Flow canvas). After stage 20.5's
 acceptance the maintainer decides whether to retire the diagram and drop
-`@xyflow/react`.
+`@xyflow/react`. *(Decided on 2026-11-14: retired; section 13 says what
+went. `@xyflow/react` stays for Knowledge's note graph.)*
 
 **D9. Two kinds of office.** The run office projects the log alone, so it is
 replay-safe. Home's office and the Agents floor plan project API state
@@ -657,7 +658,8 @@ Playback timing is transport and may use timers.
   and glyph.
 - Text at the default zoom is 13 px or more. Zoomed out, labels shorten to
   names, with the full text in the accessible name and the tooltip.
-- The log and the diagram remain as non-spatial equivalents.
+- The log and the inspector are the non-spatial equivalents. (The
+  diagram was one until D8 retired it.)
 
 ### 7.12 Performance
 
@@ -700,7 +702,7 @@ Behaviour stays; presentation changes.
 - **Automations**: the day's runs and next times as a strip; chains as
   connected cards; Market watch last, in the default space only.
 - **Runs**: a dense list (status glyph, title, origin icon, start, cost) and
-  the run view: title and status, Office or Diagram, the timeline, the docked
+  the run view: title and status, the office, the timeline, the docked
   questions, the log and the inspector.
 - **Agents**: the floor plan (7.13). Validation errors stay inline on their
   fields (Phase 7).
@@ -878,7 +880,7 @@ The order of the stages is fixed; within a stage, use judgment.
 
 - `lib/tools.ts`, `state/office.ts`, `lib/officeLayout.ts`,
   `components/office/` and `styles/office.css`: characters and objects,
-  Office and Diagram in the run view, the inspector link, claims and evidence,
+  the office in the run view, the inspector link, claims and evidence,
   reduced motion and forced colours, and the identity, coverage and no-clock
   tests.
 - Settle the character style first: draw two or three directions in the
@@ -1054,7 +1056,7 @@ already done.
 | 20.1 | all of it | |
 | 20.2 | all of it; accepted | |
 | 20.3 the shell | the keyboard map with platform glyphs (`lib/shortcuts.ts`), used by the rail's and Knowledge's tooltips; `Popover`, `Menu`, `Sheet` and the layer registry from 20.2 | everything a person sees: toolbar, macOS title bar, rail restyle, inspector, command palette, context menus, section 6.7's details, view transitions, the inactive-window state |
-| 20.4 the office, at rest | `lib/tools.ts`, the reducer's four positions, `state/office.ts`, `lib/officeLayout.ts`, `lib/character.ts`, `components/office/`, `styles/office.css`, the `--office-*` tokens, Office and Diagram in the run view with Office the default, the run view's layout around the office, the character style (decided), office pages in the workbench, the identity, coverage and no-clock tests, real-app screenshots under forced colours and reduced motion and its polish (below) | Windows |
+| 20.4 the office, at rest | `lib/tools.ts`, the reducer's four positions, `state/office.ts`, `lib/officeLayout.ts`, `lib/character.ts`, `components/office/`, `styles/office.css`, the `--office-*` tokens, the office as the run's only drawing (the diagram retired, D8), the run view's layout around the office, the character style (decided), office pages in the workbench, the identity, coverage and no-clock tests, real-app screenshots under forced colours and reduced motion and its polish (below) | Windows |
 | 20.5 the office in motion | all of it on 2026-11-14 (below): motion under D1, the timeline, camera easing, the measurements | WebView2 on Windows; the items listed under 20.5 below |
 | 20.6 everywhere | nothing | all of it |
 
@@ -1152,8 +1154,8 @@ events ─reduce─▶ RunView                         state/reducer.ts
   stay; origin, policy, context and the supervisor's account go behind
   **More about this run**, since the reception, the board and the library
   show them), and the log starts folded, under its
-  own stored flag `runs.office.log.collapsed`. The diagram's layout is
-  untouched.
+  own stored flag `runs.office.log.collapsed`. The diagram's layout was
+  untouched; since D8 retired it, these are the run view's only layout.
 - **`channel.outbound` stays out of the fold.** A reducer test says a
   delivery must not change the run, so the office shows only where a run
   came from; the log shows deliveries. Acceptance item 2 allows "in the
@@ -1193,8 +1195,8 @@ default. What remains:
    (`components/ui/Status`, brief 4.1), so a status reads under forced
    colours, where the old dot vanished. The wall calendar is not a run's:
    it is 7.13's (Home and Automations), so it moved to 20.6. The `pulse`
-   keyframes the running glyph uses live in `react-flow.css`; move them if
-   D8 retires that file.
+   keyframes the running glyph uses moved to `badges.css` when D8 retired
+   the diagram; `react-flow.css` holds only Knowledge's graph overrides.
 4. **Poses and the lamp: done on 2026-11-14.** The figure has two arms,
    each an upper arm and a forearm drawn hanging, and a pose is four
    angles and a lean set in `styles/office.css` on
@@ -1324,13 +1326,38 @@ reopened; this is what was chosen and why.
   an em dash refused at the edit is cheaper than one found by the hygiene
   test. Remove its entry in `.claude/settings.json` to turn it off.
 
+### D8: the diagram is retired (2026-11-14)
+
+The maintainer decided it after stage 20.5 was built: "Retire the diagram
+view". What went:
+
+- `components/RunGraph.tsx`, `state/graph.ts` and their tests; the
+  diagram's half of `graph.css`, whose canvas and inspector rules are now
+  `styles/run-canvas.css`; the Office and Diagram switch; the `flag` and
+  `network` icons and the tool table's `chip` words, which only the
+  diagram used. The first-launch tour describes the office.
+- The run summary's full form: the compact one is the only one, with
+  three files before the rest fold. The log's fold is the office's flag,
+  `runs.office.log.collapsed`; `runs.office` and `runs.log.collapsed` are
+  no longer read, so a viewer who had chosen the diagram sees the office
+  with its log folded, as a new viewer does.
+- The workbench's Runs pages, which drew the diagram. The Office pages
+  remain, each now titled by its scenario, and the visual test compares
+  every one of them (fourteen, three also in dark), against five before:
+  they were the summaries and logs the Runs pages had compared.
+- The identity test's diagram half: every scenario is held to identity
+  through the office at about two dozen positions and after each notable
+  event. `just ui-shots` no longer captures `run-diagram`.
+
+`@xyflow/react` is not dropped, because Knowledge's note graph draws with
+it. It imported React Flow's stylesheet only through the diagram, so
+`KnowledgeView.tsx` imports it now; without that the note graph would have
+lost its styles. A design rule (`rules.test.ts`, "React Flow") fails when
+a file draws `<ReactFlow>` without importing it. Dropping the dependency would mean drawing that graph
+another way, which is a change to Knowledge, not to this phase.
+
 ### Decisions waiting for the maintainer
 
-- After 20.5, D8: whether to retire the diagram and drop `@xyflow/react`.
-  Recommended, once the office has motion and the timeline: it removes a
-  runtime dependency, the `measured` trap, and half of the identity test's
-  time. Not before, because the diagram is the fallback while the office
-  is unfinished.
 - The macOS title bar (20.3, item 5) needs a build and your eyes on the
   result on both platforms.
 

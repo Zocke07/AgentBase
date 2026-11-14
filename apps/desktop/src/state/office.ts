@@ -4,7 +4,6 @@ import { FAMILY_LABEL, toolInfo, type ToolFamily } from "../lib/tools";
 
 import { activityLabel, callPhrase, STATUS_LABEL } from "./describe";
 import { writtenFiles, type WrittenFile } from "./files";
-import { SUPERVISOR } from "./graph";
 import {
   changedNothing,
   pendingApprovals,
@@ -17,6 +16,9 @@ import {
   type RunView,
   type ToolCall,
 } from "./reducer";
+
+/** The supervisor's `agent_id`, fixed by the orchestrator so a replay can find it. */
+export const SUPERVISOR = "supervisor";
 
 /**
  * The office: a run projected as a room (Phase 20, brief section 7).
@@ -165,7 +167,7 @@ export interface Desk {
   readonly family: ToolFamily | null;
   /** One or two words for the state: "Asking its model", "Waiting for you". */
   readonly stateLabel: string;
-  /** The reducer's own sentence for the activity, as the diagram shows it. */
+  /** The reducer's own sentence for the activity, as the inspector shows it. */
   readonly activityLabel: string;
   readonly bubble: Bubble | null;
   /** The calls of the agent's current step, oldest first. */

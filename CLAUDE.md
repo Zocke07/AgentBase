@@ -75,6 +75,13 @@ future changes do not relocate users' data or disconnect their stored keys.
   steps and jumps between notable events. Budgets measured on a production
   build of the workbench; WebView2 on Windows is not. The brief's section
   13 says what is left. See docs/verification.md.
+- **The diagram is retired (D8), 2026-11-14.** At the maintainer's word
+  the office is the run's only drawing: `RunGraph`, `state/graph.ts` and
+  the Office and Diagram switch are gone, the run summary is always the
+  compact one, and the log's fold is the office's flag
+  (`runs.office.log.collapsed`). `@xyflow/react` stays for Knowledge's
+  note graph, which now imports React Flow's stylesheet itself. The
+  workbench compares every scenario's office.
 - **Gaps and reading, 2026-10-20.** After three closed mornings the first
   chain on Claude ran cleanly, but nothing said 14 to 16 October had no
   research, the portfolio review stopped on a week-old holdings file, and a
@@ -285,9 +292,8 @@ future changes do not relocate users' data or disconnect their stored keys.
   Journal (`state/journal.ts`) is every note dated in its file name, outside
   `memory/` and `templates/`, newest first, read a week of dates at a time. A run lists the files its
   tools wrote (`state/files.ts`; the four deterministic tools report a
-  `written` array) and opens each in Knowledge. Approvals are docked. The run canvas is a
-  left-to-right workflow (goal, supervisor, workers, outcome) with an
-  inspector; the Knowledge section is laid out as an Obsidian vault and one
+  `written` array) and opens each in Knowledge. Approvals are docked. The run is drawn
+  as an office, a room with a desk per agent, with an inspector; the Knowledge section is laid out as an Obsidian vault and one
   Markdown renderer (`components/Markdown.tsx`, over `lib/markdown.ts`)
   serves notes, agent prose and excerpts without ever emitting raw HTML.
   A first launch opens a tour, gated on the `onboarding_completed` setting.
@@ -295,10 +301,9 @@ future changes do not relocate users' data or disconnect their stored keys.
   header shows the model's own name and a rounded spend that opens a
   breakdown (space share, runs, top models and spaces, per-run limit). The
   start screen names its stages (engine, settings, spaces) instead of a retry
-  count. The run's event log folds to its latest step. React Flow nodes are
-  declared `measured`, or every new layout remounts every edge (the canvas
-  flicker). Motion is CSS on the
-  chrome only, never on log-driven content, and stops under reduced motion;
+  count. The run's event log folds to its latest step. Motion is CSS on the
+  chrome only, never on log-driven content but the office's (Phase 20,
+  D1), and stops under reduced motion;
   text meets WCAG AA in both themes; text containers wrap or scroll without
   fixed-width clipping; below 1,100 px the rail becomes a drawer
   (developer guide, "Motion, contrast and accessibility").

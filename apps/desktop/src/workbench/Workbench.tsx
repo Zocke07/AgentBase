@@ -18,7 +18,7 @@ import { PAGE_GROUPS, pageById, PAGES } from "./pages";
  * does not include it, and nothing in it calls the sidecar.
  *
  * The page and the switches live in the URL's query, so any state can be
- * linked to: `workbench.html?page=run-shell-question&theme=dark&cursor=12`.
+ * linked to: `workbench.html?page=office-shell-question&theme=dark&cursor=12`.
  */
 
 export interface WorkbenchProps {

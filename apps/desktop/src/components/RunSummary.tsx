@@ -32,13 +32,6 @@ export interface RunSummaryProps {
   onMemoryChanged?: (() => void) | undefined;
   /** Do not fold; parent has fixed height and scrolls. */
   unfolded?: boolean | undefined;
-  /**
-   * Beside the office, which already shows where the run came from, what it
-   * wrote, what it read and what the supervisor said: keep the title, the
-   * figures and anything that went wrong in view, and put the rest behind
-   * one disclosure so the room has the height.
-   */
-  compact?: boolean | undefined;
 }
 
 /** Fold summaries above this height to preserve canvas visibility. */
@@ -53,7 +46,6 @@ export function RunSummary({
   onOpenMemory,
   onMemoryChanged,
   unfolded,
-  compact = false,
 }: RunSummaryProps) {
   const denied = view.denials.length;
   const sandboxed = view.denials.filter((denial) => denial.blockedBy === "sandbox").length;
@@ -82,10 +74,10 @@ export function RunSummary({
       ? formatDuration(Date.parse(view.latestTs) - Date.parse(view.startedTs))
       : null;
 
-  // The parts the office shows in its own way (reception, board, library).
-  // The files are not among them: the board names two at most.
-  // In the full summary each sits where it always has; in the compact one
-  // they share a disclosure.
+  // The parts the office shows in its own way (reception, board, library)
+  // share one disclosure, so the room beside the summary has the height;
+  // the title, the figures and anything that went wrong stay in view. The
+  // files are not among them: the board names two at most.
   const origin = view.origin !== null && (
     // Same fold for Discord runs; show origin identity.
     <p className="run-summary__origin" data-testid="run-origin">
@@ -107,7 +99,6 @@ export function RunSummary({
       files={written}
       onOpenNote={onOpenNote}
       onOpenFile={onOpenFile}
-      limit={compact ? FILES_SHOWN_COMPACT : FILES_SHOWN}
     />
   );
   const context = (view.knowledge.length > 0 || view.knowledgeExclusions.length > 0) && (
@@ -220,8 +211,6 @@ export function RunSummary({
             )}
           </>
         )}
-        {!compact && origin}
-        {!compact && policy}
       </header>
 
       <dl className="run-summary__facts">
@@ -329,13 +318,9 @@ export function RunSummary({
         </details>
       )}
 
+      {!claimFolds && claim}
 
-
-      {!compact && context}
-
-      {(!compact || !claimFolds) && claim}
-
-      {compact && more && (
+      {more && (
         <details className="run-summary__more" data-testid="run-more">
           <summary>More about this run</summary>
           {origin}
@@ -516,10 +501,8 @@ function RunMemory({
   );
 }
 
-/** Chips shown before the rest of a long list folds behind a count. */
-const FILES_SHOWN = 6;
-/** Beside the office: about one row, so the room keeps its height. */
-const FILES_SHOWN_COMPACT = 3;
+/** Chips shown before the rest fold behind a count: about one row, so the room keeps its height. */
+const FILES_SHOWN = 3;
 
 /**
  * What the run wrote, from its log, each opening where it lives: a run that
@@ -529,17 +512,14 @@ function RunFiles({
   files,
   onOpenNote,
   onOpenFile,
-  limit = FILES_SHOWN,
 }: {
   files: readonly WrittenFile[];
   onOpenNote: RunSummaryProps["onOpenNote"];
   onOpenFile: RunSummaryProps["onOpenFile"];
-  /** How many are listed before the rest fold behind a count. */
-  limit?: number;
 }) {
   const [all, setAll] = useState(false);
   if (files.length === 0) return null;
-  const shown = all ? files : files.slice(0, limit);
+  const shown = all ? files : files.slice(0, FILES_SHOWN);
   return (
     <div className="run-files" data-testid="run-files">
       <span className="run-files__label">
@@ -570,7 +550,7 @@ function RunFiles({
             </li>
           );
         })}
-        {!all && files.length > limit && (
+        {!all && files.length > FILES_SHOWN && (
           <li>
             <button
               type="button"
@@ -579,7 +559,7 @@ function RunFiles({
                 setAll(true);
               }}
             >
-              {files.length - limit} more
+              {files.length - FILES_SHOWN} more
             </button>
           </li>
         )}

@@ -10,9 +10,11 @@ afterEach(() => {
 });
 
 /**
- * Browser APIs jsdom lacks, which React Flow uses on mount. The sizes matter:
- * React Flow draws no edge between nodes it has not measured, and a fixed,
- * plausible size is what lets a test assert a handoff actually draws.
+ * Browser APIs jsdom lacks, which React Flow (Knowledge's graph) and the run
+ * view's resize watchers use on mount. The sizes matter: React Flow draws no
+ * edge between nodes it has not measured, and the office's camera and the
+ * inspector's sheet read the canvas's size, so a fixed, plausible one keeps
+ * what a test sees from depending on jsdom's zero.
  */
 
 const NODE_WIDTH = 200;

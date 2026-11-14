@@ -76,3 +76,24 @@
   white-space: nowrap;
 }
 
+/* The breathing of a thing in progress: the running glyph, the start
+   screen's pending dot, the office's open operations. */
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .dot--pending,
+  .status--running > .icon {
+    animation: none;
+  }
+}

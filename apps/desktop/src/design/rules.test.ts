@@ -181,3 +181,16 @@ describe("text contrast", () => {
     }
   });
 });
+
+describe("React Flow", () => {
+  /* Its stylesheet positions every node; without it a graph draws as a
+     stack in a corner, and nothing in the tests draws one. It came with the
+     run diagram until D8 retired that, which nearly left Knowledge's graph
+     without it, so each file that draws with React Flow loads it itself. */
+  it("is drawn only by a file that loads its stylesheet", () => {
+    const drawing = sources([".tsx"]).filter((path) => /<ReactFlow\b/.test(readFileSync(join(SRC, path), "utf8")));
+    expect(drawing.length).toBeGreaterThan(0);
+    const unstyled = drawing.filter((path) => !readFileSync(join(SRC, path), "utf8").includes('import "@xyflow/react/dist/style.css";'));
+    expect(unstyled).toEqual([]);
+  });
+});

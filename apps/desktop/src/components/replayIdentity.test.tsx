@@ -1,7 +1,6 @@
 import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
-
 import { useRunStore } from "../state/runStore";
 import { twoAgentRun } from "../test/log";
 import { SCENARIOS } from "../test/scenarios";
@@ -62,7 +61,7 @@ function finished(snapshot: ReturnType<typeof store>): boolean {
  * read-only state exactly as `RunsView` does: from the *transport* (`following`)
  * and the terminal status, never from the folded approval alone.
  */
-function panel(snapshot: ReturnType<typeof store>, canvas: "office" | "diagram" = "diagram") {
+function panel(snapshot: ReturnType<typeof store>) {
   return render(
     <RunPanel
       view={snapshot.view}
@@ -73,7 +72,6 @@ function panel(snapshot: ReturnType<typeof store>, canvas: "office" | "diagram" 
       onCursorChange={() => undefined}
       approvalReadOnly={finished(snapshot) ? "finished" : snapshot.following ? null : "replay"}
       onResolveApproval={() => Promise.resolve()}
-      canvas={canvas}
     />,
   );
 }
@@ -89,8 +87,8 @@ function panel(snapshot: ReturnType<typeof store>, canvas: "office" | "diagram" 
  * are buttons, replayed to the same position there are none), so it sits
  * beside the scrubber on the transport side of the line.
  */
-function markup(snapshot: ReturnType<typeof store>, canvas: "office" | "diagram" = "diagram"): string {
-  const rendered = panel(snapshot, canvas).container;
+function markup(snapshot: ReturnType<typeof store>): string {
+  const rendered = panel(snapshot).container;
   const projection = rendered.querySelector('[data-testid="run-projection"]');
   if (projection === null) throw new Error("no run-projection was rendered");
   const question = rendered.querySelector('[data-testid="approval-question"]');
@@ -116,8 +114,8 @@ function withoutTransport(projection: Element): string {
 }
 
 /** The whole panel, transport included. Identical only at the head of a run. */
-function wholePanel(snapshot: ReturnType<typeof store>, canvas: "office" | "diagram" = "diagram"): string {
-  return region(snapshot, "run-panel", canvas);
+function wholePanel(snapshot: ReturnType<typeof store>): string {
+  return region(snapshot, "run-panel");
 }
 
 /**
@@ -127,8 +125,8 @@ function wholePanel(snapshot: ReturnType<typeof store>, canvas: "office" | "diag
  * twice inside one test (once per path), and a document-wide query would find
  * both copies and refuse to choose.
  */
-function region(snapshot: ReturnType<typeof store>, testId: string, canvas: "office" | "diagram" = "diagram"): string {
-  const found = panel(snapshot, canvas).container.querySelector(`[data-testid="${testId}"]`);
+function region(snapshot: ReturnType<typeof store>, testId: string): string {
+  const found = panel(snapshot).container.querySelector(`[data-testid="${testId}"]`);
   if (found === null) throw new Error(`no ${testId} was rendered`);
   return found.innerHTML;
 }
@@ -166,7 +164,7 @@ describe("replay renders identically to live", () => {
 
       expect(replayed, `position ${String(position)}`).toBe(watchedLive);
     }
-  });
+  }, 30_000);
 
   it("produces the same DOM when the same log is delivered in different batches", () => {
     /* A reconnect re-reads a range, so the client legitimately sees the same
@@ -221,17 +219,22 @@ describe("replay renders identically to live", () => {
 
 /**
  * The same promise for every shape of run the scenarios hold: a question
- * left open, a refusal, a failure, a cancelled run, a crowded one. Phase 20's
- * office joins the projection, so it is held to these cursors too.
+ * left open, a refusal, a failure, a cancelled run, a crowded one. It is
+ * Phase 20's first acceptance item too: any run renders the same office live
+ * and in replay at the same cursor.
  */
 describe("every scenario replays identically", () => {
-  /** The ends, the quarters, and the event after each one that changes what a person must notice. */
+  /**
+   * About two dozen positions spread over the run, its end, and the event
+   * after each one that changes what a person must notice.
+   */
   function cursors(events: ReturnType<typeof twoAgentRun>): number[] {
     const notable = new Set(["approval.requested", "tool.denied", "tool.error", "llm.error", "agent.handoff", "budget.warning"]);
     const after = events.flatMap((event, index) => (notable.has(event.type) ? [index + 1] : []));
-    const spread = [0, 1, 2, 3, 4].map((quarter) => Math.floor((events.length * quarter) / 4));
+    const step = Math.max(1, Math.floor(events.length / 24));
+    const spread = Array.from({ length: Math.ceil(events.length / step) + 1 }, (_, index) => Math.min(index * step, events.length));
     // A crowded run has a notable event per desk; the first few say enough.
-    return [...new Set([...spread, ...after.slice(0, 6)])].sort((left, right) => left - right);
+    return [...new Set([...spread, events.length, ...after.slice(0, 6)])].sort((left, right) => left - right);
   }
 
   const logs = SCENARIOS.map((entry): [string, ReturnType<typeof twoAgentRun>] => [entry.id, [...entry.events]]);
@@ -245,41 +248,20 @@ describe("every scenario replays identically", () => {
       const replayed = markup(replay(events, position));
 
       expect(replayed, `position ${String(position)}`).toBe(watchedLive);
-    }
-  });
-});
-
-describe("the office renders identically live and in replay", () => {
-  /* Phase 20's first acceptance item: any run renders the same office live
-     and in replay at the same cursor. Every position of the short runs, and
-     a spread of positions of the crowded ones. */
-  const logs = SCENARIOS.map((entry): [string, ReturnType<typeof twoAgentRun>] => [entry.id, [...entry.events]]);
-
-  it.each(logs)("%s", (_id, events) => {
-    const step = Math.max(1, Math.floor(events.length / 24));
-    const positions = [...new Set([...Array.from({ length: Math.ceil(events.length / step) + 1 }, (_, index) => Math.min(index * step, events.length)), events.length])];
-    for (const position of positions) {
-      useRunStore.getState().reset();
-      const watchedLive = markup(live(events, position), "office");
-
-      useRunStore.getState().reset();
-      const replayed = markup(replay(events, position), "office");
-
-      expect(replayed, `position ${String(position)}`).toBe(watchedLive);
       // The comparison is of an office, not of an empty region.
       expect(watchedLive).toContain('data-testid="office"');
     }
-  });
+  }, 30_000); // Two full renders per cursor: a crowded run passes 5s on a loaded CI runner.
 });
 
 describe("what the panel refuses to do", () => {
-  it.each(["diagram", "office"] as const)("renders the same markup twice in a row from the same state, as a %s", (drawing) => {
+  it("renders the same markup twice in a row from the same state", () => {
     /* The blunt instrument that catches a `Date.now()`, a `Math.random()`, or a
        `useId` leaking into the run view. Everything else in this file compares
        two paths; this one compares one path to itself, transport included. */
     const snapshot = replay(twoAgentRun());
 
-    expect(wholePanel(snapshot, drawing)).toBe(wholePanel(snapshot, drawing));
+    expect(wholePanel(snapshot)).toBe(wholePanel(snapshot));
   });
 
   it("does not show the terminal summary as a statement of what happened", () => {
@@ -307,7 +289,10 @@ describe("what the panel refuses to do", () => {
     /* CLAUDE.md's third warning: "The user said no" and "the agent tried to
        leave the workspace" are the same event type and must not read alike. */
     const snapshot = replay(twoAgentRun());
+    // The log starts folded beside the room; open, it shows every row.
+    localStorage.setItem("agentbase.flag.runs.office.log.collapsed", "0");
     const { getByTestId } = panel(snapshot);
+    localStorage.removeItem("agentbase.flag.runs.office.log.collapsed");
 
     expect(getByTestId("fact-denied").textContent).toContain("sandbox");
     expect(getByTestId("event-log").textContent).toContain("The sandbox stopped researcher");

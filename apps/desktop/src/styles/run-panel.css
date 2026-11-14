@@ -7,9 +7,12 @@
   height: 100%;
 }
 
+/* The room is the picture and most of the summary is folded, so the canvas
+   takes the height and the log keeps a few rows until the viewer drags the
+   divider or folds it. */
 .run-projection {
   display: grid;
-  grid-template-rows: auto auto minmax(20rem, 1.6fr) minmax(9rem, 1fr);
+  grid-template-rows: auto auto minmax(13rem, 1fr) minmax(7rem, 9.5rem);
   min-height: 0;
   flex: 1;
 }

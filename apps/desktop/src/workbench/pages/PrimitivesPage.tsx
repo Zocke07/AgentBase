@@ -113,7 +113,7 @@ function LiveSheet() {
 export function PrimitivesPage() {
   const [on, setOn] = useState(true);
   const [off, setOff] = useState(false);
-  const [view, setView] = useState<"office" | "diagram">("office");
+  const [view, setView] = useState<"preview" | "text">("preview");
   const [theme, setTheme] = useState<"system" | "light" | "dark">("system");
   const [pressed, setPressed] = useState(true);
 
@@ -152,8 +152,8 @@ export function PrimitivesPage() {
           value={view}
           onChange={setView}
           options={[
-            { value: "office", label: "Office", icon: "users" },
-            { value: "diagram", label: "Diagram", icon: "network" },
+            { value: "preview", label: "Preview", icon: "book-open" },
+            { value: "text", label: "Text", icon: "pencil" },
           ]}
         />
         <Segmented

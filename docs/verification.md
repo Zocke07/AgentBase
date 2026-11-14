@@ -4,6 +4,52 @@ Updated 2026-11-14. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
+## Phase 20: the diagram retired (D8), 2026-11-14
+
+On branch `phase-20-redesign`, not merged, pushed or released. The
+maintainer decided D8: "Retire the diagram view". The brief's section 13,
+"D8: the diagram is retired", lists what went.
+
+- **What changed for a person.** A run is drawn only as the office; the
+  switch over the canvas is gone. The summary is always the compact one
+  (three files before the rest fold), and the log's fold is the office's
+  stored flag, so a viewer who had chosen the diagram now sees the office
+  with its log folded.
+- **Knowledge's graph.** `@xyflow/react` stays: the note graph draws with
+  it. Its stylesheet had been imported only by the diagram, so
+  `KnowledgeView.tsx` imports it now. A design rule fails `just ci` when a
+  file draws `<ReactFlow>` without importing the stylesheet (checked by
+  taking the import out: it failed), and `just ui-shots` opens the note
+  graph and fails if a node is not positioned by it. The graph's React
+  Flow credit now sits on the plane in both themes; in dark it had sat on
+  a light patch, below 4.5:1, since Knowledge never set that colour.
+- **Checks.** `just ci` passed: backend 1,451 passed and 12 skipped;
+  desktop **929 passed in 84 files** (was 988 in 86: the diagram's two test
+  files went, and the identity test's diagram and office halves became one
+  pass over the office at the same positions and the notable events).
+  Changed tests, each for a removed behaviour: the run panel's (the switch
+  and the diagram's cases gone; two that read log rows open the log
+  first), the summary's file fold (3 shown, not 6), the identity test's,
+  the workbench link test (`office-two-agents`), the icon test (the `flag`
+  and `network` icons went with the diagram) and the tool table's (its
+  `chip` words, which only the diagram showed, went). `just test-visual` passed, 150 (was
+  218): the 34 diagram baselines went; the six office baselines, the
+  primitives page (its segmented example is now Preview and Text) and the
+  icon page changed; 22 new baselines compare the other nine scenarios'
+  offices, and two more in dark (two agents, the stuck worker). Each changed office
+  baseline differs from the old only by the missing switch; the new ones
+  were looked at. `just ui-shots office-only` took 72 captures; the run in
+  both themes and Knowledge's graph in dark were looked at.
+- **Review.** A code review at high effort found eight things, all fixed:
+  the first-launch tour still described the diagram's cards; the `network`
+  icon and the tool table's `chip` words were left with no reader (the
+  icon test's text search counted the tool family's name as a use); a
+  developer-guide link named a deleted workbench page; office comments
+  cited the diagram; a failing run-panel test could leave the log's flag
+  for the tests after it; the credit's contrast; and nothing in `just ci`
+  guarded the moved stylesheet import.
+- **Not verified.** Windows and WebView2, and the Tauri window, as before.
+
 ## Phase 20, stage 20.5: the office in motion, 2026-11-14
 
 On branch `phase-20-redesign`, not merged, pushed or released. [The brief's

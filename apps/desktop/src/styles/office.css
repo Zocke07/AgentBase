@@ -6,9 +6,9 @@
  * shadows, no outlines. Over it lies a layer of real elements placed by the
  * same layout, so text is sharp at any zoom and every desk is a button.
  *
- * Nothing here animates yet. Motion that follows the fold is stage 20.5,
- * under BUILD_SPEC Phase 20 decision 1; until then the room is always the
- * frame at rest, which is also what reduced motion will show.
+ * Motion follows the fold under BUILD_SPEC Phase 20 decision 1; see the
+ * motion section below. At rest, and under reduced motion, the room is the
+ * frame a pure function of the event prefix draws.
  */
 
 .office {
@@ -819,15 +819,6 @@
   align-items: center;
   margin-top: 2px;
   background: var(--content);
-}
-
-/* --- Office or Diagram ------------------------------------------------------ */
-
-.run-panel__view-switch {
-  position: absolute;
-  top: var(--space-2);
-  left: var(--space-2);
-  z-index: 6;
 }
 
 /* --- motion (brief 7.8, decision D1) ---------------------------------------- */

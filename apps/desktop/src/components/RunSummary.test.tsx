@@ -73,8 +73,9 @@ describe("RunSummary", () => {
     render(<RunSummary view={reduceAll(events)} onOpenFile={vi.fn()} />);
 
     const files = screen.getByTestId("run-files");
-    expect(within(files).getAllByRole("button", { name: /\.csv/ })).toHaveLength(6);
-    await userEvent.click(within(files).getByRole("button", { name: "3 more" }));
+    // About one row, so the room beside the summary keeps its height.
+    expect(within(files).getAllByRole("button", { name: /\.csv/ })).toHaveLength(3);
+    await userEvent.click(within(files).getByRole("button", { name: "6 more" }));
     expect(within(files).getAllByRole("button", { name: /\.csv/ })).toHaveLength(9);
   });
 
@@ -344,7 +345,7 @@ describe("RunSummary", () => {
     const scenario = (id: string) => reduceAll([...(SCENARIOS.find((entry) => entry.id === id)?.events ?? [])]);
     const folded = (testId: string) => screen.getByTestId("run-more").contains(screen.getByTestId(testId));
 
-    const collection = render(<RunSummary view={scenario("morning-collection")} compact />);
+    const collection = render(<RunSummary view={scenario("morning-collection")} />);
     expect(screen.getByTestId("run-more").hasAttribute("open")).toBe(false);
     expect(screen.getByTestId("run-more").querySelector("summary")?.textContent).toBe("More about this run");
     for (const part of ["run-policy", "run-context", "run-claim"]) expect(folded(part), part).toBe(true);
@@ -354,7 +355,7 @@ describe("RunSummary", () => {
     expect(screen.getByTestId("run-files").textContent).toContain("5 more");
     collection.unmount();
 
-    const failed = render(<RunSummary view={scenario("failed-run")} compact />);
+    const failed = render(<RunSummary view={scenario("failed-run")} />);
     expect(folded("run-errors")).toBe(false);
     expect(folded("run-issue-badge")).toBe(false);
     // Why a run stopped is a problem too: in view, not behind the disclosure.
@@ -362,12 +363,12 @@ describe("RunSummary", () => {
     expect(screen.getByTestId("run-more").contains(screen.getByTestId("run-claim"))).toBe(false);
     failed.unmount();
 
-    const capped = render(<RunSummary view={scenario("over-budget")} compact />);
+    const capped = render(<RunSummary view={scenario("over-budget")} />);
     expect(folded("budget-exceeded")).toBe(false);
     capped.unmount();
 
     // Nothing to fold: no disclosure with nothing in it.
-    render(<RunSummary view={reduceAll([])} compact />);
+    render(<RunSummary view={reduceAll([])} />);
     expect(screen.queryByTestId("run-more")).toBeNull();
   });
 });

@@ -13,12 +13,10 @@ import { useStoredSize } from "../state/useStoredSize";
 import { ApprovalPanel, type ApprovalPanelProps } from "./ApprovalPanel";
 import { EventLog } from "./EventLog";
 import { Markdown } from "./Markdown";
-import { RunGraph } from "./RunGraph";
 import { RunSummary, type RunSummaryProps } from "./RunSummary";
 import { Scrubber } from "./Scrubber";
 import { Splitter } from "./Splitter";
 import { OfficeScene } from "./office/OfficeScene";
-import { Segmented } from "./ui/controls";
 
 /**
  * Run dashboard splits pure `run-projection` from scrubber transport. Given the
@@ -60,11 +58,6 @@ export interface RunPanelProps {
   onOpenMemory?: RunSummaryProps["onOpenMemory"];
   onMemoryChanged?: RunSummaryProps["onMemoryChanged"];
   /**
-   * Which drawing of the run to show, whatever the viewer last chose: the
-   * workbench and tests use it. Left out, the viewer's choice applies.
-   */
-  canvas?: "office" | "diagram" | undefined;
-  /**
    * New events can still arrive: the run is going and its stream is
    * followed. Only the caller knows; a log that ends mid-run may be a run
    * that stopped without saying so.
@@ -89,13 +82,12 @@ export function RunPanel({
   spaceId,
   onOpenMemory,
   onMemoryChanged,
-  canvas: canvasChoice,
   live = false,
 }: RunPanelProps) {
   const scrubbed = cursor < events.length;
 
   // Caller selection survives scrubbing even before its agent exists; share it
-  // across graph, inspector, and log.
+  // across the office, inspector, and log.
   const selected = selectedAgent === null ? null : (view.agents[selectedAgent] ?? null);
   const selectedName = selected === null ? null : selectedAgent;
 
@@ -104,30 +96,18 @@ export function RunPanel({
   const [summaryHeight, setSummaryHeight] = useStoredSize("runs.summary");
   const [canvasHeight, setCanvasHeight] = useStoredSize("runs.canvas");
   const [detailWidth, setDetailWidth] = useStoredSize("runs.detail");
-  // Office or Diagram (decision D8): the viewer's choice, kept on this
-  // computer. The office is what a run opens on; the diagram stays one
-  // press away until D8 is settled.
-  const [officeChosen, setOfficeChosen] = useStoredFlag("runs.office", true);
-  // Where a caller names the drawing, that is where this panel starts, and
-  // the switch then changes this panel alone, not the viewer's stored choice.
-  const [officeHere, setOfficeHere] = useState(canvasChoice === "office");
-  const showOffice = canvasChoice === undefined ? officeChosen : officeHere;
-  // Projected only when it is shown: the diagram needs none of it.
-  const office = useMemo(() => (showOffice ? officeOf(view) : null), [showOffice, view]);
+  // The run drawn as a room (decision D8 retired the diagram on 2026-11-14).
+  const office = useMemo(() => officeOf(view), [view]);
   // The selected agent's files, found again only when the calls change.
   const toolCalls = view.toolCalls;
   const selectedFiles = useMemo(() => (selectedName === null ? [] : writtenFiles({ toolCalls }, selectedName)), [toolCalls, selectedName]);
   // A step forward may animate; anything else settles at once (transport).
   const motion = useMotionMode(events, cursor);
   // A viewer can fold the log to its latest step; the canvas takes the room.
-  // Beside the office it starts folded, because a room needs about half its
-  // width in height and the room already says what the latest step is. Each
-  // drawing keeps its own choice, so opening the log here does not open it
-  // under the diagram.
-  const [diagramLogCollapsed, setDiagramLogCollapsed] = useStoredFlag("runs.log.collapsed");
-  const [officeLogCollapsed, setOfficeLogCollapsed] = useStoredFlag("runs.office.log.collapsed", true);
-  const logCollapsed = showOffice ? officeLogCollapsed : diagramLogCollapsed;
-  const setLogCollapsed = showOffice ? setOfficeLogCollapsed : setDiagramLogCollapsed;
+  // It starts folded, because a room needs about half its width in height
+  // and the room already says what the latest step is. The key is the one
+  // the office used beside the diagram, so a viewer's choice carries over.
+  const [logCollapsed, setLogCollapsed] = useStoredFlag("runs.office.log.collapsed", true);
   const projection = useRef<HTMLDivElement>(null);
   const summary = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLDivElement>(null);
@@ -174,7 +154,7 @@ export function RunPanel({
       />
 
       <div
-        className={`run-projection${showOffice ? " run-projection--office" : ""}${logCollapsed ? " run-projection--log-collapsed" : ""}`}
+        className={`run-projection${logCollapsed ? " run-projection--log-collapsed" : ""}`}
         data-testid="run-projection"
         ref={projection}
         style={
@@ -197,7 +177,6 @@ export function RunPanel({
             onOpenMemory={onOpenMemory}
             onMemoryChanged={onMemoryChanged}
             unfolded={summaryHeight !== null}
-            compact={showOffice}
           />
           <Splitter
             axis="y"
@@ -213,51 +192,24 @@ export function RunPanel({
 
         {/* One sentence about the run at this cursor. Derived from the fold,
             so it is the same sentence live and on replay, and it is the
-            first thing a person reads, above a graph that takes longer. */}
+            first thing a person reads, above a room that takes longer. */}
         <p className="now-line" data-testid="now-line">
           {nowLine(view)}
         </p>
 
         <div className={`run-panel__canvas${expanded ? " run-panel__canvas--expanded" : ""}`} ref={canvas}>
-          <div className="run-panel__view-switch">
-            <Segmented
-              label="How the run is drawn"
-              value={showOffice ? "office" : "diagram"}
-              options={[
-                { value: "office", label: "Office", icon: "users" },
-                { value: "diagram", label: "Diagram", icon: "network" },
-              ]}
-              onChange={(next) => {
-                if (canvasChoice === undefined) setOfficeChosen(next === "office");
-                else setOfficeHere(next === "office");
-              }}
-              testId="run-view-switch"
-            />
-          </div>
-          {office !== null ? (
-            <OfficeScene
-              model={office}
-              description={nowLine(view)}
-              selectedAgent={selectedName}
-              onSelectAgent={onSelectAgent}
-              onOpenFile={onOpenFile === undefined ? undefined : (path) => { onOpenFile(path); }}
-              motion={motion}
-              expanded={expanded}
-              onToggleExpand={() => {
-                setExpanded((current) => !current);
-              }}
-            />
-          ) : (
-            <RunGraph
-              view={view}
-              selectedAgent={selectedName}
-              onSelectAgent={onSelectAgent}
-              expanded={expanded}
-              onToggleExpand={() => {
-                setExpanded((current) => !current);
-              }}
-            />
-          )}
+          <OfficeScene
+            model={office}
+            description={nowLine(view)}
+            selectedAgent={selectedName}
+            onSelectAgent={onSelectAgent}
+            onOpenFile={onOpenFile === undefined ? undefined : (path) => { onOpenFile(path); }}
+            motion={motion}
+            expanded={expanded}
+            onToggleExpand={() => {
+              setExpanded((current) => !current);
+            }}
+          />
 
           {selected !== null && selectedName !== null && (
             <AgentDetail
@@ -348,7 +300,7 @@ function AgentDetail({
     ...denials.map((denial) => ({ seq: denial.seq, kind: "denial" as const, call: null, denial })),
   ].sort((left, right) => left.seq - right.seq);
 
-  // On a narrow canvas the panel covers the drawing (graph.css), so the
+  // On a narrow canvas the panel covers the drawing (run-canvas.css), so the
   // control that opened it is hidden: whenever the panel comes to cover it,
   // on opening or as the window narrows, it takes the focus, and gives it
   // back when it closes. Beside the drawing it leaves the focus where it is.

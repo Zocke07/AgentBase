@@ -157,7 +157,7 @@ in their states, the rail, and the run view for every scenario in
 single steps, and a switch between events arriving live and a replayed log.
 The bar's switches set the theme, reduced motion and the platform, and the
 page, its conditions and a run page's cursor are in the link, so
-`workbench.html?page=run-shell-question&theme=dark&cursor=12` opens that
+`workbench.html?page=office-shell-question&theme=dark&cursor=12` opens that
 state. Nothing in it calls the sidecar, and the app's build does not include
 it. Add a page in `src/workbench/pages.tsx`; the visual tests pick it up.
 

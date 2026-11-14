@@ -98,13 +98,13 @@ describe("the workbench", () => {
   });
 
   it("opens a linked run page at the linked cursor, and the link follows the cursor", () => {
-    render(<Workbench initialPage="run-two-agents" initialEnvironment={DEFAULT_ENVIRONMENT} initialCursor={12} />);
+    render(<Workbench initialPage="office-two-agents" initialEnvironment={DEFAULT_ENVIRONMENT} initialCursor={12} />);
     expect(screen.getByTestId("scrub-position").textContent).toBe("12 / 28");
-    expect(window.location.search).toBe("?page=run-two-agents&cursor=12");
+    expect(window.location.search).toBe("?page=office-two-agents&cursor=12");
 
     fireEvent.click(player().getByRole("button", { name: "Step" }));
     expect(screen.getByTestId("scrub-position").textContent).toBe("13 / 28");
-    expect(window.location.search).toBe("?page=run-two-agents&cursor=13");
+    expect(window.location.search).toBe("?page=office-two-agents&cursor=13");
   });
 
   it("keeps a cursor out of the link of a page that has none", () => {
@@ -115,7 +115,7 @@ describe("the workbench", () => {
     const nav = within(screen.getByRole("navigation", { name: "Workbench pages" }));
     fireEvent.click(nav.getByRole("button", { name: "Two agents" }));
     expect(screen.getByTestId("scrub-position").textContent).toBe("28 / 28");
-    expect(window.location.search).toBe("?page=run-two-agents&cursor=28");
+    expect(window.location.search).toBe("?page=office-two-agents&cursor=28");
   });
 
   it("opens the first page for a link it does not know", () => {
