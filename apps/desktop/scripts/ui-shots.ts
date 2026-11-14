@@ -376,6 +376,34 @@ async function capture(browser: Browser, folder: string, seeded: Seed, condition
           }
         }
 
+        if (section === "home") {
+          // Home's agent cards, below the fold: on, then one switched off and
+          // back, so both states of the switch are seen.
+          const roster = page.locator('[data-testid="home-roster"]');
+          if ((await roster.count()) > 0) {
+            await roster.scrollIntoViewIfNeeded();
+            await take("home-agents");
+            const toggle = roster.getByRole("switch").first();
+            await toggle.click();
+            await page.waitForFunction(() => document.querySelector('[data-testid="home-roster"] [role="switch"]')?.getAttribute("aria-checked") === "false");
+            await take("home-agents-off");
+            await toggle.click();
+            await page.waitForFunction(() => document.querySelector('[data-testid="home-roster"] [role="switch"]')?.getAttribute("aria-checked") === "true");
+          }
+        }
+
+        if (section === "agents") {
+          // A desk card opens the editor in the inspector, or a sheet below 1,100 px.
+          const card = page.locator('[data-testid^="agent-row-"] .floor__open:visible').first();
+          if ((await card.count()) > 0) {
+            await card.click();
+            await page.locator('[data-testid="agents-inspector"]').waitFor();
+            await take("agents-editor");
+            await page.keyboard.press("Escape");
+            await page.locator('[data-testid="agents-inspector"]').waitFor({ state: "detached" });
+          }
+        }
+
         if (section === "knowledge") {
           const result = page.locator('[data-testid="knowledge-view"] button:visible', { hasText: "Field guide" }).first();
           if ((await result.count()) > 0) {

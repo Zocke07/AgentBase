@@ -146,6 +146,8 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
   // The accent as a mark or an icon, never as running text.
   ...pairs(["--accent"], PLANES, undefined, MARK_MIN),
   ...pairs(["--accent"], PLANES, "--fill-hover", MARK_MIN),
+  // Chart series as marks on the plane charts are drawn on.
+  ...pairs(["--viz-1", "--viz-2", "--viz-3", "--viz-4", "--viz-5", "--viz-6"], ["--content"], undefined, MARK_MIN),
   // The keyboard's focus ring, a translucent accent laid on the plane.
   ...pairs(["--focus-ring"], PLANES, undefined, MARK_MIN),
 ];

@@ -1,21 +1,19 @@
-import type { SpaceResponse, UsageBucket, UsageReport, UsageRun } from "@agentbase/schemas";
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import type { SpaceResponse, UsageReport, UsageRun } from "@agentbase/schemas";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import * as api from "../lib/api";
 import {
   clockDate,
   ellipsise,
   formatCount,
-  formatMicros,
-  modelLabel,
   moneyShort,
   periodLabel,
-  providerLabel,
   runOriginLabel,
 } from "../lib/format";
 import { useFetched } from "../state/useFetched";
 
 import { Skeleton } from "./Skeleton";
+import { BucketTable, DayChart, ModelName } from "./UsageCharts";
 
 /**
  * Ledger-backed monthly model usage by day, model, space, and run, including
@@ -171,7 +169,7 @@ export function UsageView({ space, active, onOpenRun, onOpenSettings, ledgerMicr
           <div className="usage__columns">
             <section className="usage__section">
               <h3>By model</h3>
-              <BucketTable rows={report.by_model} empty="No model calls in this period." testId="usage-models" name={modelName} />
+              <BucketTable rows={report.by_model} empty="No model calls in this period." testId="usage-models" name={(row) => <ModelName row={row} />} />
             </section>
             {scope === "all" && (
               <section className="usage__section">
@@ -206,127 +204,6 @@ function Card({ label, value, note, testId }: { label: string; value: string; no
       <span className="usage__card-value">{value}</span>
       <span className="usage__card-note">{note}</span>
     </div>
-  );
-}
-
-/**
- * Cost bars in a slot for every day of the period, so a bar sits at its date;
- * a day with no ledger rows is an empty slot, a gap rather than a zero. Days
- * are the ledger's, in UTC.
- */
-function DayChart({ period, days }: { period: string; days: readonly UsageBucket[] }) {
-  const most = Math.max(1, ...days.map((day) => day.cost_micros));
-  const midpoint = Math.round(most / 2);
-  const byDay = new Map(days.map((day) => [day.key, day]));
-  const peak = days.reduce<UsageBucket | null>((best, day) => (best === null || day.cost_micros > best.cost_micros ? day : best), null);
-  return (
-    <>
-      <div className="usage__chart-frame">
-        <div className="usage__y-axis" aria-hidden="true" data-testid="usage-y-axis">
-          <span>{formatMicros(most)}</span>
-          <span>{formatMicros(midpoint)}</span>
-          <span>{formatMicros(0)}</span>
-        </div>
-        <div
-          className="usage__chart"
-          role="img"
-          aria-label={`Spend by day. Y axis ${formatMicros(0)} to ${formatMicros(most)}: ${days.map((day) => `${day.label} ${day.cost_display}`).join(", ")}`}
-        >
-          {daysOf(period, days).map((key, index) => {
-            const day = byDay.get(key);
-            const date = index + 1;
-            return (
-              <div
-                key={key}
-                className={`usage__bar${day === undefined ? "" : " usage__bar--spent"}`}
-                title={day === undefined ? `${key}: nothing spent` : `${day.label}: ${day.cost_display}, ${String(day.calls)} call${day.calls === 1 ? "" : "s"}, ${formatCount(day.input_tokens)} in, ${formatCount(day.output_tokens)} out`}
-                data-testid={`usage-day-${key}`}
-              >
-                <span className="usage__bar-track">
-                  {day !== undefined && <span className="usage__bar-fill" style={{ height: `${String(Math.max(2, Math.round((day.cost_micros * 100) / most)))}%` }} />}
-                </span>
-                <span className="usage__bar-label">{day !== undefined || date === 1 || date % 5 === 0 ? date : ""}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      {peak !== null && (
-        <p className="usage__chart-note">
-          Most in one day: {peak.cost_display} on {peak.label}. Days are counted in UTC.
-        </p>
-      )}
-    </>
-  );
-}
-
-/** `YYYY-MM-DD` for every day of a `YYYY-MM` period, or the ledger's own days if it does not parse. */
-function daysOf(period: string, days: readonly UsageBucket[]): string[] {
-  const match = /^(\d{4})-(\d{2})$/.exec(period);
-  if (match === null) return days.map((day) => day.key);
-  const [, year = "", month = ""] = match;
-  const count = new Date(Date.UTC(Number(year), Number(month), 0)).getUTCDate();
-  return Array.from({ length: count }, (_unused, index) => `${period}-${String(index + 1).padStart(2, "0")}`);
-}
-
-/**
- * A model row by the name the header uses ("GPT-5.6 Terra"), its provider
- * beside it; the ledger's own identifier stays on the row's tooltip.
- */
-function modelName(row: UsageBucket): ReactNode {
-  const slash = row.key.indexOf("/");
-  if (slash < 0) return row.label;
-  return (
-    <span title={row.label}>
-      {modelLabel(row.key.slice(slash + 1))}
-      <span className="usage__origin"> · {providerLabel(row.key.slice(0, slash))}</span>
-    </span>
-  );
-}
-
-function BucketTable({
-  rows,
-  empty,
-  testId,
-  name = (row) => row.label,
-}: {
-  rows: readonly UsageBucket[];
-  empty: string;
-  testId: string;
-  name?: (row: UsageBucket) => ReactNode;
-}) {
-  if (rows.length === 0) return <p className="usage__empty">{empty}</p>;
-  return (
-    <table className="usage__table" data-testid={testId}>
-      <thead>
-        <tr>
-          <th scope="col"> </th>
-          <th scope="col" className="usage__num">
-            Calls
-          </th>
-          <th scope="col" className="usage__num">
-            In
-          </th>
-          <th scope="col" className="usage__num">
-            Out
-          </th>
-          <th scope="col" className="usage__num">
-            Cost
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={row.key}>
-            <td>{name(row)}</td>
-            <td className="usage__num">{formatCount(row.calls)}</td>
-            <td className="usage__num">{formatCount(row.input_tokens)}</td>
-            <td className="usage__num">{formatCount(row.output_tokens)}</td>
-            <td className="usage__num">{row.cost_display}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
   );
 }
 

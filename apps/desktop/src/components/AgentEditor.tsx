@@ -36,6 +36,8 @@ export interface AgentEditorProps {
   onCancel: () => void;
   /** Notify when form diverges from its opening state. */
   onDirtyChange?: (dirty: boolean) => void;
+  /** False where the pane around it already names what is edited (the inspector). */
+  titled?: boolean;
 }
 
 interface FormState {
@@ -118,6 +120,7 @@ export function AgentEditor({
   onPatch,
   onCancel,
   onDirtyChange,
+  titled = true,
 }: AgentEditorProps) {
   // Diff saves against opening snapshot.
   const [opened] = useState<FormState>(() => initial(agent));
@@ -226,7 +229,7 @@ export function AgentEditor({
 
   return (
     <form className="editor" onSubmit={(event) => void submit(event)} data-testid="agent-editor">
-      <h2>{agent === null ? "New agent" : `Edit ${agent.name}`}</h2>
+      {titled && <h2>{agent === null ? "New agent" : `Edit ${agent.name}`}</h2>}
 
       {agent?.is_builtin === true && (
         <p className="editor__hint">

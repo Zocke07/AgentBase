@@ -89,12 +89,19 @@
   --info-line: rgb(29 91 166 / 45%);
   --info-tint: rgb(29 91 166 / 20%);
 
-  --viz-1: #2a6bb0;
-  --viz-2: #d4622a;
-  --viz-3: #1f8a5b;
-  --viz-4: #8a55b5;
-  --viz-5: #b07a13;
-  --viz-6: #b94668;
+  /* Chart series, in this fixed order (never cycled; a chart draws six at
+     most): blue, orange, aqua, yellow, magenta, green. The order is the
+     colour-blind safety, checked with the dataviz skill's validator on
+     --content (2026-11-15): worst neighbouring pair CVD delta E 9.5 light
+     and 8.4 dark, normal vision 18.3 and 19.3, and every mark 3:1 or more
+     on the plane (light aqua, yellow and magenta are darker steps than the
+     skill's reference for that). CONTRAST_PAIRS holds them to 3:1. */
+  --viz-1: #2a78d6;
+  --viz-2: #eb6834;
+  --viz-3: #18a372;
+  --viz-4: #b97a00;
+  --viz-5: #d55181;
+  --viz-6: #008300;
 
   /* The three risk levels, in the order the gate ranks them. */
   --risk-low: var(--info);
@@ -275,12 +282,12 @@
     --info-line: rgb(108 180 230 / 45%);
     --info-tint: rgb(108 180 230 / 26%);
 
-    --viz-1: #6cb4e6;
-    --viz-2: #ff8f52;
-    --viz-3: #6fcf8e;
-    --viz-4: #c494e8;
-    --viz-5: #e8c468;
-    --viz-6: #ed82a0;
+    --viz-1: #3987e5;
+    --viz-2: #d95926;
+    --viz-3: #199e70;
+    --viz-4: #c98500;
+    --viz-5: #d55181;
+    --viz-6: #008300;
 
     --material: rgb(44 44 46 / 84%);
     --scrim: rgb(0 0 0 / 48%);
@@ -364,12 +371,12 @@
   --info-line: rgb(108 180 230 / 45%);
   --info-tint: rgb(108 180 230 / 26%);
 
-  --viz-1: #6cb4e6;
-  --viz-2: #ff8f52;
-  --viz-3: #6fcf8e;
-  --viz-4: #c494e8;
-  --viz-5: #e8c468;
-  --viz-6: #ed82a0;
+  --viz-1: #3987e5;
+  --viz-2: #d95926;
+  --viz-3: #199e70;
+  --viz-4: #c98500;
+  --viz-5: #d55181;
+  --viz-6: #008300;
 
   --material: rgb(44 44 46 / 84%);
   --scrim: rgb(0 0 0 / 48%);

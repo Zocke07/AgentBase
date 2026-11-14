@@ -5,6 +5,9 @@ import { SCENARIOS } from "../test/scenarios";
 import { ScenarioPlayer } from "./ScenarioPlayer";
 import { CharactersPage } from "./pages/CharactersPage";
 import { ControlsPage } from "./pages/ControlsPage";
+import { EmptyPage } from "./pages/EmptyPage";
+import { FloorPage } from "./pages/FloorPage";
+import { HomeOfficePage } from "./pages/HomeOfficePage";
 import { IconsPage } from "./pages/IconsPage";
 import { PrimitivesPage } from "./pages/PrimitivesPage";
 import { RailPage } from "./pages/RailPage";
@@ -12,6 +15,7 @@ import { ShapePage } from "./pages/ShapePage";
 import { PalettePage, ShellPage } from "./pages/ShellPage";
 import { TokensPage } from "./pages/TokensPage";
 import { TypePage } from "./pages/TypePage";
+import { UsagePage } from "./pages/UsagePage";
 
 /**
  * The workbench's pages. Each renders one part of the interface from
@@ -95,6 +99,14 @@ export const PAGES: readonly WorkbenchPage[] = [
     render: () => <PrimitivesPage />,
   },
   {
+    id: "usage",
+    title: "Usage charts",
+    group: "Components",
+    layout: "flow",
+    about: "Spend by day with gaps and the busiest day labelled, and each model's share, from made-up spend.",
+    render: () => <UsagePage />,
+  },
+  {
     id: "rail",
     title: "Rail",
     group: "Components",
@@ -117,6 +129,30 @@ export const PAGES: readonly WorkbenchPage[] = [
     layout: "flow",
     about: "The command palette open, before anything is typed, over the smallest window.",
     render: () => <PalettePage />,
+  },
+  {
+    id: "empty",
+    title: "Empty states",
+    group: "Office",
+    layout: "flow",
+    about: "The room at rest, the library and the calendar, each with its sentence and one action.",
+    render: () => <EmptyPage />,
+  },
+  {
+    id: "home-office",
+    title: "Home's office",
+    group: "Office",
+    layout: "flow",
+    about: "Home's Now: a desk over each going run, one waiting on a question; and the room at rest with the next automation.",
+    render: () => <HomeOfficePage />,
+  },
+  {
+    id: "floor",
+    title: "Agents floor plan",
+    group: "Office",
+    layout: "flow",
+    about: "The Agents section's desk cards: one selected, one not available, one with a high-risk tool, one with no model of its own.",
+    render: () => <FloorPage />,
   },
   {
     id: "office-characters",

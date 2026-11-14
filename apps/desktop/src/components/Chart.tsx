@@ -93,6 +93,13 @@ export function Chart({ data, spec, compact = false }: ChartProps) {
         )}
       </div>
 
+      {spec.chart !== "pie" && spec.chart !== "table" && spec.chart !== "metric" && prepared.series.length > COLOURS.length && (
+        <p className="viz-chart__note" role="note">
+          The first {COLOURS.length} series are drawn, each in its own colour; Show data lists all{" "}
+          {prepared.series.length}.
+        </p>
+      )}
+
       {prepared.repeated > 0 && spec.chart !== "table" && (
         <p className="viz-chart__note" role="note">
           {prepared.repeated === 1
@@ -107,7 +114,9 @@ export function Chart({ data, spec, compact = false }: ChartProps) {
   );
 }
 
-function CartesianChart({ spec, prepared }: { spec: VisualizationSpec; prepared: ReturnType<typeof prepareChart> }) {
+function CartesianChart({ spec, prepared: all }: { spec: VisualizationSpec; prepared: ReturnType<typeof prepareChart> }) {
+  // Six series at most, each in its own colour; never a colour reused.
+  const prepared = { ...all, series: all.series.slice(0, COLOURS.length) };
   const values = prepared.series.flatMap((series) => series.points.map((point) => point.value));
   const scale = niceScale(Math.min(0, ...values), Math.max(0, ...values));
   const span = scale.high - scale.low;
@@ -235,7 +244,22 @@ function legendLayout(names: string[]): { name: string; x: number; row: number }
 }
 
 function PieChart({ spec, prepared }: { spec: VisualizationSpec; prepared: ReturnType<typeof prepareChart> }) {
-  const points = (prepared.series[0]?.points ?? []).filter((point) => point.value > 0);
+  // Six slices at most, each in its own colour: past that the smaller ones
+  // are one slice, "Other", which a pie's parts can always add up to.
+  const positive = (prepared.series[0]?.points ?? []).filter((point) => point.value > 0);
+  const points =
+    positive.length <= COLOURS.length
+      ? positive
+      : [
+          ...[...positive].sort((left, right) => right.value - left.value).slice(0, COLOURS.length - 1),
+          {
+            label: `Other (${String(positive.length - COLOURS.length + 1)})`,
+            value: [...positive]
+              .sort((left, right) => right.value - left.value)
+              .slice(COLOURS.length - 1)
+              .reduce((sum, point) => sum + point.value, 0),
+          },
+        ];
   const total = points.reduce((sum, point) => sum + point.value, 0);
   let angle = -Math.PI / 2;
   const centreX = 255;
@@ -352,8 +376,9 @@ function shortNumber(value: number): string {
   return new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 2 }).format(value);
 }
 
+/** A series' colour, by its place; the charts never draw more than there are. */
 function colour(index: number): string {
-  return COLOURS[index % COLOURS.length] ?? COLOURS[0];
+  return COLOURS[Math.min(index, COLOURS.length - 1)] ?? COLOURS[0];
 }
 
 function plural(count: number, noun: string): string {

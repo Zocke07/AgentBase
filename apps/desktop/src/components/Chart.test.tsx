@@ -47,6 +47,23 @@ describe("charts", () => {
     expect(screen.getByRole("columnheader", { name: "revenue" })).toBeDefined();
   });
 
+  it("never gives two series the same colour: six are drawn, and Show data lists the rest", () => {
+    const wide = parseDataFile("wide.csv", "month,a,b,c,d,e,f,g\nJan,1,2,3,4,5,6,7\nFeb,2,3,4,5,6,7,8\n");
+    const { container } = render(<Chart data={wide} spec={{ ...base, chart: "line", y: ["a", "b", "c", "d", "e", "f", "g"] }} />);
+    const strokes = [...container.querySelectorAll("path.viz-chart__line")].map((line) => line.getAttribute("stroke"));
+    expect(strokes).toHaveLength(6);
+    expect(new Set(strokes).size).toBe(6);
+    expect(screen.getByRole("note").textContent).toContain("Show data lists all 7");
+  });
+
+  it("folds a pie's smaller slices into Other past six", () => {
+    const shares = parseDataFile("shares.csv", "name,value\nA,40\nB,20\nC,10\nD,8\nE,6\nF,5\nG,4\nH,3\n");
+    const { container } = render(<Chart data={shares} spec={{ ...base, chart: "pie", x: "name", y: ["value"] }} />);
+    const slices = container.querySelectorAll("path.viz-chart__mark");
+    expect(slices).toHaveLength(6);
+    expect(container.textContent).toContain("Other (3)");
+  });
+
   it("labels the value axis in round steps", () => {
     const limits = parseDataFile("limits.csv", "field,value\nmax_position_pct,10\nmax_sector_pct,30\nmax_daily_loss_pct,3\n");
     const { container } = render(<Chart data={limits} spec={{ ...base, x: "field", y: ["value"] }} />);

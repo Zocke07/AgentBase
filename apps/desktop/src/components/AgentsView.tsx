@@ -6,23 +6,33 @@ import type {
   ToolResponse,
   UpdateAgentRequest,
 } from "@agentbase/schemas";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import * as api from "../lib/api";
 import { useRoster } from "../state/roster";
 import { useFetched } from "../state/useFetched";
+import { useMediaQuery } from "../state/useMediaQuery";
+import { useStoredSize } from "../state/useStoredSize";
 
 import { AgentEditor } from "./AgentEditor";
 import { AgentList } from "./AgentList";
+import { Inspector } from "./ui/Inspector";
+import { Sheet } from "./ui/Sheet";
 
 
 
 /**
- * Roster and adjacent editor. Re-throw save `ApiError` to `AgentEditor` for
- * named-input rendering.
+ * The roster as a floor plan, with the editor in the inspector (Phase 20,
+ * brief 7.13 and 6.3); below 1,100 px the editor opens as a sheet. Unsaved
+ * changes hold any move away, closing included, until the person chooses.
+ * Re-throw save `ApiError` to `AgentEditor` for named-input rendering.
  */
 
 const NO_TOOLS: ToolResponse[] = [];
+
+/** The inspector's width in the stylesheet (28rem), and the narrowest it goes. */
+const INSPECTOR_WIDTH = 420;
+const INSPECTOR_WIDTH_MIN = 340;
 const NO_CATALOGUE: ProviderCatalogueResponse = { providers: [], models: {}, catalog: {} };
 
 export interface AgentsViewProps {
@@ -67,6 +77,10 @@ export function AgentsView({ workspaceProvider, spaceId = null, spaces = [], ope
   }, [ensureRoster]);
 
   const selected = agents.find((agent) => agent.id === selectedId) ?? null;
+  // The editor is the floor's inspector, or a sheet in a narrow window.
+  const narrow = useMediaQuery("(max-width: 1100px)");
+  const [inspectorWidth, setInspectorWidth] = useStoredSize("agents.inspector");
+  const inspector = useRef<HTMLElement>(null);
   // Report every dependency fetch; failed `/tools` must not allow unexplained
   // empty-allowlist saves.
   const error = actionError ?? rosterError ?? tools.error ?? catalogue.error;
@@ -157,14 +171,125 @@ export function AgentsView({ workspaceProvider, spaceId = null, spaces = [], ope
     if (seenRequest !== null) reloadCatalogue();
   }, [seenRequest, reloadCatalogue]);
 
+  const editorTitle = editing === "new" ? "New agent" : `Edit ${selected?.name ?? "the agent"}`;
+  const closeEditor = () => {
+    guarded(() => {
+      setEditing("none");
+    });
+  };
+  const editor = (
+    <>
+      {held !== null && (
+        <div className="editor__unsaved" role="alert" data-testid="unsaved">
+          <span>This agent has unsaved changes.</span>
+          <button
+            type="button"
+            className="button button--small button--danger"
+            onClick={() => {
+              const action = held;
+              setHeld(null);
+              setDirty(false);
+              action();
+            }}
+          >
+            Discard
+          </button>
+          <button
+            type="button"
+            className="button button--small"
+            onClick={() => {
+              setHeld(null);
+            }}
+          >
+            Keep editing
+          </button>
+        </div>
+      )}
+      {editing === "existing" && selected !== null && otherSpaces.length > 0 && (
+        <div className="transfer" data-testid="transfer">
+          <span className="transfer__label">This agent lives in this space.</span>
+          <label>
+            Move to
+            <select
+              value=""
+              disabled={busyId === selected.id}
+              onChange={(changed) => {
+                if (changed.target.value !== "") void transfer(selected, changed.target.value, false);
+              }}
+              aria-label="Move to space"
+              data-testid="move-to"
+            >
+              <option value="">…</option>
+              {otherSpaces.map((space) => (
+                <option key={space.id} value={space.id}>
+                  {space.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Copy to
+            <select
+              value=""
+              disabled={busyId === selected.id}
+              onChange={(changed) => {
+                if (changed.target.value !== "") void transfer(selected, changed.target.value, true);
+              }}
+              aria-label="Copy to space"
+              data-testid="copy-to"
+            >
+              <option value="">…</option>
+              {otherSpaces.map((space) => (
+                <option key={space.id} value={space.id}>
+                  {space.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {transferError !== null && (
+            <span className="field-error" role="alert">
+              {transferError}
+            </span>
+          )}
+        </div>
+      )}
+      <AgentEditor
+        titled={false}
+        // Remount for each definition to reset form from its row.
+        key={editing === "new" ? "new" : (selected?.id ?? "new")}
+        agent={editing === "existing" ? selected : null}
+        tools={tools.data}
+        catalogue={catalogue.data}
+        workspaceProvider={workspaceProvider}
+        onCreate={create}
+        onPatch={patch}
+        onDirtyChange={setDirty}
+        onCancel={closeEditor}
+      />
+    </>
+  );
+
   return (
-    <div className="agents-view">
+    <div
+      className={`agents-view${editing !== "none" && !narrow ? " agents-view--inspecting" : ""}`}
+      onKeyDown={(event) => {
+        // Escape closes the editor from anywhere in the section, the desk
+        // that opened it included; unsaved changes still ask first.
+        if (event.key !== "Escape" || event.defaultPrevented || editing === "none") return;
+        // A menu or sheet rendered from here into the body (a desk's
+        // context menu) has its own Escape, which closes only it.
+        if (!(event.target instanceof Node) || !event.currentTarget.contains(event.target)) return;
+        event.preventDefault();
+        closeEditor();
+      }}
+    >
       <AgentList
         agents={agents}
         loading={rosterLoading}
         selectedId={selectedId}
         error={error}
         busyId={busyId}
+        tools={tools.data}
         onSelect={(id) => {
           guarded(() => {
             setSelectedId(id);
@@ -184,107 +309,33 @@ export function AgentsView({ workspaceProvider, spaceId = null, spaces = [], ope
         onDelete={(agent) => void remove(agent)}
       />
 
-      <div className="agents-view__editor">
-        {editing === "none" ? (
-          <p className="agents-view__placeholder">
-            Pick an agent to edit it, or create a new one. An agent that is
-            enabled here is one the supervisor can put to work.
-          </p>
+      {editing !== "none" &&
+        (narrow ? (
+          // Too narrow for the floor and the editor side by side (brief 6.3).
+          <Sheet open title={editorTitle} onClose={closeEditor} size="large" testId="agents-inspector">
+            {editor}
+          </Sheet>
         ) : (
-          <>
-            {held !== null && (
-              <div className="editor__unsaved" role="alert" data-testid="unsaved">
-                <span>This agent has unsaved changes.</span>
-                <button
-                  type="button"
-                  className="button button--small button--danger"
-                  onClick={() => {
-                    const action = held;
-                    setHeld(null);
-                    setDirty(false);
-                    action();
-                  }}
-                >
-                  Discard
-                </button>
-                <button
-                  type="button"
-                  className="button button--small"
-                  onClick={() => {
-                    setHeld(null);
-                  }}
-                >
-                  Keep editing
-                </button>
-              </div>
-            )}
-          {editing === "existing" && selected !== null && otherSpaces.length > 0 && (
-            <div className="transfer" data-testid="transfer">
-              <span className="transfer__label">This agent lives in this space.</span>
-              <label>
-                Move to
-                <select
-                  value=""
-                  disabled={busyId === selected.id}
-                  onChange={(changed) => {
-                    if (changed.target.value !== "") void transfer(selected, changed.target.value, false);
-                  }}
-                  aria-label="Move to space"
-                  data-testid="move-to"
-                >
-                  <option value="">…</option>
-                  {otherSpaces.map((space) => (
-                    <option key={space.id} value={space.id}>
-                      {space.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Copy to
-                <select
-                  value=""
-                  disabled={busyId === selected.id}
-                  onChange={(changed) => {
-                    if (changed.target.value !== "") void transfer(selected, changed.target.value, true);
-                  }}
-                  aria-label="Copy to space"
-                  data-testid="copy-to"
-                >
-                  <option value="">…</option>
-                  {otherSpaces.map((space) => (
-                    <option key={space.id} value={space.id}>
-                      {space.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {transferError !== null && (
-                <span className="field-error" role="alert">
-                  {transferError}
-                </span>
-              )}
-            </div>
-          )}
-          <AgentEditor
-            // Remount for each definition to reset form from its row.
-            key={editing === "new" ? "new" : (selected?.id ?? "new")}
-            agent={editing === "existing" ? selected : null}
-            tools={tools.data}
-            catalogue={catalogue.data}
-            workspaceProvider={workspaceProvider}
-            onCreate={create}
-            onPatch={patch}
-            onDirtyChange={setDirty}
-            onCancel={() => {
-              guarded(() => {
-                setEditing("none");
-              });
-            }}
-          />
-          </>
-        )}
-      </div>
+          <Inspector
+            label="Agent editor"
+            className="agents-view__inspector"
+            testId="agents-inspector"
+            panelRef={inspector}
+            title={editorTitle}
+            subtitle={editing === "existing" ? selected?.role : undefined}
+            onClose={closeEditor}
+            closeLabel="Close the editor"
+            width={inspectorWidth}
+            onResize={setInspectorWidth}
+            defaultWidth={INSPECTOR_WIDTH}
+            minWidth={INSPECTOR_WIDTH_MIN}
+            maxWidth={() => Math.max(INSPECTOR_WIDTH_MIN, Math.round(window.innerWidth * 0.6))}
+            measure={() => inspector.current?.offsetWidth ?? INSPECTOR_WIDTH}
+            resizeLabel="Resize the agent editor"
+          >
+            {editor}
+          </Inspector>
+        ))}
     </div>
   );
 }

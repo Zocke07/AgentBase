@@ -261,9 +261,10 @@
   font-size: var(--size-control);
 }
 
+/* Wide enough for a name, its tag and the switch on one row. */
 .roster-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
   gap: 0.6rem;
   margin: 0;
   padding: 0;
@@ -287,13 +288,27 @@
   opacity: 0.6;
 }
 
+/* The name gives way to its tag: a long name ends in an ellipsis, and
+   "built-in" is always whole. */
 .roster-card__name {
+  display: flex;
   grid-area: name;
+  gap: var(--space-2);
+  align-items: center;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.roster-card__label {
   min-width: 0;
   overflow: hidden;
-  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.roster-card__name .tag {
+  flex: none;
+  font-weight: 500;
 }
 
 .roster-card__role {
@@ -305,13 +320,66 @@
   white-space: nowrap;
 }
 
-.switch {
+/* The switch and its word. This was once a label named `.switch`, which the
+   switch primitive's own class later drew as a track around the word. */
+.roster-card__switch {
   display: flex;
   grid-area: switch;
-  gap: 0.35rem;
+  gap: var(--space-2);
   align-items: center;
   align-self: center;
   color: var(--muted);
   font-size: var(--size-caption);
 }
 
+
+/* --- Home's office (brief 7.13) ----------------------------------------------
+
+   A desk over each going run's card; a question waiting raises the desk's
+   card and puts the run's own warning under it. With nothing going, the
+   room at rest and the calendar, and a sentence with the next time. */
+
+.now-office {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.now-office__desk {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.now-office__figure {
+  align-self: center;
+  width: 7rem;
+  height: 6.5rem;
+  margin-bottom: calc(-1 * var(--space-2));
+}
+
+.now-office__rest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-card);
+  background: var(--content);
+}
+
+.now-office__rest .empty-state__scene {
+  width: 5.5rem;
+  height: 4.75rem;
+}
+
+.now-office__sentence {
+  flex: 1 1 14rem;
+  margin: 0;
+  color: var(--muted);
+}

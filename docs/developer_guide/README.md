@@ -36,3 +36,11 @@ Read these alongside the guide:
    - Adding things
 6. [Packaging](6_packaging.md)
    - Building and verifying the installer
+7. [Design system](7_design_system.md)
+   - Colour, type and the parts to reuse
+   - Native details and motion
+   - Seeing and testing it
+8. [The office](8_the_office.md)
+   - How a run becomes a room
+   - The rules that keep it honest
+   - The office beyond the run

@@ -5,12 +5,14 @@ import { failureMessage } from "../lib/errors";
 /**
  * Load sidecar data on mount and demand. `load` must be `useCallback`-stable;
  * `token` drives `reload()`. Derive loading from token to avoid stale flags.
+ * `fetchedAt` is when `data` last arrived (epoch ms), or null before it has.
  */
 export function useFetched<T>(
   load: () => Promise<T>,
   initial: T,
-): { data: T; error: string | null; loading: boolean; reload: () => void } {
+): { data: T; error: string | null; loading: boolean; reload: () => void; fetchedAt: number | null } {
   const [data, setData] = useState<T>(initial);
+  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [token, setToken] = useState(0);
   const [settledToken, setSettledToken] = useState(-1);
@@ -25,6 +27,7 @@ export function useFetched<T>(
       .then((value) => {
         if (live) {
           setData(value);
+          setFetchedAt(Date.now());
           setError(null);
         }
       })
@@ -46,5 +49,5 @@ export function useFetched<T>(
     setToken((current) => current + 1);
   }, []);
 
-  return { data, error, loading: settledToken !== token, reload };
+  return { data, error, loading: settledToken !== token, reload, fetchedAt };
 }

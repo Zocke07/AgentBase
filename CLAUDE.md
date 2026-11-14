@@ -100,6 +100,26 @@ future changes do not relocate users' data or disconnect their stored keys.
   `data-titlebar`), security-reviewed, not yet seen by the maintainer.
   `just ui-shots` now fails on sideways overflow and on a control Tab
   cannot reach. The brief's section 13 says what is left.
+- **Stage 20.6 begun, 2026-11-14/15**, before 20.3's title bar was seen,
+  at the maintainer's word. Agents is a floor plan of desk cards
+  (`state/floorPlan.ts`: `restDesk`, `restingDesk`, `runDesk`; D9, not
+  under replay identity) whose editor is `ui/Inspector` or a sheet below
+  1,100 px; a note's tags, properties and links are its inspector; Home's
+  Now draws a desk over each going run, or the room at rest with the next
+  automation; `components/EmptyState.tsx` gives Runs, Automations and
+  Knowledge a vignette, a sentence and an action; the start screen's desk
+  fills stage by stage; Space on a note is Quick Look; settings fields are
+  label-left rows. A lit lamp means a desk at work. Window shortcuts wait
+  while a modal dialog has focus. On 2026-11-15: Usage drawn by the
+  `dataviz` skill (`components/UsageCharts.tsx`) on re-stepped, validated
+  `--viz-*` series colours; settings keep check boxes (they save with a
+  button); the developer guide gained "Design system" and "The office";
+  release notes are drafted in `docs/releases/next.md`. On 2026-11-17 the
+  maintainer accepted the look and kept the full reading width; Home's
+  agent switches were fixed (a label had borrowed the primitive's `switch`
+  class; a design rule now forbids that), and the user guide has pictures
+  (`docs/user_guide/images/`). Left: installed builds on both platforms, a
+  real-model run watched live and replayed, then retiring the brief.
 - **Gaps and reading, 2026-10-20.** After three closed mornings the first
   chain on Claude ran cleanly, but nothing said 14 to 16 October had no
   research, the portfolio review stopped on a week-old holdings file, and a

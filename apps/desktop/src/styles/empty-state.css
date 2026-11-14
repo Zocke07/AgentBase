@@ -1,0 +1,73 @@
+/* --- empty states (brief 6.7, 7.13) -----------------------------------------
+
+   A vignette in the office's materials, one sentence and one action,
+   centred in the space they stand for. The vignette only decorates: the
+   sentence carries the meaning, in every theme and under forced colours. */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: center;
+  max-width: 26rem;
+  margin: auto;
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+}
+
+.empty-state__scene {
+  width: 8.25rem;
+  height: 7.25rem;
+}
+
+.empty-state__sentence {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--size-body);
+}
+
+.empty-state__shadow {
+  fill: var(--office-shadow);
+}
+
+.empty-state__sheet {
+  fill: var(--office-paper);
+  stroke: var(--office-desk-left);
+  stroke-width: 1;
+}
+
+.empty-state__band {
+  fill: var(--office-desk-right);
+}
+
+.empty-state__ring {
+  fill: var(--office-body-shade);
+}
+
+.empty-state__day {
+  fill: var(--office-desk-left);
+}
+
+.empty-state__day--marked {
+  fill: var(--office-folder);
+}
+
+/* As the office does: outlines in the system's colours. */
+@media (forced-colors: active) {
+  .empty-state__sheet,
+  .empty-state__band,
+  .empty-state__ring,
+  .empty-state__day {
+    fill: Canvas;
+    stroke: CanvasText;
+    stroke-width: 1;
+  }
+
+  .empty-state__day--marked {
+    fill: CanvasText;
+  }
+
+  .empty-state__shadow {
+    fill: none;
+  }
+}

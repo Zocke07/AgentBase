@@ -74,8 +74,7 @@
   overflow: hidden auto;
 }
 
-.runs-view__placeholder,
-.agents-view__placeholder {
+.runs-view__placeholder {
   margin: auto;
   max-width: 26rem;
   color: var(--muted);

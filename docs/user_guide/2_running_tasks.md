@@ -194,6 +194,10 @@ automations are on and which is next, or **Automate a task** when none is.
 
 ## Watch the work
 
+![A run drawn as an office: the timeline at the top, the run's summary, then the room with the supervisor's desk in front and a worker's desk behind, and the event log at the foot.](images/run-office.png)
+
+![The same run with the supervisor's desk selected: its inspector at the right lists its model, steps and the work it handed on.](images/run-agent.png)
+
 The left list shows selected-space runs, newest first. **Show** narrows by UI,
 schedule, or Discord origin; cards label schedule/Discord runs. A run an
 automation started is named after it, such as **Morning collection**, or
@@ -468,7 +472,10 @@ is open, a run that spends refreshes it. The cards show what was spent
 (against the cap, when every space is shown), how many model calls were made
 across how many runs, and the input and output tokens. Below them: a place for
 every day of the month with a bar on each day that spent (days are counted in
-UTC, as the ledger records them), a table per model, a table per space, and
+UTC, as the ledger records them; the busiest day carries its figure, pointing
+at a bar shows that day's cost, calls and tokens, and **The days as a table**
+lists them), a table per model and a table per space, each row with its share
+of the cost, and
 the costliest runs with their calls, tokens and **context**: the most tokens
 any one call in that run sent, and the mean per call. A goal in that table
 opens the run. The period picker offers every month the ledger has; **This

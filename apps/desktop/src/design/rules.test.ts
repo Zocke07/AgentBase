@@ -201,6 +201,26 @@ describe("the pointer", () => {
   });
 });
 
+describe("the primitives' class names", () => {
+  // Home's agent cards once wrapped a check box in a label named "switch";
+  // when the switch primitive took that name, the label was drawn as a
+  // track around the word and its knob never moved. A primitive's own
+  // classes belong to the primitive.
+  const OWNED = ["switch", "segmented", "popover", "menu", "sheet", "inspector"];
+
+  it("are used only by the primitives that own them", () => {
+    const borrowed: string[] = [];
+    for (const path of sources([".tsx"])) {
+      if (path.startsWith("components/ui/") || path.startsWith("workbench/")) continue;
+      const code = readFileSync(join(SRC, path), "utf8");
+      for (const [, classes = ""] of code.matchAll(/className=["{`]+([^"`}]*)/g)) {
+        for (const name of classes.split(/\s+/)) if (OWNED.includes(name)) borrowed.push(`${path}: ${name}`);
+      }
+    }
+    expect(borrowed).toEqual([]);
+  });
+});
+
 describe("React Flow", () => {
   /* Its stylesheet positions every node; without it a graph draws as a
      stack in a corner, and nothing in the tests draws one. It came with the

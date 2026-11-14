@@ -16,6 +16,8 @@ export interface NoteTreeProps {
   onOpen: (path: string) => void;
   /** Request folder-and-contents deletion; absent when unavailable. */
   onDeleteFolder?: ((path: string, notes: number) => void) | undefined;
+  /** Space on a note: show its Preview without opening it (brief 8, Quick Look). */
+  onPreview?: ((path: string) => void) | undefined;
 }
 
 interface Folder {
@@ -56,7 +58,7 @@ function countNotes(folder: Folder): number {
   return folder.notes.length + folder.folders.reduce((total, child) => total + countNotes(child), 0);
 }
 
-export function NoteTree({ notes, activePath, onOpen, onDeleteFolder }: NoteTreeProps) {
+export function NoteTree({ notes, activePath, onOpen, onDeleteFolder, onPreview }: NoteTreeProps) {
   // A note opened from a run or a search can sit far down; bring it into view.
   const treeRef = useRef<HTMLUListElement>(null);
   useEffect(() => {
@@ -173,6 +175,18 @@ export function NoteTree({ notes, activePath, onOpen, onDeleteFolder }: NoteTree
               onOpen(note.path);
             }}
             {...context.trigger}
+            onKeyDown={(event) => {
+              context.trigger.onKeyDown(event);
+              // Space looks, as in Finder; Enter still opens.
+              if (event.defaultPrevented || event.key !== " " || onPreview === undefined) return;
+              event.preventDefault();
+              // A held Space repeats; it looks once.
+              if (!event.repeat) onPreview(note.path);
+            }}
+            onKeyUp={(event) => {
+              // A button presses on Space's release: this Space only looked.
+              if (event.key === " " && onPreview !== undefined) event.preventDefault();
+            }}
           >
             {note.pinned === true && (
               <span className="tree__pin" aria-label="Pinned">

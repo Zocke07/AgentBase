@@ -357,6 +357,43 @@ describe("knowledge vault", () => {
     expect(screen.getByRole("button", { name: /index\.md/ })).toBeTruthy();
   });
 
+  it("shows a note's Preview in a sheet on Space in the tree, and opens it from there", async () => {
+    const user = userEvent.setup();
+    render(<KnowledgeView space={space} />);
+    await toTechnical(user);
+    const row = await screen.findByRole("button", { name: /Storage decision/ });
+    row.focus();
+    await user.keyboard(" ");
+
+    const look = await screen.findByTestId("quick-look");
+    await waitFor(() => {
+      expect(look.querySelector(".knowledge__look")).not.toBeNull();
+    });
+    // Looking opened nothing in the editor.
+    expect(screen.queryByLabelText("Markdown preview")).toBeNull();
+    await user.click(within(look).getByRole("button", { name: "Open" }));
+    expect(await screen.findByLabelText("Markdown preview")).toBeDefined();
+  });
+
+  it("keeps a note's properties and links in its inspector, which folds away and comes back", async () => {
+    const user = userEvent.setup();
+    render(<KnowledgeView space={space} />);
+    await toTechnical(user);
+    await user.click(await screen.findByRole("button", { name: /Storage decision/ }));
+
+    const details = await screen.findByTestId("note-details");
+    expect(details.tagName).toBe("ASIDE");
+    expect(details.textContent).toContain("#architecture");
+    const toggle = screen.getByTestId("note-details-toggle");
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+
+    await user.click(screen.getByRole("button", { name: "Close properties and links" }));
+    expect(screen.queryByTestId("note-details")).toBeNull();
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    await user.click(toggle);
+    expect(await screen.findByTestId("note-details")).toBeDefined();
+  });
+
   it("saves edited Markdown and refreshes the live vault index", async () => {
     const user = userEvent.setup();
     render(<KnowledgeView space={space} />);

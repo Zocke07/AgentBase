@@ -134,3 +134,6 @@ Visualization also supports fast decisions:
 - Saved context shows the needs-attention, available and history distribution;
 - Usage retains its day-by-day spend chart, with a dynamic Y axis scaled from
   the actual usage and a place for every day of the month.
+- Chart series take six colours in a fixed order, chosen so that neighbouring
+  series stay distinct for colour-blind readers; a chart with more series
+  than that is better read as a table.

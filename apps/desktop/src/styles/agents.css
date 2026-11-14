@@ -1,39 +1,56 @@
-/* --- agents view ---------------------------------------------------------- */
+/* --- agents view: the floor plan (brief 7.13) --------------------------------
+
+   The roster fills the section as desk cards, each drawn with the office's
+   own figure; the editor is the inspector at the right (`ui/Inspector`),
+   or a sheet in a narrow window. A card the supervisor may not use has
+   its chair pushed in and says so; it is never only faded. */
 
 .agents-view {
   display: grid;
-  grid-template-columns: 24rem minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   height: 100%;
   overflow: hidden;
 }
 
-.agents-view__editor {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  min-width: 0;
-  padding: 1.25rem 1.5rem;
-  overflow-y: auto;
+.agents-view--inspecting {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+/* The inspector's width; `INSPECTOR_WIDTH` in AgentsView.tsx follows it. */
+.agents-view__inspector {
+  width: 28rem;
+}
+
+.agents-view__inspector .editor {
+  width: 100%;
 }
 
 .roster {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  padding: 1rem;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-6);
   overflow-y: auto;
-  border-right: var(--hairline) solid var(--separator);
-  background: var(--content);
 }
 
 .roster__head {
   display: flex;
-  align-items: center;
+  gap: var(--space-4);
+  align-items: flex-start;
   justify-content: space-between;
 }
 
 .roster__head h2 {
-  font-size: var(--size-body);
+  font-family: var(--font-display);
+  font-size: var(--size-title-1);
+}
+
+.roster__hint {
+  max-width: 40rem;
+  margin: var(--space-1) 0 0;
+  color: var(--muted);
+  font-size: var(--size-control);
 }
 
 .roster__empty {
@@ -52,74 +69,165 @@
   font-size: var(--size-control);
 }
 
-.roster__list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
+.floor {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.roster__item {
+.floor__card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-card);
   background: var(--content);
+  box-shadow: var(--elevation-card);
 }
 
-.roster__item--selected {
+.floor__card--selected {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
 }
 
-.roster__item--disabled {
-  opacity: 0.6;
-}
-
-.roster__open {
-  display: block;
-  width: 100%;
-  padding: 0.6rem 0.75rem;
-  border: none;
+.floor__open {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-3) var(--space-4) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
   background: none;
   color: var(--text);
   font: inherit;
-  text-align: left;
+  text-align: center;
 }
 
-.roster__name {
-  display: block;
-  font-size: var(--size-control);
+.floor__card:hover {
+  border-color: var(--border-strong);
+}
+
+.floor__figure {
+  width: 7.5rem;
+  height: 6.75rem;
+}
+
+.floor__name {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  margin-top: var(--space-1);
+  overflow-wrap: anywhere;
+  font-size: var(--size-headline);
   font-weight: 600;
 }
 
-.roster__role,
-.roster__meta {
-  display: block;
+.floor__builtin {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-capsule);
+  background: var(--fill);
+  color: var(--muted);
+  font-size: var(--size-caption);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Three lines at most, so the cards keep a row's height; the whole role is
+   the card's tooltip and is read by a screen reader. */
+.floor__role {
+  display: -webkit-box;
+  margin-top: var(--space-1);
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--size-control);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+.floor__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-4) var(--space-3);
   color: var(--muted);
   font-size: var(--size-caption);
 }
 
-.roster__actions {
-  display: flex;
-  gap: 0.6rem;
+.floor__model {
+  padding: 0 var(--space-2);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-capsule);
+  background: var(--fill);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.floor__tools {
+  display: inline-flex;
+  gap: var(--space-2);
   align-items: center;
-  padding: 0.35rem 0.75rem;
+}
+
+.floor__dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+/* A tool's risk as a dot; the words beside them count the high ones. */
+.floor__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.floor__dot--low {
+  background: var(--good);
+}
+
+.floor__dot--medium {
+  background: var(--warn);
+}
+
+.floor__dot--high {
+  background: var(--bad);
+}
+
+.floor__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: auto;
+  padding: var(--space-2) var(--space-3);
   border-top: var(--hairline) solid var(--separator);
 }
 
-.roster__toggle {
-  display: flex;
-  gap: 0.35rem;
+.floor__available {
+  display: inline-flex;
+  gap: var(--space-2);
   align-items: center;
   margin-right: auto;
   color: var(--muted);
   font-size: var(--size-caption);
 }
 
+/* An inline "Delete X? Delete / Keep" prompt, shared by every list that
+   deletes in place (runs, schedules, files, saved context, spaces). */
 .roster__confirm {
   display: flex;
-  gap: 0.4rem;
+  flex-wrap: wrap;
+  gap: var(--space-2);
   align-items: center;
   color: var(--bad);
   font-size: var(--size-caption);

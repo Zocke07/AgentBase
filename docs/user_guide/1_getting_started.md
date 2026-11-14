@@ -60,6 +60,8 @@ builds have an ad-hoc code identity, another build may ask again. If you choose
 
 ## Find your way around
 
+![The window: the sidebar of sections at the left, the toolbar with the section's name, the model and the month's spend along the top, and Home below.](images/home.png)
+
 On launch, a short list shows what the app is waiting on: **Starting the
 engine** (its local engine), then **Checking your settings** and **Loading your
 spaces**, each ticked as it finishes. The first start after installing or
@@ -73,10 +75,10 @@ brings it back.
 | Control | What it opens |
 |---|---|
 | Space name at the top of the left rail | Switch spaces, find archived spaces, or choose **New space…**. |
-| **Home** | What runs on its own (and, in Main, **Turn on the daily pipeline**), recent **Market alerts**, runs under **Now**, **Run once** for a single task, **Recent runs**, and enabling or disabling agents. |
+| **Home** | What runs on its own (and, in Main, **Turn on the daily pipeline**), recent **Market alerts**, runs going under **Now** (a desk over each, raising a card when a question waits; with nothing going, the room at rest and when the space next runs on its own), **Run once** for a single task, **Recent runs**, and enabling or disabling agents. |
 | **Automations** | What this space runs on its own: schedules at set times or one after another, the market watch that alerts you to sudden price moves, and what an unattended run may do. |
 | **Runs** | Open a current run or replay a past one in this space. |
-| **Agents** | Create and edit this space's agent definitions. |
+| **Agents** | This space's agents as desks; a desk opens its editor. |
 | **Knowledge** | Everything in the space folder, in two sections. **User Summary** lists what was written for you to read (decisions, reviews, alerts, the forecast workbook, charts and notes), each opening in Preview, with every dated report also readable as one page. **Technical Details** holds the raw data and settings: **Recent**, all **Notes**, **Agent files** and automatically managed **Saved context**. |
 | **Usage** | This month's model-call costs, tokens, and carried context by day, model, space, and run. |
 | **Space settings** | Name, description, folder, model, limits and approval answers for this space. |

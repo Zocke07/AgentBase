@@ -92,6 +92,14 @@ beforeEach(() => {
 });
 
 describe("Schedules", () => {
+  it("shows the calendar with New schedule when the space has none", async () => {
+    mocked.listSchedules.mockResolvedValue([]);
+    render(<Schedules space={lab} settings={settingsWith(["low"])} />);
+    const empty = await screen.findByTestId("schedules-empty");
+    await userEvent.click(within(empty).getByRole("button", { name: "New schedule" }));
+    expect(await screen.findByTestId("schedule-editor")).toBeDefined();
+  });
+
   it("lists a schedule with its cadence, next and last times, and opens the last run", async () => {
     const onOpenRun = vi.fn();
     render(<Schedules space={lab} settings={settingsWith(["low"])} onOpenRun={onOpenRun} />);

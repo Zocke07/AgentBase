@@ -235,7 +235,19 @@ general tools alone: `read_file`, `list_dir`, `search_knowledge`,
 
 ## Create or edit an agent
 
-Click **New agent** or select an existing agent, then save its fields.
+![Agents as desk cards, each with its role, model, tools by risk and an Available switch.](images/agents.png)
+
+**Agents** shows the space's agents as desks: each card has the agent's
+figure, its name and role, its model (or **The space's model**), its
+tools as dots by risk with the count in words ("3 tools, 1 high risk"),
+and an **Available** switch. An agent the supervisor may not use has its
+chair pushed in and says **Not available**. Right-click a desk for
+**Edit**, availability and **Delete…**.
+
+Click **New agent** or a desk to open the editor at the right (a window
+narrower than about 1,100 pixels opens it over the page), then save its
+fields. Its close button or Esc closes it; with unsaved changes it asks
+first.
 
 | Field | Meaning |
 |---|---|

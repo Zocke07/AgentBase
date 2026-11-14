@@ -170,6 +170,40 @@ describe("UsageView", () => {
     expect(screen.getByText(/Most in one day: \$0\.0091 on 2026-09-19/)).toBeDefined();
   });
 
+  it("names a day's figures in its tooltip, labels the busiest, and keeps them all in a table", async () => {
+    render(<UsageView space={lab} active onOpenRun={vi.fn()} onOpenSettings={vi.fn()} />);
+    await screen.findByTestId("usage-spent");
+
+    const day = screen.getByTestId("usage-day-2026-09-18");
+    expect(day.getAttribute("title")).toContain("$0.0054");
+    expect(day.getAttribute("title")).toContain("2 calls");
+    // The busiest day carries its own figure.
+    expect(screen.getByTestId("usage-day-2026-09-19").textContent).toContain("$0.0091");
+
+    const table = screen.getByTestId("usage-days-table");
+    expect(within(table).getAllByRole("row")).toHaveLength(3);
+    expect(within(table).getByRole("columnheader", { name: "Day" })).toBeDefined();
+    expect(within(table).queryByRole("columnheader", { name: "Share" })).toBeNull();
+  });
+
+  it("gives each model its share of the cost, in words beside its bar", async () => {
+    render(<UsageView space={lab} active onOpenRun={vi.fn()} onOpenSettings={vi.fn()} />);
+    const models = await screen.findByTestId("usage-models");
+    const rows = within(models).getAllByRole("row");
+    expect(rows[1]?.textContent).toContain("97%");
+    expect(rows[2]?.textContent).toContain("3%");
+  });
+
+  it("never shows something spent as nothing", async () => {
+    mocked.getUsage.mockResolvedValue({
+      ...report,
+      by_model: report.by_model.map((row, index) => ({ ...row, cost_micros: index === 0 ? 2_000_000 : 4_000 })),
+    });
+    render(<UsageView space={lab} active onOpenRun={vi.fn()} onOpenSettings={vi.fn()} />);
+    const rows = within(await screen.findByTestId("usage-models")).getAllByRole("row");
+    expect(rows[2]?.textContent).toContain("<1%");
+  });
+
   it("reads the ledger again when the header's total moves while the section is open", async () => {
     /* The header showed $0.16 while an open Usage still showed the $0.1374 it
        had read before the run's last calls. */

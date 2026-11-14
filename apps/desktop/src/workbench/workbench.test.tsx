@@ -84,7 +84,7 @@ describe("the workbench", () => {
 
     expect(fetchStub).not.toHaveBeenCalled();
     expect(EventSource).not.toHaveBeenCalled();
-  });
+  }, 20_000); // Every page drawn in turn: it grows with the workbench.
 
   it("keeps the page and the conditions in the link", () => {
     render(<Workbench initialPage="type" initialEnvironment={DEFAULT_ENVIRONMENT} />);

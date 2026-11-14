@@ -4,6 +4,101 @@ Updated 2026-11-14. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
+## Phase 20, stage 20.6: the look accepted, Home's switches, pictures, 2026-11-17
+
+- **Maintainer decisions.** "I accept the new look." "Full width for
+  now": Knowledge's reading width stays as chosen on 2026-09-30.
+- **Home's agent switches** (the maintainer's screenshot: only the word
+  changed). A label named `switch`, a class 20.2 gave the switch
+  primitive, was drawn as a track whose knob moves only for the
+  primitive's `aria-checked`. Now the `Switch` primitive, the word beside
+  it; names keep their built-in tag whole on wider cards. A new design
+  rule fails a component that borrows a primitive's class (seen failing
+  on the old markup). `just ui-shots` now captures Home's agents on and
+  with one switched off, and both were looked at in both themes.
+- **Pictures.** Five captures at 1,100 by 800 in light, from scratch data,
+  in `docs/user_guide/images/` and placed in four chapters; each was
+  looked at for anything personal.
+- **Checks.** `just ci` passed (backend 1,451 and 12 skipped; desktop 988
+  in 89 files); `just test-visual` 194 passed; `just ui-shots home-switch`
+  passed both checks. A Home test's schedule date had become the past and
+  is now relative to the clock; the workbench's all-pages test, which
+  grows with each page, has 20 seconds.
+
+## Phase 20, stage 20.6: Usage, the guides and release notes, 2026-11-15
+
+- **Series colours.** The `dataviz` skill's validator (run on the
+  skill's own script) failed the old `--viz-*` palette in every order:
+  orange beside green at protan delta E 5.9, and the dark steps lighter
+  than its dark band. The skill's reference hues in its order pass on
+  `--content` in both themes; in light, aqua, yellow and magenta are
+  darker steps than its reference so that every mark meets 3:1 (worst
+  neighbouring CVD delta E 9.5 light, 8.4 dark; normal vision 18.3 and
+  19.3). `CONTRAST_PAIRS` now holds all six to 3:1 (seen failing on the
+  old yellow, 2.17:1). Knowledge's charts take the new colours, draw six
+  series at most (Show data lists the rest) and fold a pie's smaller
+  slices into Other past six, where a seventh series had repeated the
+  first's colour.
+- **Usage.** One hue for daily spend, rounded data-ends, gaps between
+  days, recessive gridlines at the ticks, the busiest day labelled, a
+  the platform's tooltip per bar, the days as a table, and a share per
+  model and space ("<1%" for something under half a percent), the axis
+  labels centred on their gridlines. New tests for the tooltip, the table,
+  the shares, the six-series cap and the pie's Other; the workbench gains
+  Usage charts. `just ci` passed (backend 1,451 and 12 skipped; desktop
+  987 in 89 files); `just test-visual`: 194 passed (the token page and
+  the new page changed, each looked at); `just ui-shots s206-usage`: both
+  checks pass.
+- **Review.** A code review at high effort found ten issues, all fixed:
+  among them a share cell that had stopped being a table cell, light
+  series colours under 3:1, Knowledge's charts reusing a colour past six
+  series, a breakdown wider than its card at 1,100 px (it now scrolls in
+  the card and drops its bar in a narrow one), and a custom tooltip that
+  clipped, stuck and skipped the floating-layer rule (replaced by the
+  platform's own).
+- **Guides.** The developer guide gains "Design system" and "The office",
+  which carry the brief's lasting parts; the user guide describes Usage's
+  table and shares. Draft release notes are in `docs/releases/next.md`,
+  named so that no tag publishes them.
+- **Decided.** Settings keep check boxes for on and off: they save with a
+  button, and a switch means a change that takes effect at once.
+
+## Phase 20, stage 20.6 begun, 2026-11-14/15
+
+On branch `phase-20-redesign`, not merged, pushed or released. Begun before
+stage 20.3 was accepted, at the maintainer's word. The brief's section 13,
+"Stage 20.6: begun on 2026-11-14", lists what was built and what is left.
+
+- **What changed for a person.** Agents is a floor plan of desk cards with
+  the editor at the right (a sheet in a narrow window); a note's tags,
+  properties and links sit beside it; Home's Now draws a desk over each
+  going run, or the room at rest with the next automation; Runs,
+  Automations and Knowledge have empty states with one action; the start
+  screen's desk fills as its stages finish; Space on a note in Knowledge's
+  tree shows its Preview; settings fields are rows with the label at the
+  left.
+- **Checks.** `just ci` passed: backend 1,451 passed and 12 skipped;
+  desktop **982 passed in 89 files**. `just test-visual`: **186 passed** in
+  Chromium and WebKit, axe included, with new pages Agents floor plan,
+  Empty states and Home's office. `just ui-shots s206-settings`: 78
+  screenshots (the agent editor is new), every visible control reached by
+  Tab and nothing wider than its window, at all three sizes and both
+  themes.
+- **Changed tests**, each for an intended change: two Agents tests read
+  "Edit writer" from the inspector's title, where the editor's heading now
+  is; the rest are new (floor plan, inspector, sheet, Escape, Home's
+  desks and resting room, empty states, the start screen's desk, Quick
+  Look, the note inspector).
+- **Review.** A code review at high effort found ten issues, all fixed,
+  among them a renamed rule that had stripped seven other delete prompts
+  of their styling, Escape from a desk's menu closing the editor, a
+  narrow sheet that could outlive its section, Home stating that nothing
+  was scheduled before the schedules were read, and a lit lamp on every
+  resting desk. The menu-Escape fix has a test that fails without it.
+- **Not verified.** Windows, the installed app on either platform, and
+  the narrow-window sheets in a real WebView (exercised in unit tests and
+  in ui-shots at 800 and 1,100 px only).
+
 ## Phase 20, stage 20.3: the shell, 2026-11-14
 
 On branch `phase-20-redesign`, not merged, pushed or released. The brief's

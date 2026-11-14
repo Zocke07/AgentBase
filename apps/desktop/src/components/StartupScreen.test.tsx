@@ -39,6 +39,19 @@ describe("the stages", () => {
     expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("2");
   });
 
+  it("fills the desk in as the stages finish, a picture beside the words", () => {
+    const { container, rerender } = screenWith(connecting);
+    const scene = () => container.querySelector(".startup__scene");
+    expect(scene()?.getAttribute("aria-hidden")).toBe("true");
+    expect(scene()?.classList.contains("startup__scene--waiting")).toBe(true);
+    expect(container.querySelector(".office-character")).toBeNull();
+
+    rerender(<StartupScreen status={ready} settingsLoaded spacesLoaded={false} onRetry={vi.fn()} />);
+    expect(scene()?.classList.contains("startup__scene--waiting")).toBe(false);
+    expect(container.querySelector(".office-character")).not.toBeNull();
+    expect(container.querySelectorAll(".office-box--book")).toHaveLength(2);
+  });
+
   it("says a slow first start is normal, only once it has been slow", () => {
     /* A cold first launch unpacks the engine, and under macOS translocation
        that has taken nearly two minutes. A spinner alone for that long reads

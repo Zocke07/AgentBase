@@ -1,5 +1,5 @@
 import type { Event, Run } from "@agentbase/schemas";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -236,6 +236,17 @@ describe("switching runs", () => {
 });
 
 describe("the picker", () => {
+  it("shows the room at rest with Run once while no run is chosen", async () => {
+    const user = userEvent.setup();
+    const onNewRun = vi.fn();
+    mocked.listRuns.mockResolvedValue([row("completed")]);
+    render(<RunsView onRunChanged={vi.fn()} pendingApprovals={[]} runId={null} onSelectRun={vi.fn()} onNewRun={onNewRun} />);
+    const empty = await screen.findByTestId("runs-empty");
+    expect(empty.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+    await user.click(within(empty).getByRole("button", { name: "Run once" }));
+    expect(onNewRun).toHaveBeenCalledOnce();
+  });
+
   it("shows the day a run was created, not only the time", async () => {
     mocked.listRuns.mockResolvedValue([row("completed")]);
     render(<Harness onRunChanged={vi.fn()} pendingApprovals={[]} />);

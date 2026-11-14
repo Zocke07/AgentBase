@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { SidecarStatus } from "../lib/sidecar";
 
 import { BrandMark } from "./BrandMark";
+import { StartupDesk } from "./EmptyState";
 
 /**
  * The window before the app can show anything, as named stages rather than a
@@ -76,6 +77,7 @@ export function StartupScreen({ status, settingsLoaded, spacesLoaded, onRetry }:
     <main className="shell shell--waiting">
       <BrandMark className="shell__logo" />
       <h1 className="shell__title">AgentBase</h1>
+      <StartupDesk engine={engineUp} settings={engineUp && settingsLoaded} spaces={engineUp && spacesLoaded} />
 
       <div
         className={`startup__bar${status.kind === "failed" ? " startup__bar--failed" : ""}`}

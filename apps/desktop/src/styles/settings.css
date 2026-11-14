@@ -248,3 +248,57 @@
   white-space: nowrap;
 }
 
+
+/* --- grouped lists (brief 8) --------------------------------------------------
+
+   In the manner of System Settings: within a section, each field is a row,
+   its label at the left and its control at the right, with a hairline
+   between rows and the section's notes under its heading. Fields that sat
+   side by side become rows of their own. A section narrower than the two
+   columns need keeps the label above the control. */
+
+.settings__section {
+  container: settings-section / inline-size;
+}
+
+@container settings-section (width >= 34rem) {
+  .settings__section .editor__row {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .settings__section .editor__field {
+    display: grid;
+    grid-template-columns: minmax(9rem, 13rem) minmax(0, 1fr);
+    gap: var(--space-1) var(--space-4);
+    align-items: start;
+    padding: var(--space-2) 0;
+  }
+
+  /* The label's first line sits level with a field's text. */
+  .settings__section .editor__field > :first-child {
+    padding-top: 0.4rem;
+  }
+
+  .settings__section .editor__field + .editor__field,
+  .settings__section .editor__row + .editor__row .editor__field:first-child,
+  .settings__section .editor__row .editor__field + .editor__field {
+    border-top: var(--hairline) solid var(--separator);
+  }
+
+  .settings__section .editor__field > :first-child {
+    grid-column: 1;
+  }
+
+  .settings__section .editor__field > :not(:first-child) {
+    grid-column: 2;
+  }
+
+  .settings__section .editor__field--narrow {
+    max-width: none;
+  }
+
+  .settings__section .editor__field--narrow > :not(:first-child) {
+    max-width: 10rem;
+  }
+}

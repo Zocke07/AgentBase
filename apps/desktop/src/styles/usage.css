@@ -166,8 +166,11 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  height: 6.75rem;
-  margin-top: 0.5rem;
+  /* Each label's middle on its gridline: the axis is the bars' track (9rem
+     less 1.5rem headroom less the 1.25rem date row) plus one label, raised
+     by half a label. The labels are one 13 px line each. */
+  height: calc(6.25rem + 13px);
+  margin-top: calc(1.5rem - 6.5px);
   color: var(--muted);
   font-size: var(--size-caption);
   font-variant-numeric: tabular-nums;
@@ -179,8 +182,8 @@
 .usage__chart {
   display: flex;
   min-width: 0;
-  height: 8rem;
-  padding-top: 0.5rem;
+  height: 9rem;
+  padding-top: 1.5rem;
 }
 
 .usage__bar {
@@ -192,27 +195,123 @@
   min-width: 0;
 }
 
+/* Recessive gridlines at the axis's top and middle ticks, the baseline
+   under them; a tooltip is placed against the slot. */
 .usage__bar-track {
+  position: relative;
   display: flex;
   flex: 1;
   align-items: flex-end;
   justify-content: center;
   border-bottom: var(--hairline) solid var(--separator);
+  background-image: linear-gradient(to bottom, var(--separator) 0, var(--separator) var(--hairline), transparent var(--hairline));
+  background-size: 100% 50%;
 }
 
-/* The slots touch so the baseline under them is one line; the bar leaves the
-   space between days. */
+/* The slots touch so the baseline under them is one line; each bar leaves
+   2 px of plane between days, and its data end is rounded, its foot square
+   on the baseline. One series, one hue. */
 .usage__bar-fill {
+  position: relative;
   display: block;
-  width: 70%;
-  max-width: 1.75rem;
-  border-radius: 3px 3px 0 0;
-  background: var(--accent);
-  opacity: 0.85;
+  width: calc(100% - 2px);
+  max-width: 1.5rem;
+  border-radius: 4px 4px 0 0;
+  background: var(--viz-1);
 }
 
 .usage__bar:hover .usage__bar-fill {
-  opacity: 1;
+  box-shadow: 0 0 0 2px var(--content), 0 0 0 3px var(--viz-1);
+}
+
+/* The busiest day carries its own figure, in text ink, above its bar. */
+.usage__bar-value {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  color: var(--text);
+  font-size: var(--size-caption);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+/* Near the chart's ends the peak's figure reads inward, never past its sides. */
+.usage__bar--start .usage__bar-value {
+  left: 0;
+  transform: none;
+}
+
+.usage__bar--end .usage__bar-value {
+  right: 0;
+  left: auto;
+  transform: none;
+}
+
+.usage__days summary {
+  color: var(--muted);
+  font-size: var(--size-caption);
+}
+
+.usage__days .usage__table {
+  margin-top: var(--space-2);
+}
+
+.usage__share-head {
+  width: 8rem;
+}
+
+/* A table wider than its card scrolls inside the card. */
+.usage__table-scroll {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.usage__section {
+  container: usage-section / inline-size;
+}
+
+/* In a narrow card the share keeps its words and lets its bar go. */
+@container usage-section (width < 30rem) {
+  .usage__share-track {
+    display: none;
+  }
+
+  .usage__share-head {
+    width: auto;
+  }
+}
+
+.usage__share {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.usage__share-track {
+  flex: 1;
+  height: 6px;
+  min-width: 3rem;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--fill-strong);
+}
+
+.usage__share-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--viz-1);
+}
+
+@media (forced-colors: active) {
+  .usage__bar-fill,
+  .usage__share-fill {
+    background: CanvasText;
+  }
 }
 
 /* One fixed height, numbered or not, so every slot's baseline lines up. */

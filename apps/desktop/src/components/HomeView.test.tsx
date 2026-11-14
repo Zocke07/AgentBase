@@ -236,6 +236,50 @@ describe("what is on the screen", () => {
     expect(recent.textContent).not.toContain("release notes");
   });
 
+  it("lights a desk over each run going now, posed as waiting when a question is", async () => {
+    mocked.listRuns.mockResolvedValue([row("running", "run-live", "Draft the release notes"), row("completed", "run-discord", "From a chat")]);
+    home({ pendingApprovals: [APPROVAL] });
+
+    const now = await screen.findByTestId("home-now");
+    const desks = now.querySelectorAll(".now-office__desk");
+    expect(desks).toHaveLength(2);
+    expect(now.querySelectorAll("svg[aria-hidden='true'] .office-character--waiting")).toHaveLength(1);
+    expect(screen.queryByTestId("home-at-rest")).toBeNull();
+  });
+
+  it("shows the room at rest, with the next time the space runs on its own, when nothing is going", async () => {
+    const digest: ScheduleResponse = {
+      id: "s-1",
+      space_id: "space-main",
+      name: "Morning digest",
+      goal: "Summarise the night.",
+      cadence: { kind: "daily", at: "07:00" },
+      enabled: true,
+      // A day ahead of the clock: a time already past is not "next".
+      next_run_at: new Date(Date.now() + 86_400_000).toISOString(),
+      created_at: "2026-11-01T00:00:00Z",
+      updated_at: "2026-11-01T00:00:00Z",
+      summary: "Daily at 07:00",
+    };
+    mocked.listSchedules.mockResolvedValue([digest]);
+    home({ space: { id: "space-main", name: "Main", is_default: true, folder: "D:/data/main", created_at: "2026-10-13", updated_at: "2026-10-13" } });
+    const rest = await screen.findByTestId("home-at-rest");
+    await waitFor(() => {
+      expect(rest.textContent).toContain("Next on its own: Morning digest");
+    });
+    expect(screen.queryByTestId("home-now")).toBeNull();
+  });
+
+  it("says nothing of schedules it could not read", async () => {
+    mocked.listSchedules.mockRejectedValue(new Error("offline"));
+    home({ space: { id: "space-main", name: "Main", is_default: true, folder: "D:/data/main", created_at: "2026-10-13", updated_at: "2026-10-13" } });
+    const rest = await screen.findByTestId("home-at-rest");
+    await waitFor(() => {
+      expect(mocked.listSchedules).toHaveBeenCalled();
+    });
+    expect(rest.textContent).toBe("Nothing is running.");
+  });
+
   it("tells the open run's card what its log says, not what the table says", async () => {
     /* `POST /runs` returns `pending` and the table is not re-read until the
        run ends, so a live run's card read "not started" for its duration. */
@@ -354,15 +398,15 @@ describe("the roster", () => {
     mocked.updateAgent.mockResolvedValue({ ...writer, enabled: false });
     const { onWorkspaceChanged } = home();
 
-    const toggle = await screen.findByLabelText<HTMLInputElement>("Available to the supervisor: writer");
-    expect(toggle.checked).toBe(true);
+    const toggle = await screen.findByRole("switch", { name: "Available to the supervisor: writer" });
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
 
     mocked.listAgents.mockResolvedValue([{ ...writer, enabled: false }]);
     await user.click(toggle);
 
     expect(mocked.updateAgent).toHaveBeenCalledWith("def-1", { enabled: false });
     await waitFor(() => {
-      expect(screen.getByLabelText<HTMLInputElement>("Available to the supervisor: writer").checked).toBe(false);
+      expect(screen.getByRole("switch", { name: "Available to the supervisor: writer" }).getAttribute("aria-checked")).toBe("false");
     });
     expect(onWorkspaceChanged).toHaveBeenCalled();
   });

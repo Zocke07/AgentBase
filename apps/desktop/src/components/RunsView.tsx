@@ -11,6 +11,7 @@ import { useRunStore } from "../state/runStore";
 import { useRunStream } from "../state/useRunStream";
 import { useStoredSize } from "../state/useStoredSize";
 
+import { EmptyState } from "./EmptyState";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { RunCard } from "./RunCard";
 import { RunPanel } from "./RunPanel";
@@ -344,7 +345,9 @@ export function RunsView({
 
       <section className="runs-view__main">
         {runId === null ? (
-          <p className="runs-view__placeholder">Pick a run to watch it or replay it.</p>
+          <EmptyState scene="room" action={{ label: "Run once", onClick: onNewRun }} testId="runs-empty">
+            Pick a run on the left to watch it or replay it, or start one.
+          </EmptyState>
         ) : (
           <>
             <div className="runs-view__strip">

@@ -347,6 +347,9 @@ local and readable:
 
 ### Motion, contrast and accessibility in the window
 
+The [Design system](7_design_system.md) and [The office](8_the_office.md)
+chapters are the full account; this section is the overview.
+
 Motion is CSS only. In the app's chrome it answers the person: a section
 change cross-fading through a same-document View Transition where the engine
 has one and motion is allowed (`lib/viewTransition.ts`; elsewhere the section

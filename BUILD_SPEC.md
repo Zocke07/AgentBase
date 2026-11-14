@@ -1835,7 +1835,11 @@ recommended defaults D1 to D9, all accepted):
    under D1, the camera eases, the timeline plays, steps and jumps, and the
    budgets were measured; the brief's section 13 records what is left.
    Not accepted: Windows and WebView2.)*
-6. **20.6 The office everywhere, every section, both platforms.**
+6. **20.6 The office everywhere, every section, both platforms.** *(Begun
+   on 2026-11-14 before 20.3 was accepted, at the maintainer's word: the
+   inspector in Agents and Knowledge, the floor plan, empty states, Home's
+   office, the start screen, Quick Look, grouped settings. The brief's
+   section 13 lists what is left.)*
 
 *(Maintainer direction of 2026-11-13: after stage 20.2, lay the load-bearing
 foundations of every remaining stage before finishing any one of them, so

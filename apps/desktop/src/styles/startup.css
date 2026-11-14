@@ -185,3 +185,14 @@
   background: var(--bad);
 }
 
+
+/* The start screen's desk (brief 7.13): the stages fill it in; until the
+   engine answers the room is dim. */
+.startup__scene {
+  margin: var(--space-2) 0;
+  transition: opacity var(--dur-slow) var(--ease-out);
+}
+
+.startup__scene--waiting {
+  opacity: 0.55;
+}

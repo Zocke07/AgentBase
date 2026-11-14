@@ -16,12 +16,14 @@ import { useRoster } from "../state/roster";
 import { unfinished, useRunList } from "../state/runList";
 import { useFetched } from "../state/useFetched";
 
+import { NowOffice, RestingOffice } from "./HomeOffice";
 import { Markdown } from "./Markdown";
 import { MarketAlerts } from "./MarketAlerts";
 import { MetricBar } from "./MetricBar";
 import { PipelineOffer } from "./PipelineOffer";
 import { PortfolioEditor } from "./PortfolioEditor";
 import { RunCard } from "./RunCard";
+import { Switch } from "./ui/controls";
 
 /**
  * Home when no run is open: preflight, what runs on its own (the automations
@@ -514,23 +516,24 @@ export function HomeView({
           </p>
         )}
 
-        {now.length > 0 && (
+        {now.length > 0 ? (
           <section className="home__section" data-testid="home-now">
             <header className="home__head">
               <h2>Now</h2>
             </header>
-            <div className="cards">
-              {now.map((run) => (
-                <RunCard
-                  key={run.id}
-                  run={run}
-                  liveStatus={statusOf(run)}
-                  needsApproval={waitingOn.has(run.id)}
-                  onOpen={onOpenRun}
-                />
-              ))}
-            </div>
+            <NowOffice runs={now} statusOf={statusOf} waitingOn={waitingOn} onOpenRun={onOpenRun} />
           </section>
+        ) : (
+          !firstLaunch &&
+          runsLoaded && (
+            <section className="home__section" aria-label="Now">
+              <RestingOffice
+                schedules={schedules.data.filter((row) => space === null || row.space_id === space.id)}
+                known={!schedules.loading && schedules.error === null && schedules.fetchedAt !== null}
+                readAt={schedules.fetchedAt ?? 0}
+              />
+            </section>
+          )
         )}
 
         {recent.length > 0 && (
@@ -580,20 +583,21 @@ export function HomeView({
                   data-testid={`home-agent-${agent.name}`}
                 >
                   <span className="roster-card__name" title={`${agent.name}: ${agent.role}`}>
-                    {agent.name}
+                    <span className="roster-card__label">{agent.name}</span>
                     {agent.is_builtin === true && <span className="tag">built-in</span>}
                   </span>
                   <span className="roster-card__role">{agent.role}</span>
-                  <label className="switch">
-                    <input
-                      type="checkbox"
+                  {/* It takes effect at once, so it is a switch; the word
+                      beside it says the state as well as the knob does. */}
+                  <span className="roster-card__switch">
+                    <Switch
                       checked={agent.enabled ?? true}
                       disabled={busyAgent === agent.id}
+                      label={`Available to the supervisor: ${agent.name}`}
                       onChange={() => void toggle(agent)}
-                      aria-label={`Available to the supervisor: ${agent.name}`}
                     />
-                    <span>{agent.enabled === false ? "off" : "on"}</span>
-                  </label>
+                    <span aria-hidden="true">{agent.enabled === false ? "Off" : "On"}</span>
+                  </span>
                 </li>
               ))}
             </ul>

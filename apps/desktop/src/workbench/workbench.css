@@ -617,3 +617,25 @@
   border-radius: 50%;
   background: var(--fill-strong);
 }
+
+/* The floor plan at the width of a wide Agents section. */
+.wb-floor {
+  max-width: 1080px;
+}
+
+.wb-empty {
+  width: 20rem;
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-card);
+}
+
+.wb-empty .wb-frame__label {
+  padding: var(--space-2) var(--space-3) 0;
+}
+
+.wb-startup {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  justify-items: center;
+  padding: var(--space-3);
+}

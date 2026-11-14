@@ -453,6 +453,9 @@ export function App() {
         setPaletteOpen((open) => !open);
         return;
       }
+      // A dialog over the window is modal: its section stays until it is
+      // answered (an editor holding unsaved changes, say).
+      if (event.target instanceof Element && event.target.closest('[aria-modal="true"]') !== null) return;
       setPaletteOpen(false);
       if (hit.id === "rail") toggleRail();
       else if (hit.id === "settings") setSection("settings");

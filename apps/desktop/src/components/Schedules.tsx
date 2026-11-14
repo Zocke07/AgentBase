@@ -15,6 +15,8 @@ import { FETCHING_TOOLS } from "../lib/tools";
 import { useRunList } from "../state/runList";
 import { useFetched } from "../state/useFetched";
 
+import { EmptyState } from "./EmptyState";
+
 /**
  * Space schedules run goals on their own while the app is open. List next/last
  * executions; the editor previews daily, weekly, N-hour or after-another-stage
@@ -300,7 +302,18 @@ export function Schedules({ space, settings, onOpenRun, draftRequest, reloadNonc
       )}
 
       {schedules.data.length === 0 && editing.kind === "none" && !schedules.loading && (
-        <p className="schedules__empty">No schedules yet.</p>
+        <EmptyState
+          scene="calendar"
+          action={{
+            label: "New schedule",
+            onClick: () => {
+              setEditing({ kind: "new", goal: "" });
+            },
+          }}
+          testId="schedules-empty"
+        >
+          Nothing in this space runs on its own yet. A schedule runs a goal at set times, or after another one.
+        </EmptyState>
       )}
 
       {schedules.data.length > 0 && (

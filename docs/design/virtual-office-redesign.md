@@ -1052,6 +1052,12 @@ their stages. Each stage's acceptance in section 10 is unchanged and still
 has to be met in order; what changed is that part of each stage's work is
 already done.
 
+**A second change of order (2026-11-14).** After stage 20.3 was built,
+its last acceptance item (the maintainer's look at the macOS title bar on
+both platforms) was left open and the maintainer said to continue: stage
+20.6 began before 20.3 was accepted. The title bar's check, and Windows
+for 20.3 to 20.5, still have to happen before the merge.
+
 ### What is built
 
 | Stage | Built | Not built |
@@ -1061,7 +1067,7 @@ already done.
 | 20.3 the shell | all of it on 2026-11-14 (below): the toolbar, the command palette, the keyboard map bound and routed, the rail, context menus, the inspector (in Runs), section 6.7's details, view transitions, the inactive-window state, the macOS title bar's configuration and permission, with the security review | the maintainer's look at the title bar on macOS and on Windows; the inspector in Agents and Knowledge (moved to 20.6, below) |
 | 20.4 the office, at rest | `lib/tools.ts`, the reducer's four positions, `state/office.ts`, `lib/officeLayout.ts`, `lib/character.ts`, `components/office/`, `styles/office.css`, the `--office-*` tokens, the office as the run's only drawing (the diagram retired, D8), the run view's layout around the office, the character style (decided), office pages in the workbench, the identity, coverage and no-clock tests, real-app screenshots under forced colours and reduced motion and its polish (below) | Windows |
 | 20.5 the office in motion | all of it on 2026-11-14 (below): motion under D1, the timeline, camera easing, the measurements | WebView2 on Windows; the items listed under 20.5 below |
-| 20.6 everywhere | nothing | all of it |
+| 20.6 everywhere | begun 2026-11-14 (below): the inspector in Agents and Knowledge, the Agents floor plan, empty states, Home's office, the start screen, Quick Look, Settings as grouped rows, Usage by the `dataviz` skill, the developer guide's two chapters, draft release notes | installed builds on both platforms, the maintainer watching a real run, retiring this brief |
 
 ### The office: how it is put together
 
@@ -1309,6 +1315,90 @@ controls.
   system's. A timed tooltip of our own would be a new primitive on every
   control; it is left for when one is needed for something `title`
   cannot do.
+
+### Stage 20.6: begun on 2026-11-14
+
+Built, each with tests and workbench pages (Agents floor plan, Empty
+states, Home's office):
+
+- **The inspector in Agents and Knowledge.** Agents' editor is
+  `ui/Inspector` at the right of the floor, or a `Sheet` below 1,100 px;
+  unsaved changes hold a close as they hold any move away, and Escape
+  closes it from anywhere in the section. A note's tags, properties and
+  links are its inspector (`NoteDetails` in KnowledgeView.tsx), toggled
+  from the note's header; in a narrow window a sheet that belongs to its
+  note and closes before a link acts.
+- **The Agents floor plan** (7.13): desk cards drawn with the office's
+  figure (`AgentList.tsx`, `state/floorPlan.ts`: `restDesk`,
+  `restingDesk`, `toolsOnDesk`). A pushed-in chair and the words "Not
+  available" for an agent the supervisor may not use.
+- **Empty states** (`components/EmptyState.tsx`): the room at rest with
+  Run once in Runs, the calendar with New schedule in Automations, the
+  library above Knowledge's welcomes.
+- **Home's office**: a desk over each going run's card, posed from its
+  status and a waiting question (`runDesk`); with nothing going, the room
+  at rest and the next automation, said only once the schedules have
+  been read and only for a time after they arrived.
+- **The start screen**: one desk its stages fill (`StartupDesk`), beside
+  the stages' words.
+- **Quick Look**: Space on a note in Knowledge's tree opens its Preview
+  in a sheet with Open.
+- **Settings and Space settings** as grouped rows: label left, control
+  right, a hairline between rows, when the section is wide enough.
+- A lit lamp means a desk at work: every desk drawn outside a run rests
+  with its lamp out (`restDesk`).
+- Already in place: the approval panel's buttons and type (20.2), the
+  tour's office step (D8), the toolbar items and the spend popover
+  (20.3).
+
+Built on 2026-11-15:
+
+- **Usage** by the `dataviz` skill. The `--viz-*` series colours failed
+  its validator in every order (orange beside green, protan delta E 5.9;
+  the dark steps were lighter than the dark band), so they are now the
+  skill's reference hues in its order, with darker light steps for aqua,
+  yellow and magenta so every mark meets 3:1, validated on `--content` in
+  both themes. Knowledge's charts draw six series at most. The daily chart is one hue with rounded data-ends, gaps between
+  days, recessive gridlines, the busiest day labelled, a tooltip per bar
+  and the days as a table; the breakdowns give each row its share.
+  `components/UsageCharts.tsx`, workbench page Usage charts.
+- **The developer guide's chapters** "Design system" and "The office"
+  (`docs/developer_guide/7_design_system.md`, `8_the_office.md`), which
+  carry this brief's lasting parts.
+- **Draft release notes**, `docs/releases/next.md`, named so that no tag
+  publishes them.
+
+Decided on 2026-11-15:
+
+- **Settings keep check boxes for on and off.** Settings and Space
+  settings save with their Save button, and a switch means a change that
+  takes effect at once (the app's `Switch` says so, as Apple's guidance
+  does). Switches are used where that is true: the floor plan's
+  Available. Inherit is already first where it applies.
+
+Decided by the maintainer on 2026-11-17:
+
+- **The look is accepted.** "I accept the new look."
+- **The reading width stays full.** "Full width for now": section 8's
+  "about 70 characters" is not applied; the 2026-09-30 choice stands.
+
+Done on 2026-11-17:
+
+- **Home's agent switches.** Home's cards wrapped a check box in a label
+  named `switch`, a name 20.2 gave the switch primitive, so the label was
+  drawn as a track around the words on and off and its knob never moved
+  (the maintainer's screenshot). They are the `Switch` primitive now, and
+  a design rule keeps a primitive's class names to the primitive.
+- **The user guide's pictures**: five captures from `just ui-shots` at
+  1,100 by 800 in light, from scratch data (`docs/user_guide/images/`).
+  Space settings is left out: it shows the scratch folder's full path.
+
+Not done yet:
+
+1. With the maintainer: installed builds on Windows and macOS (with the
+   title bar from 20.3), and a real-model run watched live and replayed.
+2. Then removing this brief: its lasting parts are in the developer
+   guide's two chapters and BUILD_SPEC Phase 20.
 
 ### Stage 20.5: built on 2026-11-14
 

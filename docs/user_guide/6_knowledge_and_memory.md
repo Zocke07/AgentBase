@@ -129,11 +129,18 @@ covers them in full.
 
 ## Links, properties and preview
 
+![A note open in Preview, with its path in the header and the Properties and links button beside it.](images/knowledge-note.png)
+
 Link notes with `[[research/sqlite]]`,
 `[[research/sqlite#Concurrency|the concurrency section]]`, or Markdown `.md`
-links. Typing `[[` suggests matches; Enter completes. **Links** shows backlinks
-(`←`), outgoing links (`→`), and unresolved names (`?`); select to open, and
-heading links scroll. **Graph** shows all vault links or, with **Around this
+links. Typing `[[` suggests matches; Enter completes. **Properties and
+links**, beside the open note, shows its tags and properties, backlinks
+(`←`), outgoing links (`→`), and unresolved names (`?`), each group folding
+under its title; select a link to open it, and heading links scroll. Its
+button in the note's header hides or shows it; in a narrow window it opens
+over the page. In the **Notes** tree, Space on a note shows its Preview in
+a window with **Open**, without leaving the note you are on; Enter opens
+it. **Graph** shows all vault links or, with **Around this
 note**, the open note and neighbors.
 
 Preview supports Obsidian `#tags` (filterable), `==highlights==`,

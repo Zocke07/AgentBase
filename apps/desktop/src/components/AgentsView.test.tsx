@@ -1,7 +1,7 @@
 import type { AgentDef, ToolResponse } from "@agentbase/schemas";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../lib/api";
 import { useRoster } from "../state/roster";
@@ -117,7 +117,7 @@ describe("editing", () => {
     await user.click(await screen.findByText("writer"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("agent-editor").textContent).toContain("Edit writer");
+      expect(screen.getByTestId("agents-inspector").textContent).toContain("Edit writer");
     });
   });
 
@@ -162,11 +162,11 @@ describe("editing", () => {
     await user.click(screen.getByText("critic"));
 
     // Still editing the writer, with the question shown.
-    expect(screen.getByTestId("agent-editor").textContent).toContain("Edit writer");
+    expect(screen.getByTestId("agents-inspector").textContent).toContain("Edit writer");
     expect(screen.getByTestId("unsaved").textContent).toContain("unsaved");
     await user.click(screen.getByRole("button", { name: "Discard" }));
     await waitFor(() => {
-      expect(screen.getByTestId("agent-editor").textContent).toContain("Edit critic");
+      expect(screen.getByTestId("agents-inspector").textContent).toContain("Edit critic");
     });
   });
 
@@ -184,5 +184,80 @@ describe("editing", () => {
     await waitFor(() => {
       expect(screen.getByTestId("toggle-writer")).toHaveProperty("disabled", false);
     });
+  });
+});
+
+describe("the floor plan and its inspector", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("draws each agent as a desk card with its tools by risk, in words as well", async () => {
+    render(<AgentsView workspaceProvider="ollama" spaceId="space-main" />);
+    const card = await screen.findByTestId("agent-row-writer");
+    expect(card.querySelector("svg")).not.toBeNull();
+    expect(card.textContent).toContain("1 tool");
+    expect(card.querySelector(".floor__dot--medium")).not.toBeNull();
+    expect(screen.getByRole("switch", { name: "Available to the supervisor: writer" }).getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("opens the editor in the inspector, and closes it from its button or Escape", async () => {
+    const user = userEvent.setup();
+    render(<AgentsView workspaceProvider="ollama" spaceId="space-main" />);
+    await user.click(await screen.findByText("writer"));
+    const inspector = await screen.findByTestId("agents-inspector");
+    expect(inspector.tagName).toBe("ASIDE");
+    await user.click(screen.getByRole("button", { name: "Close the editor" }));
+    expect(screen.queryByTestId("agents-inspector")).toBeNull();
+
+    await user.click(screen.getByText("writer"));
+    await user.click(await screen.findByTestId("field-role"));
+    await user.keyboard("{Escape}");
+    expect(screen.queryByTestId("agents-inspector")).toBeNull();
+
+    // From the desk card that opened it, too.
+    await user.click(screen.getByText("writer"));
+    expect(await screen.findByTestId("agents-inspector")).toBeDefined();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByTestId("agents-inspector")).toBeNull();
+  });
+
+  it("lets Escape close a desk's menu without closing the editor", async () => {
+    const user = userEvent.setup();
+    render(<AgentsView workspaceProvider="ollama" spaceId="space-main" />);
+    await user.click(await screen.findByText("writer"));
+    expect(await screen.findByTestId("agents-inspector")).toBeDefined();
+    await user.pointer({ keys: "[MouseRight]", target: screen.getByText("writer") });
+    expect(await screen.findByRole("menu", { name: "Agent" })).toBeDefined();
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByRole("menu")).toBeNull();
+    });
+    expect(screen.getByTestId("agents-inspector")).toBeDefined();
+  });
+
+  it("asks before closing over unsaved changes", async () => {
+    const user = userEvent.setup();
+    render(<AgentsView workspaceProvider="ollama" spaceId="space-main" />);
+    await user.click(await screen.findByText("writer"));
+    await user.type(await screen.findByTestId("field-role"), " and more");
+    await user.click(screen.getByRole("button", { name: "Close the editor" }));
+    expect(screen.getByTestId("agents-inspector")).toBeDefined();
+    expect(screen.getByTestId("unsaved").textContent).toContain("unsaved");
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+    expect(screen.queryByTestId("agents-inspector")).toBeNull();
+  });
+
+  it("opens the editor as a sheet in a narrow window", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("max-width: 1100px"),
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }));
+    const user = userEvent.setup();
+    render(<AgentsView workspaceProvider="ollama" spaceId="space-main" />);
+    await user.click(await screen.findByText("writer"));
+    const sheet = await screen.findByRole("dialog", { name: "Edit writer" });
+    expect(sheet.getAttribute("aria-modal")).toBe("true");
   });
 });

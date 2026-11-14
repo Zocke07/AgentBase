@@ -39,7 +39,6 @@
    width; without this, one long row pushes the whole section off the page. */
 .run-panel,
 .runs-view__main,
-.agents-view__editor,
 .knowledge__workspace {
   min-width: 0;
 }
@@ -52,10 +51,6 @@
 @media (max-width: 1100px) {
   .runs-view {
     grid-template-columns: 15rem minmax(0, 1fr);
-  }
-
-  .agents-view {
-    grid-template-columns: 18rem minmax(0, 1fr);
   }
 
   .knowledge {
@@ -100,10 +95,6 @@
 @media (max-width: 900px) {
   .runs-view {
     grid-template-columns: 12.5rem minmax(0, 1fr);
-  }
-
-  .agents-view {
-    grid-template-columns: 14rem minmax(0, 1fr);
   }
 
   .budget__bar {

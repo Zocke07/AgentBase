@@ -35,7 +35,10 @@ import { uniquePath } from "../lib/visualization";
 import { journalDays, journalEntries, journalKinds } from "../state/journal";
 import { sectionOf, type KnowledgeSection } from "../state/sections";
 import { useFetched } from "../state/useFetched";
+import { useMediaQuery } from "../state/useMediaQuery";
+import { useStoredSize } from "../state/useStoredSize";
 
+import { EmptyVignette } from "./EmptyState";
 import { FilesPanel, type OpenFile } from "./FilesPanel";
 import { JournalIndex, JournalPage, type JournalFocus } from "./Journal";
 import { KnowledgeEvaluationView } from "./KnowledgeEvaluation";
@@ -46,8 +49,11 @@ import { NoteEditor } from "./NoteEditor";
 import { NoteTree } from "./NoteTree";
 import { QuickSwitcher } from "./QuickSwitcher";
 import { RecentFiles } from "./RecentFiles";
+import { Skeleton } from "./Skeleton";
 import { SummaryList, type NewKind } from "./SummaryList";
+import { Inspector, InspectorGroup } from "./ui/Inspector";
 import { MenuButton } from "./ui/Menu";
+import { Sheet } from "./ui/Sheet";
 import { IconButton } from "./ui/controls";
 
 // React Flow's own stylesheet, which the note graph needs; `react-flow.css`
@@ -101,6 +107,10 @@ const NEW_NOTE = "---\ntags: []\n---\n# New note\n\n";
 /** How long a confirmation stays on screen before it goes by itself. */
 const TOAST_MS = 6_000;
 
+/** The note inspector's width in the stylesheet (20rem), and the narrowest it goes. */
+const DETAILS_WIDTH = 300;
+const DETAILS_WIDTH_MIN = 240;
+
 export function KnowledgeView({
   space,
   onOpenRun,
@@ -145,7 +155,18 @@ export function KnowledgeView({
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [switcher, setSwitcher] = useState(false);
+  // A note's properties and links are its inspector (brief 6.3), open beside
+  // it by default; in a narrow window they open as a sheet, when asked for.
+  // Quick Look: a note's Preview in a sheet, from Space in the tree.
+  const [looking, setLooking] = useState<{ path: string; note: KnowledgeNote | null; failed: string | null } | null>(null);
+  const lookedNote = looking?.note ?? null;
+  const lookFailed = looking?.failed ?? null;
   const [linksOpen, setLinksOpen] = useState(true);
+  const narrow = useMediaQuery("(max-width: 1100px)");
+  // The sheet belongs to the note it was opened on: another note opens without it.
+  const [detailsSheet, setDetailsSheet] = useState<string | null>(null);
+  const [detailsWidth, setDetailsWidth] = useStoredSize("knowledge.inspector");
+  const detailsPanel = useRef<HTMLElement>(null);
   // Check once: shell probes Obsidian; outside shell returns no locally.
   const obsidian = useFetched(obsidianAvailable, false).data;
   // Files view shared open data file; nonce signals editor save/delete.
@@ -1280,6 +1301,19 @@ export function KnowledgeView({
                   onDeleteFolder={(path, notes) => {
                     setFolderAsked({ path, notes });
                   }}
+                  onPreview={(wanted) => {
+                    setLooking({ path: wanted, note: null, failed: null });
+                    api
+                      .getKnowledgeNote(space.id, wanted)
+                      .then((loaded) => {
+                        setLooking((current) => (current?.path === wanted ? { path: wanted, note: loaded, failed: null } : current));
+                      })
+                      .catch((failure: unknown) => {
+                        setLooking((current) =>
+                          current?.path === wanted ? { path: wanted, note: null, failed: asMessage(failure) } : current,
+                        );
+                      });
+                  }}
                 />
               </>
             )}
@@ -1531,6 +1565,7 @@ export function KnowledgeView({
           />
         ) : section === "summary" && !summaryNoteShown ? (
           <div className="knowledge__welcome" data-testid="summary-welcome">
+            <EmptyVignette scene="library" />
             <h2>Your results</h2>
             <p>
               Pick a result on the left to read it. Decisions, portfolio reviews and market alerts open as pages, the
@@ -1614,37 +1649,94 @@ export function KnowledgeView({
                   )}
                 </div>
               )}
-              {note !== null && <NoteMetadata note={note} onTag={filterByTag} />}
-            </div>
-
-            <div className={`knowledge__document knowledge__document--${mode}`}>
-              {mode !== "preview" && <NoteEditor value={content} notes={allNotes} onChange={setContent} />}
-              {mode !== "write" && (
-                <article className="knowledge__preview knowledge__preview--fluid" aria-label="Markdown preview" ref={preview}>
-                  <Markdown
-                    source={content}
-                    onLink={followLink}
-                    onTag={filterByTag}
-                    onToggleTask={(line, checked) => {
-                      setContent((current) => toggleTaskLine(current, line, checked));
-                    }}
-                  />
-                </article>
+              {note !== null && !creating && !moving && (
+                <button
+                  type="button"
+                  className="button button--small knowledge__details-toggle"
+                  aria-pressed={narrow ? detailsSheet === note.path : linksOpen}
+                  title={linksSummary(note)}
+                  data-testid="note-details-toggle"
+                  onClick={() => {
+                    if (narrow) setDetailsSheet((open) => (open === note.path ? null : note.path));
+                    else setLinksOpen((open) => !open);
+                  }}
+                >
+                  Properties and links
+                </button>
               )}
             </div>
 
-            {note !== null && (
-              <NoteLinks
-                note={note}
-                open={linksOpen}
-                onToggle={() => {
-                  setLinksOpen((current) => !current);
-                }}
-                onOpen={(wanted) => {
-                  requestOpen(wanted);
-                }}
-              />
-            )}
+            <div className="knowledge__body">
+              <div className={`knowledge__document knowledge__document--${mode}`}>
+                {mode !== "preview" && <NoteEditor value={content} notes={allNotes} onChange={setContent} />}
+                {mode !== "write" && (
+                  <article className="knowledge__preview knowledge__preview--fluid" aria-label="Markdown preview" ref={preview}>
+                    <Markdown
+                      source={content}
+                      onLink={followLink}
+                      onTag={filterByTag}
+                      onToggleTask={(line, checked) => {
+                        setContent((current) => toggleTaskLine(current, line, checked));
+                      }}
+                    />
+                  </article>
+                )}
+              </div>
+
+              {note !== null &&
+                (narrow ? detailsSheet === note.path : linksOpen) &&
+                (narrow ? (
+                  <Sheet
+                    open
+                    title="Properties and links"
+                    onClose={() => {
+                      setDetailsSheet(null);
+                    }}
+                    testId="note-details"
+                  >
+                    {/* The sheet closes first, so a guard about unsaved
+                        changes, asked behind it, can be answered. */}
+                    <NoteDetails
+                      note={note}
+                      onTag={(tag) => {
+                        setDetailsSheet(null);
+                        filterByTag(tag);
+                      }}
+                      onOpen={(wanted) => {
+                        setDetailsSheet(null);
+                        requestOpen(wanted);
+                      }}
+                    />
+                  </Sheet>
+                ) : (
+                  <Inspector
+                    label="Properties and links"
+                    className="knowledge__inspector"
+                    testId="note-details"
+                    panelRef={detailsPanel}
+                    title="Properties and links"
+                    subtitle={fileName}
+                    onClose={() => {
+                      setLinksOpen(false);
+                    }}
+                    closeLabel="Close properties and links"
+                    width={detailsWidth}
+                    onResize={setDetailsWidth}
+                    defaultWidth={DETAILS_WIDTH}
+                    minWidth={DETAILS_WIDTH_MIN}
+                    maxWidth={() => Math.max(DETAILS_WIDTH_MIN, Math.round(window.innerWidth * 0.4))}
+                    measure={() => detailsPanel.current?.offsetWidth ?? DETAILS_WIDTH}
+                    resizeLabel="Resize properties and links"
+                    onKeyDown={(event) => {
+                      if (event.key !== "Escape" || event.defaultPrevented) return;
+                      event.stopPropagation();
+                      setLinksOpen(false);
+                    }}
+                  >
+                    <NoteDetails note={note} onTag={filterByTag} onOpen={requestOpen} />
+                  </Inspector>
+                ))}
+            </div>
 
             <div className="knowledge__status" aria-label="Note status">
               <span>
@@ -1659,6 +1751,7 @@ export function KnowledgeView({
           </>
         ) : (
           <div className="knowledge__welcome">
+            <EmptyVignette scene="library" />
             <h2>Shared knowledge for people and agents</h2>
             <p>
               Notes are ordinary Markdown files in this space's folder, and the folder is an Obsidian vault.
@@ -1739,6 +1832,45 @@ export function KnowledgeView({
         )}
       </section>
 
+      <Sheet
+        open={looking !== null}
+        onClose={() => {
+          setLooking(null);
+        }}
+        title={looking?.note?.title ?? looking?.path ?? ""}
+        size="large"
+        testId="quick-look"
+        footer={
+          <button
+            type="button"
+            className="button button--primary"
+            disabled={looking === null}
+            onClick={() => {
+              if (looking === null) return;
+              const wanted = looking.path;
+              setLooking(null);
+              requestOpen(wanted);
+            }}
+          >
+            Open
+          </button>
+        }
+      >
+        {/* Focus lands here, not on a button: the Space that opened the
+            sheet is still held, and its release would press a button. */}
+        <div data-autofocus="" tabIndex={-1} className="knowledge__look-body">
+          {lookFailed !== null ? (
+            <p className="field-error" role="alert">
+              {lookFailed}
+            </p>
+          ) : lookedNote === null ? (
+            <Skeleton label="Reading the note" lines={5} />
+          ) : (
+            <Markdown source={lookedNote.content} className="knowledge__look" />
+          )}
+        </div>
+      </Sheet>
+
       {switcher && (
         <QuickSwitcher
           notes={allNotes}
@@ -1783,121 +1915,118 @@ function importedPath(path: string): string {
   return parts.length > 1 ? parts.slice(1).join("/") : clean;
 }
 
-/** Note tags/properties strip under path, matching Obsidian body metadata. */
-function NoteMetadata({ note, onTag }: { note: KnowledgeNote; onTag: (tag: string) => void }) {
-  const properties = Object.entries(note.properties ?? {}).filter(([name]) => name !== "tags" && name !== "tag");
-  if ((note.tags ?? []).length === 0 && properties.length === 0) return null;
-  return (
-    <div className="knowledge__metadata">
-      {(note.tags ?? []).map((tag) => (
-        <button
-          type="button"
-          className="knowledge__tag"
-          key={tag}
-          title="Show notes with this tag"
-          onClick={() => {
-            onTag(tag);
-          }}
-        >
-          #{tag}
-        </button>
-      ))}
-      {properties.map(([name, value]) => (
-        <span className="knowledge__property" key={name}>
-          <strong>{name}</strong> {value}
-        </span>
-      ))}
-    </div>
-  );
+/** "2 linked mentions · 1 outgoing": what the note's links come to. */
+function linksSummary(note: KnowledgeNote): string {
+  const backlinks = (note.backlinks ?? []).length;
+  const unresolved = (note.unresolved_links ?? []).length;
+  return `${String(backlinks)} linked mention${backlinks === 1 ? "" : "s"} · ${String((note.links ?? []).length)} outgoing${
+    unresolved > 0 ? ` · ${String(unresolved)} unresolved` : ""
+  }`;
 }
 
-/** Outgoing links, mentions, and unresolved names in backlinks pane. */
-function NoteLinks({
+/**
+ * A note's inspector: its tags and properties, as Obsidian keeps them at the
+ * top of a note, and its links both ways and the names that lead nowhere.
+ */
+function NoteDetails({
   note,
-  open,
-  onToggle,
+  onTag,
   onOpen,
 }: {
   note: KnowledgeNote;
-  open: boolean;
-  onToggle: () => void;
+  onTag: (tag: string) => void;
   onOpen: (path: string) => void;
 }) {
+  const properties = Object.entries(note.properties ?? {}).filter(([name]) => name !== "tags" && name !== "tag");
+  const tags = note.tags ?? [];
   const links = note.links ?? [];
   const backlinks = note.backlinks ?? [];
   const unresolved = note.unresolved_links ?? [];
-  const total = links.length + backlinks.length + unresolved.length;
   return (
-    <section className={`knowledge__links${open ? "" : " knowledge__links--closed"}`} aria-label="Links">
-      <button type="button" className="knowledge__links-toggle" aria-expanded={open} onClick={onToggle}>
-        <span className={`tree__chevron${open ? " tree__chevron--open" : ""}`} aria-hidden="true" />
-        Links
-        <span className="knowledge__links-count">
-          {backlinks.length} linked mention{backlinks.length === 1 ? "" : "s"} · {links.length} outgoing
-          {unresolved.length > 0 && ` · ${String(unresolved.length)} unresolved`}
-        </span>
-      </button>
-      {open && (
-        <div className="knowledge__links-body">
-          {total === 0 && <p className="knowledge__links-empty">Nothing links here yet, and this note links nowhere.</p>}
-          {backlinks.length > 0 && (
-            <div className="knowledge__links-group">
-              <h4>Linked mentions</h4>
-              <div className="knowledge__links-list">
-                {backlinks.map((path) => (
-                  <button
-                    type="button"
-                    className="knowledge__relation"
-                    key={`from:${path}`}
-                    onClick={() => {
-                      onOpen(path);
-                    }}
-                  >
-                    {"←"} <span className="sr-only">Backlink from </span>
-                    {path}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          {links.length > 0 && (
-            <div className="knowledge__links-group">
-              <h4>Outgoing links</h4>
-              <div className="knowledge__links-list">
-                {links.map((path) => (
-                  <button
-                    type="button"
-                    className="knowledge__relation"
-                    key={`to:${path}`}
-                    onClick={() => {
-                      onOpen(path);
-                    }}
-                  >
-                    {"→"} {path}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          {unresolved.length > 0 && (
-            <div className="knowledge__links-group">
-              <h4>Unresolved</h4>
-              <div className="knowledge__links-list">
-                {unresolved.map((target) => (
-                  <span
-                    className="knowledge__relation knowledge__relation--unresolved"
-                    key={`missing:${target}`}
-                    title="No note has this name yet"
-                  >
-                    ? {target}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+    <>
+      <InspectorGroup title="Tags and properties">
+        {tags.length === 0 && properties.length === 0 ? (
+          <p className="knowledge__links-empty">This note has no tags or properties.</p>
+        ) : (
+          <div className="knowledge__metadata">
+            {tags.map((tag) => (
+              <button
+                type="button"
+                className="knowledge__tag"
+                key={tag}
+                title="Show notes with this tag"
+                onClick={() => {
+                  onTag(tag);
+                }}
+              >
+                #{tag}
+              </button>
+            ))}
+            {properties.map(([name, value]) => (
+              <span className="knowledge__property" key={name}>
+                <strong>{name}</strong> {value}
+              </span>
+            ))}
+          </div>
+        )}
+      </InspectorGroup>
+      <InspectorGroup title={`Linked mentions (${String(backlinks.length)})`}>
+        {backlinks.length === 0 ? (
+          <p className="knowledge__links-empty">Nothing links here yet.</p>
+        ) : (
+          <div className="knowledge__links-list">
+            {backlinks.map((path) => (
+              <button
+                type="button"
+                className="knowledge__relation"
+                key={`from:${path}`}
+                onClick={() => {
+                  onOpen(path);
+                }}
+              >
+                {"←"} <span className="sr-only">Backlink from </span>
+                {path}
+              </button>
+            ))}
+          </div>
+        )}
+      </InspectorGroup>
+      <InspectorGroup title={`Outgoing links (${String(links.length)})`}>
+        {links.length === 0 ? (
+          <p className="knowledge__links-empty">This note links nowhere.</p>
+        ) : (
+          <div className="knowledge__links-list">
+            {links.map((path) => (
+              <button
+                type="button"
+                className="knowledge__relation"
+                key={`to:${path}`}
+                onClick={() => {
+                  onOpen(path);
+                }}
+              >
+                {"→"} {path}
+              </button>
+            ))}
+          </div>
+        )}
+      </InspectorGroup>
+      {unresolved.length > 0 && (
+        <InspectorGroup title={`Unresolved (${String(unresolved.length)})`}>
+          <div className="knowledge__links-list">
+            {unresolved.map((target) => (
+              <span
+                className="knowledge__relation knowledge__relation--unresolved"
+                key={`missing:${target}`}
+                title="No note has this name yet"
+              >
+                ? {target}
+              </span>
+            ))}
+          </div>
+        </InspectorGroup>
       )}
-    </section>
+    </>
   );
 }
 

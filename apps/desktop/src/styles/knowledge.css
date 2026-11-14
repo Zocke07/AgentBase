@@ -825,9 +825,21 @@
 }
 
 .knowledge__note-head {
+  display: flex;
   flex: none;
+  gap: var(--space-3);
+  align-items: center;
   padding: 0.5rem 1.4rem;
   border-bottom: var(--hairline) solid var(--separator);
+}
+
+.knowledge__note-head > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.knowledge__details-toggle {
+  flex: none;
 }
 
 .knowledge__path {
@@ -866,7 +878,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.3rem;
-  margin-top: 0.4rem;
 }
 
 .knowledge__tag,
@@ -899,6 +910,8 @@
 }
 
 .knowledge__relation {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   text-align: left;
 }
 
@@ -1065,59 +1078,29 @@
 }
 
 
-/* Links beneath the note. */
-.knowledge__links {
-  flex: none;
-  max-height: 14rem;
-  overflow: auto;
-  border-top: var(--hairline) solid var(--separator);
-  background: var(--fill);
-}
-
-.knowledge__links--closed {
-  max-height: none;
-  overflow: visible;
-}
-
-.knowledge__links-toggle {
+/* The note and its inspector side by side (brief 6.3): tags, properties
+   and links at the right, `NoteDetails` in KnowledgeView.tsx. Its width,
+   `DETAILS_WIDTH` there, follows the 20rem here. */
+.knowledge__body {
   display: flex;
-  gap: 0.45rem;
-  align-items: center;
-  width: 100%;
-  padding: 0.4rem 1.4rem;
-  border: 0;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-size: var(--size-caption);
-  font-weight: 600;
-  text-align: left;
+  flex: 1;
+  min-height: 0;
 }
 
-.knowledge__links-count {
-  color: var(--muted);
-  font-weight: 400;
+.knowledge__body > .knowledge__document {
+  flex: 1;
+  min-width: 0;
 }
 
-.knowledge__links-body {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.2rem;
-  padding: 0 1.4rem 0.7rem;
-}
-
-.knowledge__links-group h4 {
-  margin: 0 0 0.3rem;
-  color: var(--muted);
-  font-size: var(--size-caption);
-  font-weight: 600;
-  letter-spacing: 0.02em;
+.knowledge__inspector {
+  width: 20rem;
 }
 
 .knowledge__links-list {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
 }
 
 .knowledge__links-empty {
@@ -1561,3 +1544,8 @@
   }
 }
 
+
+/* Quick Look's body takes focus so that Space's release presses nothing. */
+.knowledge__look-body:focus {
+  outline: none;
+}
