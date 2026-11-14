@@ -2,31 +2,37 @@ import type {
   AlertsResponse,
   ApprovalResponse,
   BudgetResponse,
+  NoteSummary,
   SettingsResponse,
   VerifyResponse,
 } from "@agentbase/schemas";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AgentsView } from "./components/AgentsView";
 import { AutomationsView } from "./components/AutomationsView";
-import { BudgetMeter } from "./components/BudgetMeter";
+import { CommandPalette } from "./components/CommandPalette";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { type BlockerKind, HomeView } from "./components/HomeView";
 import { KnowledgeView } from "./components/KnowledgeView";
 import { Rail, type Section } from "./components/Rail";
 import { RunsView } from "./components/RunsView";
 import { SettingsView } from "./components/SettingsView";
+import { Skeleton } from "./components/Skeleton";
 import { SpaceSettingsView } from "./components/SpaceSettingsView";
 import { StartupScreen } from "./components/StartupScreen";
+import { Toolbar } from "./components/Toolbar";
 import { Tour } from "./components/Tour";
 import { UsageView } from "./components/UsageView";
 import * as api from "./lib/api";
 import { modelLabel, providerLabel } from "./lib/format";
 import { notifyDesktop } from "./lib/notify";
-import { SECTION_ORDER } from "./lib/sections";
+import { paletteCommands, type PaletteActions } from "./lib/palette";
+import { SECTION_LABEL, SECTION_ORDER } from "./lib/sections";
+import { matchesKeys, SHORTCUTS, shouldIgnoreKey } from "./lib/shortcuts";
 import { connectWithRetry, type SidecarStatus } from "./lib/sidecar";
-import { useTheme } from "./lib/theme";
+import { useTheme, useThemeStore } from "./lib/theme";
 import { useTransparency } from "./lib/transparency";
+import { moveWithTransition } from "./lib/viewTransition";
 import { pendingNotices, readRaised, writeRaised } from "./state/alerts";
 import { useRoster } from "./state/roster";
 import { unfinished, useRunList } from "./state/runList";
@@ -54,9 +60,46 @@ const IDLE_REFRESH_MS = 30_000;
     once the engine answers; past it the window opens and they finish there. */
 const FIRST_LOAD_PATIENCE_MS = 10_000;
 
+/** The shortcuts that work wherever focus is. */
+const WINDOW_SHORTCUTS = SHORTCUTS.filter((entry) => entry.scope === "window");
+
+/** Bring a card into view once its section shows, and put focus on it. */
+function revealCard(testId: string): void {
+  requestAnimationFrame(() => {
+    const card = document.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
+    if (card === null) return;
+    card.scrollIntoView({ block: "start" });
+    if (!card.hasAttribute("tabindex")) card.setAttribute("tabindex", "-1");
+    card.focus({ preventScroll: true });
+  });
+}
+
 export function App() {
   const [status, setStatus] = useState<SidecarStatus>({ kind: "connecting", attempt: 0 });
-  const [section, setSection] = useState<Section>("home");
+  const [section, showSection] = useState<Section>("home");
+  // Every section change goes through one place, so it can cross-fade
+  // (brief 5.3). The promise settles once the new section is in the document.
+  // The section last asked for is kept on the document root, written when
+  // it is asked for: a second change inside a transition, or one from a
+  // callback made renders ago, compares with where the window is going,
+  // not with a section a closure remembers.
+  useEffect(() => {
+    document.documentElement.dataset.section = section;
+  }, [section]);
+  const goTo = useCallback((next: Section): Promise<void> => {
+    const root = document.documentElement;
+    if (root.dataset.section === next) return Promise.resolve();
+    root.dataset.section = next;
+    return moveWithTransition(() => {
+      showSection(next);
+    });
+  }, []);
+  const setSection = useCallback(
+    (next: Section) => {
+      void goTo(next);
+    },
+    [goTo],
+  );
   const [budget, setBudget] = useState<BudgetResponse | null>(null);
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
   // The start screen's middle stage: the first settings read has settled.
@@ -300,7 +343,7 @@ export function App() {
   const openRun = useCallback((id: string) => {
     setRunId(id);
     setSection("runs");
-  }, []);
+  }, [setSection]);
 
   // Switch to a run's space before opening it because pickers are space-scoped.
   const openRunWherever = useCallback(
@@ -339,17 +382,17 @@ export function App() {
   const openNote = useCallback((path: string, heading: string | null) => {
     setNoteRequest((current) => ({ path, heading, nonce: (current?.nonce ?? 0) + 1 }));
     setSection("knowledge");
-  }, []);
+  }, [setSection]);
 
   const openFile = useCallback((path: string) => {
     setNoteRequest((current) => ({ path, heading: null, nonce: (current?.nonce ?? 0) + 1, file: true }));
     setSection("knowledge");
-  }, []);
+  }, [setSection]);
 
   const openMemory = useCallback((path: string) => {
     setNoteRequest((current) => ({ path, heading: null, nonce: (current?.nonce ?? 0) + 1, inbox: true }));
     setSection("knowledge");
-  }, []);
+  }, [setSection]);
 
   const memoryChanged = useCallback(() => {
     setMemoryNonce((current) => current + 1);
@@ -358,7 +401,7 @@ export function App() {
   const automate = useCallback((goal: string) => {
     setScheduleDraft((current) => ({ goal, nonce: (current?.nonce ?? 0) + 1 }));
     setSection("automations");
-  }, []);
+  }, [setSection]);
 
   const tourShowing = tourOpen ?? settings?.settings.onboarding_completed === false;
 
@@ -389,9 +432,11 @@ export function App() {
   const choose = useCallback((next: Section) => {
     setSection(next);
     setDrawerOpen(false);
-  }, []);
+  }, [setSection]);
 
-  // Ctrl/Cmd+digit selects rail section; Ctrl/Cmd+B folds; Escape closes drawer.
+  // The window's shortcuts, from the keyboard map: a section by its digit,
+  // the sidebar, the palette and Settings. Escape closes the drawer.
+  const [paletteOpen, setPaletteOpen] = useState(false);
   useEffect(() => {
     if (status.kind !== "ready") return undefined;
     const onKey = (event: KeyboardEvent) => {
@@ -399,24 +444,129 @@ export function App() {
         setDrawerOpen(false);
         return;
       }
-      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
-      if (event.key === "b" || event.key === "B") {
-        event.preventDefault();
-        toggleRail();
+      const hit = WINDOW_SHORTCUTS.find((entry) => matchesKeys(event, entry.keys));
+      // The shell is never hidden, so its shortcuts hold wherever focus was
+      // left, a hidden section included; only a plain key yields to a field.
+      if (hit === undefined || (hit.keys.mod !== true && shouldIgnoreKey(event.target, hit.keys))) return;
+      event.preventDefault();
+      if (hit.id === "palette") {
+        setPaletteOpen((open) => !open);
         return;
       }
-      const digit = Number.parseInt(event.key, 10);
-      if (Number.isNaN(digit)) return;
-      const target = SECTION_ORDER[digit - 1];
-      if (target === undefined) return;
-      event.preventDefault();
-      setSection(target);
+      setPaletteOpen(false);
+      if (hit.id === "rail") toggleRail();
+      else if (hit.id === "settings") setSection("settings");
+      else {
+        const target = SECTION_ORDER.find((candidate) => hit.id === `section-${candidate}`);
+        if (target !== undefined) setSection(target);
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("keydown", onKey);
     };
-  }, [status.kind, drawer, toggleRail]);
+  }, [status.kind, drawer, toggleRail, setSection]);
+
+  // The command palette's rows. Notes are read when it opens, as Knowledge
+  // rereads its own lists on use; everything else is already in the window.
+  const [agentRequest, setAgentRequest] = useState<{ id: string; nonce: number } | null>(null);
+  const [createSpaceRequest, setCreateSpaceRequest] = useState(0);
+  const [paletteNotes, setPaletteNotes] = useState<{
+    spaceId: string;
+    notes: readonly NoteSummary[];
+    failed: boolean;
+  } | null>(null);
+  useEffect(() => {
+    if (!paletteOpen || spaceId === null) return undefined;
+    let current = true;
+    void api
+      .listKnowledge(spaceId)
+      .then((index) => {
+        if (current) setPaletteNotes({ spaceId, notes: index.notes, failed: false });
+      })
+      .catch(() => {
+        if (current) setPaletteNotes({ spaceId, notes: [], failed: true });
+      });
+    return () => {
+      current = false;
+    };
+  }, [paletteOpen, spaceId]);
+  const agents = useRoster((state) => state.agents);
+  const theme = useThemeStore((state) => state.theme);
+  const setTheme = useThemeStore((state) => state.setTheme);
+  const notesRead = paletteNotes !== null && paletteNotes.spaceId === spaceId ? paletteNotes : null;
+  const paletteStatus =
+    spaceId === null
+      ? undefined
+      : notesRead === null
+        ? "Still reading the notes…"
+        : notesRead.failed
+          ? "The notes could not be read, so none are listed."
+          : undefined;
+  // Each the same act as the control it stands for.
+  const paletteActions = useMemo<PaletteActions>(
+    () => ({
+      section: setSection,
+      startRun: () => {
+        void goTo("home").then(() => {
+          requestAnimationFrame(() => {
+            document.getElementById("goal")?.focus();
+          });
+        });
+      },
+      schedule: () => {
+        automate("");
+      },
+      newSpace: () => {
+        if (narrow) setDrawerOpen(true);
+        setCreateSpaceRequest((current) => current + 1);
+      },
+      toggleRail,
+      theme: setTheme,
+      tour: () => {
+        setTourOpen(true);
+      },
+      portfolio: () => {
+        void goTo("home").then(() => {
+          revealCard("portfolio-editor");
+        });
+      },
+      marketWatch: () => {
+        void goTo("automations").then(() => {
+          revealCard("market-watch");
+        });
+      },
+      space: switchSpace,
+      run: openRun,
+      agent: (id) => {
+        setSection("agents");
+        setAgentRequest((current) => ({ id, nonce: (current?.nonce ?? 0) + 1 }));
+      },
+      note: (path) => {
+        openNote(path, null);
+      },
+    }),
+    [setSection, goTo, automate, narrow, toggleRail, setTheme, switchSpace, openRun, openNote],
+  );
+  // Built only while the palette is open, and again only when what it lists
+  // changes: a live run re-renders the window on every event.
+  const notes = notesRead?.notes;
+  const commands = useMemo(
+    () =>
+      paletteOpen
+        ? paletteCommands({
+            spaces,
+            currentSpaceId: spaceId,
+            runs,
+            agents,
+            notes: notes ?? [],
+            railOpen: !railCollapsed,
+            theme,
+            actions: paletteActions,
+          })
+        : [],
+    [paletteOpen, spaces, spaceId, runs, agents, notes, railCollapsed, theme, paletteActions],
+  );
 
   // Selected space's effective provider and model.
   const effectiveProvider = space?.provider ?? settings?.settings.provider ?? null;
@@ -485,6 +635,7 @@ export function App() {
         spaces={spaces}
         currentSpaceId={spaceId}
         onSelectSpace={switchSpace}
+        createSpaceRequest={createSpaceRequest}
         onSpaceCreated={(created) => {
           void loadSpaces().then(() => {
             switchSpace(created.id);
@@ -522,72 +673,51 @@ export function App() {
           </div>
         )}
 
-        <header className="app__header">
-          <h1 className="app__title">
-            {section === "home" && (space?.name ?? "Home")}
-            {section === "automations" && "Automations"}
-            {section === "runs" && "Runs"}
-            {section === "agents" && "Agents"}
-            {section === "knowledge" && "Knowledge"}
-            {section === "usage" && "Usage"}
-            {section === "space" && "Space settings"}
-            {section === "settings" && "Settings"}
-          </h1>
-
-          <div className="app__workspace">
-            {pendingApprovals.length > 0 && (
-              <button
-                type="button"
-                className="app__waiting"
-                onClick={() => {
-                  const first = pendingApprovals[0];
-                  if (first === undefined) return;
-                  openRunWherever(first.run_id);
-                }}
-              >
-                {pendingApprovals.length} approval{pendingApprovals.length === 1 ? "" : "s"} waiting
-              </button>
-            )}
-            {verified !== null && !verified.ok && (
-              // Show remediation, not just failure.
-              <button
-                type="button"
-                className="app__setup"
-                title={verified.reason ?? "Tasks cannot start until setup is finished."}
-                onClick={() => {
-                  setSection(blockerKind === "space" ? "space" : "settings");
-                }}
-              >
-                Finish setup
-              </button>
-            )}
-            {effectiveProvider !== null && (
-              <span
-                className="app__provider"
-                title={`Tasks in this space use ${providerLabel(effectiveProvider)}'s ${effectiveModel ?? "model"}. An agent can use a model of its own.`}
-                data-testid="header-model"
-              >
-                <span className="app__provider-dot" aria-hidden="true" />
-                {effectiveModel === null ? providerLabel(effectiveProvider) : modelLabel(effectiveModel)}
-              </span>
-            )}
-            <BudgetMeter
-              budget={budget}
-              spaceName={space?.name ?? null}
-              runLimitMicros={space?.max_run_cost_micros ?? settings?.settings.max_run_cost_micros ?? null}
-              onOpenUsage={() => {
-                setSection("usage");
-              }}
-              onOpenSettings={() => {
-                setSection("settings");
-                // The section is shown on the next frame; then go to its limits.
+        <Toolbar
+          title={section === "home" ? (space?.name ?? "Home") : SECTION_LABEL[section]}
+          waiting={pendingApprovals.length}
+          onOpenWaiting={() => {
+            const first = pendingApprovals[0];
+            if (first !== undefined) openRunWherever(first.run_id);
+          }}
+          setup={
+            verified !== null && !verified.ok
+              ? {
+                  reason: verified.reason ?? "Tasks cannot start until setup is finished.",
+                  onFinish: () => {
+                    setSection(blockerKind === "space" ? "space" : "settings");
+                  },
+                }
+              : null
+          }
+          model={
+            effectiveProvider === null
+              ? null
+              : {
+                  label: effectiveModel === null ? providerLabel(effectiveProvider) : modelLabel(effectiveModel),
+                  title: `Tasks in this space use ${providerLabel(effectiveProvider)}'s ${effectiveModel ?? "model"}. An agent can use a model of its own.`,
+                }
+          }
+          meter={{
+            budget,
+            spaceName: space?.name ?? null,
+            runLimitMicros: space?.max_run_cost_micros ?? settings?.settings.max_run_cost_micros ?? null,
+            onOpenUsage: () => {
+              setSection("usage");
+            },
+            onOpenSettings: () => {
+              // Once the section is drawn, go to its limits.
+              void goTo("settings").then(() => {
                 requestAnimationFrame(() => {
                   document.getElementById("settings-budget")?.scrollIntoView({ block: "start" });
                 });
-              }}
-            />
-          </div>
-        </header>
+              });
+            },
+          }}
+          onOpenPalette={() => {
+            setPaletteOpen(true);
+          }}
+        />
 
         <main className="app__body" id="main-content" tabIndex={-1}>
           {/* Every section stays mounted, so the runs section keeps its stream
@@ -639,7 +769,7 @@ export function App() {
           <div className="app__view" hidden={section !== "automations"}>
             <ErrorBoundary label="the automations section">
               {space === null ? (
-                <p className="runs-view__placeholder">Loading the space…</p>
+                <Skeleton label="Loading the space" lines={4} title />
               ) : (
                 <AutomationsView
                   key={space.id}
@@ -678,13 +808,14 @@ export function App() {
                 workspaceProvider={effectiveProvider}
                 spaceId={spaceId}
                 spaces={spaces}
+                openRequest={agentRequest}
               />
             </ErrorBoundary>
           </div>
           <div className="app__view" hidden={section !== "knowledge"}>
             <ErrorBoundary label="the knowledge vault">
               {space === null ? (
-                <p className="runs-view__placeholder">Loading the space…</p>
+                <Skeleton label="Loading the space" lines={4} title />
               ) : (
                 <KnowledgeView
                   key={space.id}
@@ -715,7 +846,7 @@ export function App() {
           <div className="app__view" hidden={section !== "space"}>
             <ErrorBoundary label="the space settings">
               {space === null ? (
-                <p className="runs-view__placeholder">Loading the space…</p>
+                <Skeleton label="Loading the space" lines={4} title />
               ) : (
                 <SpaceSettingsView
                   space={space}
@@ -751,6 +882,14 @@ export function App() {
           </div>
         </main>
       </div>
+      <CommandPalette
+        open={paletteOpen}
+        commands={commands}
+        status={paletteStatus}
+        onClose={() => {
+          setPaletteOpen(false);
+        }}
+      />
       <Tour open={tourShowing} section={section} onSection={setSection} onClose={closeTour} onDemo={demoRun} />
     </div>
   );

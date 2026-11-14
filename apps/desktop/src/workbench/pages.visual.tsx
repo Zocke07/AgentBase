@@ -33,6 +33,7 @@ const DARK_TOO: ReadonlySet<string> = new Set([
   "controls",
   "primitives",
   "rail",
+  "shell",
   "office-two-agents",
   "office-shell-question",
   "office-stuck-worker",

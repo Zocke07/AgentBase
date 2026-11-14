@@ -233,6 +233,89 @@ interface Conditions {
   reducedMotion: boolean;
 }
 
+/** How many Tab presses a section gets before what is left counts as unreached. */
+const TAB_LIMIT = 400;
+
+/**
+ * Stage 20.3's keyboard condition: in every section, and in a run's view,
+ * each control that can be seen is reached by Tab. Groups that hold one
+ * stop and move with the arrows (desks, menus, a tab list) keep their
+ * other members at `tabindex="-1"`, which this leaves out by design; a
+ * radio group's stop is its checked choice.
+ */
+async function keyboardPass(browser: Browser, seeded: Seed): Promise<string[]> {
+  const unreached: string[] = [];
+  const context = await browser.newContext({ viewport: { width: 1100, height: 800 }, deviceScaleFactor: 1, locale: "en-US", timezoneId: "UTC" });
+  const page = await context.newPage();
+  await page.clock.setFixedTime(new Date(seeded.now));
+  await page.addInitScript(STILL);
+  await page.goto(PAGE);
+  await page.locator('[data-testid="rail"]').waitFor({ timeout: 60_000 });
+
+  const check = async (name: string) => {
+    await settle(page);
+    const wanted = await page.evaluate(() => {
+      const selector = 'a[href], button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])';
+      const all = [...document.querySelectorAll<HTMLElement>(selector)].filter(
+        (element) =>
+          !element.matches(":disabled, [tabindex='-1']") &&
+          element.closest("[hidden], [inert], [aria-hidden='true']") === null &&
+          element.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) &&
+          element.getBoundingClientRect().width > 0 &&
+          // A radio group is one stop, its checked choice; the arrows move
+          // between the others, as the platform's own groups do.
+          !(
+            element instanceof HTMLInputElement &&
+            element.type === "radio" &&
+            !element.checked &&
+            [...document.querySelectorAll<HTMLInputElement>(`input[type="radio"][name="${CSS.escape(element.name)}"]`)].some(
+              (other) => other.checked,
+            )
+          ),
+      );
+      all.forEach((element, index) => {
+        element.dataset.kb = String(index);
+      });
+      return all.map((element) => {
+        const named = element.getAttribute("aria-label") ?? element.textContent.trim().slice(0, 40);
+        if (named !== "") return named;
+        const label = element instanceof HTMLInputElement ? (element.labels?.[0]?.textContent ?? "").trim().slice(0, 40) : "";
+        return label !== "" ? label : element.outerHTML.slice(0, 120);
+      });
+    });
+    const reached = new Set<string>();
+    await page.evaluate(() => {
+      (document.activeElement as HTMLElement | null)?.blur();
+    });
+    for (let press = 0; press < TAB_LIMIT && reached.size < wanted.length; press += 1) {
+      await page.keyboard.press("Tab");
+      const at = await page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.kb ?? null);
+      if (at !== null) reached.add(at);
+    }
+    wanted.forEach((label, index) => {
+      if (!reached.has(String(index))) unreached.push(`${name}: "${label}" is never reached by Tab`);
+    });
+    await page.evaluate(() => {
+      for (const element of document.querySelectorAll<HTMLElement>("[data-kb]")) delete element.dataset.kb;
+    });
+  };
+
+  for (const [index, section] of SECTION_ORDER.entries()) {
+    await page.keyboard.press(`Control+${String(index + 1)}`);
+    await check(section);
+    if (section === "runs") {
+      await page.locator(`[data-testid$="-${seeded.runId}"]:visible`).first().click();
+      await page.locator('[data-testid="office"]:visible').waitFor();
+      await check("run");
+    }
+  }
+  await context.close();
+  return unreached;
+}
+
+/** Places found wider than their box, said at the end of a run. */
+const overflows: string[] = [];
+
 async function capture(browser: Browser, folder: string, seeded: Seed, conditions: Conditions): Promise<number> {
   let count = 0;
   for (const theme of THEMES) {
@@ -256,6 +339,22 @@ async function capture(browser: Browser, folder: string, seeded: Seed, condition
       const take = async (name: string) => {
         await shot(page, folder, `${name}-${tag}`);
         count += 1;
+        // Brief 10, stage 20.3: nothing scrolls sideways or is cut off at the
+        // window's edge. The window, the shell's columns and the showing
+        // section must each fit their width; a list or a table may still
+        // scroll inside itself.
+        const wide = await page.evaluate(() => {
+          const over = (element: Element | null) => element !== null && element.scrollWidth > element.clientWidth + 1;
+          const places: [string, Element | null][] = [
+            ["the window", document.scrollingElement],
+            ["the main column", document.querySelector(".app__main")],
+            ["the section", document.querySelector(".app__view:not([hidden])")],
+            ["the toolbar", document.querySelector(".toolbar")],
+            ["the rail", document.querySelector(".rail")],
+          ];
+          return places.filter(([, element]) => over(element)).map(([where]) => where);
+        });
+        for (const where of wide) overflows.push(`${name}-${tag}: ${where} is wider than its box`);
       };
 
       // Rail order is also each section's Ctrl+digit shortcut.
@@ -479,6 +578,17 @@ async function main(): Promise<number> {
     await mkdir(folder, { recursive: true });
     const count = await capture(browser, folder, seeded, conditions);
     console.error(`${String(count)} screenshots in ${folder}`);
+    const unreached = await keyboardPass(browser, seeded);
+    if (unreached.length > 0) {
+      console.error(`Not reached by the keyboard:\n  ${unreached.join("\n  ")}`);
+      return 1;
+    }
+    console.error("Every control that can be seen in every section is reached by Tab.");
+    if (overflows.length > 0) {
+      console.error(`Wider than the window allows:\n  ${overflows.join("\n  ")}`);
+      return 1;
+    }
+    console.error("Nothing is wider than its window, column or section.");
     return 0;
   } finally {
     await browser?.close();

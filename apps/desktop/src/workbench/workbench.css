@@ -574,3 +574,46 @@
   border-radius: var(--radius-control);
   background: var(--office-floor);
 }
+
+/* A window stood in for by a frame: the shell's grid fills it, not the
+   viewport. */
+.wb-frame__window {
+  max-width: 100%;
+  overflow: hidden;
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-card);
+}
+
+.wb-frame__window .app {
+  height: 100%;
+}
+
+.wb-shell__body {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+/* Stand-ins for macOS's three window controls, where `trafficLightPosition`
+   in `tauri.macos.conf.json` puts them, so the overlaid title bar can be
+   judged here. The real ones are drawn by the system. */
+.wb-frame__window {
+  position: relative;
+}
+
+.wb-traffic {
+  position: absolute;
+  top: 20px;
+  left: 18px;
+  z-index: 1;
+  display: flex;
+  gap: 8px;
+}
+
+.wb-traffic > span {
+  width: 12px;
+  height: 12px;
+  border: var(--hairline) solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--fill-strong);
+}

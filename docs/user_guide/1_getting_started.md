@@ -98,6 +98,22 @@ click elsewhere closes it; hover the figure for the ledger's exact amounts. Whil
 setup is unfinished, **Finish setup** opens Settings. Switching spaces changes
 what you see; it does not stop runs already in progress.
 
+The magnifying glass at the header's right end, or Ctrl+K (⌘K on a Mac),
+opens **Find anything**: type part of a section, an action (**Run once**,
+**Make a schedule**, **New space**, the appearance, the tour), another
+space, a run's title or goal, an agent or a note, and press Enter. In Main
+it also offers **Edit my portfolio** and **Market watch**. Arrow keys move
+through the results and Esc closes it. Ctrl+, (⌘, on a Mac) opens Settings,
+and Ctrl/Cmd+1 to 8 open the sections in the rail's order.
+
+Right-clicking a run in a list, an agent in **Agents**, a note or folder in
+Knowledge's tree, or a desk in a run's office opens a short menu of what
+that thing already offers (open it, stop or delete the open run, turn an
+agent on or off, fold or delete a folder, inspect a desk). Shift+F10 or the
+keyboard's Menu key opens the same menu for whatever has focus. On a Mac,
+the window's three buttons sit in the header row, and dragging the header's
+empty space moves the window.
+
 A fresh install has no cloud key. **Home** says so in **One step before
 your first run** and offers **Open settings**. **Try a demo run** in that
 notice shows a scripted run without calling a model or using a key.

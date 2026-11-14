@@ -1,0 +1,68 @@
+/* --- the inspector (brief 6.3) ----------------------------------------------
+
+   A pane at a section's right edge for what is selected in it: a title row
+   with a close button, a handle on its left edge, and groups that fold. An
+   owner sets the width and says where it goes when its section is narrow. */
+
+.inspector {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  border-left: var(--hairline) solid var(--separator);
+  background: var(--content);
+  font-size: var(--size-control);
+}
+
+.inspector:focus {
+  outline: none;
+}
+
+.inspector__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-3) var(--space-2) var(--space-4);
+  background: var(--content);
+}
+
+.inspector__titles {
+  min-width: 0;
+}
+
+.inspector__title {
+  overflow-wrap: anywhere;
+  font-size: var(--size-headline);
+}
+
+.inspector__subtitle {
+  margin: var(--space-1) 0 0;
+  color: var(--muted);
+  font-size: var(--size-control);
+}
+
+.inspector__body {
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.inspector__group {
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: var(--hairline) solid var(--separator);
+}
+
+.inspector__group-title {
+  color: var(--muted);
+  font-size: var(--size-caption);
+  font-weight: 600;
+}
+
+.inspector__group-body {
+  margin-top: var(--space-2);
+}

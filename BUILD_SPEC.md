@@ -1818,7 +1818,12 @@ recommended defaults D1 to D9, all accepted):
    2026-11-12: see docs/verification.md.)*
 2. **20.2 Tokens, type, icons and primitives.** *(Built 2026-11-13: see
    docs/verification.md.)*
-3. **20.3 The shell.** *(The keyboard map is built; the rest is not.)*
+3. **20.3 The shell.** *(Built on 2026-11-14: the toolbar, the command
+   palette, the rail, context menus, the inspector in Runs, section 6.7's
+   details, view transitions, the inactive-window state, and the macOS
+   title bar's configuration with `core:window:allow-start-dragging`,
+   security-reviewed. Not accepted: the maintainer's look at the title bar
+   on both platforms. The inspector in Agents and Knowledge moved to 20.6.)*
 4. **20.4 The office, at rest.** *(Built in part on 2026-11-13 and 14:
    the projection, the layout, the scene and its tests. The run view
    opened on Office beside Diagram from 2026-11-14, when the maintainer

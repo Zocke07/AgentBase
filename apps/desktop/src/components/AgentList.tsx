@@ -2,6 +2,7 @@ import type { AgentDef } from "@agentbase/schemas";
 import { useState } from "react";
 
 import { Skeleton } from "./Skeleton";
+import { useContextMenu } from "./ui/ContextMenu";
 
 /**
  * Roster of enabled and disabled definitions. Toggle determines supervisor
@@ -35,6 +36,39 @@ export function AgentList({
   busyId,
 }: AgentListProps) {
   const [confirming, setConfirming] = useState<string | null>(null);
+  // The row's own actions, from a right-click or the keyboard's menu key.
+  const context = useContextMenu("Agent", (element) => {
+    const agent = agents.find((candidate) => candidate.id === element.dataset.agentId);
+    if (agent === undefined) return [];
+    const busy = busyId === agent.id;
+    return [
+      {
+        id: "edit",
+        label: "Edit",
+        onSelect: () => {
+          onSelect(agent.id);
+        },
+      },
+      {
+        id: "enabled",
+        label: agent.enabled === false ? "Make available to the supervisor" : "Make unavailable to the supervisor",
+        disabled: busy,
+        onSelect: () => {
+          onToggleEnabled(agent);
+        },
+      },
+      { id: "gap", separator: true },
+      {
+        id: "delete",
+        label: "Delete…",
+        danger: true,
+        disabled: busy,
+        onSelect: () => {
+          setConfirming(agent.id);
+        },
+      },
+    ];
+  });
 
   return (
     <section className="roster" data-testid="agent-list">
@@ -70,9 +104,11 @@ export function AgentList({
             <button
               type="button"
               className="roster__open"
+              data-agent-id={agent.id}
               onClick={() => {
                 onSelect(agent.id);
               }}
+              {...context.trigger}
             >
               <span className="roster__name">
                 {agent.name}
@@ -146,6 +182,7 @@ export function AgentList({
           </li>
         ))}
       </ul>
+      {context.menu}
     </section>
   );
 }

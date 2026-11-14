@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { useContextMenu } from "./ContextMenu";
 import { MenuButton, type MenuItem } from "./Menu";
 import { Popover } from "./Popover";
 import { Sheet } from "./Sheet";
@@ -344,6 +345,95 @@ function SheetHarness({ blocking = false }: { blocking?: boolean }) {
     </>
   );
 }
+
+function ContextHarness({ onOpen, onRename }: { onOpen: (name: string) => void; onRename: () => void }) {
+  const context = useContextMenu(
+    "File",
+    (element) =>
+      element.dataset.name === undefined
+        ? []
+        : [
+            {
+              id: "open",
+              label: "Open",
+              onSelect: () => {
+                onOpen(element.dataset.name ?? "");
+              },
+            },
+            { id: "rename", label: "Rename", disabled: true, onSelect: onRename },
+          ],
+    "[data-name]",
+  );
+  return (
+    <>
+      <ul {...context.trigger}>
+        <li>
+          <button type="button" data-name="notes.md">
+            notes.md
+          </button>
+        </li>
+        <li>
+          <button type="button">No menu here</button>
+        </li>
+      </ul>
+      {context.menu}
+    </>
+  );
+}
+
+describe("context menu", () => {
+  it("opens on a right-click at the pointer, and does what its row says", async () => {
+    const user = userEvent.setup();
+    const onOpen = vi.fn();
+    render(<ContextHarness onOpen={onOpen} onRename={vi.fn()} />);
+    await user.pointer({ keys: "[MouseRight]", target: screen.getByRole("button", { name: "notes.md" }) });
+
+    const menu = await screen.findByRole("menu", { name: "File" });
+    expect(document.activeElement).toBe(within(menu).getByRole("menuitem", { name: "Open" }));
+    await user.keyboard("{Enter}");
+    expect(onOpen).toHaveBeenCalledWith("notes.md");
+  });
+
+  it("opens from the keyboard with Shift+F10 or the Menu key, and gives focus back on Escape", async () => {
+    const user = userEvent.setup();
+    render(<ContextHarness onOpen={vi.fn()} onRename={vi.fn()} />);
+    const file = screen.getByRole("button", { name: "notes.md" });
+    file.focus();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    expect(await screen.findByRole("menu", { name: "File" })).toBeDefined();
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(document.activeElement).toBe(file);
+    });
+
+    await user.keyboard("{ContextMenu}");
+    const menu = await screen.findByRole("menu", { name: "File" });
+    // A row that cannot be used now is still there, and says so.
+    expect(within(menu).getByRole("menuitem", { name: "Rename" }).getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("closes when the section it was opened in is hidden", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <div data-testid="section">
+        <ContextHarness onOpen={vi.fn()} onRename={vi.fn()} />
+      </div>,
+    );
+    await user.pointer({ keys: "[MouseRight]", target: screen.getByRole("button", { name: "notes.md" }) });
+    expect(await screen.findByRole("menu", { name: "File" })).toBeDefined();
+    container.querySelector('[data-testid="section"]')?.setAttribute("hidden", "");
+    await waitFor(() => {
+      expect(screen.queryByRole("menu")).toBeNull();
+    });
+  });
+
+  it("does not open over something without actions", async () => {
+    const user = userEvent.setup();
+    render(<ContextHarness onOpen={vi.fn()} onRename={vi.fn()} />);
+    await user.pointer({ keys: "[MouseRight]", target: screen.getByRole("button", { name: "No menu here" }) });
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+});
 
 describe("Sheet", () => {
   it("is a modal dialog named by its title, with focus inside", async () => {

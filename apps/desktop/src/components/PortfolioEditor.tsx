@@ -5,6 +5,7 @@ import * as api from "../lib/api";
 import { failureMessage } from "../lib/errors";
 import { useFetched } from "../state/useFetched";
 
+import { Skeleton } from "./Skeleton";
 import "./PortfolioEditor.css";
 
 type FormData = PersonalPortfolio;
@@ -175,7 +176,7 @@ export function PortfolioEditor({ spaceId, onSaved, reloadNonce = 0, running = f
         <div><h2 className="card__title">My portfolio</h2><p>Your holdings, cash and limits for this space&apos;s stock research.</p></div>
         {!editing && base !== null && <button type="button" className="button" disabled={loading} onClick={() => { setEditing(true); setSaved(false); }}>Edit portfolio</button>}
       </div>
-      {loading && <p role="status">Loading your portfolio…</p>}
+      {loading && <Skeleton label="Loading your portfolio" lines={3} />}
       {saved && <p className="settings__saved" role="status">Portfolio saved. Upcoming runs will use these details.</p>}
       {error !== null && <div role="alert"><p className="field-error">{error}</p>
         <button type="button" className="button" disabled={saving || loading} onClick={() => void load(true)}>{drafts.has(spaceId) ? "Reload and discard edits" : "Try again"}</button>

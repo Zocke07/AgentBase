@@ -9,6 +9,7 @@ import { IconsPage } from "./pages/IconsPage";
 import { PrimitivesPage } from "./pages/PrimitivesPage";
 import { RailPage } from "./pages/RailPage";
 import { ShapePage } from "./pages/ShapePage";
+import { PalettePage, ShellPage } from "./pages/ShellPage";
 import { TokensPage } from "./pages/TokensPage";
 import { TypePage } from "./pages/TypePage";
 
@@ -100,6 +101,22 @@ export const PAGES: readonly WorkbenchPage[] = [
     layout: "flow",
     about: "The left rail, open and folded.",
     render: () => <RailPage />,
+  },
+  {
+    id: "shell",
+    title: "Shell",
+    group: "Components",
+    layout: "flow",
+    about: "The window's frame: the rail and the toolbar, at the smallest window and at a wide one with everything the toolbar carries.",
+    render: () => <ShellPage />,
+  },
+  {
+    id: "palette",
+    title: "Command palette",
+    group: "Components",
+    layout: "flow",
+    about: "The command palette open, before anything is typed, over the smallest window.",
+    render: () => <PalettePage />,
   },
   {
     id: "office-characters",

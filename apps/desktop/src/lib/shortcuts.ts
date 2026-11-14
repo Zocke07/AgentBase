@@ -1,5 +1,5 @@
 import type { Platform } from "./platform";
-import { SECTION_ORDER } from "./sections";
+import { SECTION_LABEL, SECTION_ORDER } from "./sections";
 
 /**
  * The keyboard map (Phase 20, brief 6.5): every shortcut in one table, with
@@ -30,23 +30,12 @@ export interface Shortcut {
   readonly scope: ShortcutScope;
 }
 
-const SECTION_LABEL: Readonly<Record<string, string>> = {
-  home: "Home",
-  automations: "Automations",
-  runs: "Runs",
-  agents: "Agents",
-  knowledge: "Knowledge",
-  usage: "Usage",
-  space: "Space settings",
-  settings: "Settings",
-};
-
 export const SHORTCUTS: readonly Shortcut[] = [
   ...SECTION_ORDER.map(
     (section, index): Shortcut => ({
       id: `section-${section}`,
       keys: { key: String(index + 1), mod: true },
-      label: `Go to ${SECTION_LABEL[section] ?? section}`,
+      label: `Go to ${SECTION_LABEL[section]}`,
       scope: "window",
     }),
   ),
@@ -135,5 +124,13 @@ export function shouldIgnoreKey(target: EventTarget | null, keys: Keys): boolean
   if (!(target instanceof Element)) return false;
   if (target.closest("[hidden]") !== null) return true;
   if (keys.mod === true) return false;
-  return target.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]') !== null;
+  return isEditable(target);
+}
+
+/** Whether the target is, or is inside, a field someone types in. */
+export function isEditable(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    target.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"]') !== null
+  );
 }

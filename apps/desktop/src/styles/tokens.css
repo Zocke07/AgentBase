@@ -15,7 +15,9 @@
  *              and sits on a plane, a control, --fill or --fill-hover; on
  *              a selected or strong fill use --muted or --text.
  * Accent       --accent fills and marks; --accent-strong is the accent as
- *              text; --accent-soft a tint; --accent-line a tinted edge.
+ *              text; --accent-soft a tint; --accent-line a tinted edge;
+ *              --focus-ring the keyboard's ring: the accent made lighter,
+ *              as far as a 3:1 ring on every plane allows.
  * Status       --good, --bad, --warn, --info as text and marks, each with a
  *              -soft tint and a -line edge, and an --on- colour for text on
  *              a solid fill of it. --warn-tint and --info-tint are stronger
@@ -59,6 +61,7 @@
   --accent-strong: #9c4218;
   --accent-soft: rgb(184 80 30 / 12%);
   --accent-line: rgb(184 80 30 / 45%);
+  --focus-ring: rgb(184 80 30 / 80%);
   --on-accent: #ffffff;
 
   /* The product mark keeps one identity instead of borrowing status colours. */
@@ -245,6 +248,7 @@
     --accent-strong: #ffa672;
     --accent-soft: rgb(255 143 82 / 14%);
     --accent-line: rgb(255 143 82 / 45%);
+    --focus-ring: rgb(255 143 82 / 60%);
     --on-accent: #1a0f06;
 
     --brand-lead: #ff8f52;
@@ -333,6 +337,7 @@
   --accent-strong: #ffa672;
   --accent-soft: rgb(255 143 82 / 14%);
   --accent-line: rgb(255 143 82 / 45%);
+  --focus-ring: rgb(255 143 82 / 60%);
   --on-accent: #1a0f06;
 
   --brand-lead: #ff8f52;

@@ -100,7 +100,9 @@ set, so an app-default change may not auto-approve a run.
 ## Debugging the frontend
 
 Run `just dev-desktop`, open `http://127.0.0.1:5173`, and keep the console
-open. Phase 7's missing-handoff-edge bug, in the run diagram retired on
+open. The app suppresses the webview's own context menu outside fields and
+selected text (`lib/nativeMenu.ts`); in a development build, hold Alt
+(Option) as you right-click to get it, and its Inspect Element, anywhere. Phase 7's missing-handoff-edge bug, in the run diagram retired on
 2026-11-14, appeared only as a React Flow warning while every test passed.
 
 ### Where state lives

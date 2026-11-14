@@ -110,13 +110,17 @@ function PopoverPanel({
   panelRef,
   heldFocusRef,
   focusBackRef,
+  returnFocus,
 }: PanelProps) {
   const close = useEffectEvent((reason: PopoverCloseReason) => {
     onClose(reason);
   });
+  // Where the panel came from, for closing it when that is hidden: the
+  // element focus returns to when there is one (a context menu's anchor is
+  // a point in the body, its thing is in a section).
   const layer = useLayer(
     open,
-    () => anchor.current,
+    () => returnFocus?.current ?? anchor.current,
     () => {
       onClose("outside");
     },

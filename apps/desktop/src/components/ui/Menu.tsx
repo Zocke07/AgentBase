@@ -41,6 +41,8 @@ export interface MenuProps {
   /** Called when the menu should close, a chosen row included. */
   onClose: () => void;
   anchor: RefObject<HTMLElement | null>;
+  /** Where focus returns on closing, when the anchor takes none (a context menu's point). */
+  returnFocus?: RefObject<HTMLElement | null> | undefined;
   label: string;
   items: readonly MenuItem[];
   side?: Side | undefined;
@@ -52,7 +54,7 @@ export interface MenuProps {
 /** How long typed letters stay together as one search. */
 const TYPE_AHEAD_MS = 500;
 
-export function Menu({ open, onClose, anchor, label, items, side, align, id, testId }: MenuProps) {
+export function Menu({ open, onClose, anchor, returnFocus, label, items, side, align, id, testId }: MenuProps) {
   const list = useRef<HTMLDivElement>(null);
   const typed = useRef({ text: "", at: 0 });
 
@@ -109,6 +111,7 @@ export function Menu({ open, onClose, anchor, label, items, side, align, id, tes
       open={open}
       onClose={onClose}
       anchor={anchor}
+      returnFocus={returnFocus}
       side={side}
       align={align}
       role="menu"

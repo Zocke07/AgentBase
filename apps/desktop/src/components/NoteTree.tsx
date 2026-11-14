@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 
 import { scrollToActive } from "../lib/scroll";
 
+import { useContextMenu } from "./ui/ContextMenu";
+
 /**
  * Obsidian-style vault folders with window-local fold state. Notes are
  * title-named buttons for visual and screen-reader use.
@@ -74,6 +76,49 @@ export function NoteTree({ notes, activePath, onOpen, onDeleteFolder }: NoteTree
     });
   };
 
+  // A row's own actions, from a right-click or the keyboard's menu key.
+  const context = useContextMenu("Note", (element) => {
+    const note = element.dataset.note;
+    if (note !== undefined) {
+      return [
+        {
+          id: "open",
+          label: "Open",
+          onSelect: () => {
+            onOpen(note);
+          },
+        },
+      ];
+    }
+    const folder = element.dataset.folder;
+    if (folder === undefined) return [];
+    const open = element.getAttribute("aria-expanded") === "true";
+    const count = Number(element.dataset.count ?? "0");
+    return [
+      {
+        id: "fold",
+        label: open ? "Fold" : "Unfold",
+        onSelect: () => {
+          toggle(folder);
+        },
+      },
+      ...(onDeleteFolder === undefined
+        ? []
+        : [
+            { id: "gap", separator: true as const },
+            {
+              id: "delete",
+              label: "Delete the folder…",
+              danger: true,
+              onSelect: () => {
+                onDeleteFolder(folder, count);
+              },
+            },
+          ]),
+    ];
+  });
+
+
   const renderFolder = (folder: Folder, depth: number) => (
     <>
       {folder.folders.map((child) => {
@@ -86,9 +131,12 @@ export function NoteTree({ notes, activePath, onOpen, onDeleteFolder }: NoteTree
                 className="tree__folder"
                 style={{ paddingLeft: `${String(0.5 + depth * 0.85)}rem` }}
                 aria-expanded={open}
+                data-folder={child.path}
+                data-count={countNotes(child)}
                 onClick={() => {
                   toggle(child.path);
                 }}
+                {...context.trigger}
               >
                 <span className={`tree__chevron${open ? " tree__chevron--open" : ""}`} aria-hidden="true" />
                 <span className="tree__name">{child.name}</span>
@@ -120,9 +168,11 @@ export function NoteTree({ notes, activePath, onOpen, onDeleteFolder }: NoteTree
             style={{ paddingLeft: `${String(0.5 + depth * 0.85 + 0.9)}rem` }}
             aria-current={note.path === activePath ? "true" : undefined}
             title={note.excerpt === "" ? note.path : `${note.path}\n${note.excerpt}`}
+            data-note={note.path}
             onClick={() => {
               onOpen(note.path);
             }}
+            {...context.trigger}
           >
             {note.pinned === true && (
               <span className="tree__pin" aria-label="Pinned">
@@ -143,9 +193,12 @@ export function NoteTree({ notes, activePath, onOpen, onDeleteFolder }: NoteTree
   );
 
   return (
-    <ul className="tree" aria-label="Notes" ref={treeRef}>
-      {renderFolder(tree, 0)}
-    </ul>
+    <>
+      <ul className="tree" aria-label="Notes" ref={treeRef}>
+        {renderFolder(tree, 0)}
+      </ul>
+      {context.menu}
+    </>
   );
 }
 

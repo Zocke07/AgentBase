@@ -182,6 +182,25 @@ describe("text contrast", () => {
   });
 });
 
+describe("the pointer", () => {
+  // Brief 6.7: controls keep the arrow, as in a native app; the hand is for
+  // links. These are the rules that draw a link.
+  const LINKS = new Set([".link", ".link-button", "button.md__wikilink", "button.md__tag", ".citation"]);
+
+  it("shows the hand only over a link", () => {
+    const pointing: string[] = [];
+    for (const path of sources([".css"])) {
+      const css = withoutComments(readFileSync(join(SRC, path), "utf8"));
+      for (const [, selector = "", body = ""] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        if (!/cursor\s*:\s*pointer/.test(body)) continue;
+        const name = selector.replace(/\s+/g, " ").trim();
+        if (!LINKS.has(name)) pointing.push(`${path}: ${name}`);
+      }
+    }
+    expect(pointing).toEqual([]);
+  });
+});
+
 describe("React Flow", () => {
   /* Its stylesheet positions every node; without it a graph draws as a
      stack in a corner, and nothing in the tests draws one. It came with the

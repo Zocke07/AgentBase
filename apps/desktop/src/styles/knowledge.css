@@ -102,7 +102,6 @@
   font-weight: 600;
   line-height: 1.2;
   overflow-wrap: break-word;
-  cursor: pointer;
 }
 
 .knowledge__sections button:hover {
@@ -218,7 +217,6 @@
   font-size: var(--size-caption);
   line-height: 1.2;
   overflow-wrap: break-word;
-  cursor: pointer;
 }
 
 .knowledge__browser-tabs button:last-child:nth-child(odd) {
@@ -274,9 +272,6 @@
   font-size: var(--size-caption);
 }
 
-.knowledge__advanced summary {
-  cursor: pointer;
-}
 
 .knowledge__filters {
   display: grid;
@@ -321,7 +316,6 @@
   color: var(--muted);
   font: inherit;
   font-size: var(--size-caption);
-  cursor: pointer;
 }
 
 .knowledge__chip span {
@@ -367,7 +361,6 @@
   font: inherit;
   font-size: var(--size-caption);
   text-align: left;
-  cursor: pointer;
 }
 
 .tree__folder-row {
@@ -394,7 +387,6 @@
   font-size: var(--size-caption);
   line-height: 1;
   opacity: 0;
-  cursor: pointer;
 }
 
 .tree__folder-row:hover .tree__folder-delete,
@@ -486,7 +478,6 @@
   color: var(--text);
   font: inherit;
   text-align: left;
-  cursor: pointer;
 }
 
 .knowledge__result:hover {
@@ -657,7 +648,6 @@
   font: inherit;
   font-size: var(--size-caption);
   overflow-wrap: anywhere;
-  cursor: pointer;
 }
 
 .knowledge__memory-filters button[aria-pressed="true"] {
@@ -677,7 +667,6 @@
   width: max-content;
   max-width: 100%;
   color: var(--muted);
-  cursor: pointer;
 }
 
 .knowledge__memory-organize[open],
@@ -787,7 +776,6 @@
   color: var(--muted);
   font: inherit;
   font-size: var(--size-caption);
-  cursor: pointer;
 }
 
 .knowledge__modes button:disabled {
@@ -897,7 +885,6 @@
   border-color: transparent;
   background: var(--info-soft);
   color: var(--info);
-  cursor: pointer;
 }
 
 .knowledge__tag:hover {
@@ -912,7 +899,6 @@
 }
 
 .knowledge__relation {
-  cursor: pointer;
   text-align: left;
 }
 
@@ -973,7 +959,6 @@
   color: var(--muted);
   font: inherit;
   font-size: var(--size-caption);
-  cursor: pointer;
 }
 
 .source__bar button:hover {
@@ -1055,7 +1040,6 @@
   font: inherit;
   font-size: var(--size-caption);
   text-align: left;
-  cursor: pointer;
 }
 
 .source__completion small {
@@ -1080,9 +1064,6 @@
   margin: 0;
 }
 
-.knowledge__preview .md__task-box input:not(:disabled) {
-  cursor: pointer;
-}
 
 /* Links beneath the note. */
 .knowledge__links {
@@ -1111,7 +1092,6 @@
   font-size: var(--size-caption);
   font-weight: 600;
   text-align: left;
-  cursor: pointer;
 }
 
 .knowledge__links-count {
@@ -1192,82 +1172,11 @@
   background: transparent;
   color: var(--muted);
   font: inherit;
-  cursor: pointer;
 }
 
 .knowledge__toast button:hover {
   background: var(--fill-hover);
   color: var(--text);
-}
-
-/* The quick switcher. */
-/* The note palette is a `Sheet` near the window's top edge: its field and
-   its list reach the sheet's own edges. */
-.palette__panel {
-  max-height: 70vh;
-}
-
-.palette__panel .sheet__body {
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-}
-
-.palette__input {
-  padding: 0.8rem 1rem;
-  border: 0;
-  border-bottom: var(--hairline) solid var(--separator);
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-size: var(--size-body);
-  outline: none;
-}
-
-.palette__list {
-  margin: 0;
-  padding: 0.3rem;
-  overflow: auto;
-  list-style: none;
-}
-
-.palette__row {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  padding: 0.45rem 0.7rem;
-  border: 0;
-  border-radius: var(--radius-control);
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.palette__row--selected {
-  background: var(--accent-soft);
-}
-
-.palette__row--create .palette__title {
-  color: var(--accent-strong);
-}
-
-.palette__title {
-  font-size: var(--size-control);
-  font-weight: 500;
-}
-
-.palette__path {
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: var(--size-caption);
-}
-
-.palette__empty {
-  padding: 0.75rem;
-  color: var(--muted);
-  font-size: var(--size-control);
 }
 
 /* The graph. */
@@ -1309,9 +1218,6 @@
   --xy-attribution-background-color: transparent;
 }
 
-.knowledge__graph .react-flow__node {
-  cursor: pointer;
-}
 
 .note-bubble {
   display: flex;
@@ -1541,7 +1447,6 @@
 }
 
 .run-summary__context summary {
-  cursor: pointer;
   color: var(--muted);
 }
 
@@ -1589,7 +1494,6 @@
   color: var(--accent-strong);
   font-size: var(--size-caption);
   font-weight: 500;
-  cursor: pointer;
 }
 
 .claim__fold:hover {

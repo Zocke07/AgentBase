@@ -21,11 +21,17 @@ export interface SplitterProps {
   label: string;
   /** Handle side; size grows toward it. */
   side: "end" | "start";
+  /**
+   * The stylesheet's size, announced while the viewer has chosen none. With
+   * it the handle's markup never depends on a measurement, so a tree drawn
+   * once and one drawn again agree; without it the handle measures.
+   */
+  fallback?: number | undefined;
 }
 
 const STEP = 24;
 
-export function Splitter({ axis, value, measure, min, max, onChange, label, side }: SplitterProps) {
+export function Splitter({ axis, value, measure, min, max, onChange, label, side, fallback }: SplitterProps) {
   const drag = useRef<{ from: number; size: number } | null>(null);
   const clamp = (size: number) => Math.min(max(), Math.max(min, Math.round(size)));
   // Start-edge handles grow in reverse direction.
@@ -50,7 +56,7 @@ export function Splitter({ axis, value, measure, min, max, onChange, label, side
       role="separator"
       aria-orientation={axis === "x" ? "vertical" : "horizontal"}
       aria-label={label}
-      aria-valuenow={value ?? measure()}
+      aria-valuenow={value ?? fallback ?? measure()}
       tabIndex={0}
       className={`splitter splitter--${axis} splitter--${side}`}
       title="Drag to resize. Double-click to reset."

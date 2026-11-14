@@ -74,13 +74,13 @@
     justify-content: flex-start;
   }
 
-  .app__header {
-    gap: 0.75rem;
-    padding: 0.5rem 1rem;
+  .toolbar {
+    gap: var(--space-3);
+    padding: 0 var(--space-4);
   }
 
-  .app__workspace {
-    gap: 0.6rem;
+  .toolbar__global {
+    gap: var(--space-2);
   }
 
   .budget__label {
@@ -152,7 +152,6 @@
   color: var(--text);
   font: inherit;
   font-weight: 600;
-  cursor: pointer;
   transition: background-color var(--dur-quick) var(--ease-out);
 }
 

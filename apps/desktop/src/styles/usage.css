@@ -48,7 +48,6 @@
   background: var(--control);
   color: var(--muted);
   font-size: var(--size-caption);
-  cursor: pointer;
 }
 
 .usage__scope-choice--on {

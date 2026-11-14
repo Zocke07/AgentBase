@@ -61,13 +61,25 @@ dark by system, dark by choice). No other file names a colour or uses
   one, copy its shapes from Lucide into `icons/paths.ts`. Never inline an SVG
   icon, and vendor only what is used (a test checks).
 - `components/ui/`: `Popover` (anchored panel), `Menu` and `MenuButton`,
-  `Sheet` (modal), `IconButton`, `Switch`, `Segmented`. They own focus,
-  Escape, outside presses and ARIA; do not rebuild those per component.
+  `useContextMenu` (right-click, Shift+F10, Menu key; one hook can serve a
+  list through `within` and a data attribute), `Sheet` (modal),
+  `Inspector` and `InspectorGroup` (a section's right pane), `IconButton`,
+  `Switch`, `Segmented`. They own focus, Escape, outside presses and ARIA;
+  do not rebuild those per component. A context menu offers only actions
+  its thing already has elsewhere.
+- The shell: `Toolbar` (props only), `Rail`, `CommandPalette` (rows in
+  `lib/palette.ts`). A new action a person can take from anywhere is a
+  palette row too. Every shortcut lives in `lib/shortcuts.ts`; match it
+  with `matchesKeys` and `shouldIgnoreKey`, show it with `withShortcut`.
+- Change sections through `App.tsx`'s `setSection` or `goTo` (which waits
+  for the new section), never the state setter: that is what cross-fades.
 - Classes with no behaviour: `.button` (`--primary`, `--small`, `--danger`,
   `--allow`, `--deny`), `.card`, `.status`, `.risk`, `.tag`, `.link`,
   `.icon-button`, and `Skeleton` for loading.
-- `lib/platform.ts` sets `data-platform` on `<html>`; nothing else reads the
-  user agent. `lib/transparency.ts` sets `data-transparency`.
+- `lib/platform.ts` sets `data-platform` and `data-titlebar` (`overlay` on
+  macOS inside the app) on `<html>`; nothing else reads the user agent.
+  `lib/transparency.ts` sets `data-transparency`, `lib/windowFocus.ts`
+  `data-window-active`.
 
 ## Motion
 
@@ -141,7 +153,11 @@ what is unfinished.
 ## Accessibility checklist
 
 - Text meets AA in both themes; check the workbench's token page.
-- Every control is reachable and usable by keyboard; focus is visible.
+- Every control is reachable and usable by keyboard; focus is visible
+  (`--focus-ring`, 3 px). `just ui-shots` fails on a control Tab cannot
+  reach and on anything wider than the window.
+- Controls keep the arrow pointer; only a link shows the hand (a design
+  rule lists the link rules). Chrome's words are not selectable; content is.
 - An icon-only control has a name (`IconButton label`).
 - A document-level key handler ignores editable fields and anything inside
   `[hidden]`: every section stays mounted.

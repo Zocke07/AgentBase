@@ -3,6 +3,8 @@ import type { Run } from "@agentbase/schemas";
 import { clockDate, formatDuration, runOriginLabel } from "../lib/format";
 import { STATUS_LABEL } from "../state/describe";
 
+import { useContextMenu } from "./ui/ContextMenu";
+import type { MenuItem } from "./ui/Menu";
 import { Status } from "./ui/Status";
 
 /**
@@ -20,6 +22,8 @@ export interface RunCardProps {
   /** Narrow picker: single-line goal and facts row. */
   compact?: boolean;
   onOpen: (runId: string) => void;
+  /** More rows for its context menu, after Open: what the run's own view offers. */
+  moreActions?: (() => readonly MenuItem[]) | undefined;
 }
 
 export function RunCard({
@@ -29,6 +33,7 @@ export function RunCard({
   needsApproval = false,
   compact = false,
   onOpen,
+  moreActions,
 }: RunCardProps) {
   const status = liveStatus ?? run.status;
   // Home card and picker row can coexist; differentiate test IDs.
@@ -38,39 +43,53 @@ export function RunCard({
     finishedAt === null ? null : formatDuration(Date.parse(finishedAt) - Date.parse(run.created_at));
   const originLabel = runOriginLabel(run.origin);
   const title = run.title ?? null;
+  const context = useContextMenu("Run", () => [
+    {
+      id: "open",
+      label: "Open",
+      onSelect: () => {
+        onOpen(run.id);
+      },
+    },
+    ...(moreActions?.() ?? []),
+  ]);
 
   return (
-    <button
-      type="button"
-      className={`run-card${compact ? " run-card--compact" : ""}${selected ? " run-card--selected" : ""}`}
-      aria-current={selected ? "true" : undefined}
-      onClick={() => {
-        onOpen(run.id);
-      }}
-      data-testid={`${kind}-${run.id}`}
-    >
-      <span className="run-card__head">
-        <Status kind={status}>{STATUS_LABEL[status]}</Status>
-        <span className="run-card__meta">
-          {originLabel !== null && <span className="run-card__origin">{originLabel}</span>}
-          <span className="run-card__time">{clockDate(run.created_at)}</span>
-        </span>
-      </span>
-      {title !== null && <span className="run-card__title">{title}</span>}
-      <span
-        className={`run-card__goal${title !== null ? " run-card__goal--under" : ""}`}
-        title={compact || title !== null ? run.goal : undefined}
+    <>
+      <button
+        type="button"
+        className={`run-card${compact ? " run-card--compact" : ""}${selected ? " run-card--selected" : ""}`}
+        aria-current={selected ? "true" : undefined}
+        onClick={() => {
+          onOpen(run.id);
+        }}
+        data-testid={`${kind}-${run.id}`}
+        {...context.trigger}
       >
-        {run.goal}
-      </span>
-      <span className="run-card__facts">
-        {duration !== null && <span className="run-card__duration">{duration}</span>}
-        {needsApproval && (
-          <span className="run-card__waiting" data-testid={`${kind}-needs-approval-${run.id}`}>
-            needs your approval
+        <span className="run-card__head">
+          <Status kind={status}>{STATUS_LABEL[status]}</Status>
+          <span className="run-card__meta">
+            {originLabel !== null && <span className="run-card__origin">{originLabel}</span>}
+            <span className="run-card__time">{clockDate(run.created_at)}</span>
           </span>
-        )}
-      </span>
-    </button>
+        </span>
+        {title !== null && <span className="run-card__title">{title}</span>}
+        <span
+          className={`run-card__goal${title !== null ? " run-card__goal--under" : ""}`}
+          title={compact || title !== null ? run.goal : undefined}
+        >
+          {run.goal}
+        </span>
+        <span className="run-card__facts">
+          {duration !== null && <span className="run-card__duration">{duration}</span>}
+          {needsApproval && (
+            <span className="run-card__waiting" data-testid={`${kind}-needs-approval-${run.id}`}>
+              needs your approval
+            </span>
+          )}
+        </span>
+      </button>
+      {context.menu}
+    </>
   );
 }

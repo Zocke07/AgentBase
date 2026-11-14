@@ -12,7 +12,6 @@
   color: var(--text);
   font: inherit;
   text-align: left;
-  cursor: pointer;
 }
 
 .run-card:hover {

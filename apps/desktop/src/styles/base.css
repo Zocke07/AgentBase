@@ -12,6 +12,32 @@ body {
   color: var(--text);
 }
 
+/* --- what makes it feel native (brief 6.7) ----------------------------------
+
+   The window does not rubber-band; scroll areas inside it keep their own
+   native scrolling. Controls keep the arrow (only a link shows the hand,
+   which `.link` and the links in prose set) and their words cannot be
+   selected, as in a native app; content (notes, summaries, the log,
+   payloads) can. Chrome's icons and pictures cannot be dragged out. */
+
+html,
+body {
+  overscroll-behavior: none;
+}
+
+button,
+summary,
+[role="tab"],
+[role="option"],
+.icon {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+:where(.rail, .toolbar, .tour, .shell) :where(img, svg, a) {
+  -webkit-user-drag: none;
+}
+
 h1,
 h2,
 h3 {

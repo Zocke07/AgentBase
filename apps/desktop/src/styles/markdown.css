@@ -161,9 +161,6 @@
   accent-color: var(--accent);
 }
 
-.md .md__task-box input:not(:disabled) {
-  cursor: pointer;
-}
 
 .md .md__task--done .md__task-text {
   color: var(--muted);
@@ -355,7 +352,6 @@ button.md__tag:hover {
 }
 
 .md .md__callout--foldable>summary {
-  cursor: pointer;
   list-style: none;
 }
 

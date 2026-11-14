@@ -51,7 +51,6 @@
   font: inherit;
   font-size: var(--size-caption);
   text-align: left;
-  cursor: pointer;
 }
 
 .recent__fold:hover {
@@ -70,7 +69,6 @@
   background: none;
   color: inherit;
   font: inherit;
-  cursor: pointer;
 }
 
 .files__group-toggle:hover {

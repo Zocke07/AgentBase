@@ -905,6 +905,9 @@ The order of the stages is fixed; within a stage, use judgment.
 - Home's office, the Agents floor plan, the start screen, the tour step, the
   empty states, Settings, Usage, Knowledge's reading view and the approval
   panel.
+- The shared `Inspector` in Agents (the editor) and Knowledge (properties
+  and links), moved here from 20.3 because each is a redesign of its
+  section.
 - Installed builds checked on Windows and on macOS.
 - The developer guide gains "Design system" and "The office"; the user
   guide's words and pictures follow; release notes are drafted.
@@ -1035,7 +1038,7 @@ of a stage is a deliberate stop.
 
 ---
 
-## 13. Where the phase stands, and where to pick up (2026-11-13)
+## 13. Where the phase stands, and where to pick up (2026-11-14)
 
 Read this before starting a Phase 20 session. It replaces guessing from the
 commit log.
@@ -1055,7 +1058,7 @@ already done.
 |---|---|---|
 | 20.1 | all of it | |
 | 20.2 | all of it; accepted | |
-| 20.3 the shell | the keyboard map with platform glyphs (`lib/shortcuts.ts`), used by the rail's and Knowledge's tooltips; `Popover`, `Menu`, `Sheet` and the layer registry from 20.2 | everything a person sees: toolbar, macOS title bar, rail restyle, inspector, command palette, context menus, section 6.7's details, view transitions, the inactive-window state |
+| 20.3 the shell | all of it on 2026-11-14 (below): the toolbar, the command palette, the keyboard map bound and routed, the rail, context menus, the inspector (in Runs), section 6.7's details, view transitions, the inactive-window state, the macOS title bar's configuration and permission, with the security review | the maintainer's look at the title bar on macOS and on Windows; the inspector in Agents and Knowledge (moved to 20.6, below) |
 | 20.4 the office, at rest | `lib/tools.ts`, the reducer's four positions, `state/office.ts`, `lib/officeLayout.ts`, `lib/character.ts`, `components/office/`, `styles/office.css`, the `--office-*` tokens, the office as the run's only drawing (the diagram retired, D8), the run view's layout around the office, the character style (decided), office pages in the workbench, the identity, coverage and no-clock tests, real-app screenshots under forced colours and reduced motion and its polish (below) | Windows |
 | 20.5 the office in motion | all of it on 2026-11-14 (below): motion under D1, the timeline, camera easing, the measurements | WebView2 on Windows; the items listed under 20.5 below |
 | 20.6 everywhere | nothing | all of it |
@@ -1215,27 +1218,97 @@ default. What remains:
    motion were captured from the real app on 2026-11-14 and read
    (`.dev/shots/office-forced-colors`, `office-reduced-motion`).
 
-### To do stage 20.3
+### Stage 20.3: built on 2026-11-14
 
-In this order, because each needs the one before:
+What a person sees, in the order this section had them:
 
-1. Lift the header out of `App.tsx` into a `Toolbar` component, so the
-   workbench can draw the shell with no sidecar (the appendix notes why).
-2. Bind the map's two unbound shortcuts, `palette` and `settings`, and
-   route `App.tsx`'s and `KnowledgeView.tsx`'s handlers through
-   `matchesKeys` and `shouldIgnoreKey`.
-3. The command palette on `Sheet` (placement `top`), ranking with
-   `lib/fuzzy.ts` as `QuickSwitcher` does; default-space-only actions only
-   in the default space.
-4. The rail (6.2), the inspector (6.3, and the `Splitter` value noted in
-   the appendix), context menus on `Menu` (6.6), section 6.7's details
-   (59 `cursor: pointer` declarations, selection, focus rings), view
-   transitions (5.3), the inactive-window state (6.1).
-5. `tauri.macos.conf.json`, the drag region and
-   `core:window:allow-start-dragging` (D5), then the `security-review`
-   skill on the configuration. This needs a build to check
-   (`just check-tauri` needs a frozen sidecar) and the maintainer's eyes on
-   both title bars; it was deliberately not attempted without either.
+1. **Toolbar.** `components/Toolbar.tsx`: the section's title, its
+   actions, questions waiting, unfinished setup, the space's model, the
+   month's spend and a search button for the palette. It fetches nothing,
+   so the workbench draws the shell (pages Shell and Command palette).
+   `styles/toolbar.css`.
+2. **Keyboard.** `palette` (Ctrl/Cmd+K) and `settings` (Ctrl/Cmd+,) are
+   bound; `App.tsx`'s and `KnowledgeView.tsx`'s document handlers match
+   through `matchesKeys` and `shouldIgnoreKey`.
+3. **Command palette.** `components/CommandPalette.tsx` on `Sheet`
+   (placement `top`), a combobox over a grouped listbox. `lib/palette.ts`
+   builds the rows (sections, actions, other spaces, the space's runs,
+   agents, and notes read when it opens) and ranks them with `lib/fuzzy.ts`;
+   groups follow their best match. Edit my portfolio and Market watch are
+   offered in the default space only. An action runs after the sheet has
+   handed focus back, so one that moves focus keeps it.
+4. **Rail.** 30 px rows, 18 px icons, a filled pill for the section (the
+   bar that grew from the edge is gone), every rule in `styles/rail.css`;
+   the space switcher is a toolbar-style button. The pill does not slide:
+   the brief allowed it ("may"), and a view transition on a whole row
+   would move its words with it.
+5. **Inspector.** `components/ui/Inspector.tsx` (title row, close button,
+   a resize handle, `InspectorGroup`s that fold) carries the run's agent
+   detail. Its handle announces the stylesheet's width (`fallback`) rather
+   than a measurement, which settles the appendix's note on `aria-valuenow`.
+6. **Context menus.** `components/ui/ContextMenu.tsx` (`useContextMenu`),
+   on `Menu`: right-click, Shift+F10 or the Menu key, on run cards (Open;
+   Stop and Delete for the open run), agent rows (Edit, availability,
+   Delete), the note tree (Open; Fold and Delete for a folder) and desks
+   (Inspect or Close the inspector). Each offers only what its thing
+   already does. `lib/nativeMenu.ts` suppresses the webview's own menu.
+7. **Section 6.7.** Controls keep the arrow (a design rule, "the pointer",
+   allows the hand on five link rules only); chrome is not selectable and
+   its pictures cannot be dragged; the root does not rubber-band; the
+   focus ring is 3 px of `--focus-ring`; disabled buttons are at 40%;
+   skeletons replace the last loading words (App's three, the Journal,
+   Saved context, the portfolio).
+8. **View transitions.** `lib/viewTransition.ts` and `App.tsx`'s `goTo`:
+   a section change, or opening a run from elsewhere, cross-fades where
+   the engine has same-document transitions and motion is allowed; only
+   the showing `.app__view` is named. `test/still.ts` ends them for
+   captures.
+9. **Inactive window.** `lib/windowFocus.ts` writes
+   `data-window-active`; on macOS the rail's pill turns neutral and the
+   toolbar's icons dim.
+10. **macOS title bar.** `src-tauri/tauri.macos.conf.json` (overlay,
+    hidden title, `trafficLightPosition` 18 by 20) and
+    `core:window:allow-start-dragging` in `capabilities/default.json`,
+    with its reason. `lib/platform.ts` writes `data-titlebar`: `overlay`
+    only on macOS inside the app. There the toolbar's empty space and a
+    band over the rail carry `data-tauri-drag-region`, and a folded rail
+    moves the title clear of the controls. The `security-review` skill
+    read the configuration and capability change and found nothing.
+
+**Acceptance.** Checked: `just ui-shots` now fails if the window, the
+main column, the showing section, the toolbar or the rail is wider than
+its box at 800 by 600, 1,100 by 800 or 1,440 by 900, and if Tab misses
+any control that can be seen in any section or in an open run; both pass,
+in both themes and under forced colours. Shortcuts show the platform's
+glyphs in tooltips, menus and the palette (`shortcutLabel`). Not yet: the
+maintainer's look at the title bar on macOS and on Windows, which needs
+a build. `trafficLightPosition` is a first estimate from the toolbar's
+52 px; the Shell page in the workbench draws stand-ins where it puts the
+controls.
+
+**Decisions taken in the stage.**
+
+- **The inspector is in Runs only, for now.** Knowledge's properties and
+  links sit under the note, and Agents' editor is that section's main
+  column; moving either into a side pane is a redesign of the section,
+  which is stage 20.6's ("Knowledge's reading view", Agents). `Inspector`
+  is ready for both.
+- **The run's inspector covers its canvas below a width of the canvas's
+  own, not as a sheet below 1,100 px of window.** The room can be full
+  screen in a small window or narrow in a wide one, so the canvas's width
+  is what decides; it already took and returned focus.
+- **The focus ring is lighter than the accent only as far as 3:1
+  allows**: 80% in light, 60% in dark, where the brief said "about 50%".
+  At half, the light ring measured 2.3:1 on the sidebar. The pair is in
+  `CONTRAST_PAIRS`.
+- **The webview's own menu also opens over selected text.** Content is
+  selectable (6.7), and Copy is what someone who selected it wants. In a
+  development build, Alt with the right button keeps it everywhere, for
+  Inspect Element.
+- **Tooltips are the browser's own `title`**, whose delay is the
+  system's. A timed tooltip of our own would be a new primitive on every
+  control; it is left for when one is needed for something `title`
+  cannot do.
 
 ### Stage 20.5: built on 2026-11-14
 
@@ -1358,8 +1431,9 @@ another way, which is a change to Knowledge, not to this phase.
 
 ### Decisions waiting for the maintainer
 
-- The macOS title bar (20.3, item 5) needs a build and your eyes on the
-  result on both platforms.
+- The macOS title bar (20.3, item 10) is configured; it needs a build
+  and your eyes on both platforms, and `trafficLightPosition` may want
+  adjusting once seen.
 
 ---
 

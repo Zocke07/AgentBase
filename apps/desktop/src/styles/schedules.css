@@ -188,7 +188,6 @@
   border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-capsule);
   font-size: var(--size-caption);
-  cursor: pointer;
 }
 
 .schedule-editor__day--on {

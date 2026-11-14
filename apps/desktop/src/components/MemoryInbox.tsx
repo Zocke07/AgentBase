@@ -2,6 +2,7 @@ import type { MemoryIndex, MemoryItem, MemoryStatus } from "@agentbase/schemas";
 import { useState } from "react";
 
 import { Markdown } from "./Markdown";
+import { Skeleton } from "./Skeleton";
 
 /**
  * A review queue for context that later runs may retrieve. The common choice
@@ -57,7 +58,7 @@ export function MemoryInbox({
   const [view, setView] = useState<MemoryView>("proposed");
   const [organizing, setOrganizing] = useState(false);
 
-  if (memories === null) return <p className="knowledge__empty">Loading saved context…</p>;
+  if (memories === null) return <Skeleton label="Loading saved context" lines={4} />;
 
   const visible = view === "all" ? memories.items : memories.items.filter((memory) => memory.status === view);
   const stopOrganizing = () => {

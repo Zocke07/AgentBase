@@ -1,0 +1,132 @@
+/* --- palettes ---------------------------------------------------------------
+
+   The command palette (brief 6.4) and Knowledge's note switcher share these
+   rows. Each is a `Sheet` near the window's top edge; its field and its list
+   reach the sheet's own edges. */
+
+.palette__panel {
+  max-height: 70vh;
+}
+
+.palette__panel .sheet__body {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+/* The field is the palette's top edge, as in Spotlight: no fill, no ring of
+   its own (focus never leaves it while the palette is open). */
+.palette__panel .palette__input {
+  flex: none;
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  border-bottom: var(--hairline) solid var(--separator);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--size-body);
+  outline: none;
+  border-radius: 0;
+}
+
+.palette__panel .palette__input:focus-visible {
+  outline: none;
+}
+
+.palette__list {
+  min-height: 0;
+  margin: 0;
+  padding: var(--space-1);
+  overflow: auto;
+  list-style: none;
+}
+
+.palette__group + .palette__group {
+  margin-top: var(--space-1);
+}
+
+.palette__heading {
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  color: var(--muted);
+  font-size: var(--size-caption);
+  font-weight: 600;
+}
+
+.palette__row {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  width: 100%;
+  min-height: 2rem;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+
+/* The note switcher's rows are buttons holding two lines. */
+button.palette__row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+}
+
+.palette__row--selected {
+  background: var(--fill-selected);
+}
+
+.palette__row--create .palette__title {
+  color: var(--accent-strong);
+}
+
+.palette__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.palette__title {
+  overflow: hidden;
+  font-size: var(--size-control);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette__path,
+.palette__detail {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--size-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette__path {
+  font-family: var(--font-mono);
+}
+
+.palette__keys {
+  flex: none;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: var(--size-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.palette__empty,
+.palette__loading {
+  margin: 0;
+  padding: var(--space-3);
+  color: var(--muted);
+  font-size: var(--size-control);
+}
+
+.palette__loading {
+  flex: none;
+  border-top: var(--hairline) solid var(--separator);
+}

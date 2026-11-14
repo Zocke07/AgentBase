@@ -35,10 +35,6 @@
   overflow-wrap: anywhere;
 }
 
-button.run-files__file,
-.run-files__more {
-  cursor: pointer;
-}
 
 button.run-files__file:hover,
 .run-files__more:hover {

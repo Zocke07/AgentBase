@@ -330,3 +330,13 @@
   box-shadow: var(--elevation-card);
   color: var(--text);
 }
+
+/* --- context menu ----------------------------------------------------------- */
+
+/* The point a context menu opens from: no size, placed where it was asked. */
+.context-point {
+  position: fixed;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}

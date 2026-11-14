@@ -110,7 +110,6 @@
   flex-wrap: wrap;
   gap: 0.25rem 0.6rem;
   align-items: baseline;
-  cursor: pointer;
 }
 
 .switch-plan__models {
@@ -185,7 +184,6 @@
 .settings__other-providers summary {
   color: var(--muted);
   font-size: var(--size-control);
-  cursor: pointer;
 }
 
 .settings__other-providers[open] summary {

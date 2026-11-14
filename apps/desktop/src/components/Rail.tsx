@@ -1,6 +1,6 @@
 import type { SpaceResponse } from "@agentbase/schemas";
 
-import { currentPlatform } from "../lib/platform";
+import { currentPlatform, currentTitleBar, type TitleBar } from "../lib/platform";
 import type { Section } from "../lib/sections";
 import { withShortcut } from "../lib/shortcuts";
 
@@ -30,6 +30,10 @@ export interface RailProps {
   onToggleCollapsed?: (() => void) | undefined;
   /** Narrow-window drawer over page content. */
   drawer?: boolean | undefined;
+  /** Bumped to open the new-space form. */
+  createSpaceRequest?: number | undefined;
+  /** The window's, unless the workbench draws another platform's. */
+  titleBar?: TitleBar | undefined;
 }
 
 
@@ -54,6 +58,8 @@ export function Rail({
   collapsed = false,
   onToggleCollapsed,
   drawer = false,
+  createSpaceRequest,
+  titleBar = currentTitleBar(),
 }: RailProps) {
   // Shortcuts are written the way this platform writes them.
   const platform = currentPlatform();
@@ -89,6 +95,9 @@ export function Rail({
       aria-label="Sections"
       data-testid="rail"
     >
+      {/* Under macOS's overlaid window controls (D5): a band of the
+          toolbar's height that moves the window, as a title bar would. */}
+      {titleBar === "overlay" && <div className="rail__titlebar" data-tauri-drag-region="" aria-hidden="true" />}
       <div className="rail__brand">
         <BrandMark className="rail__logo" />
         <span className="rail__name">AgentBase</span>
@@ -100,6 +109,7 @@ export function Rail({
         onSelect={onSelectSpace}
         onCreated={onSpaceCreated}
         compact={collapsed}
+        createRequest={createSpaceRequest}
       />
 
       <div className="rail__sections">{SECTIONS.map(({ id, label, icon }) => entry(id, label, icon))}</div>

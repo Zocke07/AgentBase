@@ -47,6 +47,7 @@ vi.mock("./lib/api", () => ({
   listTools: vi.fn(),
   listProviders: vi.fn(),
   listFiles: vi.fn(),
+  listKnowledge: vi.fn(),
   getPortfolio: vi.fn(),
   getPortfolioValuation: vi.fn(),
   savePortfolio: vi.fn(),
@@ -122,6 +123,9 @@ beforeEach(() => {
   mocked.listSchedules.mockResolvedValue([]);
   mocked.listProviders.mockResolvedValue({ providers: [], models: {}, catalog: {} });
   mocked.listFiles.mockResolvedValue({ files: [] });
+  mocked.listKnowledge.mockResolvedValue({
+    notes: [{ path: "reviews/chapter-two.md", title: "Chapter two review", tags: [], links: [], modified_at: "2026-09-10T12:00:00Z" }],
+  } as unknown as Awaited<ReturnType<typeof api.listKnowledge>>);
   mocked.listAlerts.mockResolvedValue({ alerts: [], unseen: 0 });
   mocked.markAlertsSeen.mockResolvedValue({ marked: 0 });
   mocked.getMonitor.mockResolvedValue({ enabled: false });
@@ -175,7 +179,7 @@ describe("starting up", () => {
 
   it("stays on the start screen until the first screen's spaces have arrived", async () => {
     /* The shell used to open the moment `/health` answered, and then filled
-       in: no model in the header, "Loading the space" in two sections. */
+       in: no model in the header, a loading placeholder in two sections. */
     let deliver: (value: SpaceResponse[]) => void = () => undefined;
     mocked.listSpaces.mockReturnValue(new Promise((resolve) => (deliver = resolve)));
 
@@ -607,5 +611,94 @@ describe("market alerts", () => {
       expect(notify.notifyDesktop).toHaveBeenCalledWith("Market alert", "AVGO down 5.5%. Looking for the reason.");
     });
     expect(notify.notifyDesktop).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the command palette", () => {
+  it("opens on Ctrl/Cmd+K, finds a section by name and goes there on Enter", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByTestId("run-list");
+
+    await user.keyboard("{Control>}k{/Control}");
+    const field = await screen.findByTestId("palette-input");
+    expect(document.activeElement).toBe(field);
+    await user.type(field, "agents");
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Agents");
+    });
+    expect(screen.queryByTestId("palette")).toBeNull();
+  });
+
+  it("opens from the toolbar too, and Escape closes it", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByTestId("palette-button"));
+    expect(await screen.findByTestId("palette")).toBeDefined();
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByTestId("palette-input")).toBeNull();
+    });
+  });
+
+  it("finds runs and the space's notes, and opens a note in Knowledge", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByTestId("run-list");
+    await user.keyboard("{Control>}k{/Control}");
+    const field = await screen.findByTestId("palette-input");
+    // The newest runs are there before anything is typed.
+    expect(screen.getByTestId("palette-run-run-1")).toBeDefined();
+
+    await user.type(field, "chapter two");
+    await screen.findByTestId("palette-note-reviews/chapter-two.md");
+    expect(mocked.listKnowledge).toHaveBeenCalledWith("space-main");
+    await user.keyboard("{Enter}");
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Knowledge");
+    });
+  });
+
+  it("offers the portfolio and the market watch in the default space only", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByTestId("run-list");
+    await user.keyboard("{Control>}k{/Control}");
+    await screen.findByTestId("palette-input");
+    expect(screen.getByTestId("palette-portfolio")).toBeDefined();
+    expect(screen.getByTestId("palette-market-watch")).toBeDefined();
+    // Switching from the palette itself.
+    await user.click(screen.getByTestId("palette-space-space-lab"));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Space: Lab/ })).toBeDefined();
+    });
+
+    await user.keyboard("{Control>}k{/Control}");
+    await screen.findByTestId("palette-input");
+    expect(screen.queryByTestId("palette-portfolio")).toBeNull();
+    expect(screen.queryByTestId("palette-market-watch")).toBeNull();
+  });
+});
+
+describe("window shortcuts", () => {
+  it("still work while focus was left in a section that is now hidden", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByTestId("goal-input"));
+    await user.keyboard("{Control>}4{/Control}");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Agents");
+    // The goal field, now hidden with Home, may still hold focus.
+    await user.keyboard("{Control>}2{/Control}");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Automations");
+  });
+
+  it("opens Settings on Ctrl/Cmd+comma, even from a field", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByTestId("goal-input"));
+    await user.keyboard("{Control>},{/Control}");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Settings");
   });
 });

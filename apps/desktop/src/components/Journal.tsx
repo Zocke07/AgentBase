@@ -5,6 +5,7 @@ import { whenLabel } from "../lib/format";
 import { dayHeading, monthHeading, shortDay, type JournalDay, type JournalEntry } from "../state/journal";
 
 import { Markdown } from "./Markdown";
+import { Skeleton } from "./Skeleton";
 
 /**
  * The Journal's two halves: the dates down the browser, and every report on
@@ -205,7 +206,7 @@ export function JournalPage({ spaceId, days, focus, onOpenNote, onLink, onTag }:
                     </button>
                   </header>
                   {item === undefined ? (
-                    <p className="journal__loading">Loading…</p>
+                    <Skeleton label={`Reading ${entry.path}`} lines={3} />
                   ) : "error" in item ? (
                     <p className="field-error" role="alert">
                       {item.error}

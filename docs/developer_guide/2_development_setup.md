@@ -187,6 +187,14 @@ it. The sidecar's own clock is not pinned, so capture both sets in the same
 month. The first use downloads Chromium and WebKit into
 `.dev/cache/playwright` (`just setup-browsers`).
 
+Two checks run with every capture and fail the recipe. At each size, the
+window, the main column, the showing section, the toolbar and the rail
+must each fit their width, so nothing scrolls sideways or is cut off
+(a list or a table may still scroll inside itself). Then, at 1,100 by 800,
+Tab is pressed through every section and an open run, and every control
+that can be seen must be reached; a group with one stop that moves by the
+arrows (desks, menus, tabs, a radio group's checked choice) counts once.
+
 ### The whole app: `just dev-app`
 
 ```

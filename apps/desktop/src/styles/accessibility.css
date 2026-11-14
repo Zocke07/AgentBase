@@ -26,8 +26,10 @@
 /* One focus ring for everything that takes focus by keyboard, drawn outside
    the element so it never hides a border that carries meaning. */
 :where(a, button, input, select, textarea, summary, [tabindex], [role="tab"]):focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  /* The accent at about half, 3 px wide, following the element's own
+     corners (brief 6.7): an outline takes the border radius. */
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 1px;
   transition: outline-offset var(--dur-quick) var(--ease-out);
 }
 
@@ -37,10 +39,9 @@
   outline: none;
 }
 
-/* Comfortable targets: nothing clickable is shorter than 32 px. */
-.button,
-.rail__item,
-.switcher__current {
+/* Comfortable targets: a button is at least 32 px tall. The rail's rows are
+   30 px, as a Mac sidebar's are, and span the rail's width. */
+.button {
   min-height: 2rem;
 }
 
@@ -63,7 +64,6 @@
     border: 1px solid ButtonText;
   }
 
-  .rail__item::before,
   .skeleton__bar {
     background: CanvasText;
   }

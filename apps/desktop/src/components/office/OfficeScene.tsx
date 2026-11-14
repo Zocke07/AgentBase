@@ -31,6 +31,7 @@ import { splitPath } from "../../state/files";
 import { stampReason, type Desk, type OfficeModel, type Slip } from "../../state/office";
 import type { MotionMode } from "../../state/timeline";
 import { Icon } from "../icons/Icon";
+import { useContextMenu } from "../ui/ContextMenu";
 import { Status } from "../ui/Status";
 import { IconButton } from "../ui/controls";
 
@@ -317,8 +318,30 @@ export function OfficeScene({
   // --- the keyboard ---------------------------------------------------------
   const order = useMemo(() => [...(model.lead === null ? [] : [model.lead]), ...model.desks].filter((desk) => !desk.ghost), [model.lead, model.desks]);
   const tabStop = order.find((desk) => desk.name === selectedAgent)?.name ?? order.find((desk) => desk.name === model.focus)?.name ?? order[0]?.name ?? null;
+  // A desk's own actions, from a right-click or the keyboard's menu key. The
+  // menu renders into the document's body, outside the projection.
+  const deskMenu = useContextMenu(
+    "Desk",
+    (element) => {
+      const name = element.dataset.desk;
+      if (name === undefined || element.hasAttribute("disabled")) return [];
+      const open = selectedAgent === name;
+      return [
+        {
+          id: "inspect",
+          label: open ? "Close the inspector" : "Inspect",
+          onSelect: () => {
+            onSelectAgent(open ? null : name);
+          },
+        },
+      ];
+    },
+    "[data-desk]",
+  );
+
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    deskMenu.trigger.onKeyDown(event);
+    if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
     const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("[data-desk]:not(:disabled)")];
     const current = buttons.findIndex((button) => button === document.activeElement);
     const go = (index: number) => {
@@ -385,6 +408,7 @@ export function OfficeScene({
         onPointerCancel={onPointerUp}
         onWheel={onWheel}
         onKeyDown={onKeyDown}
+        onContextMenu={deskMenu.trigger.onContextMenu}
       >
         <div
           className="office__stage"
@@ -556,6 +580,8 @@ export function OfficeScene({
           />
         )}
       </div>
+      {/* Portals into the document's body: nothing of it is in the room. */}
+      {deskMenu.menu}
     </div>
   );
 }

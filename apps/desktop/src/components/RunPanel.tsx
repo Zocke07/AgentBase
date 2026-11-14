@@ -17,6 +17,7 @@ import { RunSummary, type RunSummaryProps } from "./RunSummary";
 import { Scrubber } from "./Scrubber";
 import { Splitter } from "./Splitter";
 import { OfficeScene } from "./office/OfficeScene";
+import { Inspector, InspectorGroup } from "./ui/Inspector";
 
 /**
  * Run dashboard splits pure `run-projection` from scrubber transport. Given the
@@ -31,7 +32,7 @@ const SUMMARY_HEIGHT_MAX = 1200;
 const CANVAS_HEIGHT_MIN = 160;
 const CANVAS_HEIGHT_MAX = 1600;
 const LOG_HEIGHT_MIN = 144;
-const DETAIL_WIDTH_FALLBACK = 336;
+const DETAIL_WIDTH_FALLBACK = 315;
 const DETAIL_WIDTH_MIN = 240;
 
 export interface RunPanelProps {
@@ -330,12 +331,22 @@ function AgentDetail({
   }, [panelRef]);
 
   return (
-    <aside
+    <Inspector
+      label="Agent detail"
       className="agent-detail"
-      data-testid="agent-detail"
-      ref={panelRef}
-      tabIndex={-1}
-      style={width === null ? undefined : { width: `${String(width)}px` }}
+      testId="agent-detail"
+      panelRef={panelRef}
+      title={agent.name}
+      subtitle={agent.role ?? "-"}
+      onClose={onClose}
+      closeLabel="Close the agent detail"
+      width={width}
+      onResize={onResize}
+      defaultWidth={DETAIL_WIDTH_FALLBACK}
+      minWidth={DETAIL_WIDTH_MIN}
+      maxWidth={max}
+      measure={measure}
+      resizeLabel="Resize the agent detail"
       onKeyDown={(event) => {
         // Escape closes the panel and nothing else: a full-screen canvas
         // stays full screen until the next one.
@@ -344,26 +355,6 @@ function AgentDetail({
         onClose();
       }}
     >
-      <Splitter
-        axis="x"
-        side="start"
-        value={width}
-        measure={measure}
-        min={DETAIL_WIDTH_MIN}
-        max={max}
-        onChange={onResize}
-        label="Resize the agent detail"
-      />
-      <header className="agent-detail__head">
-        <div>
-          <h3>{agent.name}</h3>
-          <p className="agent-detail__role">{agent.role ?? "-"}</p>
-        </div>
-        <button type="button" className="agent-detail__close" aria-label="Close the agent detail" onClick={onClose}>
-          {"✕"}
-        </button>
-      </header>
-
       <p className={`agent-detail__state agent-detail__state--${agent.activity}`}>
         {agent.lastError === null ? activityLabel(agent) : `error · ${agent.lastError}`}
       </p>
@@ -411,15 +402,13 @@ function AgentDetail({
       </dl>
 
       {agent.lastMessage !== null && (
-        <section className="agent-detail__section" data-testid="agent-last-message">
-          <h4>Last message</h4>
+        <InspectorGroup title="Last message" testId="agent-last-message">
           <Markdown source={agent.lastMessage} className="md--compact" />
-        </section>
+        </InspectorGroup>
       )}
 
       {handoffs.length > 0 && (
-        <section className="agent-detail__section">
-          <h4>Handed off</h4>
+        <InspectorGroup title="Handed off">
           <ul className="agent-detail__list">
             {handoffs.map((handoff) => (
               <li key={handoff.seq}>
@@ -428,12 +417,11 @@ function AgentDetail({
               </li>
             ))}
           </ul>
-        </section>
+        </InspectorGroup>
       )}
 
       {files.length > 0 && (
-        <section className="agent-detail__section" data-testid="agent-files">
-          <h4>Files it wrote</h4>
+        <InspectorGroup title="Files it wrote" testId="agent-files">
           <ul className="agent-detail__list">
             {files.map((file) => {
               const open =
@@ -459,12 +447,11 @@ function AgentDetail({
               );
             })}
           </ul>
-        </section>
+        </InspectorGroup>
       )}
 
       {activity.length > 0 && (
-        <section className="agent-detail__section" data-testid="agent-tool-calls">
-          <h4>Tool calls</h4>
+        <InspectorGroup title="Tool calls" testId="agent-tool-calls">
           <ul className="agent-detail__list">
             {activity.map((entry) =>
               entry.kind === "call" ? (
@@ -488,24 +475,22 @@ function AgentDetail({
               ),
             )}
           </ul>
-        </section>
+        </InspectorGroup>
       )}
 
       {agent.systemPrompt !== null && (
-        <details className="agent-detail__prompt">
-          {/* In the log since Phase 5, and the most load-bearing fact
-              about why two runs of the same goal behaved differently. */}
-          <summary>System prompt</summary>
+        // In the log since Phase 5, and the most load-bearing fact about why
+        // two runs of the same goal behaved differently.
+        <InspectorGroup title="System prompt" folded className="agent-detail__prompt">
           <pre>{agent.systemPrompt}</pre>
-        </details>
+        </InspectorGroup>
       )}
 
       {agent.streamedText !== "" && (
-        <details className="agent-detail__stream">
-          <summary>Streamed output</summary>
+        <InspectorGroup title="Streamed output" folded className="agent-detail__stream">
           <Markdown source={agent.streamedText} className="md--compact agent-detail__stream-text" />
-        </details>
+        </InspectorGroup>
       )}
-    </aside>
+    </Inspector>
   );
 }

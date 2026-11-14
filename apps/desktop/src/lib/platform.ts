@@ -1,3 +1,5 @@
+import { insideTauri } from "./tauri";
+
 /**
  * Which platform the window is on, decided once (Phase 20, brief 4.5).
  *
@@ -31,7 +33,29 @@ export function currentPlatform(): Platform {
   return typeof navigator === "undefined" ? "windows" : detectPlatform(navigator);
 }
 
-/** Name the platform on the document root; called once, before the first paint. */
-export function applyPlatform(platform: Platform = currentPlatform(), root: HTMLElement = document.documentElement): void {
+/**
+ * How the window's title bar is drawn (decision D5): an overlay on macOS,
+ * inside the app, where the toolbar is the title bar and the window's
+ * controls sit over the rail; the platform's own everywhere else, Windows
+ * and a plain browser included.
+ */
+export type TitleBar = "overlay" | "native";
+
+export function titleBarOf(platform: Platform, inApp: boolean): TitleBar {
+  return platform === "mac" && inApp ? "overlay" : "native";
+}
+
+/** This window's title bar. */
+export function currentTitleBar(): TitleBar {
+  return titleBarOf(currentPlatform(), insideTauri());
+}
+
+/** Name the platform and the title bar on the document root; called once, before the first paint. */
+export function applyPlatform(
+  platform: Platform = currentPlatform(),
+  root: HTMLElement = document.documentElement,
+  inApp: boolean = insideTauri(),
+): void {
   root.dataset.platform = platform;
+  root.dataset.titlebar = titleBarOf(platform, inApp);
 }

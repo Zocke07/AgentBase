@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
-import { applyPlatform, detectPlatform } from "./platform";
+import { applyPlatform, detectPlatform, titleBarOf } from "./platform";
 
 describe("the platform", () => {
   it("is the Mac in WKWebView, which has no userAgentData", () => {
@@ -42,5 +45,41 @@ describe("the platform", () => {
     expect(root.dataset.platform).toBe("mac");
     applyPlatform("windows", root);
     expect(root.dataset.platform).toBe("windows");
+  });
+});
+
+describe("the title bar", () => {
+  it("is an overlay on a Mac inside the app, and the platform's own anywhere else", () => {
+    expect(titleBarOf("mac", true)).toBe("overlay");
+    expect(titleBarOf("mac", false)).toBe("native");
+    expect(titleBarOf("windows", true)).toBe("native");
+  });
+
+  it("is named on the document root with the platform", () => {
+    const root = document.createElement("html");
+    applyPlatform("mac", root, true);
+    expect(root.dataset.titlebar).toBe("overlay");
+    applyPlatform("windows", root, true);
+    expect(root.dataset.titlebar).toBe("native");
+  });
+});
+
+describe("the macOS window configuration", () => {
+  // Tauri merges tauri.macos.conf.json over tauri.conf.json, and a merge
+  // replaces a whole array: the macOS window must repeat the base window,
+  // or a later change to it would silently miss macOS builds.
+  const read = (name: string) =>
+    JSON.parse(readFileSync(join(import.meta.dirname, "..", "..", "src-tauri", name), "utf8")) as {
+      app: { windows: Record<string, unknown>[] };
+    };
+
+  it("is the base window with the overlay title bar's keys and nothing else", () => {
+    const base = read("tauri.conf.json").app.windows;
+    const mac = read("tauri.macos.conf.json").app.windows;
+    expect(mac).toHaveLength(base.length);
+    const { titleBarStyle, hiddenTitle, trafficLightPosition, ...rest } = mac[0] ?? {};
+    expect(rest).toEqual(base[0]);
+    expect({ titleBarStyle, hiddenTitle }).toEqual({ titleBarStyle: "Overlay", hiddenTitle: true });
+    expect(trafficLightPosition).toBeDefined();
   });
 });

@@ -96,7 +96,6 @@
   font: inherit;
   font-size: var(--size-control);
   text-align: left;
-  cursor: pointer;
 }
 
 .log__row:hover,

@@ -133,7 +133,6 @@
   color: var(--text);
   font: inherit;
   text-align: left;
-  cursor: pointer;
 }
 
 .files__item:hover {

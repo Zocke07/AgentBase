@@ -32,9 +32,11 @@ export interface AgentsViewProps {
   spaceId?: string | null;
   /** All spaces for moving/copying definitions. */
   spaces?: readonly SpaceResponse[];
+  /** An agent to open, from the command palette; the nonce reopens the same one. */
+  openRequest?: { id: string; nonce: number } | null | undefined;
 }
 
-export function AgentsView({ workspaceProvider, spaceId = null, spaces = [] }: AgentsViewProps) {
+export function AgentsView({ workspaceProvider, spaceId = null, spaces = [], openRequest = null }: AgentsViewProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editing, setEditing] = useState<"none" | "new" | "existing">("none");
   const [actionError, setActionError] = useState<string | null>(null);
@@ -136,6 +138,24 @@ export function AgentsView({ workspaceProvider, spaceId = null, spaces = [] }: A
       setBusyId(null);
     }
   };
+
+  // Opened from elsewhere, as a press on its row would open it: unsaved
+  // changes are asked about first.
+  const [seenRequest, setSeenRequest] = useState(openRequest?.nonce ?? null);
+  if (openRequest !== null && openRequest.nonce !== seenRequest) {
+    setSeenRequest(openRequest.nonce);
+    const open = () => {
+      setSelectedId(openRequest.id);
+      setEditing("existing");
+    };
+    if (dirty && editing !== "none") setHeld(() => open);
+    else open();
+  }
+  // Reread which models a ChatGPT plan includes, as a press on a row does.
+  const reloadCatalogue = catalogue.reload;
+  useEffect(() => {
+    if (seenRequest !== null) reloadCatalogue();
+  }, [seenRequest, reloadCatalogue]);
 
   return (
     <div className="agents-view">

@@ -347,10 +347,14 @@ local and readable:
 
 ### Motion, contrast and accessibility in the window
 
-Motion is CSS only. In the app's chrome it answers the person: sections
-easing in (`view-in`), menus and dialogs (`pop-in`, `rise-in`), toasts,
-button presses, card hovers, the rail's active bar and loading placeholders
-(`Skeleton`). The event log, the approval panel and the run summary do not
+Motion is CSS only. In the app's chrome it answers the person: a section
+change cross-fading through a same-document View Transition where the engine
+has one and motion is allowed (`lib/viewTransition.ts`; elsewhere the section
+eases in with `view-in`), menus and dialogs (`pop-in`, `rise-in`), toasts,
+button presses, card hovers and loading placeholders (`Skeleton`). Every
+section change goes through `App.tsx`'s `goTo`, whose promise settles once
+the new section is in the document; a scroll or a focus that needs it waits
+for that. The event log, the approval panel and the run summary do not
 animate their arrival, because a replay must look like the live run
 (§5 Phase 7, `replayIdentity.test.tsx`); a JS animation library would also
 write inline styles into that DOM. The office is the one exception, under
@@ -390,12 +394,24 @@ the tokens to it.
 
 Shared parts live in `components/icons/` (one `Icon` over Lucide's shapes,
 vendored with their licence) and `components/ui/` (`Popover`, `Menu`,
-`Sheet`, `IconButton`, `Switch`, `Segmented`). A popover, menu or sheet
+`ContextMenu`, `Sheet`, `Inspector`, `IconButton`, `Switch`, `Segmented`).
+The shell is `App.tsx` with `Rail`, `Toolbar` (which fetches nothing, so the
+workbench draws it) and `CommandPalette` (Ctrl/Cmd+K, its rows and ranking
+in `lib/palette.ts`). Every shortcut is in `lib/shortcuts.ts`, and the
+shell's and Knowledge's document handlers match through it. A context menu
+(`useContextMenu`) opens by right-click, Shift+F10 or the Menu key and
+offers only actions its thing already has; `lib/nativeMenu.ts` suppresses
+the webview's own menu except in fields and over selected text (Alt with the
+right button keeps it in a development build, for Inspect Element). A popover, menu or sheet
 renders into `document.body` and is registered in `ui/layers.ts`, which
 gives Escape to the topmost layer and closes a layer whose section is hidden
 under it, since every section stays mounted. `lib/platform.ts` names the
-platform on `<html>` once, and `lib/transparency.ts` holds Reduce
-transparency. The project skill `.claude/skills/agentbase-ui/` is the short
+platform and the title bar on `<html>` once (`data-platform`,
+`data-titlebar`: an overlay on macOS inside the app, decision D5, where the
+toolbar's empty space and a band over the rail carry
+`data-tauri-drag-region`), `lib/windowFocus.ts` says whether the window is
+in front (`data-window-active`, which greys the rail's selection on macOS),
+and `lib/transparency.ts` holds Reduce transparency. The project skill `.claude/skills/agentbase-ui/` is the short
 form of these rules for a coding session. Phase 20 is redesigning the
 interface in stages; [its brief](../design/virtual-office-redesign.md) is
 the specification until it is complete.
@@ -404,8 +420,10 @@ Text colours meet WCAG AA (4.5:1) on every ground the token file says they
 may sit on, in both themes; `--faint` is the lightest text allowed, 13 px
 the smallest, and white on `--accent` is 5:1. There is one
 `<main id="main-content">` (the shell's body) behind a **Skip to content**
-link, one focus ring for everything focusable (`:focus-visible`, 2 px outside
-the element), a folded rail that hides its labels visually but not from
+link, one focus ring for everything focusable (`:focus-visible`, 3 px of
+`--focus-ring` following the element's corners, held to 3:1 on every plane),
+controls that keep the arrow pointer (a design rule allows the hand on links
+only) and chrome whose words cannot be selected, a folded rail that hides its labels visually but not from
 screen readers, and a `forced-colors` block for Windows High Contrast. The
 window is designed from its minimum of 800 by 600: below 1,100 px the rail
 folds and opens as a drawer (`state/useMediaQuery.ts`), and grid and flex

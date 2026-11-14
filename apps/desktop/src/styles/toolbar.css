@@ -1,0 +1,118 @@
+/* --- the toolbar (brief 6.1) ------------------------------------------------
+
+   A 52 px row over the content: the section's title at the left, the
+   section's actions and the window's own items at the right. On macOS it
+   is also the title bar (decision D5), so its empty space moves the window
+   and nothing in it is selectable text. */
+
+.toolbar {
+  display: flex;
+  flex: none;
+  gap: var(--space-6);
+  align-items: center;
+  height: 52px;
+  padding: 0 var(--space-6);
+  border-bottom: var(--hairline) solid var(--separator);
+  background: var(--content);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.toolbar__title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--size-title-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolbar__actions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.toolbar__global {
+  display: flex;
+  gap: var(--space-5);
+  align-items: center;
+  margin-left: auto;
+}
+
+/* The model a task here uses, as a chip: the name its maker gives it. */
+.toolbar__model {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  height: 24px;
+  padding: 0 var(--space-3);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-capsule);
+  background: var(--fill);
+  color: var(--text);
+  font-size: var(--size-caption);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.toolbar__model-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--good);
+}
+
+/* Something waiting on the person: a question elsewhere, or setup to
+   finish. Each says what it is and opens where it is put right. */
+.toolbar__pill {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  height: 28px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--warn);
+  border-radius: var(--radius-capsule);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font: inherit;
+  font-size: var(--size-caption);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.toolbar__setup::before {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: currentcolor;
+  content: "";
+}
+
+.toolbar__setup:hover {
+  background: var(--warn-tint);
+  color: var(--text);
+}
+
+/* --- the macOS title bar (decision D5) --------------------------------------
+
+   Inside the app on macOS the title bar is an overlay: the window's three
+   controls sit at the window's top left, over the rail, and the toolbar is
+   the title bar. The rail starts below a band of the toolbar's height that
+   moves the window. Folded to icons, the rail is narrower than the
+   controls, so the toolbar's title moves over to clear them. Nothing here
+   applies on Windows or in a browser, where `data-titlebar` is "native". */
+
+.rail__titlebar {
+  flex: none;
+  height: 52px;
+  margin: -1rem -0.75rem -0.5rem;
+}
+
+.rail--collapsed .rail__titlebar {
+  margin-right: -0.5rem;
+  margin-left: -0.5rem;
+}
+
+[data-titlebar="overlay"] .app--rail-collapsed .toolbar {
+  padding-left: calc(var(--space-4) + 84px - var(--rail-width));
+}

@@ -19,15 +19,10 @@
   background: var(--window);
 }
 
+/* The run's inspector (`ui/Inspector`), beside the room. Its default
+   width is `DETAIL_WIDTH_FALLBACK` in RunPanel.tsx: change both. */
 .agent-detail {
-  position: relative;
-  flex: none;
   width: 21rem;
-  padding: 0.85rem 1rem;
-  overflow-y: auto;
-  border-left: var(--hairline) solid var(--separator);
-  background: var(--content);
-  font-size: var(--size-control);
 }
 
 /* Too narrow for the room and the inspector side by side (brief 6.3): the
@@ -47,34 +42,6 @@
   .agent-detail > .splitter {
     display: none;
   }
-}
-
-.agent-detail h3 {
-  font-size: var(--size-body);
-}
-
-.agent-detail__head {
-  display: flex;
-  gap: 0.5rem;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-.agent-detail__close {
-  flex: none;
-  width: 1.6rem;
-  height: 1.6rem;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  cursor: pointer;
-}
-
-.agent-detail__close:hover {
-  background: var(--fill-hover);
-  color: var(--text);
 }
 
 .agent-detail__state {
@@ -107,20 +74,6 @@
 .agent-detail__state--completed {
   background: var(--good-soft);
   color: var(--good);
-}
-
-.agent-detail__section {
-  margin-top: 0.8rem;
-  padding-top: 0.6rem;
-  border-top: var(--hairline) solid var(--separator);
-}
-
-.agent-detail__section h4 {
-  margin: 0 0 0.35rem;
-  color: var(--muted);
-  font-size: var(--size-caption);
-  font-weight: 600;
-  letter-spacing: 0.02em;
 }
 
 .agent-detail__list {
@@ -184,12 +137,6 @@
   background: var(--fill);
 }
 
-.agent-detail__role {
-  margin: 0.15rem 0 0.6rem;
-  color: var(--muted);
-  font-size: var(--size-control);
-}
-
 .agent-detail dl {
   margin: 0;
 }
@@ -210,16 +157,6 @@
   margin: 0;
   font-size: var(--size-caption);
   overflow-wrap: anywhere;
-}
-
-.agent-detail details {
-  margin-top: 0.6rem;
-}
-
-.agent-detail summary {
-  color: var(--muted);
-  font-size: var(--size-caption);
-  cursor: pointer;
 }
 
 .agent-detail pre {

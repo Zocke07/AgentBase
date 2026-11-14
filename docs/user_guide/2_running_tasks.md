@@ -223,7 +223,8 @@ back wall holds the goal, what the supervisor said, in italics because it is
 a claim, and the files the run wrote; the wall also shows the run's time
 against its limit and its cost. Select a desk for its inspector: its last
 message, the files it wrote, its handoffs, its tool results and refusals,
-its system prompt and its streamed output. Drag to pan and scroll or pinch to zoom; the buttons at the
+its system prompt and its streamed output, each a group that folds under
+its title (the prompt and the streamed output start folded). Drag to pan and scroll or pinch to zoom; the buttons at the
 bottom right follow the work, show the whole room, zoom, and fill the
 window. A run that is over shows the whole room. A question is answered in
 the panel above the run, never in the room.

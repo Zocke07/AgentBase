@@ -82,6 +82,24 @@ future changes do not relocate users' data or disconnect their stored keys.
   (`runs.office.log.collapsed`). `@xyflow/react` stays for Knowledge's
   note graph, which now imports React Flow's stylesheet itself. The
   workbench compares every scenario's office.
+- **Stage 20.3, the shell, 2026-11-14.** `components/Toolbar.tsx` (drawn
+  from props, so the workbench has a Shell page) and
+  `components/CommandPalette.tsx` (Ctrl/Cmd+K; rows and ranking in
+  `lib/palette.ts`; the portfolio and market watch in the default space
+  only); Ctrl/Cmd+, opens Settings, and the shell's and Knowledge's
+  handlers go through `lib/shortcuts.ts`. The rail has 30 px rows and a
+  filled pill; `ui/ContextMenu` (right-click, Shift+F10, Menu key) on run
+  cards, agent rows, the note tree and desks offers only existing actions,
+  and `lib/nativeMenu.ts` hides the webview's menu outside fields and
+  selections; `ui/Inspector` carries the run's agent detail. Controls keep
+  the arrow (design rule "the pointer"), the focus ring is 3 px of
+  `--focus-ring`, sections cross-fade through view transitions
+  (`lib/viewTransition.ts`, `goTo`), and `data-window-active` greys the
+  rail's pill on macOS. macOS gets an overlay title bar
+  (`tauri.macos.conf.json`, `core:window:allow-start-dragging`,
+  `data-titlebar`), security-reviewed, not yet seen by the maintainer.
+  `just ui-shots` now fails on sideways overflow and on a control Tab
+  cannot reach. The brief's section 13 says what is left.
 - **Gaps and reading, 2026-10-20.** After three closed mornings the first
   chain on Claude ran cleanly, but nothing said 14 to 16 October had no
   research, the portfolio review stopped on a week-old holdings file, and a

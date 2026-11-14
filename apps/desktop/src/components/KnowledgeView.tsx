@@ -30,7 +30,7 @@ import { fuzzyFilter } from "../lib/fuzzy";
 import { forceLayout } from "../lib/graphLayout";
 import { countWords, toggleTaskLine } from "../lib/markdown";
 import { currentPlatform } from "../lib/platform";
-import { shortcut, shortcutLabel, withShortcut } from "../lib/shortcuts";
+import { matchesKeys, shortcut, shortcutLabel, shouldIgnoreKey, withShortcut } from "../lib/shortcuts";
 import { uniquePath } from "../lib/visualization";
 import { journalDays, journalEntries, journalKinds } from "../state/journal";
 import { sectionOf, type KnowledgeSection } from "../state/sections";
@@ -747,17 +747,22 @@ export function KnowledgeView({
   // Markdown shortcuts only while this section is visible.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
       const element = root.current;
       if (element?.closest("[hidden]") !== null) return;
-      const key = event.key.toLocaleLowerCase();
-      if (key === "o") {
+      // A dialog over the window (the command palette, the note switcher)
+      // has the keys: saving the note behind it is not what they are for.
+      if (event.target instanceof Element && event.target.closest('[aria-modal="true"]') !== null) return;
+      const is = (id: string) => {
+        const keys = shortcut(id).keys;
+        return matchesKeys(event, keys) && !shouldIgnoreKey(event.target, keys);
+      };
+      if (is("note-open")) {
         event.preventDefault();
         setSwitcher(true);
-      } else if (key === "s" && (note !== null || creating) && !busy && path.trim() !== "") {
+      } else if (is("note-save") && (note !== null || creating) && !busy && path.trim() !== "") {
         event.preventDefault();
         void save();
-      } else if (key === "e" && (note !== null || creating)) {
+      } else if (is("note-view") && (note !== null || creating)) {
         event.preventDefault();
         setMode((current) => (current === "write" ? "preview" : current === "preview" ? "split" : "write"));
       }

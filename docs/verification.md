@@ -4,6 +4,62 @@ Updated 2026-11-14. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
+## Phase 20, stage 20.3: the shell, 2026-11-14
+
+On branch `phase-20-redesign`, not merged, pushed or released. The brief's
+section 13, "Stage 20.3: built on 2026-11-14", lists what was built and
+the decisions taken in the stage.
+
+- **What changed for a person.** A toolbar over every section (title,
+  questions waiting, setup, the model, the spend, a search button); **Find
+  anything** on Ctrl/Cmd+K and Settings on Ctrl/Cmd+,; a rail of 30 px rows
+  with a filled pill; right-click menus (also Shift+F10 and the Menu key)
+  on run cards, agent rows, Knowledge's tree and desks; the run's agent
+  detail with folding groups; sections that cross-fade; a 3 px focus ring;
+  the arrow pointer on controls; skeletons for the last loading words. On
+  macOS inside the app the title bar is an overlay (not yet seen in a
+  build).
+- **Configuration.** `src-tauri/tauri.macos.conf.json` (new) and
+  `core:window:allow-start-dragging` in `capabilities/default.json`, the
+  one permission decision D5 allows, with its reason. The CSP and every
+  other capability are unchanged. The `security-review` skill read the
+  change and found nothing; a test holds the macOS window to the base
+  window plus the three overlay keys.
+- **Checks.** `just ci` passed: backend 1,451 passed and 12 skipped;
+  desktop **963 passed in 88 files** (was 929 in 84). `just test-visual`:
+  **164 passed** in Chromium and WebKit, axe included, with new Shell and
+  Command palette pages; baselines changed for the rail (the pill), the
+  token page (`--focus-ring`) and `office-shell-question` (the focused
+  Deny button's ring), each looked at. `just check` passed.
+- **Acceptance checks, new in `just ui-shots`.** It now fails if the
+  window, the main column, the showing section, the toolbar or the rail
+  is wider than its box (seen failing on a 1,600 px title), and if Tab
+  misses a control that can be seen in any section or in an open run
+  (seen failing on radio buttons before a radio group counted as one
+  stop). Both pass at 800 by 600, 1,100 by 800 and 1,440 by 900, in both
+  themes and under forced colours: `.dev/shots/shell-20-3` and
+  `.dev/shots/shell-20-3-forced`, from scratch data.
+- **Changed tests**, each for an intended change: none of the existing
+  assertions changed; new ones cover the palette, the shortcuts, the
+  context menus (primitive, desks), the inspector-hosted detail, the
+  native menu, the window's focus, view transitions, the title bar and
+  the design rule "the pointer". The App test's comment about "Loading the
+  space" names the skeleton instead.
+- **Review.** A code review at high effort found ten issues, all fixed:
+  a context menu outliving its hidden section and reopening at the last
+  place; a section change dropped by a stale comparison (the place asked
+  for is now kept on `<html>` as `data-section`); window shortcuts lost
+  while focus sat in a hidden section; Knowledge's shortcuts acting under
+  the palette; the webview's menu opening over chrome while any text was
+  selected; the palette's status line, and its rows rebuilt on every
+  render; one shared field test (`isEditable`); and the macOS window
+  config's drift. The first two behaviours have tests that fail without
+  their fixes.
+- **Not verified.** The title bar in a built app on macOS, and the app on
+  Windows (WebView2) at all in this stage: both need the maintainer and a
+  build, and are the stage's open acceptance items. View transitions were
+  exercised by unit tests and captured at rest, not watched in motion.
+
 ## Phase 20: the diagram retired (D8), 2026-11-14
 
 On branch `phase-20-redesign`, not merged, pushed or released. The

@@ -298,6 +298,26 @@ export function RunsView({
                 liveStatus={run.id === runId ? headStatus : null}
                 needsApproval={waitingRuns.has(run.id)}
                 onOpen={onSelectRun}
+                moreActions={() =>
+                  run.id !== runId
+                    ? []
+                    : [
+                        ...(cancellable ? [{ id: "stop", label: "Stop the run", onSelect: () => void cancel() }] : []),
+                        ...(deletable
+                          ? [
+                              { id: "gap", separator: true as const },
+                              {
+                                id: "delete",
+                                label: "Delete the run…",
+                                danger: true,
+                                onSelect: () => {
+                                  setConfirmingDelete(true);
+                                },
+                              },
+                            ]
+                          : []),
+                      ]
+                }
               />
             </li>
           ))}

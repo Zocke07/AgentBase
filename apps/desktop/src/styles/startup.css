@@ -58,9 +58,6 @@
   text-align: left;
 }
 
-.shell__technical summary {
-  cursor: pointer;
-}
 
 .shell__status {
   display: flex;

@@ -132,7 +132,6 @@
   color: var(--text);
   line-height: 1.35;
   overflow-wrap: anywhere;
-  cursor: pointer;
 }
 
 .chart-editor__values input[type="checkbox"],
@@ -452,6 +451,31 @@
   animation: view-in var(--dur-slow) var(--ease-out) backwards;
 }
 
+/* Where the engine has view transitions (brief 5.3), a section change
+   cross-fades through one (`lib/viewTransition.ts`), and the arriving
+   section's own entrance would play twice, so it does not. Only the showing
+   section carries the name, so the leaving and the arriving views alone
+   take part; the rail and the toolbar change in place. */
+@supports (view-transition-name: none) {
+  .app__view:not([hidden]) {
+    animation: none;
+    view-transition-name: section;
+  }
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
+::view-transition-old(section) {
+  animation: fade-out var(--dur-quick) var(--ease-out) both;
+}
+
+::view-transition-new(section) {
+  animation: view-in var(--dur-slow) var(--ease-out) both;
+}
+
 /* Buttons answer the pointer: colours ease and a press sinks a little.
    Nothing lifts toward the pointer; a fill change is enough (brief 5.2). */
 .button,
@@ -459,7 +483,7 @@
 .link,
 .rail__item,
 .switcher__current,
-.app__waiting {
+.toolbar__pill {
   transition:
     background-color var(--dur-quick) var(--ease-out),
     border-color var(--dur-quick) var(--ease-out),
@@ -469,7 +493,7 @@
 }
 
 .button:active:not(:disabled),
-.app__waiting:active {
+.toolbar__pill:active {
   transform: scale(0.97);
 }
 
@@ -508,38 +532,6 @@
 
 .run-card:active {
   transform: translateY(0);
-}
-
-/* The rail's current section is marked by a bar that grows in from the edge. */
-.rail__item {
-  position: relative;
-}
-
-.rail__item::before {
-  position: absolute;
-  top: 22%;
-  bottom: 22%;
-  left: -0.75rem;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--accent);
-  transform: scaleY(0);
-  transition: transform var(--spring-snappy-duration) var(--spring-snappy);
-  content: "";
-}
-
-.rail__item--active::before {
-  transform: scaleY(1);
-}
-
-.rail--collapsed .rail__item::before {
-  left: -0.5rem;
-}
-
-/* The active item's text is the stronger accent: 5:1 on its tinted fill. */
-.rail__item--active,
-.rail__item--active:hover {
-  color: var(--accent-strong);
 }
 
 /* The rail folds and unfolds rather than jumping. */

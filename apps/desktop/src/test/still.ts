@@ -8,4 +8,8 @@
  */
 export const STILL_CSS =
   "*, *::before, *::after { animation-duration: 0s !important; animation-delay: 0s !important; " +
-  "transition-duration: 0s !important; transition-delay: 0s !important; }";
+  "transition-duration: 0s !important; transition-delay: 0s !important; } " +
+  // A section change's view transition, where the engine has one: its own rule,
+  // so an engine that cannot read these selectors keeps the one above.
+  "::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) " +
+  "{ animation-duration: 0s !important; animation-delay: 0s !important; }";

@@ -4,38 +4,44 @@
   position: relative;
 }
 
+/* A toolbar-style button (brief 6.2): the space's name and a chevron, on
+   no fill until the pointer is over it. "Space" is said, not shown. */
 .switcher__current {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas:
-    "label chevron"
-    "name chevron";
-  gap: 0 0.5rem;
+  display: flex;
+  gap: var(--space-2);
   align-items: center;
   width: 100%;
-  padding: 0.5rem 0.75rem;
-  border: var(--hairline) solid var(--separator);
+  height: 32px;
+  padding: 0 var(--space-2);
+  border: 0;
   border-radius: var(--radius-control);
-  background: var(--fill);
+  background: transparent;
   color: var(--text);
   font: inherit;
   text-align: left;
-  cursor: pointer;
 }
 
-.switcher__current:hover {
-  border-color: var(--border-strong);
+.switcher__current:hover,
+.switcher__current[aria-expanded="true"] {
+  background: var(--fill-hover);
+}
+
+.switcher__current:active {
+  background: var(--fill-selected);
 }
 
 .switcher__label {
-  grid-area: label;
-  color: var(--muted);
-  font-size: var(--size-caption);
-  font-weight: 500;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
 .switcher__name {
-  grid-area: name;
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   font-size: var(--size-control);
   font-weight: 600;
@@ -44,7 +50,7 @@
 }
 
 .switcher__chevron {
-  grid-area: chevron;
+  flex: none;
   width: 1rem;
   height: 1rem;
   color: var(--muted);
@@ -81,7 +87,6 @@
   font: inherit;
   font-size: var(--size-control);
   text-align: left;
-  cursor: pointer;
 }
 
 .switcher__item:hover {
@@ -117,7 +122,6 @@
   padding: 0.25rem 0.6rem;
   color: var(--muted);
   font-size: var(--size-caption);
-  cursor: pointer;
 }
 
 .switcher__new {
@@ -154,61 +158,4 @@
   justify-content: flex-end;
 }
 
-.rail__sections,
-.rail__bottom {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.rail__bottom {
-  margin-top: auto;
-}
-
-.rail__item {
-  display: flex;
-  gap: 0.65rem;
-  align-items: center;
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  border: 0;
-  border-radius: var(--radius-control);
-  background: none;
-  color: var(--muted);
-  font: inherit;
-  font-size: var(--size-control);
-  font-weight: 500;
-  text-align: left;
-  cursor: pointer;
-}
-
-.rail__item .icon {
-  width: 1.2rem;
-  height: 1.2rem;
-}
-
-.rail__item:hover {
-  background: var(--fill-hover);
-  color: var(--text);
-}
-
-.rail__item--active,
-.rail__item--active:hover {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-}
-
-.rail__item>span:first-of-type {
-  flex: 1;
-}
-
-.rail__badge {
-  padding: 0 0.45rem;
-  border-radius: var(--radius-capsule);
-  background: var(--warn);
-  color: var(--on-warn);
-  font-size: var(--size-caption);
-  font-weight: 700;
-  line-height: 1.5;
-}
 

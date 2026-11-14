@@ -163,6 +163,23 @@ describe("the office by keyboard", () => {
     expect(onSelect).toHaveBeenCalledExactlyOnceWith(null);
   });
 
+  it("opens a desk's menu on a right-click or Shift+F10, which inspects it or closes the inspector", async () => {
+    const user = userEvent.setup();
+    const { onSelect } = show(twoAgentRun());
+    await user.pointer({ keys: "[MouseRight]", target: screen.getByTestId("office-desk-researcher") });
+    await user.click(await screen.findByRole("menuitem", { name: "Inspect" }));
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith("researcher");
+  });
+
+  it("offers to close the inspector from a selected desk's menu", async () => {
+    const user = userEvent.setup();
+    const { onSelect } = show(twoAgentRun(), "researcher");
+    screen.getByTestId("office-desk-researcher").focus();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    await user.click(await screen.findByRole("menuitem", { name: "Close the inspector" }));
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith(null);
+  });
+
   it("keeps a long error to a few lines on the desk, with the whole of it in the tooltip", () => {
     const long = `read_file was not run: ${"the answer was cut off at the output limit ".repeat(8)}`;
     const log = new LogBuilder();

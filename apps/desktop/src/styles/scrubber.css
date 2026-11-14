@@ -35,7 +35,6 @@
   font: inherit;
   font-size: var(--size-caption);
   font-weight: 600;
-  cursor: pointer;
 }
 
 .scrubber__speed:hover:not(:disabled) {
@@ -75,7 +74,6 @@
   border-radius: 50%;
   background: var(--border-strong);
   pointer-events: auto;
-  cursor: pointer;
   transform: translateX(-50%);
 }
 
@@ -101,7 +99,6 @@
   height: 1rem;
   appearance: none;
   background: transparent;
-  cursor: pointer;
 }
 
 .scrubber__control input::-webkit-slider-runnable-track {

@@ -77,7 +77,6 @@
   background: none;
   color: inherit;
   font: inherit;
-  cursor: pointer;
 }
 
 .budget__toggle::after {

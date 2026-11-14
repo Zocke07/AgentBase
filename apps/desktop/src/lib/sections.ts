@@ -21,3 +21,15 @@ export const SECTION_ORDER: readonly Section[] = [
   "space",
   "settings",
 ];
+
+/** Each section's name, as the rail, the toolbar and the palette say it. */
+export const SECTION_LABEL: Readonly<Record<Section, string>> = {
+  home: "Home",
+  automations: "Automations",
+  runs: "Runs",
+  agents: "Agents",
+  knowledge: "Knowledge",
+  usage: "Usage",
+  space: "Space settings",
+  settings: "Settings",
+};

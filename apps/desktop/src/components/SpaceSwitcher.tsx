@@ -19,11 +19,13 @@ export interface SpaceSwitcherProps {
   onCreated: (space: SpaceResponse) => void;
   /** Icon-only rail shows initial and name tooltip. */
   compact?: boolean | undefined;
+  /** Bumped to open the new-space form, from the command palette. */
+  createRequest?: number | undefined;
 }
 
 type Seed = CreateSpaceRequest["seed"];
 
-export function SpaceSwitcher({ spaces, currentId, onSelect, onCreated, compact = false }: SpaceSwitcherProps) {
+export function SpaceSwitcher({ spaces, currentId, onSelect, onCreated, compact = false, createRequest = 0 }: SpaceSwitcherProps) {
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
@@ -50,6 +52,14 @@ export function SpaceSwitcher({ spaces, currentId, onSelect, onCreated, compact 
   useEffect(() => {
     if (creating) nameInput.current?.focus();
   }, [creating]);
+
+  // A new request opens the form, as pressing "New space" in the menu does.
+  const [seenRequest, setSeenRequest] = useState(createRequest);
+  if (createRequest !== seenRequest) {
+    setSeenRequest(createRequest);
+    setOpen(true);
+    setCreating(true);
+  }
 
   const create = async () => {
     const trimmed = name.trim();
