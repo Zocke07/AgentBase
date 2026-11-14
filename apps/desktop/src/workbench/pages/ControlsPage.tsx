@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { Skeleton } from "../../components/Skeleton";
+import { Status } from "../../components/ui/Status";
 
 /**
  * The shared controls the stylesheet draws from a class: buttons, status and
@@ -58,9 +59,9 @@ export function ControlsPage() {
 
       <Group title="Run status">
         {STATUSES.map((status) => (
-          <span key={status} className={`status status--${status}`}>
+          <Status key={status} kind={status}>
             {status}
-          </span>
+          </Status>
         ))}
       </Group>
 

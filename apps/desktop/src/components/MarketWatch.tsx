@@ -5,6 +5,8 @@ import * as api from "../lib/api";
 import { whenLabel } from "../lib/format";
 import { useFetched } from "../state/useFetched";
 
+import { Status } from "./ui/Status";
+
 /**
  * Automations' market watch card (Phase 18): on or off, what it follows and
  * when it looks, and what raises an alert. The thresholds are the space's
@@ -119,7 +121,7 @@ function WatchStatus({ watch }: { watch: MonitorStatus }) {
   return (
     <>
       <p className="market-watch__state" data-testid="market-watch-state">
-        <span className="status status--running">On</span>{" "}
+        <Status kind="running">On</Status>{" "}
         {watch.market_open
           ? `Checks ${symbols.length > 0 ? `${String(symbols.length)} symbols` : "its symbols"} every ${String(watch.check_every_minutes ?? 5)} minutes.`
           : "The US market is closed now; it resumes at 04:00 New York time on the next weekday."}

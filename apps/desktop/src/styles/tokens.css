@@ -132,6 +132,7 @@
   --office-display-ink: #f5f5f7;
   --office-paper: #ffffff;
   --office-folder: #e6c98a;
+  --office-lamp: rgb(255 214 120 / 40%);
   --office-shadow: rgb(20 20 30 / 14%);
 
   /* Elevation: card, raised (hover and selection), floating (menus,
@@ -294,6 +295,7 @@
     --office-display-ink: #f2f2f4;
     --office-paper: #e8e8ec;
     --office-folder: #b89a5a;
+    --office-lamp: rgb(255 210 110 / 30%);
     --office-shadow: rgb(0 0 0 / 40%);
 
     --elevation-card: 0 1px 2px rgb(0 0 0 / 28%), 0 2px 8px rgb(0 0 0 / 20%);
@@ -381,6 +383,7 @@
   --office-display-ink: #f2f2f4;
   --office-paper: #e8e8ec;
   --office-folder: #b89a5a;
+  --office-lamp: rgb(255 210 110 / 30%);
   --office-shadow: rgb(0 0 0 / 40%);
 
   --elevation-card: 0 1px 2px rgb(0 0 0 / 28%), 0 2px 8px rgb(0 0 0 / 20%);

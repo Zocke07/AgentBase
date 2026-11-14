@@ -171,8 +171,16 @@ export interface Desk {
   /** The calls of the agent's current step, oldest first. */
   readonly slips: readonly Slip[];
   readonly trouble: Trouble | null;
+  /**
+   * Nothing to say beyond its name: ready or done, with no trouble and no
+   * call of its step refused, denied or left unanswered. A quiet desk's
+   * plate may fold to its name; any other desk keeps its words in view.
+   */
+  readonly quiet: boolean;
   /** Results this agent's calls have returned. */
   readonly results: number;
+  /** Files this agent's calls wrote: documents in its tray, each opening in Knowledge. */
+  readonly documents: readonly WrittenFile[];
   /** Calls refused or denied. */
   readonly refusals: number;
   /** Work handed to this desk that is on it now. */
@@ -256,7 +264,7 @@ export interface OfficeModel {
   readonly library: readonly RetrievedExcerpt[];
   readonly clock: Clock;
   readonly meter: Meter;
-  /** The desk with the latest event, for a camera that follows the work. */
+  /** The desk with the latest event, for a camera that follows the work; none once the run is over. */
   readonly focus: string | null;
   /**
    * The latest thing worth saying aloud once: an agent finishing or the
@@ -283,6 +291,9 @@ const STATE_LABEL: Readonly<Record<Face, string>> = {
 };
 
 /** A stamp as the words on it. */
+/** Stamps that say a call did not run as asked. */
+const REFUSALS: ReadonlySet<Stamp["kind"]> = new Set(["denied", "expired", "sandbox", "refused"]);
+
 export function stampLabel(stamp: Stamp): string {
   switch (stamp.kind) {
     case "policy":
@@ -407,6 +418,11 @@ function hostOf(call: ToolCall): string | null {
 // --- folders ------------------------------------------------------------------
 
 function foldersOf(view: RunView): Folder[] {
+  // The last delegation to each desk, found once, not once per folder.
+  const lastDelegation = new Map<string, number>();
+  view.handoffs.forEach((handoff, index) => {
+    if (handoff.from === SUPERVISOR) lastDelegation.set(handoff.to, index);
+  });
   return view.handoffs.map((handoff, index): Folder => {
     const to = view.agents[handoff.to];
     const from = view.agents[handoff.from];
@@ -417,7 +433,7 @@ function foldersOf(view: RunView): Folder[] {
     // supervisor's to act on once somebody does.
     if (kind === "requested") return { ...base, phase: to === undefined ? "arriving" : "returned" };
     // A later delegation to the same desk takes this one's place on it.
-    const superseded = view.handoffs.slice(index + 1).some((later) => later.from === SUPERVISOR && later.to === handoff.to);
+    const superseded = (lastDelegation.get(handoff.to) ?? index) > index;
     const phase: Folder["phase"] =
       to === undefined || to.latestSeq <= handoff.seq
         ? "arriving"
@@ -500,9 +516,11 @@ function bubbleOf(agent: AgentNode, returning: boolean): Bubble | null {
 function deskOf(view: RunView, agent: AgentNode, folders: readonly Folder[]): Desk {
   const trouble = troubleOf(view, agent);
   const face = faceOf(agent, trouble);
+  const slips = slipsFor(view, agent);
   const family = face === "tool" && agent.currentTool !== null ? toolInfo(agent.currentTool).family : null;
   const results = view.toolCalls.filter((call) => call.agent === agent.name && call.result !== null).length;
   const calls = view.toolCalls.filter((call) => call.agent === agent.name).length;
+  const documents = writtenFiles(view, agent.name);
   const stateLabel =
     agent.activity === "completed"
       ? completionLabel(agent.finishedReason)
@@ -526,9 +544,11 @@ function deskOf(view: RunView, agent: AgentNode, folders: readonly Folder[]): De
     stateLabel,
     activityLabel: activityLabel(agent),
     bubble: bubbleOf(agent, returning),
-    slips: slipsFor(view, agent),
+    slips,
     trouble,
+    quiet: (face === "dot" || face === "tick") && trouble === null && !slips.some((slip) => slip.stamp !== null && REFUSALS.has(slip.stamp.kind)),
     results,
+    documents,
     refusals: view.denials.filter((denial) => denial.agent === agent.name).length,
     inbox: folders.filter((folder) => folder.to === agent.name && folder.phase === "open"),
     returned: folders.filter((folder) => folder.kind === "delegated" && folder.from === agent.name && folder.phase === "returned").length,
@@ -536,7 +556,9 @@ function deskOf(view: RunView, agent: AgentNode, folders: readonly Folder[]): De
     maxSteps: agent.maxSteps,
     costMicros: agent.costMicros,
     latestSeq: agent.latestSeq,
-    accessibleName: `${agent.name} ${stateLabel}${model === null ? "" : ` ${model}`}.${role} ${plural(calls, "tool call")}.`,
+    accessibleName: `${agent.name} ${stateLabel}${model === null ? "" : ` ${model}`}.${role} ${plural(calls, "tool call")}.${
+      documents.length === 0 ? "" : ` Wrote ${plural(documents.length, "file")}.`
+    }`,
   };
 }
 
@@ -557,7 +579,9 @@ function ghostDesk(name: string): Desk {
     bubble: null,
     slips: [],
     trouble: null,
+    quiet: true,
     results: 0,
+    documents: [],
     refusals: 0,
     inbox: [],
     returned: 0,
@@ -633,7 +657,12 @@ export function officeOf(view: RunView): OfficeModel {
     return agent === undefined ? ghostDesk(name) : deskOf(view, agent, folders);
   });
   const everyone = lead === null ? desks : [lead, ...desks];
-  const focus = everyone.filter((desk) => !desk.ghost).sort((left, right) => right.latestSeq - left.latestSeq)[0]?.name ?? null;
+  // A run that is over has no work to follow, so the camera shows the
+  // room it left, and "Follow the work" says so by showing the same.
+  const over = view.status === "completed" || view.status === "failed" || view.status === "cancelled";
+  const focus = over
+    ? null
+    : (everyone.filter((desk) => !desk.ghost).sort((left, right) => right.latestSeq - left.latestSeq)[0]?.name ?? null);
   const limit = view.limits?.max_run_seconds;
 
   return {

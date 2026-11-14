@@ -1,4 +1,5 @@
 import {
+  memo,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -9,6 +10,7 @@ import {
   type WheelEvent,
 } from "react";
 
+import { sameData } from "../../lib/equal";
 import { ellipsise, formatDuration, moneyShort } from "../../lib/format";
 import {
   fitCamera,
@@ -28,9 +30,11 @@ import { matchesKeys, shortcut, withShortcut } from "../../lib/shortcuts";
 import { splitPath } from "../../state/files";
 import { stampReason, type Desk, type OfficeModel, type Slip } from "../../state/office";
 import { Icon } from "../icons/Icon";
+import { Status } from "../ui/Status";
 import { IconButton } from "../ui/controls";
 
 import { Room } from "./Room";
+import { BOARD_FILES, cardsOf, deskReach, slipsOnDesk, TROUBLE_CHARS } from "./estimates";
 import { FACE_ICON, FAMILY_ICON, SLIP_TONE, STAMP_ICON } from "./glyphs";
 
 /**
@@ -56,12 +60,12 @@ export interface OfficeSceneProps {
   onSelectAgent: (name: string | null) => void;
   /** Open a file the run wrote. Without it the board lists them as text. */
   onOpenFile?: ((path: string) => void) | undefined;
+  /** The room fills the window, as the diagram can. Without `onToggleExpand` no button offers it. */
+  expanded?: boolean | undefined;
+  onToggleExpand?: (() => void) | undefined;
 }
 
 const clockLabel = (seconds: number): string => formatDuration(seconds * 1000);
-
-/** How much of an error a desk shows; the whole message is in its tooltip and the log. */
-const TROUBLE_CHARS = 110;
 
 /** How far above a desk's floor spot the camera aims, in room pixels. */
 const FOCUS_LIFT = 64;
@@ -88,32 +92,70 @@ function SlipCard({ slip }: { slip: Slip }) {
   );
 }
 
-function DeskButton({
-  desk,
-  spot,
-  dense,
-  selected,
-  tabbable,
-  onSelect,
-}: {
+interface DeskWordsProps {
   desk: Desk;
   spot: Spot;
   dense: boolean;
   selected: boolean;
   tabbable: boolean;
   onSelect: (name: string | null) => void;
-}) {
-  // Handing work on is shown by the folder, not by a slip of paper.
-  const slips = desk.slips.filter((entry) => entry.family !== "delegation");
+}
+
+function DeskWords({ desk, spot, dense, selected, tabbable, onSelect }: DeskWordsProps) {
+  const slips = slipsOnDesk(desk);
   const slip = slips.at(-1);
   const earlier = slips.length - 1;
   const glyph = desk.face === "tool" ? FAMILY_ICON[desk.family ?? "unknown"] : FACE_ICON[desk.face];
+  const plate = (
+    <button
+      type="button"
+      className="office-desk__button"
+      data-desk={desk.name}
+      data-testid={`office-desk-${desk.name}`}
+      aria-label={desk.accessibleName}
+      aria-pressed={selected}
+      title={desk.ghost ? desk.accessibleName : `${desk.role ?? desk.name}. ${desk.activityLabel}.`}
+      tabIndex={tabbable ? 0 : -1}
+      disabled={desk.ghost}
+      onClick={() => {
+        // A pressed desk is unpressed by pressing it again, as in the diagram.
+        onSelect(selected ? null : desk.name);
+      }}
+    >
+      {/* The spaces between the parts are for anything that reads the plate
+          as one line of text; the grid does not draw them. */}
+      <span className="office-desk__name">{desk.name}</span>
+      {!dense && " "}
+      {!dense && (
+        <span className={`office-desk__state office-desk__state--${desk.face}`}>
+          <Icon name={glyph} size={16} />
+          {desk.stateLabel}
+        </span>
+      )}
+      {!dense && desk.model !== null && " "}
+      {!dense && desk.model !== null && <span className="office-desk__model">{desk.model}</span>}
+    </button>
+  );
+  // The papers on the desk, one under the other however long each runs.
+  const papers = !dense && (desk.trouble !== null || slip !== undefined) && (
+    <div className="office-desk__papers">
+      {desk.trouble !== null && (
+        <p className={`office-trouble office-trouble--${desk.trouble.kind}`} title={desk.trouble.message}>
+          <Icon name={desk.trouble.kind === "alarm" ? "triangle-alert" : "info"} size={16} />
+          <span>{ellipsise(desk.trouble.message, TROUBLE_CHARS)}</span>
+        </p>
+      )}
+      {slip !== undefined && <SlipCard slip={slip} />}
+      {earlier > 0 && <span className="office-desk__more">and {earlier} more this step</span>}
+    </div>
+  );
   return (
     <div
       className={`office-desk${desk.lead ? " office-desk--lead" : ""}${desk.ghost ? " office-desk--ghost" : ""}`}
       style={at(spot)}
       data-activity={desk.activity}
       data-face={desk.face}
+      data-quiet={desk.quiet ? "true" : "false"}
     >
       {desk.bubble !== null && (
         <p className={`office-bubble office-bubble--${desk.bubble.kind}`}>
@@ -121,52 +163,52 @@ function DeskButton({
           {desk.bubble.text === "" ? "…" : desk.bubble.text}
         </p>
       )}
-      <button
-        type="button"
-        className="office-desk__button"
-        data-desk={desk.name}
-        data-testid={`office-desk-${desk.name}`}
-        aria-label={desk.accessibleName}
-        aria-pressed={selected}
-        title={desk.ghost ? desk.accessibleName : `${desk.role ?? desk.name}. ${desk.activityLabel}.`}
-        tabIndex={tabbable ? 0 : -1}
-        disabled={desk.ghost}
-        onClick={() => {
-          // A pressed desk is unpressed by pressing it again, as in the diagram.
-          onSelect(selected ? null : desk.name);
-        }}
-      >
-        {/* The spaces between the parts are for anything that reads the plate
-            as one line of text; the grid does not draw them. */}
-        <span className="office-desk__name">{desk.name}</span>
-        {!dense && " "}
-        {!dense && (
-          <span className={`office-desk__state office-desk__state--${desk.face}`}>
-            <Icon name={glyph} size={16} />
-            {desk.stateLabel}
-          </span>
-        )}
-        {!dense && desk.model !== null && " "}
-        {!dense && desk.model !== null && <span className="office-desk__model">{desk.model}</span>}
-      </button>
-      {/* The papers on the desk, one under the other however long each runs. */}
-      {!dense && (desk.trouble !== null || slip !== undefined) && (
-        <div className="office-desk__papers">
-          {desk.trouble !== null && (
-            <p className={`office-trouble office-trouble--${desk.trouble.kind}`} title={desk.trouble.message}>
-              <Icon name={desk.trouble.kind === "alarm" ? "triangle-alert" : "info"} size={16} />
-              <span>{ellipsise(desk.trouble.message, TROUBLE_CHARS)}</span>
-            </p>
-          )}
-          {slip !== undefined && <SlipCard slip={slip} />}
-          {earlier > 0 && <span className="office-desk__more">and {earlier} more this step</span>}
+      {/* A worker's plate stands over its head and its papers lie in front of
+          its desk. The lead desk has the first row behind it and nothing in
+          front, so its plate and papers hang in front of it, one under the
+          other: over its head the plate would lie under the papers of the
+          desk behind. */}
+      {desk.lead ? (
+        <div className="office-desk__front">
+          {plate}
+          {papers}
         </div>
+      ) : (
+        <>
+          {plate}
+          {papers}
+        </>
       )}
     </div>
   );
 }
 
-export function OfficeScene({ model, description, selectedAgent, onSelectAgent, onOpenFile }: OfficeSceneProps) {
+/**
+ * The model builds every desk again on every event, so a desk's words are
+ * drawn again only when something they show changed: in a room of twenty,
+ * an event usually changes one desk. The desk is compared as data, so a
+ * field added to it can never be left out of the comparison.
+ */
+const DeskButton = memo(
+  DeskWords,
+  (before, after) =>
+    before.spot === after.spot &&
+    before.dense === after.dense &&
+    before.selected === after.selected &&
+    before.tabbable === after.tabbable &&
+    before.onSelect === after.onSelect &&
+    sameData(before.desk, after.desk),
+);
+
+export function OfficeScene({
+  model,
+  description,
+  selectedAgent,
+  onSelectAgent,
+  onOpenFile,
+  expanded = false,
+  onToggleExpand,
+}: OfficeSceneProps) {
   const layout = useMemo(() => placeOffice(model.desks.length), [model.desks.length]);
   const dense = labelDensity(model.desks.length + (model.lead === null ? 0 : 1)) === "names";
 
@@ -202,7 +244,14 @@ export function OfficeScene({ model, description, selectedAgent, onSelectAgent, 
   // character and the name plate over its head.
   const focusSpot = model.focus === null ? undefined : spots.get(model.focus);
   const focus: Point | null = focusSpot === undefined ? null : { x: focusSpot.x, y: focusSpot.y - FOCUS_LIFT };
-  const camera = held ?? followCamera(layout, viewport, focus);
+  const focusDesk = model.focus === null ? undefined : model.lead?.name === model.focus ? model.lead : model.desks.find((desk) => desk.name === model.focus);
+  // The cards' words follow the band the camera draws them at, and the
+  // camera follows the cards: estimate at mid, then again at the band that
+  // fit gave.
+  const rough = cardsOf(model.board, model.reception, model.lead);
+  const cards = cardsOf(model.board, model.reception, model.lead, zoomBand(fitCamera(layout, viewport, rough).scale));
+  const camera =
+    held ?? followCamera(layout, viewport, focus, cards, (scale) => (focusDesk === undefined ? { above: 0, below: 0 } : deskReach(focusDesk, scale, FOCUS_LIFT)));
   const centre: Point = { x: viewport.width / 2, y: viewport.height / 2 };
 
   const drag = useRef<{ x: number; y: number; camera: Camera } | null>(null);
@@ -255,13 +304,18 @@ export function OfficeScene({ model, description, selectedAgent, onSelectAgent, 
         if (current >= 0) go(buttons.length - 1);
         return;
       case "Escape":
-        if (selectedAgent !== null) onSelectAgent(null);
+        // Closing the inspector is this Escape's whole job: a full-screen
+        // room stays full screen until the next one.
+        if (selectedAgent !== null) {
+          event.stopPropagation();
+          onSelectAgent(null);
+        }
         return;
       default:
     }
     // The camera's keys, from the keyboard map.
     if (matchesKeys(event, shortcut("office-follow").keys)) setHeld(null);
-    else if (matchesKeys(event, shortcut("office-fit").keys)) setHeld(fitCamera(layout, viewport));
+    else if (matchesKeys(event, shortcut("office-fit").keys)) setHeld(fitCamera(layout, viewport, cards));
     else if (matchesKeys(event, shortcut("office-zoom-in").keys) || event.key === "=") setHeld(zoomCamera(camera, 1.25, centre));
     else if (matchesKeys(event, shortcut("office-zoom-out").keys)) setHeld(zoomCamera(camera, 0.8, centre));
   };
@@ -315,7 +369,7 @@ export function OfficeScene({ model, description, selectedAgent, onSelectAgent, 
           <div className="office__layer">
             <div className="office-board-card" style={at(layout.board)}>
               <p className="office-board-card__status">
-                <span className={`status status--${board.status}`}>{board.statusLabel}</span>
+                <Status kind={board.status}>{board.statusLabel}</Status>
               </p>
               <p className="office-board-card__goal" title={board.goal ?? undefined}>
                 {board.goal ?? "Waiting for the run to start"}
@@ -328,7 +382,7 @@ export function OfficeScene({ model, description, selectedAgent, onSelectAgent, 
               )}
               {board.documents.length > 0 && (
                 <ul className="office-board-card__files" aria-label="Files this run wrote">
-                  {board.documents.slice(0, 4).map((file) => (
+                  {board.documents.slice(0, BOARD_FILES).map((file) => (
                     <li key={file.path}>
                       {onOpenFile === undefined ? (
                         <span title={file.path}>{splitPath(file.path).name}</span>
@@ -346,12 +400,12 @@ export function OfficeScene({ model, description, selectedAgent, onSelectAgent, 
                       )}
                     </li>
                   ))}
-                  {board.documents.length > 4 && <li>and {board.documents.length - 4} more</li>}
+                  {board.documents.length > BOARD_FILES && <li>and {board.documents.length - BOARD_FILES} more</li>}
                 </ul>
               )}
               {board.memoryPath !== null && <p className="office-board-card__note">A note of this run was saved for later.</p>}
               {board.unrecognised.map((type) => (
-                <p key={type} className="office-board-card__note">
+                <p key={type} className="office-board-card__warning">
                   This version does not know the event {type}.
                 </p>
               ))}
@@ -433,7 +487,7 @@ export function OfficeScene({ model, description, selectedAgent, onSelectAgent, 
           label="Show the whole room"
           title={withShortcut("Show the whole room", "office-fit", platform)}
           onClick={() => {
-            setHeld(fitCamera(layout, viewport));
+            setHeld(fitCamera(layout, viewport, cards));
           }}
         />
         <IconButton
@@ -452,6 +506,15 @@ export function OfficeScene({ model, description, selectedAgent, onSelectAgent, 
             setHeld(zoomCamera(camera, 0.8, centre));
           }}
         />
+        {onToggleExpand !== undefined && (
+          <IconButton
+            icon={expanded ? "minimize-2" : "maximize-2"}
+            label={expanded ? "Leave full screen" : "Full screen"}
+            title={expanded ? "Leave full screen (Esc)" : "Full screen"}
+            pressed={expanded}
+            onClick={onToggleExpand}
+          />
+        )}
       </div>
     </div>
   );

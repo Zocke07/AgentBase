@@ -6,7 +6,8 @@
 AgentBase runs a team of AI agents on your computer that work on their own. A
 space's automations run goals at set times or one after another while the app
 is open; a task you want done once goes to a supervisor, which delegates it to
-enabled agents. The graph and event log show every step, live or replayed.
+enabled agents. The office, the diagram and the event log show every step,
+live or replayed.
 
 A **space** groups agents, a folder for their files, and run settings. Its
 folder is also a Markdown knowledge vault shared by people and agents. The

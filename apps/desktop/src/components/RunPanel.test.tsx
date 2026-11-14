@@ -1,8 +1,9 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { reduceAll } from "../state/reducer";
 import { twoAgentRun } from "../test/log";
+import { scenario } from "../test/scenarios";
 
 import { RunPanel } from "./RunPanel";
 
@@ -30,6 +31,7 @@ describe("the selected agent", () => {
         onCursorChange={vi.fn()}
         approvalReadOnly="replay"
         onResolveApproval={() => Promise.resolve()}
+        canvas="diagram"
       />,
     );
 
@@ -126,9 +128,12 @@ describe("the panels", () => {
     };
   };
 
-  it("fills the window with the canvas until Esc, and offers the summary and canvas handles", () => {
-    render(<RunPanel {...props()} />);
-    const canvas = screen.getByTestId("run-graph").parentElement;
+  it.each(["diagram", "office"] as const)("fills the window with the %s until Esc, and offers the summary and canvas handles", (drawing) => {
+    // The office starts with the log folded, which leaves no canvas divider.
+    localStorage.setItem("agentbase.flag.runs.office.log.collapsed", "0");
+    render(<RunPanel {...props()} canvas={drawing} />);
+    localStorage.removeItem("agentbase.flag.runs.office.log.collapsed");
+    const canvas = screen.getByTestId(drawing === "office" ? "office" : "run-graph").parentElement;
     expect(canvas?.className).not.toContain("run-panel__canvas--expanded");
     expect(screen.getByRole("separator", { name: "Resize the summary" })).toBeDefined();
     expect(screen.getByRole("separator", { name: "Resize the canvas" })).toBeDefined();
@@ -144,23 +149,154 @@ describe("the panels", () => {
   });
 });
 
-describe("the event log's fold", () => {
-  it("gives the log's room to the canvas and remembers the choice", () => {
+describe("the office in full screen", () => {
+  it("closes the inspector on the first Escape and leaves full screen on the next", () => {
     const events = twoAgentRun();
-    const panel = () => (
+    const onSelectAgent = vi.fn();
+    const { rerender } = render(
+      <RunPanel
+        view={reduceAll(events)}
+        events={events}
+        cursor={events.length}
+        selectedAgent="supervisor"
+        onSelectAgent={onSelectAgent}
+        onCursorChange={vi.fn()}
+        approvalReadOnly="finished"
+        onResolveApproval={() => Promise.resolve()}
+        canvas="office"
+      />,
+    );
+    const canvas = screen.getByTestId("office").parentElement;
+    fireEvent.click(screen.getByRole("button", { name: "Full screen" }));
+    expect(canvas?.className).toContain("run-panel__canvas--expanded");
+
+    fireEvent.keyDown(screen.getByTestId("office-desk-supervisor"), { key: "Escape" });
+    expect(onSelectAgent).toHaveBeenCalledWith(null);
+    expect(canvas?.className).toContain("run-panel__canvas--expanded");
+
+    rerender(
       <RunPanel
         view={reduceAll(events)}
         events={events}
         cursor={events.length}
         selectedAgent={null}
+        onSelectAgent={onSelectAgent}
+        onCursorChange={vi.fn()}
+        approvalReadOnly="finished"
+        onResolveApproval={() => Promise.resolve()}
+        canvas="office"
+      />,
+    );
+    fireEvent.keyDown(screen.getByTestId("office-desk-supervisor"), { key: "Escape" });
+    expect(canvas?.className).not.toContain("run-panel__canvas--expanded");
+  });
+});
+
+describe("the inspector", () => {
+  it.each(["office", "diagram"] as const)("closes with Escape from inside it, and the %s stays full screen", (canvas) => {
+    const events = twoAgentRun();
+    const onSelectAgent = vi.fn();
+    render(
+      <RunPanel
+        view={reduceAll(events)}
+        events={events}
+        cursor={events.length}
+        selectedAgent="supervisor"
+        onSelectAgent={onSelectAgent}
+        onCursorChange={vi.fn()}
+        approvalReadOnly="finished"
+        onResolveApproval={() => Promise.resolve()}
+        canvas={canvas}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Full screen" }));
+    const detail = screen.getByTestId("agent-detail");
+    expect(detail.parentElement?.className).toContain("run-panel__canvas--expanded");
+    fireEvent.keyDown(within(detail).getByRole("button", { name: "Close the agent detail" }), { key: "Escape" });
+    expect(onSelectAgent).toHaveBeenCalledWith(null);
+    expect(detail.parentElement?.className).toContain("run-panel__canvas--expanded");
+  });
+});
+
+describe("the inspector's files", () => {
+  it("lists the files the selected agent wrote, each opening in Knowledge", () => {
+    const { events } = scenario("morning-collection");
+    const view = reduceAll(events);
+    const writer = view.toolCalls.find((call) => call.result !== null && call.tool === "write_file");
+    if (writer === undefined) throw new Error("the scenario writes a file");
+    const onOpenFile = vi.fn();
+    render(
+      <RunPanel
+        view={view}
+        events={events}
+        cursor={events.length}
+        selectedAgent={writer.agent}
         onSelectAgent={vi.fn()}
         onCursorChange={vi.fn()}
         approvalReadOnly="finished"
         onResolveApproval={() => Promise.resolve()}
-      />
+        onOpenFile={onOpenFile}
+        canvas="office"
+      />,
     );
-    localStorage.removeItem("agentbase.flag.runs.log.collapsed");
+    const files = screen.getByTestId("agent-files");
+    const path = String(writer.args.path);
+    fireEvent.click(within(files).getByRole("button", { name: path }));
+    expect(onOpenFile).toHaveBeenCalledWith(path);
+  });
+});
+
+describe("the event log's fold", () => {
+  const events = twoAgentRun();
+  const panel = (drawing?: "diagram" | "office") => (
+    <RunPanel
+      view={reduceAll(events)}
+      events={events}
+      cursor={events.length}
+      selectedAgent={null}
+      onSelectAgent={vi.fn()}
+      onCursorChange={vi.fn()}
+      approvalReadOnly="finished"
+      onResolveApproval={() => Promise.resolve()}
+      canvas={drawing}
+    />
+  );
+
+  it("opens on the office, with the summary's detail and the log folded away for the room", () => {
+    for (const name of ["runs.office", "runs.office.log.collapsed", "runs.log.collapsed"]) localStorage.removeItem(`agentbase.flag.${name}`);
     const { unmount } = render(panel());
+    expect(screen.getByTestId("office")).toBeDefined();
+    expect(screen.getByTestId("run-projection").className).toContain("run-projection--office");
+    expect(screen.getByRole("button", { name: "Event log" }).getAttribute("aria-expanded")).toBe("false");
+    // The title and the figures stay; what the room shows is one press away.
+    expect(screen.getByTestId("fact-tool-calls").textContent).toBe("2");
+    const more = screen.getByTestId("run-more");
+    expect(more.hasAttribute("open")).toBe(false);
+    expect(more.contains(screen.getByTestId("run-claim"))).toBe(true);
+
+    // Opening the log beside the office does not open it under the diagram, or the reverse.
+    fireEvent.click(screen.getByRole("button", { name: "Event log" }));
+    expect(screen.getByRole("button", { name: "Event log" }).getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(screen.getByRole("radio", { name: "Diagram" }));
+    expect(screen.getByTestId("run-graph")).toBeDefined();
+    expect(screen.queryByTestId("run-more")).toBeNull();
+    expect(screen.getByRole("button", { name: "Event log" }).getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Event log" }));
+    unmount();
+
+    // The viewer's choices are kept: the diagram, its log folded, and the office's log open.
+    render(panel());
+    expect(screen.getByTestId("run-graph")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Event log" }).getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(screen.getByRole("radio", { name: "Office" }));
+    expect(screen.getByRole("button", { name: "Event log" }).getAttribute("aria-expanded")).toBe("true");
+    for (const name of ["runs.office", "runs.office.log.collapsed", "runs.log.collapsed"]) localStorage.removeItem(`agentbase.flag.${name}`);
+  });
+
+  it("gives the log's room to the canvas and remembers the choice", () => {
+    const diagram = () => panel("diagram");
+    localStorage.removeItem("agentbase.flag.runs.log.collapsed");
+    const { unmount } = render(diagram());
     expect(screen.getByLabelText("Resize the canvas")).toBeDefined();
 
     fireEvent.click(screen.getByRole("button", { name: "Event log" }));
@@ -170,7 +306,7 @@ describe("the event log's fold", () => {
     expect(screen.queryByLabelText("Resize the canvas")).toBeNull();
     unmount();
 
-    render(panel());
+    render(diagram());
     expect(screen.getByRole("button", { name: "Event log" }).getAttribute("aria-expanded")).toBe("false");
     localStorage.removeItem("agentbase.flag.runs.log.collapsed");
   });

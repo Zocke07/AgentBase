@@ -4,12 +4,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { placeOffice } from "../../lib/officeLayout";
 import { nowLine } from "../../state/describe";
-import { officeOf } from "../../state/office";
+import { officeOf, type Board } from "../../state/office";
 import { reduceAll } from "../../state/reducer";
 import { LogBuilder, twoAgentRun } from "../../test/log";
 import { scenario, SCENARIOS } from "../../test/scenarios";
 
 import { OfficeScene } from "./OfficeScene";
+import { boardCardHeight, cardsOf, deskReach } from "./estimates";
 
 function show(events: Parameters<typeof reduceAll>[0], selected: string | null = null, onSelect = vi.fn()) {
   const view = reduceAll(events);
@@ -196,4 +197,97 @@ describe("the office by keyboard", () => {
     }
     expect(controls.getByRole("button", { name: "Follow the work" }).getAttribute("aria-pressed")).toBe("true");
   });
+
+  it("leaves the board's card more room the more it shows, up to its limits", () => {
+    const base: Board = { goal: "Short", status: "running", statusLabel: "running", claim: null, memoryPath: null, documents: [], unrecognised: [] };
+    const file = (path: string): Board["documents"][number] => ({ path, kind: "file" });
+    const short = boardCardHeight(base);
+    const longGoal = boardCardHeight({ ...base, goal: "x".repeat(400) });
+    const claimed = boardCardHeight({ ...base, claim: { kind: "summary", text: "y".repeat(400) } });
+    const filed = boardCardHeight({ ...base, documents: ["a", "b", "c", "d", "e"].map(file) }, "near");
+    expect(longGoal).toBeGreaterThan(short);
+    // Clamped in CSS to two lines of goal, three of claim and two file names with a count.
+    expect(longGoal).toBe(boardCardHeight({ ...base, goal: "x".repeat(4000) }));
+    expect(claimed).toBe(boardCardHeight({ ...base, claim: { kind: "summary", text: "y".repeat(4000) } }));
+    expect(filed).toBe(boardCardHeight({ ...base, documents: ["a", "b", "c"].map(file) }, "near"));
+    expect(filed).toBeGreaterThan(boardCardHeight({ ...base, documents: ["a"].map(file) }, "near"));
+    // Further out the board does not list files, so they take no room.
+    expect(boardCardHeight({ ...base, documents: ["a", "b", "c"].map(file) }, "mid")).toBe(short);
+  });
+
+  it("stacks a sheet in a desk's tray per file it wrote, and the library's books on the lead desk", () => {
+    const view = reduceAll(scenario("morning-collection").events);
+    const model = officeOf(view);
+    const { container } = render(<OfficeScene model={model} description={nowLine(view)} selectedAgent={null} onSelectAgent={vi.fn()} />);
+    const sheets = container.querySelectorAll(".office-box--paper").length;
+    const expected = [...(model.lead === null ? [] : [model.lead]), ...model.desks].reduce((total, each) => total + Math.min(each.documents.length, 4), 0);
+    expect(sheets).toBe(expected);
+    expect(sheets).toBeGreaterThan(0);
+    expect(container.querySelectorAll(".office-box--book")).toHaveLength(Math.min(model.library.length, 4));
+  });
+
+  it("poses each figure by its activity, raises a card in the question's risk, and lights the lamp while it works", () => {
+    // The pose itself is CSS keyed on the activity; the drawing carries the
+    // activity, both arms, and the card only while a person is asked.
+    let raised = 0;
+    for (const [id, cursor] of [["shell-question", undefined], ["two-agents", undefined], ["morning-collection", 40]] as const) {
+      const events = scenario(id).events.slice(0, cursor);
+      const view = reduceAll(events);
+      const model = officeOf(view);
+      const { container, unmount } = render(<OfficeScene model={model} description={nowLine(view)} selectedAgent={null} onSelectAgent={vi.fn()} />);
+      const seated = [...(model.lead === null ? [] : [model.lead]), ...model.desks].filter((each) => !each.ghost);
+      const figures = [...container.querySelectorAll(".office-character")];
+      expect(figures).toHaveLength(seated.length);
+      for (const figure of figures) expect(figure.querySelectorAll(".office-character__arm")).toHaveLength(2);
+      expect(new Set(figures.map((figure) => figure.getAttribute("class")))).toEqual(new Set(seated.map((each) => `office-character office-character--${each.activity}`)));
+      const waiting = seated.filter((each) => each.activity === "waiting");
+      const cards = [...container.querySelectorAll(".office-character__card")];
+      expect(cards, id).toHaveLength(waiting.length);
+      raised += cards.length;
+      for (const card of cards) expect(card.getAttribute("class")).toMatch(/office-character__card--(low|medium|high)$/);
+      expect(container.querySelectorAll(".office-lamp--on"), id).toHaveLength(seated.filter((each) => each.activity !== "completed").length);
+      unmount();
+    }
+    expect(raised).toBeGreaterThan(0);
+  });
+
+  it("hangs the lead desk's plate and papers in front of it, and a worker's plate over its head", () => {
+    // The lead desk's plate over its head would lie under the papers of the
+    // desk behind it in the first row; in front of it there is only floor.
+    show(twoAgentRun());
+    const lead = screen.getByTestId("office-desk-supervisor");
+    const worker = screen.getByTestId("office-desk-researcher");
+    expect(lead.parentElement?.className).toBe("office-desk__front");
+    expect(worker.parentElement?.classList.contains("office-desk")).toBe(true);
+    const papers = lead.closest(".office-desk")?.querySelector(".office-desk__papers");
+    if (papers) expect(papers.parentElement?.className).toBe("office-desk__front");
+  });
+
+  it("estimates the reach of a desk's words where they hang: the lead's in front, a worker's over its head", () => {
+    // At the start of the run's work the supervisor is busy with a call, the
+    // researcher is not yet speaking; at the end both are done.
+    const model = officeOf(reduceAll(scenario("two-agents").events));
+    const lead = model.lead;
+    const worker = model.desks[0];
+    if (lead === null || worker === undefined) throw new Error("the scenario has a lead and a worker");
+    const leadReach = deskReach(lead, 0.9, 64);
+    const workerReach = deskReach(worker, 0.9, 64);
+    expect(leadReach.below).toBeGreaterThan(0);
+    expect(workerReach.above).toBeGreaterThan(0);
+    // A lead with no bubble has nothing over its head; a quiet worker nothing in front.
+    if (lead.bubble === null) expect(leadReach.above).toBe(0);
+    if (worker.quiet) expect(workerReach.below).toBe(0);
+    // A bubble reaches higher than a plate alone.
+    const speaking = { ...worker, bubble: { kind: "speech" as const, text: "A finding worth saying in a few words." } };
+    expect(deskReach(speaking, 0.9, 64).above).toBeGreaterThan(workerReach.above);
+    // The words keep their size: drawn further out, they reach less far past the room.
+    expect(deskReach(lead, 0.5, 64).below).toBeLessThan(leadReach.below);
+    // The camera leaves the lead's words room in front, and none for a room without a lead.
+    expect(cardsOf(model.board, model.reception, lead).lead).toBeGreaterThan(0);
+    expect(cardsOf(model.board, model.reception, null).lead).toBe(0);
+    // A question waiting adds a line to the reception's card.
+    const asking = cardsOf(model.board, { ...model.reception, waiting: 1 }, lead).reception;
+    expect(asking).toBeGreaterThan(cardsOf(model.board, model.reception, lead).reception);
+  });
+
 });

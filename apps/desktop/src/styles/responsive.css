@@ -141,6 +141,13 @@
   grid-template-rows: auto auto minmax(12rem, 1fr) auto;
 }
 
+/* Beside the office the room is the picture and most of the summary, so
+   it takes the height the summary gave up, and the log keeps a few rows
+   until the viewer drags the divider or folds it. */
+.run-projection.run-projection--office:not(.run-projection--log-collapsed) {
+  grid-template-rows: auto auto minmax(13rem, 1fr) minmax(7rem, 9.5rem);
+}
+
 .log--collapsed .log__filters {
   flex-wrap: nowrap;
   border-bottom: 0;

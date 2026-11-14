@@ -3,6 +3,8 @@ import type { Run } from "@agentbase/schemas";
 import { clockDate, formatDuration, runOriginLabel } from "../lib/format";
 import { STATUS_LABEL } from "../state/describe";
 
+import { Status } from "./ui/Status";
+
 /**
  * Selectable `runs`-table snapshot. For open runs, fold status overrides lagging
  * rows; duration uses row timestamps, never a clock. An automation's run is
@@ -48,7 +50,7 @@ export function RunCard({
       data-testid={`${kind}-${run.id}`}
     >
       <span className="run-card__head">
-        <span className={`status status--${status}`}>{STATUS_LABEL[status]}</span>
+        <Status kind={status}>{STATUS_LABEL[status]}</Status>
         <span className="run-card__meta">
           {originLabel !== null && <span className="run-card__origin">{originLabel}</span>}
           <span className="run-card__time">{clockDate(run.created_at)}</span>

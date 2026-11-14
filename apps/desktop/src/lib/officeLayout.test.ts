@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BOARD_CARD_HEIGHT,
+  BOARD_LIFT,
+  CARDS,
   centreCamera,
   DESKS_PER_ROW,
   deskSpot,
@@ -11,7 +14,9 @@ import {
   MAX_ZOOM,
   MIN_ZOOM,
   placeOffice,
+  PAPERS_DROP,
   project,
+  RECEPTION_DROP,
   ROOM_ACROSS,
   zoomBand,
   zoomCamera,
@@ -112,16 +117,60 @@ describe("the office's floor", () => {
 describe("the office's camera", () => {
   const layout = placeOffice(6);
 
-  it("fits the whole room, centred, never larger than life", () => {
+  it("fits everything that stands in the room, with the board's card in view, never larger than life", () => {
     const viewport = { width: 500, height: 260 };
     const camera = fitCamera(layout, viewport);
-    const { bounds } = layout;
+    const { frame, corners } = layout;
     expect(camera.scale).toBeLessThanOrEqual(1);
-    expect(camera.x + bounds.x * camera.scale).toBeGreaterThanOrEqual(0);
-    expect(camera.y + bounds.y * camera.scale).toBeGreaterThanOrEqual(0);
-    expect(camera.x + (bounds.x + bounds.width) * camera.scale).toBeLessThanOrEqual(viewport.width + 0.001);
-    expect(camera.y + (bounds.y + bounds.height) * camera.scale).toBeLessThanOrEqual(viewport.height + 0.001);
+    const standing = [layout.reception, layout.lead, ...layout.desks, layout.board, layout.clock, layout.meter, layout.library, corners[1], corners[2]];
+    for (const point of standing) {
+      const x = point.x * camera.scale + camera.x;
+      const y = point.y * camera.scale + camera.y;
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(x).toBeLessThanOrEqual(viewport.width);
+      expect(y).toBeGreaterThanOrEqual(0);
+      expect(y).toBeLessThanOrEqual(viewport.height);
+    }
+    expect(frame.width).toBeGreaterThan(0);
+    // The board's card hangs above the wall and keeps its size: however tall
+    // it is, its top stays in the view, and a taller card never gets a larger room.
+    let previous = Infinity;
+    // Up to a quarter of the view's height, which is all a card is given.
+    for (const card of [0, BOARD_CARD_HEIGHT, 105, 160]) {
+      const fitted = fitCamera(layout, { width: 1000, height: 640 }, { ...CARDS, board: card });
+      expect(fitted.y + (layout.board.y - BOARD_LIFT) * fitted.scale - card, `card ${String(card)}`).toBeGreaterThanOrEqual(0);
+      expect(fitted.scale).toBeLessThanOrEqual(previous);
+      previous = fitted.scale;
+    }
     expect(fitCamera(layout, { width: 4000, height: 3000 }).scale).toBe(1);
+  });
+
+  it("keeps the words in front of the room in view below it, up to a fifth of the view", () => {
+    // The reception's card and the lead desk's plate keep their size, so they
+    // stick out furthest when the room is small. 300 high is about the
+    // shortest view the room fits at the minimum zoom; below that the room
+    // itself runs off both edges.
+    for (const viewport of [{ width: 555, height: 300 }, { width: 1000, height: 640 }]) {
+      for (const [reception, lead] of [[CARDS.reception, 0], [CARDS.reception + 22, 0], [0, CARDS.lead], [0, 130]] as const) {
+        const fitted = fitCamera(layout, viewport, { ...CARDS, reception, lead });
+        const allowed = (height: number) => Math.max(0, height - viewport.height / 5) + 0.001;
+        const receptionBottom = (layout.reception.y + RECEPTION_DROP) * fitted.scale + fitted.y + reception;
+        const leadBottom = (layout.lead.y + PAPERS_DROP) * fitted.scale + fitted.y + lead;
+        const label = `${String(viewport.height)} high, ${String(reception)} and ${String(lead)}`;
+        expect(receptionBottom - viewport.height, label).toBeLessThanOrEqual(allowed(reception));
+        expect(leadBottom - viewport.height, label).toBeLessThanOrEqual(allowed(lead));
+      }
+    }
+  });
+
+  it("frames less than the whole floor, and the same box however many seats of a row are taken", () => {
+    const { frame, bounds } = layout;
+    expect(frame.height).toBeLessThan(bounds.height);
+    expect(frame.y).toBe(bounds.y);
+    expect(frame.x).toBe(bounds.x);
+    expect(frame.x + frame.width).toBe(bounds.x + bounds.width);
+    expect(placeOffice(1).frame).toEqual(placeOffice(DESKS_PER_ROW).frame);
+    expect(placeOffice(0).frame).toEqual(placeOffice(DESKS_PER_ROW).frame);
   });
 
   it("answers for a viewport it has not been given yet", () => {
@@ -158,5 +207,54 @@ describe("the office's camera", () => {
     expect(camera.scale).toBeCloseTo(FOLLOW_ZOOM);
     expect(target.x * camera.scale + camera.x).toBeCloseTo(small.width / 2);
     expect(followCamera(crowded, small, null)).toEqual(fitCamera(crowded, small));
+  });
+
+  it("keeps the room in view when the desk at work is near an edge", () => {
+    const crowded = placeOffice(20);
+    const { bounds } = crowded;
+    const small = { width: 420, height: 240 };
+    // Every seat, the reception's included: the view never runs past the
+    // room's edge, and the followed desk is always inside it.
+    for (const spot of [crowded.reception, crowded.lead, ...crowded.desks]) {
+      const camera = followCamera(crowded, small, spot);
+      expect(bounds.x * camera.scale + camera.x).toBeLessThanOrEqual(0.001);
+      expect((bounds.x + bounds.width) * camera.scale + camera.x).toBeGreaterThanOrEqual(small.width - 0.001);
+      expect(bounds.y * camera.scale + camera.y).toBeLessThanOrEqual(0.001);
+      expect((bounds.y + bounds.height) * camera.scale + camera.y).toBeGreaterThanOrEqual(small.height - 0.001);
+      const x = spot.x * camera.scale + camera.x;
+      const y = spot.y * camera.scale + camera.y;
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(x).toBeLessThanOrEqual(small.width);
+      expect(y).toBeGreaterThanOrEqual(0);
+      expect(y).toBeLessThanOrEqual(small.height);
+    }
+    // A room wider than it is tall for the window: the axis that fits is centred.
+    const wide = { width: 4000, height: 240 };
+    const centred = followCamera(crowded, wide, crowded.lead);
+    expect((bounds.x + bounds.width / 2) * centred.scale + centred.x).toBeCloseTo(wide.width / 2);
+  });
+
+  it("leaves the followed desk's words in view, past the room's edge if it must, never losing the desk", () => {
+    const crowded = placeOffice(20);
+    const back = crowded.desks[19] ?? crowded.lead;
+    const front = crowded.desks[3] ?? crowded.lead;
+    for (const height of [240, 300, 420]) {
+      const viewport = { width: 420, height };
+      for (const words of [0, 120, 180, 400]) {
+        // Over a desk at the back: the view comes down for its plate and bubble.
+        const over = followCamera(crowded, viewport, back, CARDS, () => ({ above: words, below: 0 }));
+        const y = back.y * over.scale + over.y;
+        expect(y, `${String(height)} high, ${String(words)} px over`).toBeGreaterThanOrEqual(Math.min(words, height - 48) - 0.001);
+        expect(y).toBeLessThanOrEqual(height);
+        // Under a desk at the front: the view goes up for its papers.
+        const under = followCamera(crowded, viewport, front, CARDS, () => ({ above: 0, below: words }));
+        const z = front.y * under.scale + under.y;
+        expect(z, `${String(height)} high, ${String(words)} px under`).toBeLessThanOrEqual(Math.max(height - Math.max(words, 48), 24) + 0.001);
+        expect(z).toBeGreaterThanOrEqual(24 - 0.001);
+      }
+    }
+    // No words: the camera is the one that keeps to the room's edges.
+    const plain = followCamera(crowded, { width: 420, height: 240 }, back);
+    expect(followCamera(crowded, { width: 420, height: 240 }, back, CARDS, () => ({ above: 0, below: 0 }))).toEqual(plain);
   });
 });

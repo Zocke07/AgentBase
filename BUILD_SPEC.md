@@ -1816,10 +1816,11 @@ recommended defaults D1 to D9, all accepted):
 2. **20.2 Tokens, type, icons and primitives.** *(Built 2026-11-13: see
    docs/verification.md.)*
 3. **20.3 The shell.** *(The keyboard map is built; the rest is not.)*
-4. **20.4 The office, at rest.** *(Built in part on 2026-11-13: the
-   projection, the layout, the scene and its tests. The run view offers
-   Office and Diagram, with Diagram the default until the stage is
-   accepted.)*
+4. **20.4 The office, at rest.** *(Built in part on 2026-11-13 and 14:
+   the projection, the layout, the scene and its tests. The run view
+   offers Office and Diagram and opens on Office since 2026-11-14, when
+   the maintainer handed over the open decisions; the brief's section 13
+   records them. Not accepted: Windows and the remaining polish.)*
 5. **20.5 The office in motion.** *(The timeline's pure functions are
    built; no motion is.)*
 6. **20.6 The office everywhere, every section, both platforms.**

@@ -1054,7 +1054,7 @@ already done.
 | 20.1 | all of it | |
 | 20.2 | all of it; accepted | |
 | 20.3 the shell | the keyboard map with platform glyphs (`lib/shortcuts.ts`), used by the rail's and Knowledge's tooltips; `Popover`, `Menu`, `Sheet` and the layer registry from 20.2 | everything a person sees: toolbar, macOS title bar, rail restyle, inspector, command palette, context menus, section 6.7's details, view transitions, the inactive-window state |
-| 20.4 the office, at rest | `lib/tools.ts`, the reducer's four positions, `state/office.ts`, `lib/officeLayout.ts`, `lib/character.ts`, `components/office/`, `styles/office.css`, the `--office-*` tokens, Office and Diagram in the run view, office pages in the workbench, the identity, coverage and no-clock tests | the character style chosen by the maintainer; the run view's layout around the office; polish (below) |
+| 20.4 the office, at rest | `lib/tools.ts`, the reducer's four positions, `state/office.ts`, `lib/officeLayout.ts`, `lib/character.ts`, `components/office/`, `styles/office.css`, the `--office-*` tokens, Office and Diagram in the run view with Office the default, the run view's layout around the office, the character style (decided), office pages in the workbench, the identity, coverage and no-clock tests, real-app screenshots under forced colours and reduced motion | polish (below); Windows |
 | 20.5 the office in motion | `state/timeline.ts`: markers, next and previous notable event, step or settle, playback pacing | all motion; the timeline's controls; camera easing; performance measurements |
 | 20.6 everywhere | nothing | all of it |
 
@@ -1107,6 +1107,53 @@ events ─reduce─▶ RunView                         state/reducer.ts
   the identity test compares does not depend on the camera.
 - **Accessible names open with the visible words**, in their order (WCAG
   2.5.3): axe fails the page otherwise.
+- **Words are rationed, by need and not by zoom alone.** A plate keeps its
+  size while the room shrinks, so a room of full plates is a wall of cards.
+  A desk the model calls `quiet` (ready or done, no trouble, no call of its
+  step refused) shows its name alone at every zoom, and opens on hover,
+  focus or selection; every other desk keeps its state and its papers. The zoom band then takes the
+  model at `mid` and everything but names at `far`. All of it is CSS on
+  `data-face` and `data-zoom`: the DOM does not change.
+- **The camera frames the furniture, not the floor.** `OfficeLayout.frame`
+  is the walls and every seat with room for their labels; the floor's empty
+  front corner runs off the view; the sides keep the room's margin for the
+  reception's card. Words keep their size while the room scales, so what
+  hangs outside the frame is reserved in screen pixels: `fitCamera` takes
+  `Cards` (the board's card above, at most a quarter of the view; the
+  reception's card and the lead's plate in front, at most a fifth), as
+  `office/estimates.ts` estimates them for the band they will be drawn at.
+  Estimated, not measured, since a measured card changes with the band the
+  camera picks. The fit repeats until the scale settles: each pass is
+  larger and needs less room than it was given, so it is safe at every
+  step, and two passes over-reserved by up to 10% of the scale.
+  `followCamera` shows the whole room if it fits at `READABLE_ZOOM` and
+  otherwise the desk at work, never past the room's own edge except to
+  show that desk's words (`deskReach`: over a worker, its plate and bubble;
+  under it, its papers; under the lead, its plate and papers). Once a run
+  is over `OfficeModel.focus` is null, so following is fitting.
+- **The lead's words hang in front of it.** Desks of neighbouring rows
+  share screen columns about 124 room pixels apart, so a plate over one
+  desk's head lands where the desk behind lays its papers. Delegation is
+  sequential, so the supervisor and one worker are the two busy desks, and
+  the worker's slip covered the supervisor's plate whenever the third seat
+  was taken. The lead desk has the front of the room to itself: its plate
+  and papers hang in front of it (`.office-desk__front`) and only its
+  bubble stands over its head. Where words still meet, a desk with
+  something going on lies over a quiet one, and a hovered, focused or
+  selected desk over every other.
+- **A narrow canvas shows the inspector as a sheet** (brief 6.3): below
+  46rem of canvas the agent detail covers the drawing, takes the focus and
+  gives it back on close, and Escape closes it without leaving full
+  screen. Beside a strip of room the selected desk was under the panel.
+- **The room needs about half its width in height.** That is the
+  projection (46 by 20 a tile) and no layout removes it. So beside the
+  office the run view gives the room the height: the summary is `compact`
+  (title, figures, one row of files, every problem and why a run stopped
+  stay; origin, policy, context and the supervisor's account go behind
+  **More about this run**, since the reception, the board and the library
+  show them), and the log starts folded, under its
+  own stored flag `runs.office.log.collapsed`. The diagram's layout is
+  untouched.
 - **`channel.outbound` stays out of the fold.** A reducer test says a
   delivery must not change the run, so the office shows only where a run
   came from; the log shows deliveries. Acceptance item 2 allows "in the
@@ -1114,41 +1161,57 @@ events ─reduce─▶ RunView                         state/reducer.ts
 
 ### To finish stage 20.4
 
-1. **The maintainer chooses the character style.** Section 10 asks for two
-   or three directions drawn in the workbench. One is built (`Room.tsx`,
-   `Character`: a rounded body, a head whose face is a dark display,
-   antennae, ear pods and a visor by hash of the name). Draw the
-   alternatives as a workbench page and ask.
-2. **Give the office room.** The run view's grid gives the canvas what is
-   left between the summary and the log: about 180 px at 1,100 by 720, a
-   strip of a room that needs 400. Decide, with screenshots: fold the
-   summary into the board when the office shows, start the log folded, or
-   give the canvas a larger default share. Then `followCamera`'s constants
-   (`READABLE_ZOOM`, `FOLLOW_ZOOM`) want retuning.
-3. **Make Office the default** once 1 and 2 are settled: `RunPanel.tsx`,
-   `useStoredFlag("runs.office")`, one word. It is Diagram today so that
-   nothing unfinished is the first thing a person sees.
-4. **Crowded rooms.** At twelve desks and more, slips and bubbles of
-   neighbours can overlap at `near` zoom. Stack or cap them, and check the
-   twelve and twenty desk pages.
-5. **Per-desk memo of the word layer.** `Room`'s desks are memoized
-   (`sameDeskArt`); `DeskButton` is not, and `officeOf` makes new desk
-   objects on every event. Before the 4 ms token budget of 7.12 is
-   measured, memoize `DeskButton` on the fields it shows, or cache desks by
-   agent object in `officeOf` (`withAgent` keeps the other agents' objects).
-   The review of 2026-11-14 measured nothing but named the costs: `officeOf`
-   runs on every event, re-running `writtenFiles` (a `JSON.parse` of every
-   reporting tool's result) and the quadratic `foldersOf`; and `reduce`
-   copies the agents map a second time per event to stamp `latestSeq`,
-   which `withAgent` could do in its one copy.
-6. **What the table in 7.5 still lacks:** documents landing in a desk's
-   tray (the board lists the run's files; a desk shows only a count), the
-   library handing books to the lead desk (the shelf is drawn and counted),
-   the wall calendar. Status glyphs beside status words elsewhere in the
-   app (4.1) were also left for this stage.
-7. **Acceptance checks not yet run:** forced colours and reduced motion
-   screenshots of the office (`just ui-shots` cannot reach the office until
-   it is the default or the script clicks the switch); Windows.
+Items 1 to 3 of the earlier list are done (see the decisions below): the
+character style is chosen, the run view makes room, and Office is the
+default. What remains:
+
+1. **Crowded rooms: done on 2026-11-14,** apart from what is noted
+   here. A sweep of every third cursor of the twelve desk run, fitted and
+   zoomed in at 1440 by 900, found no two desks' words overlapping. In
+   the twenty desk room at mid zoom a busy worker's slip still covers the
+   end of a quiet neighbour's name (up to 39 by 28 pixels); the slip is on
+   top and the name opens over everything on hover. A cap on slips at
+   mid zoom (the action line alone) would remove it if it matters. The
+   first worker's papers lie over the lead's figure (the two agent page,
+   as before this change); the lead's plate in front says its state. The
+   sweep is not a test: it needs a browser, so the rule it checks is
+   written down here and in the skill instead.
+2. **Per-desk memo of the word layer: done on 2026-11-14.** `DeskButton`
+   is memoized, comparing the desk as data (`lib/equal.ts`), so a field
+   added to `Desk` cannot be left out. `foldersOf` is linear and
+   `writtenFiles` parses each answered call once (a `WeakMap` keyed by
+   the call, which the reducer never changes in place). Not done:
+   `reduce` still copies the agents map a second time to stamp
+   `latestSeq`; stamping in `withAgent` would also stamp agents an event
+   only mentions, which the folders' spans read. Nothing is measured yet;
+   that is 20.5, item 5.
+3. **Table 7.5: done on 2026-11-14.** A desk's tray holds a sheet per
+   file its own calls wrote (`Desk.documents`, at most four drawn), its
+   accessible name counts them, and the inspector lists them under
+   "Files it wrote", each opening in Knowledge. The library hands the lead
+   desk a book per excerpt. Every status word in the app has a glyph
+   (`components/ui/Status`, brief 4.1), so a status reads under forced
+   colours, where the old dot vanished. The wall calendar is not a run's:
+   it is 7.13's (Home and Automations), so it moved to 20.6. The `pulse`
+   keyframes the running glyph uses live in `react-flow.css`; move them if
+   D8 retires that file.
+4. **Poses and the lamp: done on 2026-11-14.** The figure has two arms,
+   each an upper arm and a forearm drawn hanging, and a pose is four
+   angles and a lean set in `styles/office.css` on
+   `.office-character--{activity}` (custom properties `--arm-left`,
+   `--fore-left`, `--arm-right`, `--fore-right`, `--lean`): ready, hands on
+   the desk; asking its model, hands together; thinking, a hand at the
+   head (at the chin it read as a tick); using a tool, both hands
+   forward; waiting, a card raised and edged in the question's risk;
+   finished, arms down and leaning back. The lamp at each desk's back
+   corner is on while the agent works and off once it has finished
+   (`--office-lamp`, hidden under forced colours). The workbench page
+   **Characters** draws every pose alone and large, and is compared in
+   both themes. Not done: an object per tool family on the desk (7.6);
+   the face's glyph says the family.
+5. **Acceptance check not yet run:** Windows. Forced colours and reduced
+   motion were captured from the real app on 2026-11-14 and read
+   (`.dev/shots/office-forced-colors`, `office-reduced-motion`).
 
 ### To do stage 20.3
 
@@ -1177,7 +1240,10 @@ In this order, because each needs the one before:
 1. A motion wrapper outside the compared subtree carrying
    `data-motion="step"` or `"settle"` from `motionMode(events, from, to)`.
 2. CSS entrances and transitions in `styles/office.css`, keyed on the
-   attributes already in the DOM: `data-activity`, `data-face`,
+   attributes already in the DOM. A pose change is a transition on the
+   arm and pose transforms (their angles are custom properties per
+   activity, see 20.4 item 4); the workbench's Characters page shows
+   each pose. Also keyed: `data-activity`, `data-face`,
    `data-state` on slips, the folder phase classes, `office-face__dots
    --asking` for the one loop an open model call allows. Springs are
    tokens.
@@ -1188,13 +1254,48 @@ In this order, because each needs the one before:
 5. Measure 7.12 and record it. Update the header of `index.css` and the
    developer guide's motion section to the rule in D1.
 
+### Decisions taken on 2026-11-14
+
+The maintainer handed the open decisions over on 2026-11-14: "decide what
+you think is best that will give best overall UI, UX and DX". Each can be
+reopened; this is what was chosen and why.
+
+- **The character style: the display-faced figure that is built.** Two
+  other directions were weighed and not drawn. People at desks would say
+  the workers are human, which they are not, and would need faces and skin
+  to be chosen for no gain. Objects alone (a lamp or a light per desk)
+  would lose the empty chair of a ghost, the seat a folder travels to and
+  the pose that 20.5 animates. The built figure is section 7.4 to the
+  letter, says plainly that these are machines, and its dark display holds
+  a status glyph at full contrast in both themes and under forced colours
+  down to about 30 px, which is the size a whole room is seen at. What is
+  left is refinement inside the style (20.4, item 4).
+- **Room for the office: all three, beside the office only.** The summary
+  folds to its title, figures, files and problems; the log starts folded; the
+  canvas takes the rest. One of the three alone left the room a strip,
+  because a room needs about half its width in height. At the app's
+  default window the whole room now shows at a readable size. The diagram
+  keeps its layout, so nothing that existed behaves differently.
+- **Office is the default.** On an unmerged branch, the default is what
+  every later session, screenshot and check exercises; leaving the diagram
+  as default would have kept the office out of `just ui-shots`. The
+  viewer's own choice still wins and is remembered.
+- **The office has Full screen**, as the diagram does. Found missing when
+  the default changed.
+- **The edit hook stays.** Three seconds after a TypeScript edit against
+  more than a minute for a full lint that then fails on the same line; and
+  an em dash refused at the edit is cheaper than one found by the hygiene
+  test. Remove its entry in `.claude/settings.json` to turn it off.
+
 ### Decisions waiting for the maintainer
 
-- The character style (20.4, item 1).
-- How the run view makes room for the office (20.4, item 2).
-- Whether the edit hook's three seconds per TypeScript edit are welcome
-  (`.claude/settings.json`; remove the entry to turn it off).
 - After 20.5, D8: whether to retire the diagram and drop `@xyflow/react`.
+  Recommended, once the office has motion and the timeline: it removes a
+  runtime dependency, the `measured` trap, and half of the identity test's
+  time. Not before, because the diagram is the fallback while the office
+  is unfinished.
+- The macOS title bar (20.3, item 5) needs a build and your eyes on the
+  result on both platforms.
 
 ---
 

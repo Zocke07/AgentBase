@@ -429,6 +429,28 @@ describe("claims and evidence stay apart", () => {
     for (const document of office.board.documents) expect(document.path).not.toBe("");
     expect(at("morning-collection").board).toMatchObject({ memoryPath: "memory/runs/run-morning.md" });
   });
+
+  it("puts each written file in the tray of the desk whose call wrote it, and says how many", () => {
+    for (const entry of SCENARIOS) {
+      const office = room(entry.events);
+      const view = reduceAll(entry.events);
+      const trays = everyone(office).flatMap((each) => each.documents.map((document) => ({ desk: each.name, path: document.path })));
+      // Every file on the board is in exactly one tray, and nothing else is.
+      expect(new Set(trays.map((tray) => tray.path)), entry.id).toEqual(new Set(office.board.documents.map((document) => document.path)));
+      for (const tray of trays) {
+        // The desk's own answered call wrote it: a file never lands on another desk.
+        const writer = view.toolCalls.find(
+          (call) => call.result !== null && (call.args.path === tray.path || call.result.includes(JSON.stringify(tray.path))),
+        );
+        expect(writer?.agent, `${entry.id}: ${tray.path}`).toBe(tray.desk);
+      }
+      for (const each of everyone(office)) {
+        if (each.documents.length > 0) expect(each.accessibleName).toContain(`Wrote ${String(each.documents.length)} file`);
+        else expect(each.accessibleName).not.toContain("Wrote");
+      }
+    }
+    expect(everyone(at("morning-collection")).some((each) => each.documents.length > 1)).toBe(true);
+  });
 });
 
 describe("the rest of the room", () => {
@@ -471,11 +493,16 @@ describe("the rest of the room", () => {
     expect(office.board.unrecognised).toEqual(["agent.dreamed"]);
   });
 
-  it("follows the desk with the latest event", () => {
+  it("follows the desk with the latest event while the run goes, and nothing once it is over", () => {
     const events = twoAgentRun();
     for (let cursor = 2; cursor <= events.length; cursor += 1) {
+      const office = room(events.slice(0, cursor));
       const latest = events.slice(0, cursor).findLast((event) => event.agent_id !== null)?.agent_id ?? null;
-      expect(room(events.slice(0, cursor)).focus).toBe(latest);
+      expect(office.focus).toBe(office.status === "completed" ? null : latest);
+    }
+    expect(room(events).status).toBe("completed");
+    for (const id of ["failed-run", "cancelled-run"]) {
+      expect(at(id).focus, id).toBeNull();
     }
   });
 
@@ -509,4 +536,30 @@ describe("the rest of the room", () => {
     expect(everyone(at("twelve-desks"))).toHaveLength(12);
     expect(everyone(at("twenty-desks"))).toHaveLength(20);
   });
+
+  it("calls a desk quiet only when it has nothing to say beyond its name", () => {
+    // Done and clean: quiet.
+    const done = at("two-agents");
+    expect(done.lead?.quiet).toBe(true);
+    // A refused call stays in view, at every cursor where its slip is on the desk.
+    const log = scenario("sandbox-denial").events;
+    let refusals = 0;
+    for (let cursor = 1; cursor <= log.length; cursor += 1) {
+      for (const desk of at("sandbox-denial", cursor).desks) {
+        if (desk.slips.some((slip) => slip.stamp?.kind === "sandbox" || slip.stamp?.kind === "denied")) {
+          refusals += 1;
+          expect(desk.quiet).toBe(false);
+        }
+      }
+    }
+    expect(refusals).toBeGreaterThan(0);
+    // Trouble is never quiet, whatever the face says.
+    for (const scenario of SCENARIOS) {
+      const office = at(scenario.id);
+      for (const desk of [...(office.lead === null ? [] : [office.lead]), ...office.desks]) {
+        if (desk.trouble !== null || !["dot", "tick"].includes(desk.face)) expect(desk.quiet, `${scenario.id} ${desk.name}`).toBe(false);
+      }
+    }
+  });
+
 });

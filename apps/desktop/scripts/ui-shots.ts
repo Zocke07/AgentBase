@@ -264,15 +264,23 @@ async function capture(browser: Browser, folder: string, seeded: Seed, condition
         await take(section);
 
         if (section === "runs") {
-          // The run view: canvas, log and summary, then the agent inspector.
+          // The run view opens on the office: the room, then a desk's
+          // inspector, then the same run as the diagram behind the switch.
           await page.locator(`[data-testid$="-${seeded.runId}"]:visible`).first().click();
-          await page.locator('[data-testid="run-graph"]:visible').waitFor();
+          await page.locator('[data-testid="office"]:visible').waitFor();
           await take("run");
-          const node = page.locator('[data-testid^="agent-node-"]:visible').first();
-          if ((await node.count()) > 0) {
-            await node.click();
+          const desk = page.locator('[data-testid^="office-desk-"]:visible:not([disabled])').first();
+          if ((await desk.count()) > 0) {
+            await desk.click();
             await take("run-agent");
+            // On a narrow canvas the inspector covers the room, desk included.
+            await page.getByRole("button", { name: "Close the agent detail" }).click();
           }
+          const drawings = page.locator('[data-testid="run-view-switch"]:visible');
+          await drawings.getByRole("radio", { name: "Diagram" }).click();
+          await page.locator('[data-testid="run-graph"]:visible').waitFor();
+          await take("run-diagram");
+          await drawings.getByRole("radio", { name: "Office" }).click();
         }
 
         if (section === "knowledge") {

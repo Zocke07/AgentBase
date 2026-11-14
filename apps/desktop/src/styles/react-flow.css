@@ -23,7 +23,7 @@
 @media (prefers-reduced-motion: reduce) {
 
   .dot--pending,
-  .status--running::before {
+  .status--running > .icon {
     animation: none;
   }
 }

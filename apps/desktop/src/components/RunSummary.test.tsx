@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import * as api from "../lib/api";
 import { reduceAll } from "../state/reducer";
 import { LogBuilder, twoAgentRun } from "../test/log";
+import { SCENARIOS } from "../test/scenarios";
 
 import { RunSummary } from "./RunSummary";
 
@@ -334,5 +335,39 @@ describe("RunSummary", () => {
     } finally {
       if (original !== undefined) Object.defineProperty(HTMLElement.prototype, "scrollHeight", original);
     }
+  });
+
+  it("beside the office keeps the title, the figures and every problem in view, and folds the rest", () => {
+    /* The room shows where a run came from, what it wrote and read and what
+       the supervisor said, so the summary gives it the height. What went
+       wrong is never one of the things folded away. */
+    const scenario = (id: string) => reduceAll([...(SCENARIOS.find((entry) => entry.id === id)?.events ?? [])]);
+    const folded = (testId: string) => screen.getByTestId("run-more").contains(screen.getByTestId(testId));
+
+    const collection = render(<RunSummary view={scenario("morning-collection")} compact />);
+    expect(screen.getByTestId("run-more").hasAttribute("open")).toBe(false);
+    expect(screen.getByTestId("run-more").querySelector("summary")?.textContent).toBe("More about this run");
+    for (const part of ["run-policy", "run-context", "run-claim"]) expect(folded(part), part).toBe(true);
+    for (const part of ["run-status", "fact-tool-calls", "fact-cost", "run-files"]) expect(folded(part), part).toBe(false);
+    // One row of files beside the office; the rest behind the count, as ever.
+    expect(screen.getByTestId("run-files").querySelectorAll(".run-files__file")).toHaveLength(3);
+    expect(screen.getByTestId("run-files").textContent).toContain("5 more");
+    collection.unmount();
+
+    const failed = render(<RunSummary view={scenario("failed-run")} compact />);
+    expect(folded("run-errors")).toBe(false);
+    expect(folded("run-issue-badge")).toBe(false);
+    // Why a run stopped is a problem too: in view, not behind the disclosure.
+    expect(screen.getByTestId("run-claim").textContent).toContain("Why the run stopped");
+    expect(screen.getByTestId("run-more").contains(screen.getByTestId("run-claim"))).toBe(false);
+    failed.unmount();
+
+    const capped = render(<RunSummary view={scenario("over-budget")} compact />);
+    expect(folded("budget-exceeded")).toBe(false);
+    capped.unmount();
+
+    // Nothing to fold: no disclosure with nothing in it.
+    render(<RunSummary view={reduceAll([])} compact />);
+    expect(screen.queryByTestId("run-more")).toBeNull();
   });
 });

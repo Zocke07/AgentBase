@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 
 import { ellipsise, formatCount, formatMicros, summariseArgs } from "../lib/format";
 import { activityLabel, nowLine } from "../state/describe";
+import { writtenFiles, type WrittenFile } from "../state/files";
 import { officeOf } from "../state/office";
 import type { AgentNode, Denial, Handoff, RunView, ToolCall } from "../state/reducer";
 import { useStoredFlag } from "../state/useStoredFlag";
@@ -97,8 +98,9 @@ export function RunPanel({
   const [canvasHeight, setCanvasHeight] = useStoredSize("runs.canvas");
   const [detailWidth, setDetailWidth] = useStoredSize("runs.detail");
   // Office or Diagram (decision D8): the viewer's choice, kept on this
-  // computer. The diagram stays the default until the office has parity.
-  const [officeChosen, setOfficeChosen] = useStoredFlag("runs.office");
+  // computer. The office is what a run opens on; the diagram stays one
+  // press away until D8 is settled.
+  const [officeChosen, setOfficeChosen] = useStoredFlag("runs.office", true);
   // Where a caller names the drawing, that is where this panel starts, and
   // the switch then changes this panel alone, not the viewer's stored choice.
   const [officeHere, setOfficeHere] = useState(canvasChoice === "office");
@@ -106,7 +108,14 @@ export function RunPanel({
   // Projected only when it is shown: the diagram needs none of it.
   const office = useMemo(() => (showOffice ? officeOf(view) : null), [showOffice, view]);
   // A viewer can fold the log to its latest step; the canvas takes the room.
-  const [logCollapsed, setLogCollapsed] = useStoredFlag("runs.log.collapsed");
+  // Beside the office it starts folded, because a room needs about half its
+  // width in height and the room already says what the latest step is. Each
+  // drawing keeps its own choice, so opening the log here does not open it
+  // under the diagram.
+  const [diagramLogCollapsed, setDiagramLogCollapsed] = useStoredFlag("runs.log.collapsed");
+  const [officeLogCollapsed, setOfficeLogCollapsed] = useStoredFlag("runs.office.log.collapsed", true);
+  const logCollapsed = showOffice ? officeLogCollapsed : diagramLogCollapsed;
+  const setLogCollapsed = showOffice ? setOfficeLogCollapsed : setDiagramLogCollapsed;
   const projection = useRef<HTMLDivElement>(null);
   const summary = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLDivElement>(null);
@@ -190,7 +199,7 @@ export function RunPanel({
       />
 
       <div
-        className={`run-projection${logCollapsed ? " run-projection--log-collapsed" : ""}`}
+        className={`run-projection${showOffice ? " run-projection--office" : ""}${logCollapsed ? " run-projection--log-collapsed" : ""}`}
         data-testid="run-projection"
         ref={projection}
         style={
@@ -213,6 +222,7 @@ export function RunPanel({
             onOpenMemory={onOpenMemory}
             onMemoryChanged={onMemoryChanged}
             unfolded={summaryHeight !== null}
+            compact={showOffice}
           />
           <Splitter
             axis="y"
@@ -256,6 +266,10 @@ export function RunPanel({
               selectedAgent={selectedName}
               onSelectAgent={onSelectAgent}
               onOpenFile={onOpenFile === undefined ? undefined : (path) => { onOpenFile(path); }}
+              expanded={expanded}
+              onToggleExpand={() => {
+                setExpanded((current) => !current);
+              }}
             />
           ) : (
             <RunGraph
@@ -275,6 +289,8 @@ export function RunPanel({
               calls={view.toolCalls.filter((call) => call.agent === selectedName)}
               denials={view.denials.filter((denial) => denial.agent === selectedName)}
               handoffs={view.handoffs.filter((handoff) => handoff.from === selectedName)}
+              files={writtenFiles(view, selectedName)}
+              onOpenFile={onOpenFile}
               onClose={() => {
                 onSelectAgent(null);
               }}
@@ -324,6 +340,8 @@ function AgentDetail({
   calls,
   denials,
   handoffs,
+  files,
+  onOpenFile,
   onClose,
   width,
   onResize,
@@ -335,6 +353,9 @@ function AgentDetail({
   calls: readonly ToolCall[];
   denials: readonly Denial[];
   handoffs: readonly Handoff[];
+  /** Files this agent's calls wrote; each opens in Knowledge when `onOpenFile` is given. */
+  files: readonly WrittenFile[];
+  onOpenFile?: ((path: string) => void) | undefined;
   onClose: () => void;
   /** The viewer's width for the panel, or null for the stylesheet's. */
   width: number | null;
@@ -348,12 +369,35 @@ function AgentDetail({
     ...denials.map((denial) => ({ seq: denial.seq, kind: "denial" as const, call: null, denial })),
   ].sort((left, right) => left.seq - right.seq);
 
+  // On a narrow canvas the panel covers the drawing (graph.css), so the
+  // control that opened it is hidden: the panel takes the focus while it is
+  // open and gives it back when it closes. Beside the drawing it leaves the
+  // focus where it was.
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (panel === null || getComputedStyle(panel).position !== "absolute") return undefined;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    panel.focus({ preventScroll: true });
+    return () => {
+      const now = document.activeElement;
+      if (now === null || now === document.body || panel.contains(now)) opener?.focus();
+    };
+  }, [panelRef]);
+
   return (
     <aside
       className="agent-detail"
       data-testid="agent-detail"
       ref={panelRef}
+      tabIndex={-1}
       style={width === null ? undefined : { width: `${String(width)}px` }}
+      onKeyDown={(event) => {
+        // Escape closes the panel and nothing else: a full-screen canvas
+        // stays full screen until the next one.
+        if (event.key !== "Escape") return;
+        event.stopPropagation();
+        onClose();
+      }}
     >
       <Splitter
         axis="x"
@@ -436,6 +480,31 @@ function AgentDetail({
               <li key={handoff.seq}>
                 <strong>{handoff.to}</strong>
                 {handoff.task !== "" && <span>{ellipsise(handoff.task, 120)}</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {files.length > 0 && (
+        <section className="agent-detail__section" data-testid="agent-files">
+          <h4>Files it wrote</h4>
+          <ul className="agent-detail__list">
+            {files.map((file) => (
+              <li key={file.path}>
+                {onOpenFile === undefined ? (
+                  <span className="agent-detail__file">{file.path}</span>
+                ) : (
+                  <button
+                    type="button"
+                    className="link agent-detail__file"
+                    onClick={() => {
+                      onOpenFile(file.path);
+                    }}
+                  >
+                    {file.path}
+                  </button>
+                )}
               </li>
             ))}
           </ul>

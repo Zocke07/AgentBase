@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { SCENARIOS } from "../test/scenarios";
 
 import { ScenarioPlayer } from "./ScenarioPlayer";
+import { CharactersPage } from "./pages/CharactersPage";
 import { ControlsPage } from "./pages/ControlsPage";
 import { IconsPage } from "./pages/IconsPage";
 import { PrimitivesPage } from "./pages/PrimitivesPage";
@@ -99,6 +100,14 @@ export const PAGES: readonly WorkbenchPage[] = [
     layout: "flow",
     about: "The left rail, open and folded.",
     render: () => <RailPage />,
+  },
+  {
+    id: "office-characters",
+    title: "Characters",
+    group: "Office",
+    layout: "flow",
+    about: "Every pose a desk's figure takes, alone and large: the arms, the lamp, a raised card in each risk, the tray and the books.",
+    render: () => <CharactersPage />,
   },
   // The same runs drawn as the office (stage 20.4), each from its own log.
   ...SCENARIOS.map(

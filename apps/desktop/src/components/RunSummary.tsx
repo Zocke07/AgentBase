@@ -9,6 +9,7 @@ import { changedNothing, isMissedLookup, isResentRefusal, type RunView } from ".
 
 import { Markdown } from "./Markdown";
 import { MetricBar } from "./MetricBar";
+import { Status } from "./ui/Status";
 
 /**
  * Run header and outcome. Label terminal `summary` as supervisor claim, not
@@ -31,6 +32,13 @@ export interface RunSummaryProps {
   onMemoryChanged?: (() => void) | undefined;
   /** Do not fold; parent has fixed height and scrolls. */
   unfolded?: boolean | undefined;
+  /**
+   * Beside the office, which already shows where the run came from, what it
+   * wrote, what it read and what the supervisor said: keep the title, the
+   * figures and anything that went wrong in view, and put the rest behind
+   * one disclosure so the room has the height.
+   */
+  compact?: boolean | undefined;
 }
 
 /** Fold summaries above this height to preserve canvas visibility. */
@@ -45,6 +53,7 @@ export function RunSummary({
   onOpenMemory,
   onMemoryChanged,
   unfolded,
+  compact = false,
 }: RunSummaryProps) {
   const denied = view.denials.length;
   const sandboxed = view.denials.filter((denial) => denial.blockedBy === "sandbox").length;
@@ -73,12 +82,124 @@ export function RunSummary({
       ? formatDuration(Date.parse(view.latestTs) - Date.parse(view.startedTs))
       : null;
 
+  // The parts the office shows in its own way (reception, board, library).
+  // The files are not among them: the board names two at most.
+  // In the full summary each sits where it always has; in the compact one
+  // they share a disclosure.
+  const origin = view.origin !== null && (
+    // Same fold for Discord runs; show origin identity.
+    <p className="run-summary__origin" data-testid="run-origin">
+      Started from {view.origin.channel} by {view.origin.identity ?? "an unknown identity"}
+      {view.origin.displayName !== null && ` (${view.origin.displayName})`}
+    </p>
+  );
+  const policy = view.approvalPolicy !== null && (
+    // With nobody answering calls one by one, this is why each one ran.
+    <p className="run-summary__policy" data-testid="run-policy">
+      {policySentence(view.approvalPolicy)}
+    </p>
+  );
+  // Keyed by run so a list unfolded for one run starts folded for the next.
+  const written = writtenFiles(view);
+  const files = (
+    <RunFiles
+      key={view.runId ?? ""}
+      files={written}
+      onOpenNote={onOpenNote}
+      onOpenFile={onOpenFile}
+      limit={compact ? FILES_SHOWN_COMPACT : FILES_SHOWN}
+    />
+  );
+  const context = (view.knowledge.length > 0 || view.knowledgeExclusions.length > 0) && (
+    <details className="run-summary__context" data-testid="run-context">
+      <summary>
+        Retrieved context: {view.knowledge.length} excerpt
+        {view.knowledge.length === 1 ? "" : "s"}, about{" "}
+        {formatCount(
+          view.knowledge.reduce((total, hit) => total + (hit.estimatedTokens ?? 0), 0),
+        )}{" "}
+        tokens
+        {view.knowledgeExclusions.length > 0 &&
+          `, ${String(view.knowledgeExclusions.length)} excluded by you`}
+      </summary>
+      <p className="run-summary__context-note">
+        {/* The excerpts are what `run.started` recorded for the supervisor;
+            each worker's own retrieval is in its `llm.request` message. */}
+        These excerpts were sent to the supervisor with the goal as untrusted reference
+        material. Workers retrieved their own for each handoff; see their model requests
+        in the log.
+      </p>
+      <ul className="run-summary__excerpts">
+        {view.knowledge.map((hit) => (
+          <li key={hit.citation}>
+            {onOpenNote !== undefined && hit.path !== null ? (
+              <button
+                type="button"
+                className="citation"
+                onClick={() => {
+                  onOpenNote(hit.path ?? "", hit.heading);
+                }}
+              >
+                {hit.citation}
+              </button>
+            ) : (
+              <code>{hit.citation}</code>
+            )}
+            {hit.score !== null && <MetricBar value={hit.score} label={`Relevance for ${hit.citation}`} />}
+            <small>
+              {hit.score !== null && `${String(Math.round(hit.score * 100))}% relevance`}
+              {hit.estimatedTokens !== null && ` · ${String(hit.estimatedTokens)} tokens`}
+              {hit.matchedTerms.length > 0 && ` · matched ${hit.matchedTerms.join(", ")}`}
+              {hit.reasons.length > 0 && ` · ${hit.reasons.join(" · ")}`}
+            </small>
+          </li>
+        ))}
+        {view.knowledgeExclusions.map((citation) => (
+          <li key={`excluded:${citation}`} className="run-summary__excluded">
+            <code>{citation}</code>
+            <small>excluded before the run started</small>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+  const claim = view.claim !== null && (
+    <div className={`claim claim--${view.claim.kind}`} data-testid="run-claim">
+      <span className="claim__label">
+        {view.claim.kind === "summary"
+          ? "The supervisor's account of the run"
+          : "Why the run stopped"}
+      </span>
+      {/* Keyed by run so the fold starts closed on each run rather than carrying over. */}
+      <FoldedClaim key={view.runId ?? ""} text={view.claim.text} unfolded={unfolded ?? false} />
+      {view.claim.kind === "summary" && (
+        <p className="claim__caveat">
+          This is what the agent said it did. What it actually did is the{" "}
+          {view.toolCalls.length} tool {view.toolCalls.length === 1 ? "call" : "calls"} in the
+          log below.
+        </p>
+      )}
+      {view.memoryPath !== null && (
+        <RunMemory
+          key={`${spaceId ?? ""}:${view.memoryPath}`}
+          path={view.memoryPath}
+          spaceId={spaceId}
+          onOpen={onOpenMemory ?? (onOpenNote === undefined ? undefined : (path) => { onOpenNote(path, null); })}
+          onChanged={onMemoryChanged}
+        />
+      )}
+    </div>
+  );
+  // Why a run stopped is a problem, and problems are never folded away.
+  const claimFolds = view.claim?.kind === "summary";
+  const more = [origin, policy, context, claimFolds && claim].some((part) => part !== false);
+
   return (
     <section className="run-summary" data-testid="run-summary">
       <header className="run-summary__head">
-        <span className={`status status--${view.status}`} data-testid="run-status">
+        <Status kind={view.status} testId="run-status">
           {STATUS_LABEL[view.status]}
-        </span>
+        </Status>
         {failures > 0 && (
           <span className="run-summary__issue-badge" data-testid="run-issue-badge">
             {failures} {failures === 1 ? "error" : "errors"}
@@ -99,19 +220,8 @@ export function RunSummary({
             )}
           </>
         )}
-        {view.origin !== null && (
-          // Same fold for Discord runs; show origin identity.
-          <p className="run-summary__origin" data-testid="run-origin">
-            Started from {view.origin.channel} by {view.origin.identity ?? "an unknown identity"}
-            {view.origin.displayName !== null && ` (${view.origin.displayName})`}
-          </p>
-        )}
-        {view.approvalPolicy !== null && (
-          // With nobody answering calls one by one, this is why each one ran.
-          <p className="run-summary__policy" data-testid="run-policy">
-            {policySentence(view.approvalPolicy)}
-          </p>
-        )}
+        {!compact && origin}
+        {!compact && policy}
       </header>
 
       <dl className="run-summary__facts">
@@ -158,8 +268,8 @@ export function RunSummary({
         </div>
       </dl>
 
-      {/* Keyed by run so a list unfolded for one run starts folded for the next. */}
-      <RunFiles key={view.runId ?? ""} files={writtenFiles(view)} onOpenNote={onOpenNote} onOpenFile={onOpenFile} />
+      {/* What the run wrote is evidence, and the room is too small to list it: always in view. */}
+      {files}
 
       {view.budgetExceeded && (
         <p className="run-summary__cap" role="alert" data-testid="budget-exceeded">
@@ -219,86 +329,20 @@ export function RunSummary({
         </details>
       )}
 
-      {(view.knowledge.length > 0 || view.knowledgeExclusions.length > 0) && (
-        <details className="run-summary__context" data-testid="run-context">
-          <summary>
-            Retrieved context: {view.knowledge.length} excerpt
-            {view.knowledge.length === 1 ? "" : "s"}, about{" "}
-            {formatCount(
-              view.knowledge.reduce((total, hit) => total + (hit.estimatedTokens ?? 0), 0),
-            )}{" "}
-            tokens
-            {view.knowledgeExclusions.length > 0 &&
-              `, ${String(view.knowledgeExclusions.length)} excluded by you`}
-          </summary>
-          <p className="run-summary__context-note">
-            {/* The excerpts are what `run.started` recorded for the supervisor;
-                each worker's own retrieval is in its `llm.request` message. */}
-            These excerpts were sent to the supervisor with the goal as untrusted reference
-            material. Workers retrieved their own for each handoff; see their model requests
-            in the log.
-          </p>
-          <ul className="run-summary__excerpts">
-            {view.knowledge.map((hit) => (
-              <li key={hit.citation}>
-                {onOpenNote !== undefined && hit.path !== null ? (
-                  <button
-                    type="button"
-                    className="citation"
-                    onClick={() => {
-                      onOpenNote(hit.path ?? "", hit.heading);
-                    }}
-                  >
-                    {hit.citation}
-                  </button>
-                ) : (
-                  <code>{hit.citation}</code>
-                )}
-                {hit.score !== null && <MetricBar value={hit.score} label={`Relevance for ${hit.citation}`} />}
-                <small>
-                  {hit.score !== null && `${String(Math.round(hit.score * 100))}% relevance`}
-                  {hit.estimatedTokens !== null && ` · ${String(hit.estimatedTokens)} tokens`}
-                  {hit.matchedTerms.length > 0 && ` · matched ${hit.matchedTerms.join(", ")}`}
-                  {hit.reasons.length > 0 && ` · ${hit.reasons.join(" · ")}`}
-                </small>
-              </li>
-            ))}
-            {view.knowledgeExclusions.map((citation) => (
-              <li key={`excluded:${citation}`} className="run-summary__excluded">
-                <code>{citation}</code>
-                <small>excluded before the run started</small>
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
 
-      {view.claim !== null && (
-        <div className={`claim claim--${view.claim.kind}`} data-testid="run-claim">
-          <span className="claim__label">
-            {view.claim.kind === "summary"
-              ? "The supervisor's account of the run"
-              : "Why the run stopped"}
-          </span>
-          {/* Keyed by run so the fold starts closed on each run rather than carrying over. */}
-          <FoldedClaim key={view.runId ?? ""} text={view.claim.text} unfolded={unfolded ?? false} />
-          {view.claim.kind === "summary" && (
-            <p className="claim__caveat">
-              This is what the agent said it did. What it actually did is the{" "}
-              {view.toolCalls.length} tool {view.toolCalls.length === 1 ? "call" : "calls"} in the
-              log below.
-            </p>
-          )}
-          {view.memoryPath !== null && (
-            <RunMemory
-              key={`${spaceId ?? ""}:${view.memoryPath}`}
-              path={view.memoryPath}
-              spaceId={spaceId}
-              onOpen={onOpenMemory ?? (onOpenNote === undefined ? undefined : (path) => { onOpenNote(path, null); })}
-              onChanged={onMemoryChanged}
-            />
-          )}
-        </div>
+
+      {!compact && context}
+
+      {(!compact || !claimFolds) && claim}
+
+      {compact && more && (
+        <details className="run-summary__more" data-testid="run-more">
+          <summary>More about this run</summary>
+          {origin}
+          {policy}
+          {context}
+          {claimFolds && claim}
+        </details>
       )}
 
       {view.unrecognised.length > 0 && (
@@ -474,6 +518,8 @@ function RunMemory({
 
 /** Chips shown before the rest of a long list folds behind a count. */
 const FILES_SHOWN = 6;
+/** Beside the office: about one row, so the room keeps its height. */
+const FILES_SHOWN_COMPACT = 3;
 
 /**
  * What the run wrote, from its log, each opening where it lives: a run that
@@ -483,14 +529,17 @@ function RunFiles({
   files,
   onOpenNote,
   onOpenFile,
+  limit = FILES_SHOWN,
 }: {
   files: readonly WrittenFile[];
   onOpenNote: RunSummaryProps["onOpenNote"];
   onOpenFile: RunSummaryProps["onOpenFile"];
+  /** How many are listed before the rest fold behind a count. */
+  limit?: number;
 }) {
   const [all, setAll] = useState(false);
   if (files.length === 0) return null;
-  const shown = all ? files : files.slice(0, FILES_SHOWN);
+  const shown = all ? files : files.slice(0, limit);
   return (
     <div className="run-files" data-testid="run-files">
       <span className="run-files__label">
@@ -521,7 +570,7 @@ function RunFiles({
             </li>
           );
         })}
-        {!all && files.length > FILES_SHOWN && (
+        {!all && files.length > limit && (
           <li>
             <button
               type="button"
@@ -530,7 +579,7 @@ function RunFiles({
                 setAll(true);
               }}
             >
-              {files.length - FILES_SHOWN} more
+              {files.length - limit} more
             </button>
           </li>
         )}

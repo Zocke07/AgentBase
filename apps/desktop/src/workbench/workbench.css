@@ -565,3 +565,12 @@
 :root[data-motion="reduce"] .spinner {
   animation: spin 1.6s linear infinite !important;
 }
+
+/* The page of poses: each figure large, on the room's floor colour. */
+.wb-pose {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-control);
+  background: var(--office-floor);
+}

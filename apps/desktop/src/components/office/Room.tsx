@@ -86,27 +86,77 @@ function FaceGlyph({ face, desk }: { face: Face; desk: Desk }) {
   }
 }
 
+/**
+ * An arm: the upper arm from the shoulder and the forearm from the elbow,
+ * drawn hanging. The pose is two rotations in `styles/office.css`, keyed on
+ * the character's activity, about the shoulder and the elbow: a transform,
+ * so stage 20.5 can move from pose to pose with a transition alone.
+ */
+function Arm({ side, children }: { side: "left" | "right"; children?: ReactNode }) {
+  const x = side === "left" ? -1 : 1;
+  return (
+    <g className={`office-character__arm office-character__arm--${side}`}>
+      <path className="office-character__part" d={`M${String(11 * x)} -17L${String(13 * x)} -8`} />
+      <g className="office-character__forearm">
+        <path className="office-character__part" d={`M${String(13 * x)} -8V1`} />
+        {children}
+      </g>
+    </g>
+  );
+}
+
+/** The risk of the question a desk is raising its card for. */
+function askingRisk(desk: Desk): string {
+  return desk.slips.findLast((slip) => slip.state === "waiting")?.risk ?? "medium";
+}
+
 /** A desk companion: a rounded body and a head whose face is a display. */
 function Character({ desk, at }: { desk: Desk; at: Point }) {
   const shape = silhouetteOf(desk.name);
   const head = shape.head === "wide" ? { w: 34, h: 22, r: 8 } : shape.head === "square" ? { w: 28, h: 24, r: 6 } : { w: 28, h: 26, r: 13 };
   return (
     <g className={`office-character office-character--${desk.activity}`} transform={`translate(${String(at.x)} ${String(at.y)}) scale(1.25)`}>
-      <rect className="office-character__body" x="-13" y="-22" width="26" height="24" rx="9" />
-      {shape.antenna >= 1 && <path className="office-character__part" d={`M${shape.antenna === 2 ? "-5" : "0"} ${String(-24 - head.h)}v-7`} />}
-      {shape.antenna === 2 && <path className="office-character__part" d={`M5 ${String(-24 - head.h)}v-7`} />}
-      {shape.ears && (
-        <>
-          <rect className="office-character__shade" x={-head.w / 2 - 4} y={-24 - head.h / 2 - 5} width="5" height="10" rx="2" />
-          <rect className="office-character__shade" x={head.w / 2 - 1} y={-24 - head.h / 2 - 5} width="5" height="10" rx="2" />
-        </>
-      )}
-      <rect className="office-character__head" x={-head.w / 2} y={-24 - head.h} width={head.w} height={head.h} rx={head.r} />
-      <rect className="office-character__display" x={-head.w / 2 + 3} y={-24 - head.h + 4} width={head.w - 6} height={head.h - 8} rx={Math.max(3, head.r - 4)} />
-      {shape.visor && <path className="office-character__shade-line" d={`M${String(-head.w / 2 + 3)} ${String(-24 - head.h + 4)}h${String(head.w - 6)}`} />}
-      <g transform={`translate(0 ${String(-24 - head.h / 2)})`}>
-        <FaceGlyph face={desk.face} desk={desk} />
+      <g className="office-character__pose">
+        <Arm side="left" />
+        <rect className="office-character__body" x="-13" y="-22" width="26" height="24" rx="9" />
+        {shape.antenna >= 1 && <path className="office-character__part" d={`M${shape.antenna === 2 ? "-5" : "0"} ${String(-24 - head.h)}v-7`} />}
+        {shape.antenna === 2 && <path className="office-character__part" d={`M5 ${String(-24 - head.h)}v-7`} />}
+        {shape.ears && (
+          <>
+            <rect className="office-character__shade" x={-head.w / 2 - 4} y={-24 - head.h / 2 - 5} width="5" height="10" rx="2" />
+            <rect className="office-character__shade" x={head.w / 2 - 1} y={-24 - head.h / 2 - 5} width="5" height="10" rx="2" />
+          </>
+        )}
+        <rect className="office-character__head" x={-head.w / 2} y={-24 - head.h} width={head.w} height={head.h} rx={head.r} />
+        <rect className="office-character__display" x={-head.w / 2 + 3} y={-24 - head.h + 4} width={head.w - 6} height={head.h - 8} rx={Math.max(3, head.r - 4)} />
+        {shape.visor && <path className="office-character__shade-line" d={`M${String(-head.w / 2 + 3)} ${String(-24 - head.h + 4)}h${String(head.w - 6)}`} />}
+        <g transform={`translate(0 ${String(-24 - head.h / 2)})`}>
+          <FaceGlyph face={desk.face} desk={desk} />
+        </g>
+        {/* In front of the body, so a raised card or a hand at the head shows. */}
+        <Arm side="right">
+          {desk.activity === "waiting" && (
+            <rect className={`office-character__card office-character__card--${askingRisk(desk)}`} x="9" y="1" width="9" height="12" rx="1.5" />
+          )}
+        </Arm>
       </g>
+    </g>
+  );
+}
+
+/**
+ * The desk lamp, at the desk's back left corner: on while the agent is at
+ * work, low once it has finished. Its light is a pool on the desk top.
+ */
+function Lamp({ spot, lit }: { spot: Spot; lit: boolean }) {
+  const base = project(spot.across - 0.38, spot.depth + 0.16, DESK.height);
+  const pool = project(spot.across - 0.15, spot.depth + 0.02, DESK.height);
+  return (
+    <g className={`office-lamp${lit ? " office-lamp--on" : ""}`}>
+      {lit && <ellipse className="office-lamp__light" cx={pool.x} cy={pool.y} rx="22" ry="9" />}
+      <ellipse className="office-lamp__base" cx={base.x} cy={base.y} rx="5" ry="2.2" />
+      <path className="office-lamp__stem" d={`M${String(base.x)} ${String(base.y)}v-16l7 -5`} />
+      <path className="office-lamp__shade" d={`M${String(base.x + 3)} ${String(base.y - 24)}l9 2 -1 6 -10 -2z`} />
     </g>
   );
 }
@@ -126,8 +176,13 @@ const DESK = { width: 1.05, length: 0.55, height: 24 } as const;
 interface DeskArtProps {
   desk: Desk;
   spot: Spot;
+  /** Books the library handed this desk: the lead's, one per excerpt the run was given. */
+  books?: number;
   children?: ReactNode;
 }
+
+/** At most this many sheets or books are stacked on a desk; the words say how many. */
+const STACK = 4;
 
 /**
  * What the drawing of a desk depends on. The model makes new desk objects
@@ -139,18 +194,21 @@ function sameDeskArt(before: DeskArtProps, after: DeskArtProps): boolean {
   const b = after.desk;
   return (
     before.spot === after.spot &&
+    before.books === after.books &&
     a.name === b.name &&
     a.face === b.face &&
     a.family === b.family &&
     a.activity === b.activity &&
+    (a.activity !== "waiting" || askingRisk(a) === askingRisk(b)) &&
     a.ghost === b.ghost &&
     a.trouble?.kind === b.trouble?.kind &&
+    Math.min(a.documents.length, STACK) === Math.min(b.documents.length, STACK) &&
     a.inbox.length === b.inbox.length &&
     a.inbox.every((folder, index) => folder.seq === b.inbox[index]?.seq)
   );
 }
 
-function DeskArt({ desk, spot, children }: DeskArtProps) {
+function DeskArt({ desk, spot, books = 0, children }: DeskArtProps) {
   const shadow = project(spot.across + 0.05, spot.depth - 0.05);
   const seat = project(spot.across, spot.depth + 0.5, 8);
   const top = project(spot.across - 0.28, spot.depth, DESK.height);
@@ -161,6 +219,33 @@ function DeskArt({ desk, spot, children }: DeskArtProps) {
       <Box across={spot.across} depth={spot.depth + 0.5} width={0.4} length={0.22} height={30} className="office-box office-box--chair" />
       {!desk.ghost && <Character desk={desk} at={seat} />}
       <Box across={spot.across} depth={spot.depth} width={DESK.width} length={DESK.length} height={DESK.height} className="office-box office-box--desk" />
+      {!desk.ghost && <Lamp spot={spot} lit={desk.activity !== "completed"} />}
+      {/* The tray: one sheet per file the desk wrote, the newest on top. */}
+      {Array.from({ length: Math.min(desk.documents.length, STACK) }, (_, index) => (
+        <Box
+          key={`sheet-${String(index)}`}
+          across={spot.across + 0.2 - index * 0.02}
+          depth={spot.depth + 0.08}
+          width={0.3}
+          length={0.22}
+          height={1.5}
+          lift={DESK.height + index * 2.5}
+          className="office-box office-box--paper"
+        />
+      ))}
+      {/* The library's books, handed to the lead desk at the start. */}
+      {Array.from({ length: Math.min(books, STACK) }, (_, index) => (
+        <Box
+          key={`book-${String(index)}`}
+          across={spot.across - 0.3}
+          depth={spot.depth - 0.08}
+          width={0.28}
+          length={0.2}
+          height={4}
+          lift={DESK.height + index * 4.5}
+          className="office-box office-box--book"
+        />
+      ))}
       {desk.inbox.map((folder, index) => (
         <FolderShape key={folder.seq} at={{ x: top.x - index * 5, y: top.y - index * 3 }} phase={folder.phase} />
       ))}
@@ -170,6 +255,11 @@ function DeskArt({ desk, spot, children }: DeskArtProps) {
 }
 
 const DeskGroup = memo(DeskArt, sameDeskArt);
+
+/** One desk drawn alone, for the workbench's page of poses. */
+export function DeskFigure({ desk, spot, books = 0 }: { desk: Desk; spot: Spot; books?: number }) {
+  return <DeskGroup desk={desk} spot={spot} books={books} />;
+}
 
 export interface RoomProps {
   model: OfficeModel;
@@ -247,7 +337,7 @@ function RoomArt({ model, layout }: RoomProps) {
       )}
 
       {seated.map(({ desk, spot }) => (
-        <DeskGroup key={desk.name} desk={desk} spot={spot} />
+        <DeskGroup key={desk.name} desk={desk} spot={spot} books={desk.lead ? model.library.length : 0} />
       ))}
 
       {/* Folders on their way lie at the edge of the desk they are going to. */}

@@ -5,6 +5,8 @@
   display: flex;
   min-height: 0;
   border-bottom: var(--hairline) solid var(--separator);
+  /* The inspector's place depends on the canvas's width, not the window's. */
+  container: run-canvas / inline-size;
 }
 
 /* Full screen: the canvas and its inspector over the whole window, above
@@ -441,6 +443,25 @@
   font-size: var(--size-control);
 }
 
+/* Too narrow for a drawing and the inspector side by side (brief 6.3): the
+   inspector opens as a sheet over the whole canvas, above the drawing's
+   switch, and closing it shows the drawing as it was. Beside a strip of
+   room a selected desk would be under the panel, and the room too small to
+   read. `AgentDetail` takes the focus while it covers. */
+@container run-canvas (width < 46rem) {
+  .agent-detail {
+    position: absolute;
+    inset: 0;
+    z-index: 7;
+    min-width: 100%;
+    border-left: 0;
+  }
+
+  .agent-detail > .splitter {
+    display: none;
+  }
+}
+
 .agent-detail h3 {
   font-size: var(--size-body);
 }
@@ -534,6 +555,19 @@
 .agent-detail__list li>span {
   color: var(--muted);
   overflow-wrap: anywhere;
+}
+
+/* A path, as the run summary's file chips show it. */
+.agent-detail__list li > .agent-detail__file {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--size-caption);
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.agent-detail__list li > button.agent-detail__file {
+  color: var(--accent-strong);
 }
 
 .agent-detail__call {

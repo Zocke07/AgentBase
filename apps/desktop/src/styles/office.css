@@ -110,6 +110,26 @@
   fill: var(--office-desk-right);
 }
 
+.office-box--paper .office-box__top {
+  fill: var(--office-paper);
+  stroke: var(--office-desk-right);
+  stroke-width: 1;
+}
+
+.office-box--paper .office-box__left,
+.office-box--paper .office-box__right {
+  fill: var(--office-desk-right);
+}
+
+.office-box--book .office-box__top {
+  fill: var(--office-body);
+}
+
+.office-box--book .office-box__left,
+.office-box--book .office-box__right {
+  fill: var(--office-body-shade);
+}
+
 .office-box--chair .office-box__top,
 .office-box--chair .office-box__left,
 .office-box--chair .office-box__right {
@@ -147,6 +167,106 @@
 
 .office-character__display {
   fill: var(--office-display);
+}
+
+/* One pose per activity (brief 7.4): two rotations per arm, about the
+   shoulder and the elbow, and a lean of the whole figure. The arms are
+   drawn hanging; each activity names its angles here, so moving between
+   poses (stage 20.5) is a transition on these transforms and nothing
+   more. Ready: forearms on the desk. */
+.office-character__pose {
+  transform: rotate(var(--lean, 0deg));
+  transform-origin: 0 2px;
+}
+
+.office-character__arm--left {
+  transform: rotate(var(--arm-left, 8deg));
+  transform-origin: -11px -17px;
+}
+
+.office-character__arm--left .office-character__forearm {
+  transform: rotate(var(--fore-left, -55deg));
+  transform-origin: -13px -8px;
+}
+
+.office-character__arm--right {
+  transform: rotate(var(--arm-right, -8deg));
+  transform-origin: 11px -17px;
+}
+
+.office-character__arm--right .office-character__forearm {
+  transform: rotate(var(--fore-right, 55deg));
+  transform-origin: 13px -8px;
+}
+
+/* Asking its model: hands together at the keys. */
+.office-character--calling {
+  --arm-left: 15deg;
+  --fore-left: -75deg;
+  --arm-right: -15deg;
+  --fore-right: 75deg;
+}
+
+/* Thinking: a hand raised to the side of the head. (At the chin, the
+   forearm in front of the body read as a tick.) */
+.office-character--thinking {
+  --arm-right: -95deg;
+  --fore-right: -117deg;
+}
+
+/* Using a tool: both hands forward, on the work. */
+.office-character--executing {
+  --arm-left: 18deg;
+  --fore-left: -88deg;
+  --arm-right: -18deg;
+  --fore-right: 88deg;
+}
+
+/* Waiting for a person: a card raised, edged in the question's risk. */
+.office-character--waiting {
+  --arm-right: -150deg;
+  --fore-right: 20deg;
+}
+
+/* Finished: arms down, leaning back. */
+.office-character--completed {
+  --arm-left: 4deg;
+  --fore-left: 0deg;
+  --arm-right: -4deg;
+  --fore-right: 0deg;
+  --lean: -5deg;
+}
+
+.office-character__card {
+  fill: var(--office-paper);
+  stroke: var(--risk-medium);
+  stroke-width: 1.5;
+}
+
+.office-character__card--low {
+  stroke: var(--risk-low);
+}
+
+.office-character__card--high {
+  stroke: var(--risk-high);
+}
+
+/* The desk lamp: on while the agent is at work, its light a pool on the desk. */
+.office-lamp__base,
+.office-lamp__shade {
+  fill: var(--office-body-shade);
+}
+
+.office-lamp__stem {
+  fill: none;
+  stroke: var(--office-body-shade);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.office-lamp__light {
+  fill: var(--office-lamp);
 }
 
 .office-face__ink {
@@ -385,6 +505,43 @@
   transform: translateX(-50%);
 }
 
+/* Where words still meet in a crowded room, the work is on top: a desk
+   with something going on lies over a quiet one, and the desk being
+   pointed at, focused or selected over every other, so the details a
+   quiet desk opens are never under its neighbours. */
+.office-desk[data-quiet="false"] {
+  z-index: 1;
+}
+
+.office-desk:is(:hover, :focus-within, :has([aria-pressed="true"])) {
+  z-index: 2;
+}
+
+/* The lead desk has the first row of desks behind it and nothing in front,
+   so its plate and papers hang in front of it, one under the other, where
+   only floor lies. Over its head the plate would lie under the papers of
+   the desk behind. Only its bubble stays over its head. */
+.office-desk__front {
+  position: absolute;
+  top: calc(var(--office-zoom) * 28px);
+  left: 0;
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  width: max-content;
+  transform: translateX(-50%);
+}
+
+.office-desk__front > .office-desk__button,
+.office-desk__front > .office-desk__papers {
+  position: static;
+  transform: none;
+}
+
+.office-desk--lead .office-bubble {
+  bottom: calc(var(--office-zoom) * 98px);
+}
+
 /* A call in hand: evidence, so upright type, an icon and a stamp. */
 .office-slip {
   display: grid;
@@ -465,11 +622,26 @@
   color: var(--bad);
 }
 
-/* Further out there is less room beside each desk: the name and state at
-   mid zoom, the name alone when far. The scene sets the band; the full
-   text is still in each desk's accessible name and tooltip. */
+/* A plate keeps its size while the room shrinks, so the words are rationed.
+   A quiet desk (nothing going on, nothing went wrong and no call refused,
+   which the model decides) shows its name alone at every zoom; pointing at
+   it, tabbing to it or selecting it opens the rest. Every other desk keeps
+   its state and its papers: the detail follows the work and the trouble
+   without the camera moving. An engine without `:has()` drops this rule and
+   shows every plate in full. */
+.office-desk[data-quiet="true"]:not(:hover, :focus-within, :has([aria-pressed="true"]))
+  :is(.office-desk__state, .office-desk__model, .office-desk__papers) {
+  display: none;
+}
+
+/* Further out: no model at mid zoom, and when far every desk is a name and
+   the board its status and goal. The summary above always lists the files,
+   so the board names them only near. The unknown-event warning is never
+   hidden. The scene sets the band; the full text is
+   always in each desk's accessible name and tooltip. */
 .office__stage[data-zoom="mid"] .office-desk__model,
-.office__stage[data-zoom="mid"] .office-desk__papers,
+.office__stage[data-zoom="mid"] .office-board-card__note,
+.office__stage[data-zoom="mid"] .office-board-card__files,
 .office__stage[data-zoom="far"] .office-desk__model,
 .office__stage[data-zoom="far"] .office-desk__papers,
 .office__stage[data-zoom="far"] .office-desk__state,
@@ -541,6 +713,13 @@
 .office-board-card__note {
   color: var(--muted);
   font-size: var(--size-caption);
+}
+
+/* An event this build does not know: shown at every zoom, as the summary does. */
+.office-board-card__warning {
+  color: var(--text);
+  font-size: var(--size-caption);
+  font-weight: 600;
 }
 
 .office-wall-label {
@@ -648,8 +827,21 @@
     stroke: CanvasText;
   }
 
-  .office-shadow {
+  .office-shadow,
+  .office-lamp__light {
     display: none;
+  }
+
+  .office-character__card,
+  .office-lamp__base,
+  .office-lamp__shade {
+    fill: Canvas;
+    stroke: CanvasText;
+    stroke-width: 1;
+  }
+
+  .office-lamp__stem {
+    stroke: CanvasText;
   }
 
   .office-desk__button,

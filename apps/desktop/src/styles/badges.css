@@ -10,21 +10,17 @@
   white-space: nowrap;
 }
 
-/* A dot in the run's colour, then the word. */
-.status::before {
-  content: "";
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 50%;
-  background: var(--status-pending);
+/* The glyph in the status's colour, then the word (brief 4.1). */
+.status > .icon {
+  flex: none;
 }
 
 .status--running {
   color: var(--status-running);
 }
 
-.status--running::before {
-  background: var(--status-running);
+/* A run that is going breathes; the glyph alone, so the word stays still. */
+.status--running > .icon {
   animation: pulse 1.6s ease-in-out infinite;
 }
 
@@ -32,32 +28,16 @@
   color: var(--status-paused);
 }
 
-.status--paused::before {
-  background: var(--status-paused);
-}
-
 .status--completed {
   color: var(--status-completed);
-}
-
-.status--completed::before {
-  background: var(--status-completed);
 }
 
 .status--failed {
   color: var(--status-failed);
 }
 
-.status--failed::before {
-  background: var(--status-failed);
-}
-
 .status--cancelled {
   color: var(--status-cancelled);
-}
-
-.status--cancelled::before {
-  background: var(--status-cancelled);
 }
 
 .risk {

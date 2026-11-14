@@ -207,7 +207,38 @@ and model calls. A lookup that found nothing, such as a folder that does not
 exist, is listed apart as a missed lookup: nothing was changed and the agent
 was told. So is a request that could not be run as written, such as one with
 garbled details, once the agent has sent it again and it ran: the run lists
-it as a call sent again. Read the canvas left to
+it as a call sent again.
+
+Under the sentence the run is drawn, as an **Office** or as a **Diagram**;
+the switch is at the canvas's top left, and the window remembers the choice.
+
+A run opens on the **Office**: a room with the supervisor's desk in front,
+a desk for each worker behind it, and **You** at the reception, which says
+where the run came from. The face on each character says what it is doing: a
+dot (ready), moving dots (asking its model), a tool's symbol, a question
+mark (waiting for your answer), a tick (done), or a warning. A desk at work
+shows its state in words and the call in hand as a slip, stamped once it is
+answered (allowed, denied, refused by the sandbox); a desk with nothing
+going on, and nothing refused or gone wrong, shows its name alone until
+you point at it or select it. A folder
+travels from the supervisor to the worker it hands work to. The card on the
+back wall holds the goal, what the supervisor said, in italics because it is
+a claim, and the files the run wrote; the wall also shows the run's time
+against its limit and its cost. Select a desk for the same inspector the
+diagram opens. Drag to pan and scroll or pinch to zoom; the buttons at the
+bottom right follow the work, show the whole room, zoom, and fill the
+window. A run that is over shows the whole room. A question is answered in
+the panel above the run, never in the room.
+
+Beside the office the summary keeps the title, the counts and anything that
+went wrong, with the first few files the run wrote and why it stopped,
+and **More about this run** opens the rest: where it came from, what it
+could do without asking, the notes it was given and the supervisor's
+account. The event log starts folded to its latest step;
+**Event log** opens it. The diagram keeps the whole summary and an open log,
+and each drawing remembers its own log.
+
+Read the **Diagram** left to
 right: **Goal**, supervisor, delegated workers, **Outcome**. Agent cards show
 state (ready, thinking, model, tool, approval, done), activity, model, and
 tool chips: green executions, red denials, pulsing active calls. Arrows label
@@ -219,7 +250,8 @@ zoom, drag to pan; new agents refit the camera unless you moved it.
 Resize the list/run, supervisor account, canvas/log, and inspector edges by
 dragging or arrow keys; double-click/Home resets them. Sized accounts scroll
 instead of folding; sizes persist in the window. **Full screen** shows canvas
-and inspector until Esc/reselect; its adjacent control fits the run.
+and inspector until Esc/reselect, in either drawing; in the diagram its
+adjacent control fits the run.
 
 The graph's event log is chronological. Filter by **Agent**/**Type**, search
 with **Find**, or **show tokens** for hidden streaming chunks. Select a row for

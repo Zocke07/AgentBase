@@ -115,8 +115,8 @@ function withoutTransport(projection: Element): string {
 }
 
 /** The whole panel, transport included. Identical only at the head of a run. */
-function wholePanel(snapshot: ReturnType<typeof store>): string {
-  return region(snapshot, "run-panel");
+function wholePanel(snapshot: ReturnType<typeof store>, canvas: "office" | "diagram" = "diagram"): string {
+  return region(snapshot, "run-panel", canvas);
 }
 
 /**
@@ -126,8 +126,8 @@ function wholePanel(snapshot: ReturnType<typeof store>): string {
  * twice inside one test (once per path), and a document-wide query would find
  * both copies and refuse to choose.
  */
-function region(snapshot: ReturnType<typeof store>, testId: string): string {
-  const found = panel(snapshot).container.querySelector(`[data-testid="${testId}"]`);
+function region(snapshot: ReturnType<typeof store>, testId: string, canvas: "office" | "diagram" = "diagram"): string {
+  const found = panel(snapshot, canvas).container.querySelector(`[data-testid="${testId}"]`);
   if (found === null) throw new Error(`no ${testId} was rendered`);
   return found.innerHTML;
 }
@@ -152,7 +152,8 @@ describe("replay renders identically to live", () => {
 
   it("produces the same DOM at every intermediate position", () => {
     /* The scrubber's whole promise. Position N replayed must equal what the
-       screen held when event N arrived: for every N, not just the last. */
+       screen held when event N arrived: for every N, not just the last, and
+       from zero, where nothing run-specific has arrived yet. */
     const events = twoAgentRun();
 
     for (let position = 0; position <= events.length; position += 1) {
@@ -215,15 +216,6 @@ describe("replay renders identically to live", () => {
 
     expect(getByRole("button", { name: "Allow" })).toBeDefined();
   });
-
-  it("renders nothing run-specific before any event arrives", () => {
-    const empty = markup(live(twoAgentRun(), 0));
-
-    useRunStore.getState().reset();
-    const replayedEmpty = markup(replay(twoAgentRun(), 0));
-
-    expect(replayedEmpty).toBe(empty);
-  });
 });
 
 /**
@@ -277,21 +269,16 @@ describe("the office renders identically live and in replay", () => {
       expect(watchedLive).toContain('data-testid="office"');
     }
   });
-
-  it("renders the same office twice in a row from the same state", () => {
-    const snapshot = replay(twoAgentRun());
-    expect(markup(snapshot, "office")).toBe(markup(snapshot, "office"));
-  });
 });
 
 describe("what the panel refuses to do", () => {
-  it("renders the same markup twice in a row from the same state", () => {
+  it.each(["diagram", "office"] as const)("renders the same markup twice in a row from the same state, as a %s", (drawing) => {
     /* The blunt instrument that catches a `Date.now()`, a `Math.random()`, or a
        `useId` leaking into the run view. Everything else in this file compares
-       two paths; this one compares one path to itself. */
+       two paths; this one compares one path to itself, transport included. */
     const snapshot = replay(twoAgentRun());
 
-    expect(wholePanel(snapshot)).toBe(wholePanel(snapshot));
+    expect(wholePanel(snapshot, drawing)).toBe(wholePanel(snapshot, drawing));
   });
 
   it("does not show the terminal summary as a statement of what happened", () => {

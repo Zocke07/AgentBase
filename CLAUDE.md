@@ -43,15 +43,26 @@ future changes do not relocate users' data or disconnect their stored keys.
   table of tools, held to the backend's names); four positions per agent
   in the reducer; `state/office.ts` (the run as a room, pure);
   `lib/officeLayout.ts`; `components/office/` and `styles/office.css`; the
-  run view's **Office** and **Diagram** switch, with Diagram the default
-  until 20.4 is accepted; `state/timeline.ts` (markers, step or settle,
-  playback pacing; nothing draws it yet); `lib/shortcuts.ts` (the keyboard
-  map with platform glyphs). The office holds replay identity on all
-  fourteen scenarios, reads no clock, and animates nothing yet. A code
-  review at high effort ran on this work and its ten findings are fixed.
-  Waiting for
-  the maintainer: the character style, and how the run view makes room for
-  the office.
+  run view's **Office** and **Diagram** switch; `state/timeline.ts`
+  (markers, step or settle, playback pacing; nothing draws it yet);
+  `lib/shortcuts.ts` (the keyboard map with platform glyphs). The office
+  holds replay identity on all fourteen scenarios, reads no clock, and
+  animates nothing yet. Two code reviews at high effort ran on this work
+  and their findings are fixed.
+- **The office is what a run opens on, 2026-11-14.** The maintainer handed
+  over the open decisions ("decide what you think is best"); the brief's
+  section 13 records each with its reason. A run opens on the office.
+  Beside it the summary is compact (title, figures and every problem stay;
+  the rest is behind **More about this run**) and the log starts folded,
+  under its own stored flag, because a room needs about half its width in
+  height; the diagram's layout is unchanged. A quiet desk (`Desk.quiet`)
+  shows its name alone and opens on hover, focus or selection; the camera
+  frames the furniture, shows the whole room once a run is over and
+  follows the work while it is going; the office has Full screen. The
+  character style is the display-faced figure that was built. The edit
+  hook stays. `just ui-shots` captures the office, a desk's inspector and
+  the diagram. Still waiting for the maintainer: D8 after 20.5, and the
+  macOS title bar.
 - **Gaps and reading, 2026-10-20.** After three closed mornings the first
   chain on Claude ran cleanly, but nothing said 14 to 16 October had no
   research, the portfolio review stopped on a week-old holdings file, and a

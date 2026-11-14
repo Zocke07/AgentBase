@@ -4,6 +4,187 @@ Updated 2026-11-14. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
+## Phase 20: poses and the lamp, 2026-11-14
+
+On branch `phase-20-redesign`, not merged, pushed or released. Item 4 of
+[the brief's "To finish stage 20.4"](design/virtual-office-redesign.md).
+
+- **What changed:** each figure takes a pose for its activity (brief 7.4),
+  with two arms posed by CSS rotations so 20.5 can move between them; a
+  waiting figure raises a card edged in the question's risk; a desk lamp
+  is on while the agent works. A new workbench page, Characters, draws each
+  pose large.
+- **Tests:** each seated desk is drawn with its activity and two arms, a
+  card only while it waits (in a risk), and a lit lamp unless finished.
+  The Characters page is compared in light and dark in both engines and
+  passes axe; six office baselines and the token page were rewritten and
+  read.
+- **What ran:** `just ci` passed (backend 1,451 passed, 12 skipped;
+  desktop 973 passed in 83 files); `just test-visual` 218 passed. The
+  design rules caught the lamp's token missing from one dark block.
+- **Real app:** `just ui-shots office-poses` and `office-poses-forced
+  --forced-colors` (72 each in `.dev/shots/`); under forced colours the
+  room is outlined, lamps and arms show and the board's status keeps its
+  glyph.
+- **Not verified:** Windows; the real Tauri window.
+
+## Phase 20: documents, books and status glyphs, 2026-11-14
+
+On branch `phase-20-redesign`, not merged, pushed or released. Item 3 of
+[the brief's "To finish stage 20.4"](design/virtual-office-redesign.md).
+
+- **What changed:** each desk's tray holds a sheet per file its own calls
+  wrote, its accessible name says how many, and the inspector lists them
+  under "Files it wrote", each opening in Knowledge (in both drawings). The
+  lead desk holds a book per excerpt the run was given. Every status word
+  (runs list, run summary, the board, Settings' channels and ChatGPT
+  sign-in, the market watch) has a glyph: a dashed circle for pending, a
+  dot for running, pause, check, cross and slash. Six Lucide icons were
+  vendored for it.
+- **Tests:** every scenario's files land in exactly the tray of the desk
+  whose answered call wrote them and together make the board's list; the
+  drawing stacks a sheet per file and a book per excerpt; the inspector
+  opens a file; each status has its own glyph and an unknown one reads as
+  pending. 21 visual baselines were rewritten (pages showing a status, the
+  icon list, the controls) and read; axe passes on all of them.
+- **What ran:** `just ci` passed (backend 1,451 passed, 12 skipped;
+  desktop 972 passed in 83 files); `just test-visual` 210 passed. The
+  controls page was read under forced colours: each status is told apart
+  by its glyph alone.
+- **Not verified:** Windows; the real Tauri window.
+
+## Phase 20: crowded rooms and the desks' words, 2026-11-14
+
+On branch `phase-20-redesign`, not merged, pushed or released. Items 1 and
+2 of [the brief's "To finish stage 20.4"](design/virtual-office-redesign.md).
+Stage 20.4 is still not accepted.
+
+- **The lead's words hang in front of it.** A sweep of the twelve desk run
+  (every third cursor, fitted and zoomed in, at 1440 by 900) found the
+  supervisor's plate under a worker's slip whenever the third seat was
+  taken: neighbouring rows share screen columns. The lead's plate and
+  papers now hang in front of its desk; the same sweep finds no overlap.
+  In the twenty desk room a busy worker's slip can still cover the end of
+  a quiet neighbour's name at mid zoom; the busy desk is on top, and a
+  hovered, focused or selected desk over every other.
+- **The camera keeps the words in view.** Following a desk leaves its plate
+  and bubble in view (the twelve and twenty desk pages had them cut at the
+  top). The fit reserves room below for the reception's card and the lead's
+  plate (cut at 800 by 600), and repeats until the scale settles, which
+  gives a larger room than the old two passes at every size measured
+  (1,100 by 362, two desks: scale 0.696 before, 0.736 now with a quiet
+  lead, 0.690 with a busy one).
+- **A narrow canvas shows the inspector as a sheet** (brief 6.3), over the
+  whole canvas below 46rem, taking the focus and giving it back; Escape
+  closes it without leaving full screen, in both drawings. At 800 by 600 it
+  had left the room 240 px wide with the selected desk under the panel.
+- **The desks' words are memoized,** comparing each desk as data;
+  `foldersOf` is linear and `writtenFiles` parses each answered call once.
+- **Tests:** new tests for the follow camera's reach over and under a desk,
+  the reserve in front, the estimates, the lead's plate in front, the
+  inspector's Escape (office and diagram) and `sameData`. The reserve and
+  Escape tests were run against the code without their fix and failed.
+  Twelve office baselines were rewritten for the moved plate and read in
+  both engines.
+- **What ran:** `just ci` passed (backend 1,451 passed, 12 skipped; desktop
+  967 passed in 82 files; lint and types clean). `just test-visual` 210
+  passed. `just ui-shots office-crowded` took 72 screenshots in
+  `.dev/shots/office-crowded`; the run view was read at 800 by 600 and
+  1,100 by 800.
+- **Not verified:** Windows; the real Tauri window; screen readers on the
+  sheet's focus move (checked in Chromium by script only).
+
+## Phase 20: a run opens on the office, 2026-11-14
+
+On branch `phase-20-redesign`, not merged, pushed or released. The
+maintainer handed over the decisions the foundations entry below left
+open ("decide what you think is best that will give best overall UI, UX
+and DX"). [The brief's section 13](design/virtual-office-redesign.md)
+records each with its reason. Stage 20.4 is still not accepted: Windows
+and the polish listed there remain.
+
+- **Room for the office.** A room needs about half its width in height
+  (the projection is 46 by 20 a tile), and the run view gave it 165 px at
+  1,100 by 720. Beside the office the summary is now compact: the title,
+  the figures, one row of the files the run wrote (the rest behind the
+  count, as before), the monthly-cap notice, the problems, why a run
+  stopped and unknown events stay in view; where the run came from, what
+  it could do without asking, the retrieved notes and the supervisor's
+  account go behind **More about this run**, because the reception, the
+  board and the library show them. The log starts folded there, under its own stored
+  flag, so opening it beside the office does not open it under the
+  diagram. The canvas takes the rest: 390 px at 1,100 by 720 in the
+  workbench and 435 px in the real app at 1,100 by 800. The diagram's
+  summary, log and grid are unchanged.
+- **Office is the default drawing**; the viewer's choice is still stored
+  and wins. **Full screen** was missing from the office and is added.
+- **The camera.** It fits `OfficeLayout.frame`, the room's width from the
+  top of its walls to the frontmost seat, not the whole floor, and leaves
+  the board's card the room it needs: estimated from the model for the
+  zoom band it will be drawn at (measuring it could swing the camera
+  between bands), at most a quarter of the view. Once a run is over the
+  model names no desk to follow, so the camera and **Follow the work**
+  show the whole room; a run that is going follows the work, and a followed desk near an edge is shown
+  with the room around it, never with the view past the room's edge.
+- **Words are rationed.** A quiet desk (ready or done, no trouble, no
+  call of its step denied, refused or left unanswered: `Desk.quiet`, tested
+  over every scenario) shows its name alone at every zoom and opens on
+  hover, focus or selection; every other desk keeps its state and papers.
+  The board names two files, and only near; the unknown-event warning is
+  never hidden. CSS on
+  attributes already in the DOM, so the identity test compares the same
+  markup as before. At twelve desks the room no longer reads as a wall of
+  cards.
+- **The character style** is the display-faced figure that was built; the
+  two alternatives were weighed and not drawn (the brief gives the
+  reasons). **The edit hook stays.**
+- **Tests.** Measured before changing any: the desktop suite's 952 tests
+  take 28 s of wall time and the backend's 1,447 take 55 s, so the count
+  is not what costs. Two things were: nine Discord conversation tests each
+  waited out the real 1.6 s edit interval (15 s of the backend's run), and
+  `replayIdentity.test.tsx` is a third of the desktop suite's test time.
+  The conversation tests now run on a 20 ms interval, with the throttle's
+  arithmetic held by four new tests on a clock the test owns
+  (`test_channel_throttle.py`); the backend's tests went from 50 s to 35 s.
+  In the identity file one test that repeated position zero of another was
+  removed and two self-comparisons became one test over both drawings. No
+  other test was removed: each of the rest names a failure it was written
+  against, and no two were found asserting the same thing.
+- **Pre-existing tests changed, each for an intended change:**
+  `RunPanel.test.tsx` (three tests name the diagram they are about; Full
+  screen is tested in both drawings; one new test for the office default
+  and the two logs), `RunsView.test.tsx` (the capture test opens the
+  folded log first), `replayIdentity.test.tsx` (above),
+  `officeLayout.test.ts` (fit is of the frame, under the headroom),
+  `test_channels.py` (the interval). `scripts/ui-shots.ts` now captures
+  the office, a desk's inspector and the diagram behind the switch.
+- **Review.** Code review at high effort ran on this change and found nine
+  things, all fixed: a finished desk folded away its alarm or refusal (now
+  `Desk.quiet`); a failed run's reason was folded away; the board hid its
+  files at mid zoom while the summary folded them too (the files now stay
+  in the summary); the narrower frame clipped the reception's card (the
+  frame keeps the room's full width); **Follow the work** looked pressed
+  on a finished run while doing nothing (the model has no focus then); one
+  Escape both closed the inspector and left full screen (now two); a
+  duplicated grid rule; a fifth copy of the terminal-status test; an
+  unused class. Each behaviour fix has a test, and the Escape test was
+  seen to fail without its fix.
+- **Ran:** `just ci` (backend 1,451 passed, 12 skipped; desktop 959 passed
+  in 81 files; lint, format and both typecheckers clean);
+  `just test-visual` (210 passed in Chromium and WebKit; the eleven office
+  baselines were redrawn and read, the other baselines are unchanged);
+  `just ui-shots` three times on one scratch data set, 72 screenshots
+  each: `.dev/shots/office-default`, `office-forced-colors`,
+  `office-reduced-motion`. Read: the run view at 1,100 by 800 and 1,440
+  by 900 in both themes, the inspector beside the room, and the room under
+  forced colours, where every wall, desk, face and plate is outlined and
+  the tick reads.
+- **Not verified:** Windows and the Tauri window (no build was made).
+  Nothing moves yet, so reduced motion shows only that nothing does. Two
+  desks at work side by side were not checked for overlapping papers.
+  `:has()` carries the rationing rule; an engine without it shows every
+  plate in full, which was reasoned and not run.
+
 ## Phase 20, foundations of stages 20.3 to 20.5, 2026-11-13 and 14
 
 On branch `phase-20-redesign`, not merged, pushed or released. After stage

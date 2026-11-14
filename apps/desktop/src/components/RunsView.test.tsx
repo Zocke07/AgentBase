@@ -494,6 +494,8 @@ describe("capturing an agent's words as a note", () => {
     render(<Harness onRunChanged={vi.fn()} pendingApprovals={[]} />);
     await pick(user, "quarterly", false);
 
+    // A run opens on the office with the log folded to its latest step.
+    await user.click(screen.getByRole("button", { name: "Event log" }));
     await user.click(screen.getByRole("button", { name: /The run completed\./ }));
     await user.click(screen.getByRole("button", { name: "Save as note" }));
 

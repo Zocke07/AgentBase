@@ -108,6 +108,27 @@ what is unfinished.
   in the scene must be the same live and on replay.
 - Every state has a word in the model and a glyph in `office/glyphs.ts`; a
   desk button's accessible name opens with the words on its plate.
+- Words in the room keep their size while the room shrinks, so they are
+  rationed in CSS on `data-face` and `data-zoom`, never by leaving
+  elements out: a desk with nothing going on shows its name, a desk at
+  work shows the rest. A new label needs a line in that rule.
+- The camera fits `OfficeLayout.frame` (the furniture and its labels), not
+  `bounds` (the whole floor). A room needs about half its width in height;
+  the run view's office layout exists to give it that.
+- Words that hang outside the frame (the board's card, the reception's
+  card, the lead's plate) or that a followed desk shows (`deskReach`) are
+  reserved by height estimates in `office/estimates.ts`, never measured.
+  Its numbers follow `styles/office.css`: change a label's lines, padding
+  or offset in both.
+- Desks of neighbouring rows share screen columns, so a plate over a head
+  lands on the papers of the desk behind. The lead desk's plate and papers
+  hang in front of it, where only floor lies; keep it so. Where words
+  still meet, the busy desk is on top (`data-quiet`, then hover and
+  selection).
+- A figure's pose is four arm angles and a lean, set as custom properties
+  on `.office-character--{activity}` in `styles/office.css`; the drawing
+  never changes shape between poses, so motion is a transition on the
+  transforms. Look at a pose on the workbench's Characters page.
 - The tool table is `lib/tools.ts`: a new backend tool needs an entry, or
   its test fails.
 

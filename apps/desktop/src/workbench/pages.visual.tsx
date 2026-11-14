@@ -37,6 +37,8 @@ const DARK_TOO: ReadonlySet<string> = new Set([
   "run-shell-question",
   "run-stuck-worker",
   "office-shell-question",
+  // Every pose, the lamp and the risk colours of a raised card.
+  "office-characters",
 ]);
 
 /**
@@ -46,6 +48,7 @@ const DARK_TOO: ReadonlySet<string> = new Set([
  * question, a refusal, a finished run and a crowded room are compared.
  */
 const OFFICE_COMPARED: ReadonlySet<string> = new Set([
+  "office-characters",
   "office-two-agents",
   "office-morning-collection",
   "office-shell-question",

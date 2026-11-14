@@ -27,6 +27,7 @@ import { useTransparencyStore } from "../lib/transparency";
 import { useFetched } from "../state/useFetched";
 
 import { Skeleton } from "./Skeleton";
+import { Status } from "./ui/Status";
 import { Segmented, Switch } from "./ui/controls";
 
 /**
@@ -796,9 +797,9 @@ function SettingsForm({
                 </label>
                 {status !== undefined && (
                   <div className="settings__channel-status">
-                    <span className={`status status--${status.running ? "running" : status.enabled ? "failed" : "pending"}`}>
+                    <Status kind={status.running ? "running" : status.enabled ? "failed" : "pending"}>
                       {status.running ? "running" : status.enabled ? "not running" : "off"}
-                    </span>
+                    </Status>
                     {!status.configured && <span> · no token set</span>}
                     {status.failures > 0 && <span> · {status.failures} failures</span>}
                     {status.last_error !== null && status.last_error !== undefined && (
@@ -1110,9 +1111,7 @@ function ChatGPTAccount() {
   return (
     <div className="settings__oauth" data-testid="chatgpt-auth">
       <div>
-        <span className={`status status--${auth.data.state === "connected" ? "running" : "pending"}`}>
-          {state}
-        </span>
+        <Status kind={auth.data.state === "connected" ? "running" : "pending"}>{state}</Status>
         {auth.data.email !== null && auth.data.email !== undefined && (
           <span className="settings__oauth-account">
             {" "}
