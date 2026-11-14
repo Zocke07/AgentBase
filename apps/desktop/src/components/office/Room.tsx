@@ -1,4 +1,4 @@
-import { createElement, memo, type ReactNode } from "react";
+import { createElement, memo, type CSSProperties, type ReactNode } from "react";
 
 import { silhouetteOf } from "../../lib/character";
 import { project, WALL_HEIGHT, type OfficeLayout, type Point, type Spot } from "../../lib/officeLayout";
@@ -161,12 +161,20 @@ function Lamp({ spot, lit }: { spot: Spot; lit: boolean }) {
   );
 }
 
-/** A folder of delegated work, lying where the model says it is. */
-function FolderShape({ at, phase }: { at: Point; phase: Folder["phase"] }) {
+/**
+ * A folder of delegated work, lying where the model says it is. A folder on
+ * its way also knows where it came from, as an offset in room pixels; the
+ * stylesheet moves it from there when it appears (brief 7.8). The offset is
+ * the layout's, so it is the same live and on replay.
+ */
+function FolderShape({ at, phase, from }: { at: Point; phase: Folder["phase"]; from?: Point | undefined }) {
+  const travel = from === undefined ? undefined : ({ "--from-x": `${String(from.x - at.x)}px`, "--from-y": `${String(from.y - at.y)}px` } as CSSProperties);
   return (
     <g className={`office-folder office-folder--${phase}`} transform={`translate(${String(at.x)} ${String(at.y)})`}>
-      <path className="office-folder__back" d="M-9 -7h6l2 2h10v10h-18z" />
-      <path className="office-folder__front" d="M-9 -2h18v7h-18z" />
+      <g className="office-folder__body" style={travel}>
+        <path className="office-folder__back" d="M-9 -7h6l2 2h10v10h-18z" />
+        <path className="office-folder__front" d="M-9 -2h18v7h-18z" />
+      </g>
     </g>
   );
 }
@@ -345,7 +353,10 @@ function RoomArt({ model, layout }: RoomProps) {
         const target = spotOf(folder.phase === "arriving" ? folder.to : folder.from);
         if (target === null) return null;
         const at = project(target.across + 0.42, target.depth - 0.1, DESK.height);
-        return <FolderShape key={folder.seq} at={at} phase={folder.phase} />;
+        // It travels from the other desk: the sender's, or on its way back the receiver's.
+        const source = spotOf(folder.phase === "arriving" ? folder.from : folder.to);
+        const from = source === null ? undefined : project(source.across + 0.42, source.depth - 0.1, DESK.height);
+        return <FolderShape key={`${String(folder.seq)}-${folder.phase}`} at={at} phase={folder.phase} from={from} />;
       })}
     </svg>
   );

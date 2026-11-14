@@ -1820,9 +1820,12 @@ recommended defaults D1 to D9, all accepted):
    the projection, the layout, the scene and its tests. The run view
    offers Office and Diagram and opens on Office since 2026-11-14, when
    the maintainer handed over the open decisions; the brief's section 13
-   records them. Not accepted: Windows and the remaining polish.)*
-5. **20.5 The office in motion.** *(The timeline's pure functions are
-   built; no motion is.)*
+   records them. Its polish was done on 2026-11-14: crowded rooms, trays
+   and books, status glyphs, poses and the lamp. Not accepted: Windows.)*
+5. **20.5 The office in motion.** *(Built on 2026-11-14: a step animates
+   under D1, the camera eases, the timeline plays, steps and jumps, and the
+   budgets were measured; the brief's section 13 records what is left.
+   Not accepted: Windows and WebView2.)*
 6. **20.6 The office everywhere, every section, both platforms.**
 
 *(Maintainer direction of 2026-11-13: after stage 20.2, lay the load-bearing

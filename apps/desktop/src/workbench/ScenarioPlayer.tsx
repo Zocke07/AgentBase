@@ -72,7 +72,7 @@ export function ScenarioPlayer({
 
   return (
     <div className="wb-player">
-      <div className="wb-player__bar" role="group" aria-label="Playback">
+      <div className="wb-player__bar" role="group" aria-label="How the log arrives">
         <button
           type="button"
           className="button button--small"
@@ -169,6 +169,7 @@ export function ScenarioPlayer({
           // The workbench has no sidecar: an answer goes nowhere.
           onResolveApproval={() => Promise.resolve()}
           canvas={canvas}
+          live={mode === "live" && !finished}
         />
       </div>
     </div>

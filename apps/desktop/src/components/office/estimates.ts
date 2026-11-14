@@ -1,4 +1,6 @@
-import { PAPERS_DROP, RECEPTION_CARD_HEIGHT, zoomBand, type Cards, type Reach, type ZoomBand } from "../../lib/officeLayout";
+import type { CSSProperties } from "react";
+
+import { BOARD_LIFT, PAPERS_DROP, RECEPTION_CARD_HEIGHT, RECEPTION_DROP, zoomBand, type Cards, type Reach, type ZoomBand } from "../../lib/officeLayout";
 import type { Board, Desk, Reception, Slip } from "../../state/office";
 
 /**
@@ -8,8 +10,10 @@ import type { Board, Desk, Reception, Slip } from "../../state/office";
  * measured: what a label shows changes with the zoom band, and a camera
  * fitted to a measured label could move between bands for ever.
  *
- * The numbers follow `styles/office.css`; a change to a label's lines,
- * padding or offset there is a change here.
+ * The offsets and widths below are the stylesheet's too: `labelGeometry`
+ * sets them on the stage as custom properties and `styles/office.css`
+ * reads them, so the two cannot drift apart (a test holds the stylesheet to
+ * it). Line heights and paddings come from the type and space tokens.
  */
 
 /** One line of caption text (`--leading-caption`). */
@@ -66,16 +70,32 @@ export function slipsOnDesk(desk: Desk): readonly Slip[] {
   return desk.slips.filter((entry) => entry.family !== "delegation");
 }
 
-/** Room pixels from a desk's floor spot to the bottom of its plate (`.office-desk__button`). */
+/** Room pixels from a desk's floor spot to the bottom of its plate. */
 export const PLATE_RISE = 98;
-/** Screen pixels from the plate's bottom to the bubble's (`.office-bubble`, 4.4rem). */
-const BUBBLE_RISE = 70.4;
-/** Characters a line of the bubble holds: 14rem of italic caption. */
+/** Rems from the plate's bottom to the bubble's. */
+const BUBBLE_RISE_REM = 4.4;
+const BUBBLE_RISE = BUBBLE_RISE_REM * 16;
+/** The widest a bubble, and a plate or a desk's papers, may be, in rems. */
+const BUBBLE_WIDTH_REM = 14;
+const LABEL_WIDTH_REM = 11;
+/** Characters a line holds: the width less its padding, over an italic or plain caption's mean advance of about 7 px. */
 const BUBBLE_CHARS_PER_LINE = 30;
-/** Characters a line of a desk's papers holds: 11rem of caption. */
 const PAPER_CHARS_PER_LINE = 26;
-/** How much of an error a desk shows (`TROUBLE_CHARS` in the scene). */
+/** How much of an error a desk shows; the whole message is in its tooltip and the log. */
 export const TROUBLE_CHARS = 110;
+
+/** The geometry the stylesheet places labels by, as the stage's custom properties. */
+export function labelGeometry(): CSSProperties {
+  return {
+    "--office-plate-rise": PLATE_RISE,
+    "--office-papers-drop": PAPERS_DROP,
+    "--office-board-lift": BOARD_LIFT,
+    "--office-reception-drop": RECEPTION_DROP,
+    "--office-bubble-rise": BUBBLE_RISE_REM,
+    "--office-bubble-width": BUBBLE_WIDTH_REM,
+    "--office-label-width": LABEL_WIDTH_REM,
+  } as CSSProperties;
+}
 
 /** The plate: a quiet desk's is its name alone, and the model goes first as the camera draws back. */
 function plateHeight(desk: Desk, band: ZoomBand): number {

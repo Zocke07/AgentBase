@@ -101,7 +101,8 @@ function markup(snapshot: ReturnType<typeof store>, canvas: "office" | "diagram"
  * The projection's markup without the office's transport. The office's camera
  * (where the viewer is looking from, and how far out) and its view buttons
  * follow the window and the viewer, not the log: the same exclusion as the
- * scrubber, for the same reason. They are marked `data-transport` so that
+ * scrubber, for the same reason, as is whether a cursor move animates or
+ * settles (decision D1). They are marked `data-transport` so that
  * this is the only place that needs to know. Everything else in the office,
  * every desk, slip, stamp, folder and word, is compared.
  */
@@ -109,7 +110,7 @@ function withoutTransport(projection: Element): string {
   const copy = projection.cloneNode(true) as Element;
   for (const controls of copy.querySelectorAll('[data-transport="controls"]')) controls.remove();
   for (const camera of copy.querySelectorAll('[data-transport="camera"]')) {
-    for (const name of ["style", "data-zoom", "data-follow"]) camera.removeAttribute(name);
+    for (const name of ["style", "data-zoom", "data-follow", "data-motion", "data-camera"]) camera.removeAttribute(name);
   }
   return copy.innerHTML;
 }

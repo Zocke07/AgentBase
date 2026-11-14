@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -10,7 +13,7 @@ import { LogBuilder, twoAgentRun } from "../../test/log";
 import { scenario, SCENARIOS } from "../../test/scenarios";
 
 import { OfficeScene } from "./OfficeScene";
-import { boardCardHeight, cardsOf, deskReach } from "./estimates";
+import { boardCardHeight, cardsOf, deskReach, labelGeometry } from "./estimates";
 
 function show(events: Parameters<typeof reduceAll>[0], selected: string | null = null, onSelect = vi.fn()) {
   const view = reduceAll(events);
@@ -213,6 +216,17 @@ describe("the office by keyboard", () => {
     expect(filed).toBeGreaterThan(boardCardHeight({ ...base, documents: ["a"].map(file) }, "near"));
     // Further out the board does not list files, so they take no room.
     expect(boardCardHeight({ ...base, documents: ["a", "b", "c"].map(file) }, "mid")).toBe(short);
+  });
+
+  it("places labels by the geometry the camera estimates with, never by a copy of it", () => {
+    // The camera leaves room for labels from these numbers; if the stylesheet
+    // placed them by numbers of its own, the two could drift apart unseen.
+    const css = readFileSync(join(import.meta.dirname, "../../styles/office.css"), "utf8");
+    for (const name of Object.keys(labelGeometry())) expect(css, name).toContain(`var(${name})`);
+    expect(css).not.toMatch(/\b(98|28|44|34)px\b|\b(4\.4|14|11)rem\b/);
+    const stage = show(twoAgentRun()).container.querySelector<HTMLElement>(".office__stage");
+    if (stage === null) throw new Error("no stage was drawn");
+    for (const [name, value] of Object.entries(labelGeometry())) expect(stage.style.getPropertyValue(name)).toBe(String(value));
   });
 
   it("stacks a sheet in a desk's tray per file it wrote, and the library's books on the lead desk", () => {

@@ -11,6 +11,9 @@ import { Workbench } from "./Workbench";
 import { applyEnvironment, DEFAULT_ENVIRONMENT, environmentFrom } from "./environment";
 import { PAGES } from "./pages";
 
+/** The scenario player's own bar, apart from the run view's scrubber inside it. */
+const player = () => within(screen.getByRole("group", { name: "How the log arrives" }));
+
 const root = document.documentElement;
 
 afterEach(() => {
@@ -99,7 +102,7 @@ describe("the workbench", () => {
     expect(screen.getByTestId("scrub-position").textContent).toBe("12 / 28");
     expect(window.location.search).toBe("?page=run-two-agents&cursor=12");
 
-    fireEvent.click(screen.getByRole("button", { name: "Step" }));
+    fireEvent.click(player().getByRole("button", { name: "Step" }));
     expect(screen.getByTestId("scrub-position").textContent).toBe("13 / 28");
     expect(window.location.search).toBe("?page=run-two-agents&cursor=13");
   });
@@ -159,11 +162,11 @@ describe("the scenario player", () => {
     render(<ScenarioPlayer scenario={scenario("two-agents")} cursor={5} />);
     expect(screen.getByTestId("scrub-position").textContent).toBe("5 / 28");
 
-    fireEvent.click(screen.getByRole("button", { name: "Step" }));
+    fireEvent.click(player().getByRole("button", { name: "Step" }));
     expect(screen.getByTestId("scrub-position").textContent).toBe("6 / 28");
 
-    fireEvent.click(screen.getByRole("button", { name: "Step back" }));
-    fireEvent.click(screen.getByRole("button", { name: "Step back" }));
+    fireEvent.click(player().getByRole("button", { name: "Step back" }));
+    fireEvent.click(player().getByRole("button", { name: "Step back" }));
     expect(screen.getByTestId("scrub-position").textContent).toBe("4 / 28");
   });
 
@@ -171,8 +174,8 @@ describe("the scenario player", () => {
     vi.useFakeTimers();
     try {
       render(<ScenarioPlayer scenario={scenario("two-agents")} cursor={26} />);
-      fireEvent.click(screen.getByRole("button", { name: "Play" }));
-      expect(screen.getByRole("button", { name: "Pause" })).toBeDefined();
+      fireEvent.click(player().getByRole("button", { name: "Play" }));
+      expect(player().getByRole("button", { name: "Pause" })).toBeDefined();
 
       // One interval at a time, as a clock would: each step re-arms the timer.
       for (let step = 0; step < 4; step += 1) {
@@ -181,7 +184,7 @@ describe("the scenario player", () => {
         });
       }
       expect(screen.getByTestId("scrub-position").textContent).toBe("28 / 28");
-      expect(screen.getByRole("button", { name: "Play" })).toBeDefined();
+      expect(player().getByRole("button", { name: "Play" })).toBeDefined();
     } finally {
       vi.useRealTimers();
     }

@@ -15,14 +15,18 @@
  * Type, space, radii, elevation and the springs are tokens too. The rules are
  * tests, in `src/design`.
  *
- * Nothing here animates a value that comes from the log. §5 Phase 7 asks that a
- * replayed run render identically to the live one, and a transition keyed on
- * arrival time would make the same event look different depending on how it
- * got there. Motion is for the app's chrome only: moving between sections,
+ * Motion follows BUILD_SPEC Phase 20's decision 1. §5 Phase 7 asks that a
+ * replayed run render identically to the live one, so the event log, the
+ * approval panel and the run's summary never animate their arrival, and the
+ * app's chrome moves only to answer the person: moving between sections,
  * menus and dialogs opening, a button answering a press, something loading.
- * The run canvas, the event log, the approval panel and the run's summary do
- * not animate their arrival. Every animation stops under
- * `prefers-reduced-motion`.
+ * The office alone animates what comes from the log, and only as D1 allows:
+ * a motion shows one cursor step and is CSS on the DOM that step produced;
+ * the room at rest is a pure function of the event prefix; a loop runs only
+ * while an operation is open. Whether a cursor move animates or settles is
+ * transport, outside what replay identity compares (styles/office.css). Every
+ * animation stops under `prefers-reduced-motion`, and pauses while the
+ * window is hidden.
  *
  * Text colours meet WCAG AA (4.5:1 for body text) on every ground the token
  * file says they may sit on, in both themes; `--faint` is the lightest text

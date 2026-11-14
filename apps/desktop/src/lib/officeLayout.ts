@@ -192,24 +192,22 @@ const clamp = (value: number, low: number, high: number): number => Math.min(Mat
 
 /**
  * How far the board's card is lifted above its point on the wall, in room
- * pixels: the `34px` in `.office-board-card`'s transform.
+ * pixels. The stylesheet reads it as `--office-board-lift`
+ * (`components/office/estimates.ts`, `labelGeometry`), as it reads the two
+ * offsets below.
  */
 export const BOARD_LIFT = 34;
 /** A card with a status and two lines of goal, in screen pixels. */
 export const BOARD_CARD_HEIGHT = 72;
 /** Clear space kept above the card. */
 const CARD_GAP = 8;
-/**
- * How far the reception's card hangs below the reception's spot, in room
- * pixels: the `44px` in `.office-reception`'s transform.
- */
+/** How far the reception's card hangs below the reception's spot, in room pixels. */
 export const RECEPTION_DROP = 44;
 /** The reception's card with its two lines, in screen pixels. */
 export const RECEPTION_CARD_HEIGHT = 46;
 /**
- * How far below a desk's spot its papers start, in room pixels (the `28px`
- * in `.office-desk__papers` and `.office-desk__front`). The lead desk hangs
- * its plate there too: it has the front of the room to itself.
+ * How far below a desk's spot its papers start, in room pixels. The lead
+ * desk hangs its plate there too: it has the front of the room to itself.
  */
 export const PAPERS_DROP = 28;
 /** The lead desk's plate with its name and state, in screen pixels. */
@@ -331,8 +329,10 @@ export function followCamera(
   focus: Point | null,
   cards: Cards = CARDS,
   reach: (scale: number) => Reach = () => ({ above: 0, below: 0 }),
+  /** `fitCamera` for these cards, when the caller has it already. */
+  fitted?: Camera,
 ): Camera {
-  const fit = fitCamera(layout, viewport, cards);
+  const fit = fitted ?? fitCamera(layout, viewport, cards);
   /** Below this the desks are too close for their labels: come in on the work. */
   if (focus === null || fit.scale >= READABLE_ZOOM) return fit;
   // The whole room, not its frame: a desk at the front may be followed too.

@@ -29,12 +29,13 @@ import { currentPlatform } from "../../lib/platform";
 import { matchesKeys, shortcut, withShortcut } from "../../lib/shortcuts";
 import { splitPath } from "../../state/files";
 import { stampReason, type Desk, type OfficeModel, type Slip } from "../../state/office";
+import type { MotionMode } from "../../state/timeline";
 import { Icon } from "../icons/Icon";
 import { Status } from "../ui/Status";
 import { IconButton } from "../ui/controls";
 
 import { Room } from "./Room";
-import { BOARD_FILES, cardsOf, deskReach, slipsOnDesk, TROUBLE_CHARS } from "./estimates";
+import { BOARD_FILES, cardsOf, deskReach, labelGeometry, slipsOnDesk, TROUBLE_CHARS } from "./estimates";
 import { FACE_ICON, FAMILY_ICON, SLIP_TONE, STAMP_ICON } from "./glyphs";
 
 /**
@@ -60,6 +61,11 @@ export interface OfficeSceneProps {
   onSelectAgent: (name: string | null) => void;
   /** Open a file the run wrote. Without it the board lists them as text. */
   onOpenFile?: ((path: string) => void) | undefined;
+  /**
+   * Whether the latest cursor move is a step to animate or a move to settle
+   * at once (decision D1). Transport: it goes on the stage beside the camera.
+   */
+  motion?: MotionMode | undefined;
   /** The room fills the window, as the diagram can. Without `onToggleExpand` no button offers it. */
   expanded?: boolean | undefined;
   onToggleExpand?: (() => void) | undefined;
@@ -206,6 +212,7 @@ export function OfficeScene({
   selectedAgent,
   onSelectAgent,
   onOpenFile,
+  motion = "settle",
   expanded = false,
   onToggleExpand,
 }: OfficeSceneProps) {
@@ -217,6 +224,16 @@ export function OfficeScene({
   const [viewport, setViewport] = useState<Size>({ width: 0, height: 0 });
   /** Null follows the work; a camera is where the viewer left it. */
   const [held, setHeld] = useState<Camera | null>(null);
+  /**
+   * The room at which the viewer last pressed a view button or key: the
+   * camera eases to where that sends it, until the next event. A drag or
+   * the wheel moves it at once, as a hand does.
+   */
+  const [pressedAt, setPressedAt] = useState<OfficeModel | null>(null);
+  const move = (next: Camera | null) => {
+    setHeld(next);
+    setPressedAt(model);
+  };
   useLayoutEffect(() => {
     const element = frame.current;
     if (element === null) return undefined;
@@ -248,10 +265,28 @@ export function OfficeScene({
   // The cards' words follow the band the camera draws them at, and the
   // camera follows the cards: estimate at mid, then again at the band that
   // fit gave.
+  // Fitted again only when a card's height, the room or the view changes:
+  // most events change none of them.
   const rough = cardsOf(model.board, model.reception, model.lead);
-  const cards = cardsOf(model.board, model.reception, model.lead, zoomBand(fitCamera(layout, viewport, rough).scale));
+  const band = useMemo(
+    () => zoomBand(fitCamera(layout, viewport, { board: rough.board, reception: rough.reception, lead: rough.lead }).scale),
+    [layout, viewport, rough.board, rough.reception, rough.lead],
+  );
+  const cards = cardsOf(model.board, model.reception, model.lead, band);
+  const fit = useMemo(
+    () => fitCamera(layout, viewport, { board: cards.board, reception: cards.reception, lead: cards.lead }),
+    [layout, viewport, cards.board, cards.reception, cards.lead],
+  );
   const camera =
-    held ?? followCamera(layout, viewport, focus, cards, (scale) => (focusDesk === undefined ? { above: 0, below: 0 } : deskReach(focusDesk, scale, FOCUS_LIFT)));
+    held ??
+    followCamera(
+      layout,
+      viewport,
+      focus,
+      cards,
+      (scale) => (focusDesk === undefined ? { above: 0, below: 0 } : deskReach(focusDesk, scale, FOCUS_LIFT)),
+      fit,
+    );
   const centre: Point = { x: viewport.width / 2, y: viewport.height / 2 };
 
   const drag = useRef<{ x: number; y: number; camera: Camera } | null>(null);
@@ -265,6 +300,7 @@ export function OfficeScene({
     const start = drag.current;
     if (start === null) return;
     setHeld({ ...start.camera, x: start.camera.x + event.clientX - start.x, y: start.camera.y + event.clientY - start.y });
+    setPressedAt(null);
   };
   const onPointerUp = () => {
     drag.current = null;
@@ -275,6 +311,7 @@ export function OfficeScene({
     const box = event.currentTarget.getBoundingClientRect();
     const factor = Math.exp(-event.deltaY * (event.ctrlKey ? 0.01 : 0.002));
     setHeld(zoomCamera(camera, factor, { x: event.clientX - box.left, y: event.clientY - box.top }));
+    setPressedAt(null);
   };
 
   // --- the keyboard ---------------------------------------------------------
@@ -314,10 +351,10 @@ export function OfficeScene({
       default:
     }
     // The camera's keys, from the keyboard map.
-    if (matchesKeys(event, shortcut("office-follow").keys)) setHeld(null);
-    else if (matchesKeys(event, shortcut("office-fit").keys)) setHeld(fitCamera(layout, viewport, cards));
-    else if (matchesKeys(event, shortcut("office-zoom-in").keys) || event.key === "=") setHeld(zoomCamera(camera, 1.25, centre));
-    else if (matchesKeys(event, shortcut("office-zoom-out").keys)) setHeld(zoomCamera(camera, 0.8, centre));
+    if (matchesKeys(event, shortcut("office-follow").keys)) move(null);
+    else if (matchesKeys(event, shortcut("office-fit").keys)) move(fit);
+    else if (matchesKeys(event, shortcut("office-zoom-in").keys) || event.key === "=") move(zoomCamera(camera, 1.25, centre));
+    else if (matchesKeys(event, shortcut("office-zoom-out").keys)) move(zoomCamera(camera, 0.8, centre));
   };
 
   const { board, reception, clock, meter } = model;
@@ -353,9 +390,12 @@ export function OfficeScene({
           className="office__stage"
           data-transport="camera"
           data-follow={held === null ? "true" : "false"}
+          data-motion={motion}
+          data-camera={pressedAt === model || (held === null && motion === "step") ? "ease" : "still"}
           data-zoom={zoomBand(camera.scale)}
           style={
             {
+              ...labelGeometry(),
               "--office-zoom": camera.scale,
               "--office-x": `${String(Math.round(camera.x))}px`,
               "--office-y": `${String(Math.round(camera.y))}px`,
@@ -479,7 +519,7 @@ export function OfficeScene({
           title={withShortcut("Follow the work", "office-follow", platform)}
           pressed={held === null}
           onClick={() => {
-            setHeld(null);
+            move(null);
           }}
         />
         <IconButton
@@ -487,7 +527,7 @@ export function OfficeScene({
           label="Show the whole room"
           title={withShortcut("Show the whole room", "office-fit", platform)}
           onClick={() => {
-            setHeld(fitCamera(layout, viewport, cards));
+            move(fit);
           }}
         />
         <IconButton
@@ -495,7 +535,7 @@ export function OfficeScene({
           label="Zoom in"
           title={withShortcut("Zoom in", "office-zoom-in", platform)}
           onClick={() => {
-            setHeld(zoomCamera(camera, 1.25, centre));
+            move(zoomCamera(camera, 1.25, centre));
           }}
         />
         <IconButton
@@ -503,7 +543,7 @@ export function OfficeScene({
           label="Zoom out"
           title={withShortcut("Zoom out", "office-zoom-out", platform)}
           onClick={() => {
-            setHeld(zoomCamera(camera, 0.8, centre));
+            move(zoomCamera(camera, 0.8, centre));
           }}
         />
         {onToggleExpand !== undefined && (

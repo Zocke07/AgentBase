@@ -4,6 +4,72 @@ Updated 2026-11-14. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
+## Phase 20, stage 20.5: the office in motion, 2026-11-14
+
+On branch `phase-20-redesign`, not merged, pushed or released. [The brief's
+section 13](design/virtual-office-redesign.md) lists what was built and
+what is left.
+
+- **What changed:** under decision D1, a cursor step animates the room
+  (desks arriving, figures sitting down, lamps, sheets, bubbles, slips,
+  stamps, folders travelling, poses changing) and a jump settles at once;
+  loops run only while an operation is open; a hidden window pauses every
+  animation. The camera eases when it follows the work or after a view
+  button. The scrubber gained play and pause, steps, previous and next
+  notable event, a speed, marks on the track and a Live badge, keeping its
+  labels, values and test ids.
+- **A bug found while measuring:** the first scrubber treated a run whose
+  log ends mid-run as live and would not play it; the run view now says
+  whether new events can still arrive (`following` and not finished).
+- **Tests:** the motion mode (a step, a jump, a step back); the hidden
+  window mark; the scrubber (plays one event at a time and stops at the
+  end, plays from the start, a faster speed, stops on a manual move or a
+  hidden window, steps and notable jumps by button and keys, marks hidden
+  from screen readers, Live and no play past the head). The identity test
+  strips `data-motion` and `data-camera` with the camera's attributes.
+  Measured in a browser by script: a step runs the entrances and a jump or
+  a step back none; the camera's zoom eases over about 300 ms in Chromium
+  and WebKit and a drag moves at once; real playback advances one event at
+  a time.
+- **Brief 7.12, measured** on the twelve desk run, in Chromium on this Mac
+  (Apple Silicon), by script:
+
+  | Measure | Development build | Production build |
+  |---|---|---|
+  | Step commit (Event Timing processing), 4x CPU slowdown | median 30.5 ms (token steps), 32.6 ms (others) | median 3.2 ms, 95th percentile 4.5 ms, slowest 14 ms (all steps) |
+  | Step commit, no slowdown | | median 1.3 ms, slowest 5.4 ms |
+  | Playback at 8x for 8 s, 4x slowdown | 55.5 fps, 12 frames over 33 ms | 60 fps, no frame over 20 ms |
+  | Playback at 1x for 8 s, 4x slowdown | 58.8 fps, 2 frames over 33 ms | 60 fps, no frame over 20 ms |
+  | Jump from the start to the end | 128 ms to the frame at 4x | 17 ms (one frame) without slowdown; 31 ms (the second frame) at 4x, after a slower first jump |
+  | Animations running with the window marked hidden | 0 of 47 | |
+
+  The production numbers come from the workbench built into a scratch
+  folder with a throwaway config (the shipped build has no workbench) and
+  are the ones that count. Not measured: WebView2 on a Windows laptop with
+  an integrated GPU (7.12's first budget), and token steps apart from the
+  others in the production build.
+- **Code review at high effort** over this entry and the three before it
+  (`cceffec..21498e6`) found ten things, all fixed with tests where a test
+  can see them: playback stalled while a live run's events kept arriving
+  (the timer was set again on every batch); the inspector opened a note in
+  the data-file editor; opening another run could count as a step, and a
+  step's mode outlived the step (it now lasts 700 ms, so hovering a desk
+  open or switching to the office afterwards does not animate); the plain
+  arrows worked only on the slider; the inspector decided once whether it
+  covered the canvas (it now watches the canvas, checked in Chromium by
+  narrowing the window); each desk scanned every call three times, the
+  track's marks were said again on every batch, and the camera was fitted
+  about 27 times per render (grouped, cached and memoized); and the
+  label geometry was copied by hand between the camera and the stylesheet
+  (now set on the stage as custom properties from one place, and a test
+  fails a copy). The playback test was run without its fix and failed.
+- **What ran:** `just ci` passed (backend 1,451 passed, 12 skipped;
+  desktop 988 passed in 86 files after the review); `just test-visual`,
+  218 passed, three times;
+  the run pages' baselines were rewritten for the new scrubber and read.
+- **Not verified:** Windows and WebView2; the real Tauri window; a screen
+  reader on the scrubber.
+
 ## Phase 20: poses and the lamp, 2026-11-14
 
 On branch `phase-20-redesign`, not merged, pushed or released. Item 4 of

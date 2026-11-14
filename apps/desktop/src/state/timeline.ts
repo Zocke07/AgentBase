@@ -54,11 +54,26 @@ function kindOf(event: Event): MarkerKind | null {
   }
 }
 
+/**
+ * Each event's mark, worked out once: a live run hands over a new list with
+ * every batch, and its earlier events are the same objects, so the track is
+ * rebuilt by looking them up rather than saying each one again.
+ */
+const marks = new WeakMap<Event, { readonly kind: MarkerKind; readonly label: string } | null>();
+
+function markOf(event: Event): { readonly kind: MarkerKind; readonly label: string } | null {
+  if (marks.has(event)) return marks.get(event) ?? null;
+  const kind = kindOf(event);
+  const mark = kind === null ? null : { kind, label: sentenceFor(event) };
+  marks.set(event, mark);
+  return mark;
+}
+
 /** The events worth a mark on the track, in order. */
 export function notableEvents(events: readonly Event[]): Marker[] {
   return events.flatMap((event, index): Marker[] => {
-    const kind = kindOf(event);
-    return kind === null ? [] : [{ cursor: index + 1, seq: event.seq, kind, label: sentenceFor(event) }];
+    const mark = markOf(event);
+    return mark === null ? [] : [{ cursor: index + 1, seq: event.seq, ...mark }];
   });
 }
 

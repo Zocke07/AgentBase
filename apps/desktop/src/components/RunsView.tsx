@@ -417,6 +417,7 @@ export function RunsView({
                   spaceId={selectedRow?.space_id ?? null}
                   onOpenMemory={onOpenMemory}
                   onMemoryChanged={onMemoryChanged}
+                  live={following && !finished}
                 />
               )}
             </ErrorBoundary>

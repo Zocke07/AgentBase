@@ -22,7 +22,7 @@ const reportsWritten = (tool: string): boolean => toolInfo(tool).reportsWritten;
  * log is the source, so a replay lists the same files as the live run did.
  * With `agent`, only the files that agent's own calls wrote.
  */
-export function writtenFiles(view: RunView, agent?: string): WrittenFile[] {
+export function writtenFiles(view: Pick<RunView, "toolCalls">, agent?: string): WrittenFile[] {
   const seen = new Set<string>();
   const files: WrittenFile[] = [];
   const add = (path: unknown) => {

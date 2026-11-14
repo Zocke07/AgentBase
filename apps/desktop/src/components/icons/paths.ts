@@ -273,6 +273,27 @@ export const ICONS = {
     ["circle", { cx: "12", cy: "12", r: "10" }],
     ["line", { x1: "9", x2: "15", y1: "15", y2: "9" }],
   ],
+  // The timeline's transport (brief 7.10); `play` is above.
+  "pause": [
+    ["rect", { x: "14", y: "3", width: "5", height: "18", rx: "1" }],
+    ["rect", { x: "5", y: "3", width: "5", height: "18", rx: "1" }],
+  ],
+  "step-back": [
+    ["path", { d: "M13.971 4.285A2 2 0 0 1 17 6v12a2 2 0 0 1-3.029 1.715l-9.997-5.998a2 2 0 0 1-.003-3.432z" }],
+    ["path", { d: "M21 20V4" }],
+  ],
+  "step-forward": [
+    ["path", { d: "M10.029 4.285A2 2 0 0 0 7 6v12a2 2 0 0 0 3.029 1.715l9.997-5.998a2 2 0 0 0 .003-3.432z" }],
+    ["path", { d: "M3 4v16" }],
+  ],
+  "skip-back": [
+    ["path", { d: "M17.971 4.285A2 2 0 0 1 21 6v12a2 2 0 0 1-3.029 1.715l-9.997-5.998a2 2 0 0 1-.003-3.432z" }],
+    ["path", { d: "M3 20V4" }],
+  ],
+  "skip-forward": [
+    ["path", { d: "M21 4v16" }],
+    ["path", { d: "M6.029 4.285A2 2 0 0 0 3 6v12a2 2 0 0 0 3.029 1.715l9.997-5.998a2 2 0 0 0 .003-3.432z" }],
+  ],
 } as const satisfies Record<string, readonly IconNode[]>;
 
 export type IconName = keyof typeof ICONS;

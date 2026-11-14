@@ -1054,8 +1054,8 @@ already done.
 | 20.1 | all of it | |
 | 20.2 | all of it; accepted | |
 | 20.3 the shell | the keyboard map with platform glyphs (`lib/shortcuts.ts`), used by the rail's and Knowledge's tooltips; `Popover`, `Menu`, `Sheet` and the layer registry from 20.2 | everything a person sees: toolbar, macOS title bar, rail restyle, inspector, command palette, context menus, section 6.7's details, view transitions, the inactive-window state |
-| 20.4 the office, at rest | `lib/tools.ts`, the reducer's four positions, `state/office.ts`, `lib/officeLayout.ts`, `lib/character.ts`, `components/office/`, `styles/office.css`, the `--office-*` tokens, Office and Diagram in the run view with Office the default, the run view's layout around the office, the character style (decided), office pages in the workbench, the identity, coverage and no-clock tests, real-app screenshots under forced colours and reduced motion | polish (below); Windows |
-| 20.5 the office in motion | `state/timeline.ts`: markers, next and previous notable event, step or settle, playback pacing | all motion; the timeline's controls; camera easing; performance measurements |
+| 20.4 the office, at rest | `lib/tools.ts`, the reducer's four positions, `state/office.ts`, `lib/officeLayout.ts`, `lib/character.ts`, `components/office/`, `styles/office.css`, the `--office-*` tokens, Office and Diagram in the run view with Office the default, the run view's layout around the office, the character style (decided), office pages in the workbench, the identity, coverage and no-clock tests, real-app screenshots under forced colours and reduced motion and its polish (below) | Windows |
+| 20.5 the office in motion | all of it on 2026-11-14 (below): motion under D1, the timeline, camera easing, the measurements | WebView2 on Windows; the items listed under 20.5 below |
 | 20.6 everywhere | nothing | all of it |
 
 ### The office: how it is put together
@@ -1235,24 +1235,61 @@ In this order, because each needs the one before:
    (`just check-tauri` needs a frozen sidecar) and the maintainer's eyes on
    both title bars; it was deliberately not attempted without either.
 
-### To do stage 20.5
+### Stage 20.5: built on 2026-11-14
 
-1. A motion wrapper outside the compared subtree carrying
-   `data-motion="step"` or `"settle"` from `motionMode(events, from, to)`.
-2. CSS entrances and transitions in `styles/office.css`, keyed on the
-   attributes already in the DOM. A pose change is a transition on the
-   arm and pose transforms (their angles are custom properties per
-   activity, see 20.4 item 4); the workbench's Characters page shows
-   each pose. Also keyed: `data-activity`, `data-face`,
-   `data-state` on slips, the folder phase classes, `office-face__dots
-   --asking` for the one loop an open model call allows. Springs are
-   tokens.
-3. The scrubber's new controls from `state/timeline.ts`, keeping its
-   labels, values and test ids. Add the icons then (a test fails an icon
-   nothing uses).
-4. Camera easing with `--spring-smooth`; pause on `visibilitychange`.
-5. Measure 7.12 and record it. Update the header of `index.css` and the
-   developer guide's motion section to the rule in D1.
+1. **Motion mode.** `state/useMotionMode.ts` compares the cursor with the
+   one seen last (during render, React's pattern for a value derived from
+   a change of props) and gives `step` or `settle`. It goes on the stage as
+   `data-motion`, beside `data-camera`; the identity test strips both.
+2. **Motion in CSS** (`styles/office.css`, "motion"). Entrances and
+   transitions scale their durations by `--office-step` (1 for a step, 0
+   when settling) rather than naming or removing animations: a name that
+   came back would start the animation again on everything in the room.
+   Desks arrive and figures sit down, lamps come on, sheets drop into
+   trays, bubbles and slips appear, stamps land, folders travel from the
+   other desk (an offset from the layout on `.office-folder__body`, and a
+   folder is keyed by its phase, so it travels back too), poses change by
+   transition. Loops only while the fold shows an operation open: the
+   asking dots, a running tool's glyph, the raised card. `lib/visibility.ts`
+   sets `data-hidden` on `<html>` and every animation pauses.
+3. **The timeline** (`components/Scrubber.tsx`, out of `RunPanel`). Play
+   and pause (from the end it plays from the start), step back and
+   forward, previous and next notable event, a speed button cycling 1x to
+   8x, marks of notable events on the track (pointer only, hidden from
+   screen readers, which hear them in the log), Space and Shift with the
+   arrows inside the bar, and a Live badge. Labels, values and test ids
+   are kept. Playback steps one event at a time, stops at the end, when
+   the window is hidden and when the viewer moves the cursor. Whether a run
+   is live is the caller's to say (`RunPanel`'s `live`): a log that ends
+   mid-run is not necessarily a run still going. The workbench player's
+   own bar is named "How the log arrives".
+4. **The camera eases.** `--office-zoom`, `--office-x` and `--office-y`
+   are registered (`@property`) and transition with `--spring-smooth` while
+   `data-camera="ease"`: following the work on a step, or after a view
+   button until the next event. A drag, the wheel and a jump move it at
+   once. Labels are anchored by a transform (`--office-anchor`), not top
+   and left.
+5. **Measured** (docs/verification.md): playback holds 60 fps with twelve
+   desks in the production build at 4x CPU slowdown; a step's commit is
+   3.2 ms at the median and 4.5 ms at the 95th percentile there. The
+   header of `index.css` and the developer guide's motion section say D1.
+
+What is left of 20.5:
+
+- **WebView2 on an integrated-GPU Windows laptop** (7.12's first budget);
+  nothing was run on Windows.
+- **The 4 ms commit at the tail.** At 4x slowdown the 95th percentile is
+  4.5 ms and the slowest step 14 ms (a desk arriving). The production
+  build of the workbench (built into a scratch folder with a throwaway
+  config, never into `dist`) cannot tell token steps apart; measure those
+  alone if the tail matters. The likely costs are the event log and the
+  summary, which render on every step.
+- **Full screen hides the timeline.** The office's full screen covers the
+  scrubber; its keys work only with focus in the bar. Either bring a small
+  transport into the full-screen canvas or accept it.
+- **Double-click zooms to a desk** (7.9) is not built.
+- **7.12's `<symbol>` and `<use>` for repeated parts and `contain`** were
+  not needed to reach the budget and were not done.
 
 ### Decisions taken on 2026-11-14
 

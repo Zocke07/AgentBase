@@ -16,6 +16,86 @@
   flex: 1;
 }
 
+/* Play, the steps and the speed, before the track (brief 7.10). */
+.scrubber__transport {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  align-items: center;
+}
+
+.scrubber__speed {
+  min-width: 2.75rem;
+  height: 1.75rem;
+  padding: 0 var(--space-2);
+  border: var(--hairline) solid var(--separator);
+  border-radius: var(--radius-control);
+  background: var(--control);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--size-caption);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.scrubber__speed:hover:not(:disabled) {
+  background: var(--control-hover);
+}
+
+.scrubber__speed:disabled {
+  color: var(--faint);
+  cursor: default;
+}
+
+/* The track and the marks of notable events under it. A mark stands where
+   the thumb would stand at its event: inset by half the thumb at each end. */
+.scrubber__track {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 6rem;
+}
+
+.scrubber__marks {
+  position: absolute;
+  inset: auto 0.45rem -0.35rem;
+  height: 0.5rem;
+  pointer-events: none;
+}
+
+.scrubber__mark {
+  position: absolute;
+  top: 0;
+  left: calc(var(--at) * 100%);
+  width: 0.5rem;
+  height: 0.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--border-strong);
+  pointer-events: auto;
+  cursor: pointer;
+  transform: translateX(-50%);
+}
+
+.scrubber__mark--question {
+  background: var(--warn);
+}
+
+.scrubber__mark--denial,
+.scrubber__mark--error {
+  background: var(--bad);
+}
+
+.scrubber__mark--file {
+  background: var(--good);
+}
+
+.scrubber__mark--handoff {
+  background: var(--info);
+}
+
 .scrubber__control input {
   flex: 1;
   height: 1rem;

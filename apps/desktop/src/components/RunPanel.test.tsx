@@ -1,9 +1,10 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { writtenFiles } from "../state/files";
 import { reduceAll } from "../state/reducer";
 import { twoAgentRun } from "../test/log";
-import { scenario } from "../test/scenarios";
+import { scenario, SCENARIOS } from "../test/scenarios";
 
 import { RunPanel } from "./RunPanel";
 
@@ -243,6 +244,38 @@ describe("the inspector's files", () => {
     const path = String(writer.args.path);
     fireEvent.click(within(files).getByRole("button", { name: path }));
     expect(onOpenFile).toHaveBeenCalledWith(path);
+  });
+
+  it("opens a note the agent wrote as a note, as the run summary does", () => {
+    // Whichever made-up run writes a Markdown note with its own call.
+    const found = SCENARIOS.map((entry) => {
+      const view = reduceAll(entry.events);
+      const note = writtenFiles(view).find((file) => file.kind === "note");
+      const writer = view.toolCalls.find((call) => call.result !== null && call.args.path === note?.path);
+      return { events: entry.events, view, note, writer };
+    }).find((entry) => entry.note !== undefined && entry.writer !== undefined);
+    if (found?.note === undefined || found.writer === undefined) throw new Error("a scenario writes a note");
+    const { events, view, note, writer } = found;
+    const onOpenNote = vi.fn();
+    const onOpenFile = vi.fn();
+    render(
+      <RunPanel
+        view={view}
+        events={events}
+        cursor={events.length}
+        selectedAgent={writer.agent}
+        onSelectAgent={vi.fn()}
+        onCursorChange={vi.fn()}
+        approvalReadOnly="finished"
+        onResolveApproval={() => Promise.resolve()}
+        onOpenNote={onOpenNote}
+        onOpenFile={onOpenFile}
+        canvas="office"
+      />,
+    );
+    fireEvent.click(within(screen.getByTestId("agent-files")).getByRole("button", { name: note.path }));
+    expect(onOpenNote).toHaveBeenCalledWith(note.path, null);
+    expect(onOpenFile).not.toHaveBeenCalled();
   });
 });
 

@@ -51,6 +51,11 @@
 /* Windows High Contrast and other forced-colour modes: keep the edges and
    the focus ring, which the flat fills otherwise lose. */
 @media (forced-colors: active) {
+  /* The timeline's marks are fills: in system colours they are dots of text. */
+  .scrubber__mark {
+    background: CanvasText;
+  }
+
   .button,
   .card,
   .run-card,
@@ -124,6 +129,14 @@
   .spinner {
     animation: spin 1.6s linear infinite !important;
   }
+}
+
+/* While the window cannot be seen, nothing moves (brief 5.2): a long
+   unattended run spends nothing on drawing. `lib/visibility.ts` sets it. */
+:root[data-hidden="true"] *,
+:root[data-hidden="true"] *::before,
+:root[data-hidden="true"] *::after {
+  animation-play-state: paused !important;
 }
 
 .runs-view__loading {

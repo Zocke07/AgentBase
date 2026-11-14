@@ -6,6 +6,7 @@ import { activityLabel, nowLine } from "../state/describe";
 import { writtenFiles, type WrittenFile } from "../state/files";
 import { officeOf } from "../state/office";
 import type { AgentNode, Denial, Handoff, RunView, ToolCall } from "../state/reducer";
+import { useMotionMode } from "../state/useMotionMode";
 import { useStoredFlag } from "../state/useStoredFlag";
 import { useStoredSize } from "../state/useStoredSize";
 
@@ -14,6 +15,7 @@ import { EventLog } from "./EventLog";
 import { Markdown } from "./Markdown";
 import { RunGraph } from "./RunGraph";
 import { RunSummary, type RunSummaryProps } from "./RunSummary";
+import { Scrubber } from "./Scrubber";
 import { Splitter } from "./Splitter";
 import { OfficeScene } from "./office/OfficeScene";
 import { Segmented } from "./ui/controls";
@@ -62,6 +64,12 @@ export interface RunPanelProps {
    * workbench and tests use it. Left out, the viewer's choice applies.
    */
   canvas?: "office" | "diagram" | undefined;
+  /**
+   * New events can still arrive: the run is going and its stream is
+   * followed. Only the caller knows; a log that ends mid-run may be a run
+   * that stopped without saying so.
+   */
+  live?: boolean | undefined;
 }
 
 export function RunPanel({
@@ -82,10 +90,9 @@ export function RunPanel({
   onOpenMemory,
   onMemoryChanged,
   canvas: canvasChoice,
+  live = false,
 }: RunPanelProps) {
   const scrubbed = cursor < events.length;
-  // Reserve counter width so scrubber track does not shift.
-  const counterWidth = `${String(String(events.length).length * 2 + 3)}ch`;
 
   // Caller selection survives scrubbing even before its agent exists; share it
   // across graph, inspector, and log.
@@ -107,6 +114,11 @@ export function RunPanel({
   const showOffice = canvasChoice === undefined ? officeChosen : officeHere;
   // Projected only when it is shown: the diagram needs none of it.
   const office = useMemo(() => (showOffice ? officeOf(view) : null), [showOffice, view]);
+  // The selected agent's files, found again only when the calls change.
+  const toolCalls = view.toolCalls;
+  const selectedFiles = useMemo(() => (selectedName === null ? [] : writtenFiles({ toolCalls }, selectedName)), [toolCalls, selectedName]);
+  // A step forward may animate; anything else settles at once (transport).
+  const motion = useMotionMode(events, cursor);
   // A viewer can fold the log to its latest step; the canvas takes the room.
   // Beside the office it starts folded, because a room needs about half its
   // width in height and the room already says what the latest step is. Each
@@ -147,50 +159,13 @@ export function RunPanel({
       data-testid="run-panel"
       aria-busy={loading}
     >
-      <div className="scrubber" data-testid="scrubber">
-        <label className="scrubber__control">
-          <span className="scrubber__label">Replay</span>
-          <input
-            type="range"
-            min={0}
-            max={events.length}
-            value={cursor}
-            disabled={loading}
-            aria-label="Position in the event log"
-            aria-valuetext={`Event ${String(cursor)} of ${String(events.length)}. ${scrubbed ? "Earlier point in this run." : "Latest event."}`}
-            onChange={(changed) => {
-              onCursorChange(Number(changed.target.value));
-            }}
-          />
-        </label>
-        <span className="scrubber__position" data-testid="scrub-position" style={{ minWidth: counterWidth }}>
-          {cursor} / {events.length}
-        </span>
-        {/* Always rendered, fixed width. The range input shares this flex row
-            and takes what is left of it: a slot that came and went with the
-            scrub state changed the track's length under the pointer mid-drag. */}
-        <span className="scrubber__state" data-testid="scrub-state">
-          {scrubbed ? (
-            <>
-              <span className="scrubber__notice" data-testid="scrub-notice">
-                Showing an earlier point in this run.
-              </span>
-              <button
-                type="button"
-                className="button button--small"
-                disabled={loading}
-                onClick={() => {
-                  onCursorChange(events.length);
-                }}
-              >
-                Jump to end
-              </button>
-            </>
-          ) : (
-            <span className="scrubber__latest">Showing the latest event.</span>
-          )}
-        </span>
-      </div>
+      <Scrubber
+        events={events}
+        cursor={cursor}
+        onCursorChange={onCursorChange}
+        loading={loading}
+        live={live && !scrubbed}
+      />
 
       <ApprovalPanel
         approvals={view.approvals}
@@ -266,6 +241,7 @@ export function RunPanel({
               selectedAgent={selectedName}
               onSelectAgent={onSelectAgent}
               onOpenFile={onOpenFile === undefined ? undefined : (path) => { onOpenFile(path); }}
+              motion={motion}
               expanded={expanded}
               onToggleExpand={() => {
                 setExpanded((current) => !current);
@@ -289,7 +265,8 @@ export function RunPanel({
               calls={view.toolCalls.filter((call) => call.agent === selectedName)}
               denials={view.denials.filter((denial) => denial.agent === selectedName)}
               handoffs={view.handoffs.filter((handoff) => handoff.from === selectedName)}
-              files={writtenFiles(view, selectedName)}
+              files={selectedFiles}
+              onOpenNote={onOpenNote}
               onOpenFile={onOpenFile}
               onClose={() => {
                 onSelectAgent(null);
@@ -341,6 +318,7 @@ function AgentDetail({
   denials,
   handoffs,
   files,
+  onOpenNote,
   onOpenFile,
   onClose,
   width,
@@ -353,9 +331,10 @@ function AgentDetail({
   calls: readonly ToolCall[];
   denials: readonly Denial[];
   handoffs: readonly Handoff[];
-  /** Files this agent's calls wrote; each opens in Knowledge when `onOpenFile` is given. */
+  /** Files this agent's calls wrote; each opens in Knowledge, a note as a note, as the run summary's do. */
   files: readonly WrittenFile[];
-  onOpenFile?: ((path: string) => void) | undefined;
+  onOpenNote?: RunSummaryProps["onOpenNote"];
+  onOpenFile?: RunSummaryProps["onOpenFile"];
   onClose: () => void;
   /** The viewer's width for the panel, or null for the stylesheet's. */
   width: number | null;
@@ -370,15 +349,29 @@ function AgentDetail({
   ].sort((left, right) => left.seq - right.seq);
 
   // On a narrow canvas the panel covers the drawing (graph.css), so the
-  // control that opened it is hidden: the panel takes the focus while it is
-  // open and gives it back when it closes. Beside the drawing it leaves the
-  // focus where it was.
+  // control that opened it is hidden: whenever the panel comes to cover it,
+  // on opening or as the window narrows, it takes the focus, and gives it
+  // back when it closes. Beside the drawing it leaves the focus where it is.
   useEffect(() => {
     const panel = panelRef.current;
-    if (panel === null || getComputedStyle(panel).position !== "absolute") return undefined;
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    panel.focus({ preventScroll: true });
+    const host = panel?.parentElement ?? null;
+    if (panel === null || host === null) return undefined;
+    let opener: HTMLElement | null = null;
+    let covering = false;
+    const check = () => {
+      const covers = getComputedStyle(panel).position === "absolute";
+      if (covers && !covering && !panel.contains(document.activeElement)) {
+        const active = document.activeElement;
+        if (active instanceof HTMLElement && active !== document.body) opener = active;
+        panel.focus({ preventScroll: true });
+      }
+      covering = covers;
+    };
+    check();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(check);
+    observer?.observe(host);
     return () => {
+      observer?.disconnect();
       const now = document.activeElement;
       if (now === null || now === document.body || panel.contains(now)) opener?.focus();
     };
@@ -490,23 +483,29 @@ function AgentDetail({
         <section className="agent-detail__section" data-testid="agent-files">
           <h4>Files it wrote</h4>
           <ul className="agent-detail__list">
-            {files.map((file) => (
-              <li key={file.path}>
-                {onOpenFile === undefined ? (
-                  <span className="agent-detail__file">{file.path}</span>
-                ) : (
-                  <button
-                    type="button"
-                    className="link agent-detail__file"
-                    onClick={() => {
+            {files.map((file) => {
+              const open =
+                file.kind === "note"
+                  ? onOpenNote &&
+                    (() => {
+                      onOpenNote(file.path, null);
+                    })
+                  : onOpenFile &&
+                    (() => {
                       onOpenFile(file.path);
-                    }}
-                  >
-                    {file.path}
-                  </button>
-                )}
-              </li>
-            ))}
+                    });
+              return (
+                <li key={file.path}>
+                  {open === undefined ? (
+                    <span className="agent-detail__file">{file.path}</span>
+                  ) : (
+                    <button type="button" className="link agent-detail__file" onClick={open}>
+                      {file.path}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}

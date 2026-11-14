@@ -346,13 +346,24 @@ local and readable:
 
 ### Motion, contrast and accessibility in the window
 
-Motion is CSS only and belongs to the app's chrome: sections easing in
-(`view-in`), menus and dialogs (`pop-in`, `rise-in`), toasts, button presses,
-card hovers, the rail's active bar and loading placeholders (`Skeleton`). The
-run canvas, the event log, the approval panel and the run summary do not
+Motion is CSS only. In the app's chrome it answers the person: sections
+easing in (`view-in`), menus and dialogs (`pop-in`, `rise-in`), toasts,
+button presses, card hovers, the rail's active bar and loading placeholders
+(`Skeleton`). The event log, the approval panel and the run summary do not
 animate their arrival, because a replay must look like the live run
 (§5 Phase 7, `replayIdentity.test.tsx`); a JS animation library would also
-write inline styles into that DOM. Exit animations use `state/usePresence.ts`,
+write inline styles into that DOM. The office is the one exception, under
+BUILD_SPEC Phase 20's decision 1: it animates one cursor step at a time,
+by CSS on the DOM that step produced (a desk arriving, a slip, a stamp, a
+folder travelling, a pose changing), and a loop runs only while the fold
+shows an operation open. `state/useMotionMode.ts` decides whether a cursor
+move is a step or a jump to settle; that is transport, on the stage as
+`data-motion`, and every entrance and transition scales its duration by
+`--office-step` (0 when settling). The room at rest is the same either
+way, which is what the identity test compares. The timeline
+(`components/Scrubber.tsx`) plays a run one event at a time, so replay
+shows the same motion as live. While the window is hidden
+(`lib/visibility.ts`) every animation pauses and playback stops. Exit animations use `state/usePresence.ts`,
 which keeps an element mounted for its exit and adds a `--closing` class; where
 motion is reduced or `matchMedia` is missing (tests), it removes the element
 at once, as before. A single `prefers-reduced-motion` block at the end of

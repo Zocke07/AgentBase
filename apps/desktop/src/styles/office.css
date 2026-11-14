@@ -31,14 +31,39 @@
 
 /* The camera: three properties set by the scene. Transport, not the log.
    The drawing is scaled; the words over it are only moved, and each keeps
-   its own size, as the labels of a map do. */
-.office__stage {
-  --office-zoom: 1;
-  --office-x: 0px;
-  --office-y: 0px;
+   its own size, as the labels of a map do. Registered, so the camera can
+   ease from one view to the next (brief 7.9): the drawing and every label
+   follow the same three numbers as they move. */
+@property --office-zoom {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
 
+@property --office-x {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+@property --office-y {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+.office__stage {
   position: absolute;
   inset: 0;
+}
+
+/* Following the work on a step, or after a view button. Dragging, the
+   wheel and a jump move the camera at once; the scene decides. */
+.office__stage[data-camera="ease"] {
+  transition:
+    --office-zoom var(--spring-smooth-duration) var(--spring-smooth),
+    --office-x var(--spring-smooth-duration) var(--spring-smooth),
+    --office-y var(--spring-smooth-duration) var(--spring-smooth);
 }
 
 .office__art {
@@ -361,17 +386,23 @@
 /* --- words over the room ---------------------------------------------------- */
 
 /* Each label hangs from a point of the floor: the element's own top left is
-   that point, and its content is centred on it. */
+   that point, and its content is centred on it. The point is a transform,
+   not top and left, so a moving camera repaints the labels without laying
+   the room out again. A label with a transform of its own adds it after
+   the anchor. */
 .office-desk,
 .office-board-card,
 .office-wall-label,
 .office-reception {
+  --office-anchor: translate(calc(var(--office-zoom) * var(--x) * 1px), calc(var(--office-zoom) * var(--y) * 1px));
+
   position: absolute;
-  top: calc(var(--office-zoom) * var(--y) * 1px);
-  left: calc(var(--office-zoom) * var(--x) * 1px);
+  top: 0;
+  left: 0;
   width: 0;
   height: 0;
   margin: 0;
+  transform: var(--office-anchor);
 }
 
 .office-desk__button {
@@ -379,13 +410,13 @@
   /* Over the character's head, wherever the zoom puts it. A plate over the
      head covers floor behind the desk; one under the desk would cover the
      desk in front. */
-  bottom: calc(var(--office-zoom) * 98px);
+  bottom: calc(var(--office-zoom) * var(--office-plate-rise) * 1px);
   left: 0;
   display: grid;
   gap: 1px;
   justify-items: center;
   width: max-content;
-  max-width: 11rem;
+  max-width: calc(var(--office-label-width) * 1rem);
   padding: var(--space-1) var(--space-2);
   border: var(--hairline) solid var(--separator);
   border-radius: var(--radius-control);
@@ -468,10 +499,10 @@
 .office-bubble {
   position: absolute;
   /* Over the name plate. */
-  bottom: calc(var(--office-zoom) * 98px + 4.4rem);
+  bottom: calc(var(--office-zoom) * var(--office-plate-rise) * 1px + var(--office-bubble-rise) * 1rem);
   left: 0;
   width: max-content;
-  max-width: 14rem;
+  max-width: calc(var(--office-bubble-width) * 1rem);
   margin: 0;
   padding: var(--space-1) var(--space-2);
   border-left: 3px solid var(--border-strong);
@@ -495,13 +526,13 @@
 .office-desk__papers {
   position: absolute;
   /* Under the desk's front edge. */
-  top: calc(var(--office-zoom) * 28px);
+  top: calc(var(--office-zoom) * var(--office-papers-drop) * 1px);
   left: 0;
   display: grid;
   gap: 2px;
   justify-items: center;
   width: max-content;
-  max-width: 11rem;
+  max-width: calc(var(--office-label-width) * 1rem);
   transform: translateX(-50%);
 }
 
@@ -523,7 +554,7 @@
    the desk behind. Only its bubble stays over its head. */
 .office-desk__front {
   position: absolute;
-  top: calc(var(--office-zoom) * 28px);
+  top: calc(var(--office-zoom) * var(--office-papers-drop) * 1px);
   left: 0;
   display: grid;
   gap: 2px;
@@ -539,7 +570,7 @@
 }
 
 .office-desk--lead .office-bubble {
-  bottom: calc(var(--office-zoom) * 98px);
+  bottom: calc(var(--office-zoom) * var(--office-plate-rise) * 1px);
 }
 
 /* A call in hand: evidence, so upright type, an icon and a stamp. */
@@ -664,7 +695,7 @@
   background: var(--content);
   box-shadow: var(--elevation-card);
   /* Above the wall's top edge, clear of the desks under it. */
-  transform: translate(-50%, calc(-100% - var(--office-zoom) * 34px));
+  transform: var(--office-anchor) translate(-50%, calc(-100% - var(--office-zoom) * var(--office-board-lift) * 1px));
 }
 
 .office-board-card > * {
@@ -745,7 +776,7 @@
   font-size: var(--size-caption);
   line-height: var(--leading-caption);
   /* Beside its fitting on the wall, not over it. */
-  transform: translate(calc(var(--office-zoom) * 16px), -50%);
+  transform: var(--office-anchor) translate(calc(var(--office-zoom) * 16px), -50%);
 }
 
 .office-wall-label--warn {
@@ -770,7 +801,7 @@
   box-shadow: var(--elevation-card);
   font-size: var(--size-caption);
   line-height: var(--leading-caption);
-  transform: translate(-50%, calc(var(--office-zoom) * 44px));
+  transform: var(--office-anchor) translate(-50%, calc(var(--office-zoom) * var(--office-reception-drop) * 1px));
 }
 
 .office-reception__you {
@@ -797,6 +828,182 @@
   top: var(--space-2);
   left: var(--space-2);
   z-index: 6;
+}
+
+/* --- motion (brief 7.8, decision D1) ---------------------------------------- */
+
+/*
+ * The room moves only to show one step of the log, and only through CSS on
+ * the DOM that step produced: an entrance when something appears, a
+ * transition when something changes. The room at rest is the same with or
+ * without any of it.
+ *
+ * Whether a cursor move is a step is transport, on the stage as
+ * `data-motion`. Every entrance and transition scales its duration by
+ * `--office-step`: 1 for a step, 0 when settling (a jump, a step back, a
+ * run opening). Scaling the duration, not removing the animation, matters:
+ * an animation whose name comes back would start again on everything in the
+ * room. Outside a stage (the workbench's Characters page) the property is
+ * missing, the durations are invalid, and nothing moves.
+ *
+ * Loops are the exception: they run while the fold shows an operation open
+ * (a model call, a tool call, a question) and stop when it closes, at a
+ * step or a jump alike. Reduced motion shrinks every duration to 1 ms, and a
+ * hidden window pauses everything (styles/accessibility.css).
+ */
+.office__stage {
+  --office-step: 0;
+}
+
+.office__stage[data-motion="step"] {
+  --office-step: 1;
+}
+
+@keyframes office-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes office-sit {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) rotate(var(--lean, 0deg));
+  }
+}
+
+@keyframes office-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes office-bubble {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(6px) scale(0.96);
+  }
+}
+
+@keyframes office-slip {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes office-stamp {
+  from {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+}
+
+@keyframes office-travel {
+  from {
+    opacity: 0.5;
+    transform: translate(var(--from-x, 0), var(--from-y, 0));
+  }
+}
+
+/* Appearing: a desk, its figure sitting down, its lamp coming on, a sheet
+   dropping into its tray, a folder landing. */
+.office-desk-art,
+.office-box--paper {
+  animation: office-arrive calc(var(--spring-bouncy-duration) * var(--office-step)) var(--spring-bouncy) both;
+}
+
+.office-character__pose {
+  animation: office-sit calc(var(--spring-bouncy-duration) * var(--office-step)) var(--spring-bouncy) both;
+}
+
+.office-lamp__light,
+.office-desk,
+.office-trouble,
+.office-desk__more {
+  animation: office-fade calc(var(--dur-slow) * var(--office-step)) var(--ease-out) both;
+}
+
+.office-bubble {
+  transform-origin: 0 100%;
+  animation: office-bubble calc(var(--spring-smooth-duration) * var(--office-step)) var(--spring-smooth) both;
+}
+
+.office-slip {
+  animation: office-slip calc(var(--spring-smooth-duration) * var(--office-step)) var(--spring-smooth) both;
+}
+
+/* A stamp lands on its slip. */
+.office-slip__label > .icon:first-child {
+  animation: office-stamp calc(var(--spring-bouncy-duration) * var(--office-step)) var(--spring-bouncy) both;
+}
+
+/* A folder in flight comes from the other desk; one put on a desk drops in. */
+.office-folder__body {
+  animation: office-arrive calc(var(--spring-bouncy-duration) * var(--office-step)) var(--spring-bouncy) both;
+}
+
+.office-folder--arriving .office-folder__body,
+.office-folder--returning .office-folder__body {
+  animation: office-travel calc(var(--spring-smooth-duration) * var(--office-step)) var(--spring-smooth) both;
+}
+
+/* Changing: a pose, a display going quiet. */
+.office-character__pose,
+.office-character__arm,
+.office-character__forearm {
+  transition: transform calc(var(--spring-smooth-duration) * var(--office-step)) var(--spring-smooth);
+}
+
+.office-character__display {
+  transition: opacity calc(var(--dur-slow) * var(--office-step)) var(--ease-out);
+}
+
+/* Loops, only while something is open. The model is being asked: the dots
+   move. A tool runs: its glyph breathes. A person is asked: the card bobs. */
+@keyframes office-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+  }
+
+  30% {
+    opacity: 1;
+  }
+}
+
+@keyframes office-bob {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+
+  50% {
+    transform: rotate(-8deg);
+  }
+}
+
+.office-face__dots--asking circle {
+  animation: office-dot 1.2s ease-in-out infinite;
+}
+
+.office-face__dots--asking circle:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.office-face__dots--asking circle:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+.office-character--executing .office-face__tool {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.office-character__card {
+  transform-origin: 13px 1px;
+  animation: office-bob 1.8s ease-in-out infinite;
 }
 
 /* Forced colours: fills are gone, so the room is outlined and every state

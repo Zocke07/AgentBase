@@ -513,14 +513,14 @@ function bubbleOf(agent: AgentNode, returning: boolean): Bubble | null {
   return null;
 }
 
-function deskOf(view: RunView, agent: AgentNode, folders: readonly Folder[]): Desk {
+function deskOf(view: RunView, agent: AgentNode, folders: readonly Folder[], own: readonly ToolCall[]): Desk {
   const trouble = troubleOf(view, agent);
   const face = faceOf(agent, trouble);
   const slips = slipsFor(view, agent);
   const family = face === "tool" && agent.currentTool !== null ? toolInfo(agent.currentTool).family : null;
-  const results = view.toolCalls.filter((call) => call.agent === agent.name && call.result !== null).length;
-  const calls = view.toolCalls.filter((call) => call.agent === agent.name).length;
-  const documents = writtenFiles(view, agent.name);
+  const results = own.filter((call) => call.result !== null).length;
+  const calls = own.length;
+  const documents = writtenFiles({ toolCalls: own });
   const stateLabel =
     agent.activity === "completed"
       ? completionLabel(agent.finishedReason)
@@ -651,10 +651,18 @@ function announcementOf(view: RunView, desks: readonly Desk[]): OfficeModel["ann
 export function officeOf(view: RunView): OfficeModel {
   const folders = foldersOf(view);
   const leadAgent = view.agents[SUPERVISOR];
-  const lead = leadAgent === undefined ? null : deskOf(view, leadAgent, folders);
+  // Each agent's calls, found in one pass rather than once per desk per fact.
+  const callsOf = new Map<string, ToolCall[]>();
+  for (const call of view.toolCalls) {
+    const list = callsOf.get(call.agent);
+    if (list === undefined) callsOf.set(call.agent, [call]);
+    else list.push(call);
+  }
+  const own = (name: string): readonly ToolCall[] => callsOf.get(name) ?? [];
+  const lead = leadAgent === undefined ? null : deskOf(view, leadAgent, folders, own(leadAgent.name));
   const desks = deskOrder(view).map((name) => {
     const agent = view.agents[name];
-    return agent === undefined ? ghostDesk(name) : deskOf(view, agent, folders);
+    return agent === undefined ? ghostDesk(name) : deskOf(view, agent, folders, own(name));
   });
   const everyone = lead === null ? desks : [lead, ...desks];
   // A run that is over has no work to follow, so the camera shows the

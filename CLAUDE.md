@@ -63,6 +63,18 @@ future changes do not relocate users' data or disconnect their stored keys.
   hook stays. `just ui-shots` captures the office, a desk's inspector and
   the diagram. Still waiting for the maintainer: D8 after 20.5, and the
   macOS title bar.
+- **Stage 20.4's polish and stage 20.5, 2026-11-14.** A crowded room's
+  words stay apart and in view (the lead desk hangs its plate in front of
+  it; the camera reserves room for words that keep their size); a narrow
+  canvas opens the inspector as a sheet; desks hold the files they wrote
+  and every status word has a glyph (`components/ui/Status`); figures take
+  a pose per activity and desks have lamps (workbench page Characters).
+  The office animates one cursor step at a time under D1 (`--office-step`,
+  `state/useMotionMode.ts`), the camera eases, a hidden window pauses
+  every animation, and the timeline (`components/Scrubber.tsx`) plays,
+  steps and jumps between notable events. Budgets measured on a production
+  build of the workbench; WebView2 on Windows is not. The brief's section
+  13 says what is left. See docs/verification.md.
 - **Gaps and reading, 2026-10-20.** After three closed mornings the first
   chain on Claude ran cleanly, but nothing said 14 to 16 October had no
   research, the portfolio review stopped on a week-old holdings file, and a

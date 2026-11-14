@@ -86,7 +86,13 @@ dark by system, dark by choice). No other file names a colour or uses
   must render identical DOM (`replayIdentity.test.tsx`).
 - The reduced-motion block in `styles/accessibility.css` shrinks durations to
   1 ms so `animationend` still fires. `workbench.css` repeats it; keep them
-  in step.
+  in step. While the window is hidden `<html data-hidden>` pauses every
+  animation (`lib/visibility.ts`).
+- In the office, an entrance or a transition scales its duration by
+  `--office-step` (1 on a step, 0 when settling); never switch an
+  animation's name on or off by mode, which restarts it on everything. A
+  loop belongs to an open operation only. The timeline is
+  `components/Scrubber.tsx`; whether a run is live is the caller's to say.
 
 ## The office
 
