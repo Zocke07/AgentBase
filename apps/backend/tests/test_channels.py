@@ -38,6 +38,21 @@ pytestmark = pytest.mark.anyio
 OWNER_ID = "4210"
 
 
+@pytest.fixture(autouse=True)
+def _a_short_edit_interval(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep Discord's message limit and shorten its edit cadence.
+
+    ``converse`` waits one interval between edits, so each conversation here
+    spent 1.6 real seconds waiting for a rate limit no fake reply has. What
+    the throttle does with an interval is its own arithmetic; these tests are
+    about what reaches the chat and the log, in what order.
+    """
+    import agentbase.channels.service as service_module
+
+    limit, _interval = service_module._LIMITS["discord"]
+    monkeypatch.setitem(service_module._LIMITS, "discord", (limit, 0.02))
+
+
 def inbound(text: str = "Write a haiku", user: str = OWNER_ID) -> InboundMessage:
     return InboundMessage(
         channel="discord",
