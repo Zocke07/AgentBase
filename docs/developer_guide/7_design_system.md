@@ -74,6 +74,16 @@ fails if one does, and checks that each token is in all three blocks.
 - **A switch** is for something that takes effect at once. A setting saved
   with a form's Save button is a checkbox, as in a native app.
 
+## Using the window's width
+
+Prose keeps a reading measure (about 72 characters) however wide the
+window. Width beyond that goes to columns, not longer lines: Home is two
+columns at 76rem of its own width (`@container home-view`), its main column
+and a side column of what is going on; Settings stands its section links in
+a sticky list at the left at 72rem (`@container settings-view`). Each is
+measured on the section itself, so a folded rail counts, and `just ui-shots`
+captures at 800, 1,100, 1,440 and 1,920 px.
+
 ## Native details
 
 Controls keep the arrow pointer; only a link shows the hand (the rule "the

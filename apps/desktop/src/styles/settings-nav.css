@@ -91,3 +91,56 @@
   font-size: var(--size-caption);
 }
 
+
+/* --- a wide window: the sections as a sidebar (brief 8) ----------------------
+
+   As System Settings lists its panes: on a window wide enough, the jump
+   links leave their bar and stand in a column at the left, in view however
+   far down the page is, and the settings keep their own width beside them.
+   Measured on Settings itself, so a folded rail counts. Only the form that
+   has the links changes; Space settings has none. */
+
+.settings {
+  container: settings-view / inline-size;
+}
+
+@container settings-view (width >= 72rem) {
+  /* Two columns: the list, and the settings at their own width. The form's
+     padding is 2rem a side (settings.css). */
+  .settings__form:has(> .settings__nav) {
+    display: grid;
+    grid-template-columns: 11rem minmax(0, 52rem);
+    column-gap: var(--space-8);
+    align-items: start;
+    width: min(calc(11rem + var(--space-8) + 52rem + 4rem), 100%);
+  }
+
+  .settings__form > .settings__nav {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 2px;
+    top: var(--space-6);
+    margin: 0;
+    padding: 0;
+    background: none;
+  }
+
+  .settings__form > .settings__nav .settings__nav-link {
+    padding: var(--space-1) var(--space-3);
+    border-color: transparent;
+    border-radius: var(--radius-control);
+    background: none;
+    color: var(--text);
+    font-size: var(--size-control);
+  }
+
+  .settings__form > .settings__nav .settings__nav-link:hover {
+    border-color: transparent;
+    background: var(--fill-hover);
+    color: var(--text);
+  }
+
+  .settings:has(.settings__form > .settings__nav) {
+    scroll-padding-top: var(--space-6);
+  }
+}

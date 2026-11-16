@@ -12,7 +12,12 @@ import { flushSync } from "react-dom";
  */
 export function moveWithTransition(update: () => void, doc: Document = document): Promise<void> {
   const reduced = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (typeof doc.startViewTransition !== "function" || reduced || doc.hidden) {
+  // While something floats over the window and moves it between sections
+  // (the tour, which sets this on <html>), no transition: its snapshot of
+  // the arriving section is drawn over everything, so the floating card
+  // would sit behind the page until the fade ended.
+  const held = doc.documentElement.dataset.viewTransitions === "off";
+  if (typeof doc.startViewTransition !== "function" || reduced || doc.hidden || held) {
     update();
     return Promise.resolve();
   }

@@ -427,506 +427,510 @@ function SettingsForm({
         ))}
       </nav>
 
-      <h2 className="settings__group">Get started</h2>
+      {/* The settings, beside the section list on a wide window
+          (styles/settings-nav.css), under it otherwise. */}
+      <div className="settings__body">
+        <h2 className="settings__group">Get started</h2>
 
-      {/* --- provider ------------------------------------------------------ */}
-      <section className="settings__section" id="settings-provider">
-        <h2>Provider</h2>
-        <p className="settings__hint">
-          Which company&apos;s AI a new space starts with. After that each space keeps its own provider
-          and model (Space settings), and an agent can pick its own, so changing this moves none of them.
-        </p>
-        {catalogueError !== null && (
-          <p className="settings__error" role="alert">
-            {catalogueError}
+        {/* --- provider ------------------------------------------------------ */}
+        <section className="settings__section" id="settings-provider">
+          <h2>Provider</h2>
+          <p className="settings__hint">
+            Which company&apos;s AI a new space starts with. After that each space keeps its own provider
+            and model (Space settings), and an agent can pick its own, so changing this moves none of them.
           </p>
-        )}
-        <div className="editor__row">
-          <label className="editor__field">
-            <span>New spaces use</span>
-            <select
-              value={form.provider}
-              onChange={(changed) => {
-                set("provider", changed.target.value);
-              }}
-              aria-invalid={errorFor("provider") !== null}
-              data-testid="setting-provider"
-            >
-              {catalogue.providers.map((entry) => (
-                <option key={entry.name} value={entry.name}>
-                  {providerLabel(entry.name)}
-                  {entry.requires_key ? "" : " (no key needed)"}
-                </option>
-              ))}
-            </select>
-            <FieldError field="provider" message={errorFor("provider")} />
-          </label>
-        </div>
-
-        {/* A provider's connection shows where it is in use: the provider new
-            spaces start on, or one a space runs on. The rest fold away rather
-            than vanish, since an agent may pick a provider of its own. */}
-        {inUse.map((name) => <div key={name}>{connectionFor(name)}</div>)}
-        {spare.length > 0 && (
-          <details className="settings__other-providers" data-testid="other-providers">
-            <summary>Other providers: {spare.map((name) => providerLabel(name)).join(", ")}</summary>
-            {spare.map((name) => (
-              <div key={name}>{connectionFor(name)}</div>
-            ))}
-          </details>
-        )}
-
-        <div className="settings__verify">
-          <button type="button" className="button button--small" onClick={() => void check()}>
-            Check
-          </button>
-          <span className="settings__hint">
-            Asks the sidecar whether the <em>saved</em> settings can build a provider: no model is called.
-          </span>
-          {verified !== null && (
-            <p
-              className={`settings__verify-result${verified !== "checking" && !verified.ok ? " settings__verify-result--bad" : ""}`}
-              data-testid="verify-result"
-            >
-              {verified === "checking"
-                ? "Checking…"
-                : verified.ok
-                  ? `Ready: ${verified.provider ?? ""}`
-                  : (verified.reason ?? "The current settings cannot build a provider.")}
+          {catalogueError !== null && (
+            <p className="settings__error" role="alert">
+              {catalogueError}
             </p>
           )}
-        </div>
-      </section>
-
-      {/* --- keys ---------------------------------------------------------- */}
-      <section className="settings__section" id="settings-keys" data-testid="keys" data-tour="keys">
-        <h2>Keys</h2>
-        <p className="settings__hint">
-          An API key lets AgentBase use your account with the provider above. It is kept in your
-          computer&apos;s secure password store, never in a file, and read when AgentBase starts: after
-          adding or changing one, restart AgentBase with the button that appears. Restarting stops a
-          run that is still going.
-        </p>
-        <KeyRows loaded={loaded} />
-      </section>
-
-      <h2 className="settings__group">Spending and safety</h2>
-
-      {/* --- budget ---------------------------------------------------------- */}
-      <section className="settings__section" id="settings-budget">
-        <h2>Monthly budget</h2>
-        <p className="settings__hint">
-          One spending limit for the whole app each month, across every space. A run that would go over
-          it stops before it asks the AI anything more.
-        </p>
-        <div className="editor__row">
-          <label className="editor__field editor__field--narrow">
-            <span>Monthly cap (USD)</span>
-            <input
-              inputMode="decimal"
-              value={form.cap}
-              onChange={(changed) => {
-                set("cap", changed.target.value);
-                setErrors(({ monthly_cap_micros: _cleared, ...rest }) => rest);
-              }}
-              aria-invalid={errorFor("monthly_cap_micros") !== null}
-              data-testid="setting-cap"
-            />
-            <FieldError field="monthly_cap_micros" message={errorFor("monthly_cap_micros")} />
-          </label>
-        </div>
-      </section>
-
-      {/* --- limits and the approval policy ------------------------------- */}
-      <section className="settings__section" id="settings-limits">
-        <h2>Limits and approvals</h2>
-        <p className="settings__hint">
-          How long and how much one run may do, and which actions may happen without asking you first.
-          Each space can change the limits for itself, and can make approvals stricter but never looser.
-        </p>
-        <div className="editor__row">
-          <NumberField
-            label="Steps per agent"
-            field="max_steps_per_agent"
-            value={form.max_steps_per_agent}
-            error={errorFor("max_steps_per_agent")}
-            onChange={(value) => {
-              set("max_steps_per_agent", value);
-            }}
-            testId="setting-max-steps"
-          />
-          <NumberField
-            label="Agents per run"
-            field="max_agents_per_run"
-            value={form.max_agents_per_run}
-            error={errorFor("max_agents_per_run")}
-            onChange={(value) => {
-              set("max_agents_per_run", value);
-            }}
-            testId="setting-max-agents"
-          />
-          <NumberField
-            label="Seconds per run"
-            field="max_run_seconds"
-            value={form.max_run_seconds}
-            error={errorFor("max_run_seconds")}
-            onChange={(value) => {
-              set("max_run_seconds", value);
-            }}
-            testId="setting-max-seconds"
-          />
-          <label className="editor__field editor__field--narrow">
-            <span>Dollars per run</span>
-            <input
-              inputMode="decimal"
-              value={form.run_cap}
-              onChange={(changed) => {
-                set("run_cap", changed.target.value);
-                setErrors(({ max_run_cost_micros: _cleared, ...rest }) => rest);
-              }}
-              aria-invalid={errorFor("max_run_cost_micros") !== null}
-              data-testid="setting-run-cap"
-            />
-            <span className="editor__hint">
-              A run stops before a call that could take it past this; 0 leaves only the monthly cap.
-            </span>
-            <FieldError field="max_run_cost_micros" message={errorFor("max_run_cost_micros")} />
-          </label>
-        </div>
-
-        <fieldset className="editor__tools" data-testid="setting-approvals">
-          <legend>Calls that run without asking</legend>
-          <p className="editor__hint">
-            The app-wide policy every run acts under, and above all the runs nobody is watching. A
-            space or agent definition can narrow it but never widen it. Every answer, including one the
-            policy gives, is recorded in the run&apos;s log.
-          </p>
-          <div className="editor__risks" role="radiogroup" aria-label="Approval policy">
-            {(
-              [
-                [
-                  "autonomous",
-                  "Autonomous (recommended)",
-                  "Reads, writes inside the space and fetches from the listed sites run on their own. A shell command, or a fetch from anywhere else, still asks.",
-                ],
-                [
-                  "supervised",
-                  "Supervised",
-                  "Ask before every call. Automations then do little on their own.",
-                ],
-                ["custom", "Custom", "Choose levels and answers by tool below."],
-              ] as const
-            ).map(([value, label, description]) => (
-              <label key={value} className="editor__tool editor__tool--wrap">
-                <input
-                  type="radio"
-                  name="approval-preset"
-                  checked={presetOf(form) === value}
-                  onChange={() => {
-                    if (value === "autonomous") {
-                      set("auto_approve", ["low", "medium"]);
-                      // An upgraded install keeps "*" (any site) until it
-                      // chooses; Autonomous means the listed sites only.
-                      const hosts = hostList(form.auto_approve_hosts);
-                      if (hosts.length === 0 || hosts.includes("*")) set("auto_approve_hosts", DEFAULT_HOSTS);
-                    }
-                    if (value === "supervised") {
-                      set("auto_approve", []);
-                      // A "never allow" stays: supervising only narrows.
-                      set(
-                        "tool_policies",
-                        Object.fromEntries(
-                          Object.entries(form.tool_policies).filter(([, answer]) => answer !== "allow"),
-                        ),
-                      );
-                    }
-                  }}
-                  data-testid={`setting-preset-${value}`}
-                />
-                <span className="editor__tool-description editor__tool-description--wrap">
-                  <b>{label}</b>: {description}
-                </span>
-              </label>
-            ))}
-          </div>
-          <div className="editor__risks">
-            {RISK_LEVELS.map((level) => (
-              <label key={level} className="editor__tool">
-                <input
-                  type="checkbox"
-                  checked={form.auto_approve.includes(level)}
-                  onChange={() => {
-                    set(
-                      "auto_approve",
-                      form.auto_approve.includes(level)
-                        ? form.auto_approve.filter((item) => item !== level)
-                        : RISK_LEVELS.filter((item) => item === level || form.auto_approve.includes(item)),
-                    );
-                  }}
-                  data-testid={`setting-auto-${level}`}
-                />
-                <span className={`risk risk--${level}`}>{level}</span>
-                <span className="editor__tool-description">
-                  {level === "low" && "reads inside the workspace"}
-                  {level === "medium" && "writes inside the workspace, fetches from a listed site"}
-                </span>
-              </label>
-            ))}
-            <p className="editor__hint">
-              <span className="risk risk--high">high</span> runs a shell command as you, with no
-              isolation, so it always asks.
-            </p>
-          </div>
-          <FieldError field="auto_approve" message={errorFor("auto_approve")} />
-          <label className="editor__field">
-            <span>Sites a fetch may reach without asking</span>
-            <input
-              type="text"
-              value={form.auto_approve_hosts}
-              placeholder="news.google.com, query1.finance.yahoo.com, api.fiscaldata.treasury.gov"
-              onChange={(changed) => {
-                set("auto_approve_hosts", changed.target.value);
-                setErrors(({ auto_approve_hosts: _cleared, ...rest }) => rest);
-              }}
-              aria-invalid={errorFor("auto_approve_hosts") !== null}
-              data-testid="setting-hosts"
-            />
-            <span className="editor__hint">
-              Separate them with commas. A leading dot, such as .example.com, covers that domain and
-              every name under it, and * allows any public site. A fetch from anywhere else asks, so a
-              page an agent reads cannot send your files to a site nobody chose.
-            </span>
-            <FieldError field="auto_approve_hosts" message={errorFor("auto_approve_hosts")} />
-          </label>
-          <label className="editor__field">
-            <span>Seconds a scheduled run waits for an answer</span>
-            <input
-              className="editor__input--narrow"
-              type="number"
-              min={0}
-              value={form.unattended_question_seconds}
-              onChange={(changed) => {
-                set("unattended_question_seconds", changed.target.value);
-              }}
-              aria-invalid={errorFor("unattended_question_seconds") !== null}
-              data-testid="setting-question-seconds"
-            />
-            <span className="editor__hint">
-              Nobody watches a scheduled run, so its question expires after this long and the run carries
-              on without that call. 0 refuses at once. A run you start from Home keeps waiting for you; one a
-              schedule starts, even with Run now, does not.
-            </span>
-            <FieldError field="unattended_question_seconds" message={errorFor("unattended_question_seconds")} />
-          </label>
-        </fieldset>
-
-        <fieldset className="editor__tools" data-testid="setting-tool-policies">
-          <legend>Answers by tool</legend>
-          <p className="editor__hint">
-            Two ways to say what runs without asking. The levels above answer by how risky a call
-            is; this table answers by tool, and its answer wins. On <b>Ask</b>, the levels decide.
-            On <b>Always allow</b>, the tool never asks, even with its level unticked. On{" "}
-            <b>Never allow</b>, it is refused every time, even with its level ticked. For example,
-            with <b>low</b> ticked, <code>write_file</code> on Always allow and <code>run_shell</code>{" "}
-            on Never allow: reads and writes run on their own, a shell command is refused, and a web
-            fetch (medium, unticked) still asks. <code>run_shell</code> can never be set to Always
-            allow. A space can only make an answer stricter.
-          </p>
-          {tools.length === 0 ? (
-            <p className="editor__hint">The tool catalogue has not loaded.</p>
-          ) : (
-            <table className="policy-table">
-              <tbody>
-                {tools.map((tool) => (
-                  <tr key={tool.name}>
-                    <th scope="row">
-                      <code>{tool.name}</code>
-                      <span className={`risk risk--${tool.risk}`}>{tool.risk}</span>
-                    </th>
-                    <td className="policy-table__description">{tool.description}</td>
-                    <td>
-                      <select
-                        value={form.tool_policies[tool.name] ?? "ask"}
-                        aria-label={`Answer for ${tool.name}`}
-                        data-testid={`setting-policy-${tool.name}`}
-                        onChange={(changed) => {
-                          const { [tool.name]: _dropped, ...rest } = form.tool_policies;
-                          const chosen = changed.target.value as ToolPolicy;
-                          set("tool_policies", chosen === "ask" ? rest : { ...rest, [tool.name]: chosen });
-                        }}
-                      >
-                        {TOOL_POLICIES.filter((choice) => tool.risk !== "high" || choice.value !== "allow").map(
-                          (choice) => (
-                            <option key={choice.value} value={choice.value}>
-                              {choice.label}
-                            </option>
-                          ),
-                        )}
-                      </select>
-                    </td>
-                  </tr>
+          <div className="editor__row">
+            <label className="editor__field">
+              <span>New spaces use</span>
+              <select
+                value={form.provider}
+                onChange={(changed) => {
+                  set("provider", changed.target.value);
+                }}
+                aria-invalid={errorFor("provider") !== null}
+                data-testid="setting-provider"
+              >
+                {catalogue.providers.map((entry) => (
+                  <option key={entry.name} value={entry.name}>
+                    {providerLabel(entry.name)}
+                    {entry.requires_key ? "" : " (no key needed)"}
+                  </option>
                 ))}
-              </tbody>
-            </table>
+              </select>
+              <FieldError field="provider" message={errorFor("provider")} />
+            </label>
+          </div>
+
+          {/* A provider's connection shows where it is in use: the provider new
+              spaces start on, or one a space runs on. The rest fold away rather
+              than vanish, since an agent may pick a provider of its own. */}
+          {inUse.map((name) => <div key={name}>{connectionFor(name)}</div>)}
+          {spare.length > 0 && (
+            <details className="settings__other-providers" data-testid="other-providers">
+              <summary>Other providers: {spare.map((name) => providerLabel(name)).join(", ")}</summary>
+              {spare.map((name) => (
+                <div key={name}>{connectionFor(name)}</div>
+              ))}
+            </details>
           )}
-          <FieldError field="tool_policies" message={errorFor("tool_policies")} />
-        </fieldset>
-      </section>
 
-      <h2 className="settings__group">More</h2>
+          <div className="settings__verify">
+            <button type="button" className="button button--small" onClick={() => void check()}>
+              Check
+            </button>
+            <span className="settings__hint">
+              Asks the sidecar whether the <em>saved</em> settings can build a provider: no model is called.
+            </span>
+            {verified !== null && (
+              <p
+                className={`settings__verify-result${verified !== "checking" && !verified.ok ? " settings__verify-result--bad" : ""}`}
+                data-testid="verify-result"
+              >
+                {verified === "checking"
+                  ? "Checking…"
+                  : verified.ok
+                    ? `Ready: ${verified.provider ?? ""}`
+                    : (verified.reason ?? "The current settings cannot build a provider.")}
+              </p>
+            )}
+          </div>
+        </section>
 
-      {/* --- channels -------------------------------------------------------- */}
-      <section className="settings__section" id="settings-channels">
-        <h2>Chat channels</h2>
-        <div className="settings__channels">
-          {(["discord"] as const).map((channel) => {
-            const status = channels.find((entry) => entry.channel === channel);
-            const enabledKey = `${channel}_enabled` as const;
-            return (
-              <div key={channel} className="settings__channel" data-testid={`channel-${channel}`}>
-                <label className="editor__checkbox">
+        {/* --- keys ---------------------------------------------------------- */}
+        <section className="settings__section" id="settings-keys" data-testid="keys" data-tour="keys">
+          <h2>Keys</h2>
+          <p className="settings__hint">
+            An API key lets AgentBase use your account with the provider above. It is kept in your
+            computer&apos;s secure password store, never in a file, and read when AgentBase starts: after
+            adding or changing one, restart AgentBase with the button that appears. Restarting stops a
+            run that is still going.
+          </p>
+          <KeyRows loaded={loaded} />
+        </section>
+
+        <h2 className="settings__group">Spending and safety</h2>
+
+        {/* --- budget ---------------------------------------------------------- */}
+        <section className="settings__section" id="settings-budget">
+          <h2>Monthly budget</h2>
+          <p className="settings__hint">
+            One spending limit for the whole app each month, across every space. A run that would go over
+            it stops before it asks the AI anything more.
+          </p>
+          <div className="editor__row">
+            <label className="editor__field editor__field--narrow">
+              <span>Monthly cap (USD)</span>
+              <input
+                inputMode="decimal"
+                value={form.cap}
+                onChange={(changed) => {
+                  set("cap", changed.target.value);
+                  setErrors(({ monthly_cap_micros: _cleared, ...rest }) => rest);
+                }}
+                aria-invalid={errorFor("monthly_cap_micros") !== null}
+                data-testid="setting-cap"
+              />
+              <FieldError field="monthly_cap_micros" message={errorFor("monthly_cap_micros")} />
+            </label>
+          </div>
+        </section>
+
+        {/* --- limits and the approval policy ------------------------------- */}
+        <section className="settings__section" id="settings-limits">
+          <h2>Limits and approvals</h2>
+          <p className="settings__hint">
+            How long and how much one run may do, and which actions may happen without asking you first.
+            Each space can change the limits for itself, and can make approvals stricter but never looser.
+          </p>
+          <div className="editor__row">
+            <NumberField
+              label="Steps per agent"
+              field="max_steps_per_agent"
+              value={form.max_steps_per_agent}
+              error={errorFor("max_steps_per_agent")}
+              onChange={(value) => {
+                set("max_steps_per_agent", value);
+              }}
+              testId="setting-max-steps"
+            />
+            <NumberField
+              label="Agents per run"
+              field="max_agents_per_run"
+              value={form.max_agents_per_run}
+              error={errorFor("max_agents_per_run")}
+              onChange={(value) => {
+                set("max_agents_per_run", value);
+              }}
+              testId="setting-max-agents"
+            />
+            <NumberField
+              label="Seconds per run"
+              field="max_run_seconds"
+              value={form.max_run_seconds}
+              error={errorFor("max_run_seconds")}
+              onChange={(value) => {
+                set("max_run_seconds", value);
+              }}
+              testId="setting-max-seconds"
+            />
+            <label className="editor__field editor__field--narrow">
+              <span>Dollars per run</span>
+              <input
+                inputMode="decimal"
+                value={form.run_cap}
+                onChange={(changed) => {
+                  set("run_cap", changed.target.value);
+                  setErrors(({ max_run_cost_micros: _cleared, ...rest }) => rest);
+                }}
+                aria-invalid={errorFor("max_run_cost_micros") !== null}
+                data-testid="setting-run-cap"
+              />
+              <span className="editor__hint">
+                A run stops before a call that could take it past this; 0 leaves only the monthly cap.
+              </span>
+              <FieldError field="max_run_cost_micros" message={errorFor("max_run_cost_micros")} />
+            </label>
+          </div>
+
+          <fieldset className="editor__tools" data-testid="setting-approvals">
+            <legend>Calls that run without asking</legend>
+            <p className="editor__hint">
+              The app-wide policy every run acts under, and above all the runs nobody is watching. A
+              space or agent definition can narrow it but never widen it. Every answer, including one the
+              policy gives, is recorded in the run&apos;s log.
+            </p>
+            <div className="editor__risks" role="radiogroup" aria-label="Approval policy">
+              {(
+                [
+                  [
+                    "autonomous",
+                    "Autonomous (recommended)",
+                    "Reads, writes inside the space and fetches from the listed sites run on their own. A shell command, or a fetch from anywhere else, still asks.",
+                  ],
+                  [
+                    "supervised",
+                    "Supervised",
+                    "Ask before every call. Automations then do little on their own.",
+                  ],
+                  ["custom", "Custom", "Choose levels and answers by tool below."],
+                ] as const
+              ).map(([value, label, description]) => (
+                <label key={value} className="editor__tool editor__tool--wrap">
+                  <input
+                    type="radio"
+                    name="approval-preset"
+                    checked={presetOf(form) === value}
+                    onChange={() => {
+                      if (value === "autonomous") {
+                        set("auto_approve", ["low", "medium"]);
+                        // An upgraded install keeps "*" (any site) until it
+                        // chooses; Autonomous means the listed sites only.
+                        const hosts = hostList(form.auto_approve_hosts);
+                        if (hosts.length === 0 || hosts.includes("*")) set("auto_approve_hosts", DEFAULT_HOSTS);
+                      }
+                      if (value === "supervised") {
+                        set("auto_approve", []);
+                        // A "never allow" stays: supervising only narrows.
+                        set(
+                          "tool_policies",
+                          Object.fromEntries(
+                            Object.entries(form.tool_policies).filter(([, answer]) => answer !== "allow"),
+                          ),
+                        );
+                      }
+                    }}
+                    data-testid={`setting-preset-${value}`}
+                  />
+                  <span className="editor__tool-description editor__tool-description--wrap">
+                    <b>{label}</b>: {description}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <div className="editor__risks">
+              {RISK_LEVELS.map((level) => (
+                <label key={level} className="editor__tool">
                   <input
                     type="checkbox"
-                    checked={form[enabledKey]}
-                    onChange={(changed) => {
-                      set(enabledKey, changed.target.checked);
+                    checked={form.auto_approve.includes(level)}
+                    onChange={() => {
+                      set(
+                        "auto_approve",
+                        form.auto_approve.includes(level)
+                          ? form.auto_approve.filter((item) => item !== level)
+                          : RISK_LEVELS.filter((item) => item === level || form.auto_approve.includes(item)),
+                      );
                     }}
-                    data-testid={`setting-${channel}-enabled`}
+                    data-testid={`setting-auto-${level}`}
                   />
-                  <span>Enable {channel}</span>
+                  <span className={`risk risk--${level}`}>{level}</span>
+                  <span className="editor__tool-description">
+                    {level === "low" && "reads inside the workspace"}
+                    {level === "medium" && "writes inside the workspace, fetches from a listed site"}
+                  </span>
                 </label>
-                {status !== undefined && (
-                  <div className="settings__channel-status">
-                    <Status kind={status.running ? "running" : status.enabled ? "failed" : "pending"}>
-                      {status.running ? "running" : status.enabled ? "not running" : "off"}
-                    </Status>
-                    {!status.configured && <span> · no token set</span>}
-                    {status.failures > 0 && <span> · {status.failures} failures</span>}
-                    {status.last_error !== null && status.last_error !== undefined && (
-                      <p className="settings__channel-error">{status.last_error}</p>
-                    )}
-                    {status.refused !== undefined && status.refused.length > 0 && (
-                      <p className="settings__hint">Refused: {status.refused.join(", ")}</p>
-                    )}
-                  </div>
-                )}
-                <FieldError field={enabledKey} message={errorFor(enabledKey)} />
-              </div>
-            );
-          })}
-        </div>
-
-        <IdentityList
-          identities={form.channel_identities}
-          error={errorFor("channel_identities")}
-          onChange={(identities) => {
-            set("channel_identities", identities);
-          }}
-        />
-
-        <fieldset className="editor__tools">
-          <legend>Who may answer an approval</legend>
-          {(
-            [
-              ["originator", "The person who started the run in chat can answer it there, as well as here."],
-              ["dashboard_only", "Only this window: the question is shown in chat, answered here."],
-            ] as const
-          ).map(([value, label]) => (
-            <label key={value} className="editor__tool">
-              <input
-                type="radio"
-                name="channel_approvals"
-                checked={form.channel_approvals === value}
-                onChange={() => {
-                  set("channel_approvals", value);
-                }}
-                data-testid={`setting-approvals-${value}`}
-              />
-              <span className="editor__tool-description">{label}</span>
-            </label>
-          ))}
-          <FieldError field="channel_approvals" message={errorFor("channel_approvals")} />
-        </fieldset>
-
-        <label className="editor__field editor__field--narrow">
-          <span>Where a chat command runs</span>
-          <select
-            value={form.channel_space_id}
-            onChange={(changed) => {
-              set("channel_space_id", changed.target.value);
-            }}
-            data-testid="setting-channel-space"
-          >
-            {spaces
-              .filter((space) => space.archived !== true)
-              .map((space) => (
-                <option key={space.id} value={space.is_default ? "" : space.id}>
-                  {space.name}
-                  {space.is_default ? " (default)" : ""}
-                </option>
               ))}
-          </select>
-          <FieldError field="channel_space_id" message={errorFor("channel_space_id")} />
-        </label>
-      </section>
+              <p className="editor__hint">
+                <span className="risk risk--high">high</span> runs a shell command as you, with no
+                isolation, so it always asks.
+              </p>
+            </div>
+            <FieldError field="auto_approve" message={errorFor("auto_approve")} />
+            <label className="editor__field">
+              <span>Sites a fetch may reach without asking</span>
+              <input
+                type="text"
+                value={form.auto_approve_hosts}
+                placeholder="news.google.com, query1.finance.yahoo.com, api.fiscaldata.treasury.gov"
+                onChange={(changed) => {
+                  set("auto_approve_hosts", changed.target.value);
+                  setErrors(({ auto_approve_hosts: _cleared, ...rest }) => rest);
+                }}
+                aria-invalid={errorFor("auto_approve_hosts") !== null}
+                data-testid="setting-hosts"
+              />
+              <span className="editor__hint">
+                Separate them with commas. A leading dot, such as .example.com, covers that domain and
+                every name under it, and * allows any public site. A fetch from anywhere else asks, so a
+                page an agent reads cannot send your files to a site nobody chose.
+              </span>
+              <FieldError field="auto_approve_hosts" message={errorFor("auto_approve_hosts")} />
+            </label>
+            <label className="editor__field">
+              <span>Seconds a scheduled run waits for an answer</span>
+              <input
+                className="editor__input--narrow"
+                type="number"
+                min={0}
+                value={form.unattended_question_seconds}
+                onChange={(changed) => {
+                  set("unattended_question_seconds", changed.target.value);
+                }}
+                aria-invalid={errorFor("unattended_question_seconds") !== null}
+                data-testid="setting-question-seconds"
+              />
+              <span className="editor__hint">
+                Nobody watches a scheduled run, so its question expires after this long and the run carries
+                on without that call. 0 refuses at once. A run you start from Home keeps waiting for you; one a
+                schedule starts, even with Run now, does not.
+              </span>
+              <FieldError field="unattended_question_seconds" message={errorFor("unattended_question_seconds")} />
+            </label>
+          </fieldset>
 
-      {/* --- market alerts ---------------------------------------------------- */}
-      <section className="settings__section" id="settings-alerts">
-        <h2>Market alerts</h2>
-        <p className="settings__hint">
-          A space's market watch, switched on in Automations, alerts you to sudden moves while AgentBase is open.
-        </p>
-        <label className="editor__checkbox">
-          <input
-            type="checkbox"
-            checked={form.alert_desktop_notifications}
-            onChange={(changed) => {
-              set("alert_desktop_notifications", changed.target.checked);
+          <fieldset className="editor__tools" data-testid="setting-tool-policies">
+            <legend>Answers by tool</legend>
+            <p className="editor__hint">
+              Two ways to say what runs without asking. The levels above answer by how risky a call
+              is; this table answers by tool, and its answer wins. On <b>Ask</b>, the levels decide.
+              On <b>Always allow</b>, the tool never asks, even with its level unticked. On{" "}
+              <b>Never allow</b>, it is refused every time, even with its level ticked. For example,
+              with <b>low</b> ticked, <code>write_file</code> on Always allow and <code>run_shell</code>{" "}
+              on Never allow: reads and writes run on their own, a shell command is refused, and a web
+              fetch (medium, unticked) still asks. <code>run_shell</code> can never be set to Always
+              allow. A space can only make an answer stricter.
+            </p>
+            {tools.length === 0 ? (
+              <p className="editor__hint">The tool catalogue has not loaded.</p>
+            ) : (
+              <table className="policy-table">
+                <tbody>
+                  {tools.map((tool) => (
+                    <tr key={tool.name}>
+                      <th scope="row">
+                        <code>{tool.name}</code>
+                        <span className={`risk risk--${tool.risk}`}>{tool.risk}</span>
+                      </th>
+                      <td className="policy-table__description">{tool.description}</td>
+                      <td>
+                        <select
+                          value={form.tool_policies[tool.name] ?? "ask"}
+                          aria-label={`Answer for ${tool.name}`}
+                          data-testid={`setting-policy-${tool.name}`}
+                          onChange={(changed) => {
+                            const { [tool.name]: _dropped, ...rest } = form.tool_policies;
+                            const chosen = changed.target.value as ToolPolicy;
+                            set("tool_policies", chosen === "ask" ? rest : { ...rest, [tool.name]: chosen });
+                          }}
+                        >
+                          {TOOL_POLICIES.filter((choice) => tool.risk !== "high" || choice.value !== "allow").map(
+                            (choice) => (
+                              <option key={choice.value} value={choice.value}>
+                                {choice.label}
+                              </option>
+                            ),
+                          )}
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <FieldError field="tool_policies" message={errorFor("tool_policies")} />
+          </fieldset>
+        </section>
+
+        <h2 className="settings__group">More</h2>
+
+        {/* --- channels -------------------------------------------------------- */}
+        <section className="settings__section" id="settings-channels">
+          <h2>Chat channels</h2>
+          <div className="settings__channels">
+            {(["discord"] as const).map((channel) => {
+              const status = channels.find((entry) => entry.channel === channel);
+              const enabledKey = `${channel}_enabled` as const;
+              return (
+                <div key={channel} className="settings__channel" data-testid={`channel-${channel}`}>
+                  <label className="editor__checkbox">
+                    <input
+                      type="checkbox"
+                      checked={form[enabledKey]}
+                      onChange={(changed) => {
+                        set(enabledKey, changed.target.checked);
+                      }}
+                      data-testid={`setting-${channel}-enabled`}
+                    />
+                    <span>Enable {channel}</span>
+                  </label>
+                  {status !== undefined && (
+                    <div className="settings__channel-status">
+                      <Status kind={status.running ? "running" : status.enabled ? "failed" : "pending"}>
+                        {status.running ? "running" : status.enabled ? "not running" : "off"}
+                      </Status>
+                      {!status.configured && <span> · no token set</span>}
+                      {status.failures > 0 && <span> · {status.failures} failures</span>}
+                      {status.last_error !== null && status.last_error !== undefined && (
+                        <p className="settings__channel-error">{status.last_error}</p>
+                      )}
+                      {status.refused !== undefined && status.refused.length > 0 && (
+                        <p className="settings__hint">Refused: {status.refused.join(", ")}</p>
+                      )}
+                    </div>
+                  )}
+                  <FieldError field={enabledKey} message={errorFor(enabledKey)} />
+                </div>
+              );
+            })}
+          </div>
+
+          <IdentityList
+            identities={form.channel_identities}
+            error={errorFor("channel_identities")}
+            onChange={(identities) => {
+              set("channel_identities", identities);
             }}
-            data-testid="setting-alert-desktop"
           />
-          <span>Show a desktop notification for each alert and its explanation</span>
-        </label>
-        <label className="editor__field editor__field--narrow">
-          <span>Discord channel for alerts</span>
-          <input
-            value={form.discord_alert_channel_id}
-            inputMode="numeric"
-            placeholder="Channel ID, such as 123456789012345678"
-            onChange={(changed) => {
-              set("discord_alert_channel_id", changed.target.value);
-            }}
-            data-testid="setting-alert-channel"
-          />
-          <span className="settings__hint">
-            In Discord, turn on Developer Mode under Advanced, then right-click the channel and choose Copy Channel
-            ID. The bot needs permission to send messages there, and Discord must be enabled above. Leave it blank to
-            send none.
-          </span>
-          <FieldError field="discord_alert_channel_id" message={errorFor("discord_alert_channel_id")} />
-        </label>
-      </section>
 
-      <AppearanceSection />
+          <fieldset className="editor__tools">
+            <legend>Who may answer an approval</legend>
+            {(
+              [
+                ["originator", "The person who started the run in chat can answer it there, as well as here."],
+                ["dashboard_only", "Only this window: the question is shown in chat, answered here."],
+              ] as const
+            ).map(([value, label]) => (
+              <label key={value} className="editor__tool">
+                <input
+                  type="radio"
+                  name="channel_approvals"
+                  checked={form.channel_approvals === value}
+                  onChange={() => {
+                    set("channel_approvals", value);
+                  }}
+                  data-testid={`setting-approvals-${value}`}
+                />
+                <span className="editor__tool-description">{label}</span>
+              </label>
+            ))}
+            <FieldError field="channel_approvals" message={errorFor("channel_approvals")} />
+          </fieldset>
 
-      <AboutSection version={loaded.version} dataDir={loaded.data_dir} onReplayTour={onReplayTour} />
+          <label className="editor__field editor__field--narrow">
+            <span>Where a chat command runs</span>
+            <select
+              value={form.channel_space_id}
+              onChange={(changed) => {
+                set("channel_space_id", changed.target.value);
+              }}
+              data-testid="setting-channel-space"
+            >
+              {spaces
+                .filter((space) => space.archived !== true)
+                .map((space) => (
+                  <option key={space.id} value={space.is_default ? "" : space.id}>
+                    {space.name}
+                    {space.is_default ? " (default)" : ""}
+                  </option>
+                ))}
+            </select>
+            <FieldError field="channel_space_id" message={errorFor("channel_space_id")} />
+          </label>
+        </section>
 
-      {errorFor(FORM) !== null && (
-        <p className="editor__error editor__error--form" role="alert" data-testid="error-form">
-          {errorFor(FORM)}
-        </p>
-      )}
+        {/* --- market alerts ---------------------------------------------------- */}
+        <section className="settings__section" id="settings-alerts">
+          <h2>Market alerts</h2>
+          <p className="settings__hint">
+            A space's market watch, switched on in Automations, alerts you to sudden moves while AgentBase is open.
+          </p>
+          <label className="editor__checkbox">
+            <input
+              type="checkbox"
+              checked={form.alert_desktop_notifications}
+              onChange={(changed) => {
+                set("alert_desktop_notifications", changed.target.checked);
+              }}
+              data-testid="setting-alert-desktop"
+            />
+            <span>Show a desktop notification for each alert and its explanation</span>
+          </label>
+          <label className="editor__field editor__field--narrow">
+            <span>Discord channel for alerts</span>
+            <input
+              value={form.discord_alert_channel_id}
+              inputMode="numeric"
+              placeholder="Channel ID, such as 123456789012345678"
+              onChange={(changed) => {
+                set("discord_alert_channel_id", changed.target.value);
+              }}
+              data-testid="setting-alert-channel"
+            />
+            <span className="settings__hint">
+              In Discord, turn on Developer Mode under Advanced, then right-click the channel and choose Copy Channel
+              ID. The bot needs permission to send messages there, and Discord must be enabled above. Leave it blank to
+              send none.
+            </span>
+            <FieldError field="discord_alert_channel_id" message={errorFor("discord_alert_channel_id")} />
+          </label>
+        </section>
 
-      <div className="editor__actions settings__actions">
-        {dirty && !saving && <span className="settings__unsaved">You have unsaved changes.</span>}
-        {saved && !dirty && (
-          <span className="settings__saved" role="status">
-            Saved. New runs will use this.
-          </span>
+        <AppearanceSection />
+
+        <AboutSection version={loaded.version} dataDir={loaded.data_dir} onReplayTour={onReplayTour} />
+
+        {errorFor(FORM) !== null && (
+          <p className="editor__error editor__error--form" role="alert" data-testid="error-form">
+            {errorFor(FORM)}
+          </p>
         )}
-        <button type="submit" className="button button--primary" disabled={saving || !dirty} aria-busy={saving}>
-          {saving ? "Saving…" : "Save settings"}
-        </button>
+
+        <div className="editor__actions settings__actions">
+          {dirty && !saving && <span className="settings__unsaved">You have unsaved changes.</span>}
+          {saved && !dirty && (
+            <span className="settings__saved" role="status">
+              Saved. New runs will use this.
+            </span>
+          )}
+          <button type="submit" className="button button--primary" disabled={saving || !dirty} aria-busy={saving}>
+            {saving ? "Saving…" : "Save settings"}
+          </button>
+        </div>
       </div>
     </form>
   );

@@ -57,6 +57,8 @@ const SIZES = [
   { width: 800, height: 600 },
   { width: 1100, height: 800 },
   { width: 1440, height: 900 },
+  // A large display, where Home and Settings use the room they are given.
+  { width: 1920, height: 1080 },
 ] as const;
 const THEMES = ["light", "dark"] as const;
 
@@ -419,6 +421,37 @@ async function capture(browser: Browser, folder: string, seeded: Seed, condition
           const node = await page.locator(".react-flow__node:visible").first().evaluate((element) => getComputedStyle(element).position);
           if (node !== "absolute") throw new Error("Knowledge's graph is drawn without React Flow's stylesheet.");
           await take("knowledge-graph");
+        }
+      }
+      // The first-run tour, replayed from Settings, a capture per step.
+      if (size.width !== 800 || theme === "light") {
+        await page.keyboard.press("Control+8");
+        const replay = page.getByRole("button", { name: /tour/i }).first();
+        if ((await replay.count()) > 0) {
+          await replay.scrollIntoViewIfNeeded();
+          // Count the section cross-fades the tour starts: none, or the
+          // arriving section's snapshot is drawn over its card.
+          await page.evaluate(() => {
+            const start = document.startViewTransition.bind(document);
+            (window as unknown as { crossFades: number }).crossFades = 0;
+            document.startViewTransition = (update?: ViewTransitionUpdateCallback) => {
+              (window as unknown as { crossFades: number }).crossFades += 1;
+              return start(update);
+            };
+          });
+          await replay.click();
+          const card = page.locator('[data-testid="tour-card"]');
+          await card.waitFor();
+          for (let step = 1; step <= 20; step += 1) {
+            await take(`tour-${String(step)}`);
+            const next = card.getByRole("button", { name: "Next" });
+            if ((await next.count()) === 0) break;
+            await next.click();
+          }
+          const crossFades = await page.evaluate(() => (window as unknown as { crossFades: number }).crossFades);
+          if (crossFades > 0) throw new Error(`The tour started ${String(crossFades)} section cross-fades, which draw over its card.`);
+          await page.keyboard.press("Escape");
+          await card.waitFor({ state: "detached" });
         }
       }
       await context.close();

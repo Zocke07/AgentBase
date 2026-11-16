@@ -596,7 +596,9 @@
 
 /* Stand-ins for macOS's three window controls, where `trafficLightPosition`
    in `tauri.macos.conf.json` puts them, so the overlaid title bar can be
-   judged here. The real ones are drawn by the system. */
+   judged here. The real ones are drawn by the system: seen in a build on
+   2026-11-17, their centres sit about 1 pt below the configured y, so y 25
+   centres them on the 52 px toolbar, as these are. */
 .wb-frame__window {
   position: relative;
 }

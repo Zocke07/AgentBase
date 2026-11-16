@@ -254,355 +254,364 @@ export function HomeView({
   };
 
   return (
-    <div className={`home${firstLaunch ? " home--first" : ""}`} data-testid="home">
+    <div
+      className={`home${firstLaunch ? " home--first" : ""}${runsLoaded && !firstLaunch ? " home--columns" : ""}`}
+      data-testid="home"
+    >
       <div className="home__inner">
-        {blocker !== null && (
-          <section className="card card--notice home__preflight" role="status" data-testid="preflight">
-            <h2 className="card__title">{BLOCKER_TITLE[blockerKind]}</h2>
-            <p>{blocker}</p>
-            <div className="card__actions">
-              {blockerKind === "space" && onOpenSpaceSettings !== undefined ? (
-                <button type="button" className="button" onClick={onOpenSpaceSettings}>
-                  Open Space settings
-                </button>
-              ) : (
-                <button type="button" className="button" onClick={onOpenSettings}>
-                  Open settings
-                </button>
-              )}
-              <button type="button" className="button" onClick={() => void demo()}>
-                Try a demo run
-              </button>
-            </div>
-            {demoError !== null && (
-              <p className="field-error" role="alert">
-                {demoError}
-              </p>
-            )}
-          </section>
-        )}
-
-        {/* The portfolio editor and the pipeline offer belong to the default
-            space's investment pipeline; other spaces use the general agent
-            tools (2026-10-13). */}
-        {space?.is_default === true && <PortfolioEditor key={space.id} spaceId={space.id} reloadNonce={portfolioNonce} running={now.some((run) => run.space_id === space.id && unfinished({ ...run, status: statusOf(run) }))} onSaved={() => {
-          onWorkspaceChanged();
-          onPortfolioSaved?.();
-        }} />}
-
-        <section className="home__section home__automations" data-testid="home-automations">
-          {pipelineNotice !== null && (
-            <p className="settings__saved" role="status">
-              {pipelineNotice}
-            </p>
-          )}
-          {space?.is_default === true && (
-            <PipelineOffer
-              spaceId={space.id}
-              // Only this space's rows: a list still loading after a switch
-              // must not turn on another space's schedules.
-              schedules={schedules.data.filter((row) => row.space_id === space.id)}
-              runCapMicros={runCapMicros}
-              onTurnedOn={(result) => {
-                setPipelineNotice(noticeFor(result));
-                setPortfolioNonce((current) => current + 1);
-                schedules.reload();
-                onSchedulesChanged?.();
-              }}
-            />
-          )}
-          <AutomationsLine
-            schedules={schedules.data}
-            loaded={!schedules.loading}
-            spaceName={space?.name ?? "this space"}
-            onOpenAutomations={onOpenAutomations}
-            onAutomate={onAutomate}
-          />
-        </section>
-
-        <MarketAlerts
-          alerts={alerts}
-          fresh={freshAlerts}
-          onOpenNote={
-            onOpenNote === undefined
-              ? undefined
-              : (path) => {
-                  onOpenNote(path, null);
-                }
-          }
-          onOpenRun={onOpenRun}
-          onOpenAutomations={onOpenAutomations}
-        />
-
-        <form
-          className="new-run"
-          data-testid="new-run"
-          onSubmit={(submitted) => {
-            submitted.preventDefault();
-            void start();
-          }}
-        >
-          <h2 className="new-run__title">Run once</h2>
-          <label className="new-run__label" htmlFor="goal">
-            {firstLaunch
-              ? `What should ${space?.name ?? "this space"} work on first?`
-              : `What should ${space?.name ?? "this space"} work on?`}
-          </label>
-          <textarea
-            id="goal"
-            className="new-run__goal"
-            rows={firstLaunch ? 4 : 3}
-            value={goal}
-            placeholder="Describe what you want done, in plain words. For example: Summarise the notes in this space into one page."
-            onChange={(changed) => {
-              setGoal(changed.target.value);
-              setRetrieval(null);
-              setExcludedCitations([]);
-            }}
-            onKeyDown={(pressed) => {
-              // Enter submits; Shift+Enter adds line.
-              if (pressed.key === "Enter" && !pressed.shiftKey) {
-                pressed.preventDefault();
-                void start();
-              }
-            }}
-            data-testid="goal-input"
-            data-tour="goal"
-          />
-          {retrieval !== null && (
-            <fieldset className="new-run__retrieval" data-testid="retrieval-preview">
-              <legend>Notes it will read</legend>
-              <p>
-                {retrieval.length > 0 ? (
-                  <>
-                    {includedCount === 1 ? "This passage" : `These ${String(includedCount)} passages`} from this
-                    space&apos;s notes
-                    will be sent along with your task to <strong>{modelLabel ?? "the model"}</strong> (about{" "}
-                    {includedTokens} tokens). Untick anything you would rather keep out.
-                  </>
+        {/* Two columns on a wide window (styles/home.css): what you do here,
+            and beside it what is going on. Stacked, the order is the same. */}
+        <div className="home__main">
+          {blocker !== null && (
+            <section className="card card--notice home__preflight" role="status" data-testid="preflight">
+              <h2 className="card__title">{BLOCKER_TITLE[blockerKind]}</h2>
+              <p>{blocker}</p>
+              <div className="card__actions">
+                {blockerKind === "space" && onOpenSpaceSettings !== undefined ? (
+                  <button type="button" className="button" onClick={onOpenSpaceSettings}>
+                    Open Space settings
+                  </button>
                 ) : (
-                  "None of this space's notes or approved memories match this task, so it will start from your words alone."
+                  <button type="button" className="button" onClick={onOpenSettings}>
+                    Open settings
+                  </button>
                 )}
-              </p>
-              {retrieval.map((hit) => (
-                <label key={hit.citation}>
-                  <input
-                    type="checkbox"
-                    checked={!excludedCitations.includes(hit.citation)}
-                    onChange={(event) => {
-                      setExcludedCitations((current) =>
-                        event.target.checked
-                          ? current.filter((citation) => citation !== hit.citation)
-                          : [...current, hit.citation],
-                      );
-                    }}
-                  />
-                  <span>
-                    {onOpenNote === undefined ? (
-                      <code>{hit.citation}</code>
-                    ) : (
-                      <button
-                        type="button"
-                        className="citation"
-                        title="Open this note in Knowledge"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          onOpenNote(hit.path, hit.heading ?? null);
-                        }}
-                      >
-                        {hit.citation}
-                      </button>
-                    )}
-                    {hit.excerpt !== "" && (
-                      <Markdown source={hit.excerpt} className="md--compact new-run__excerpt" />
-                    )}
-                    <MetricBar value={hit.score} label={`Relevance for ${hit.citation}`} />
-                    <small>
-                      {Math.round(hit.score * 100)}% relevance · {hit.estimated_tokens ?? 0} tokens
-                      {(hit.matched_terms ?? []).length > 0 &&
-                        ` · matched ${(hit.matched_terms ?? []).join(", ")}`}
-                      {(hit.reasons ?? []).length > 0 && ` · ${(hit.reasons ?? []).join(" · ")}`}
-                    </small>
-                  </span>
-                </label>
-              ))}
-            </fieldset>
+                <button type="button" className="button" onClick={() => void demo()}>
+                  Try a demo run
+                </button>
+              </div>
+              {demoError !== null && (
+                <p className="field-error" role="alert">
+                  {demoError}
+                </p>
+              )}
+            </section>
           )}
-          <label
-            className="new-run__step"
-            title="The manual and debug path: every tool call waits for your answer, whatever the approval policy would do."
-          >
-            <input
-              type="checkbox"
-              checked={stepThrough}
-              onChange={(changed) => {
-                setStepThrough(changed.target.checked);
-              }}
-              data-testid="step-through"
-            />
-            <span>Step through: ask me before every call</span>
-          </label>
-          <div className="new-run__row">
-            {startError !== null ? (
-              <p className="field-error" role="alert">
-                {startError}
-              </p>
-            ) : (
-              <p className="new-run__hint">
-                {enabled.length === 0
-                  ? rosterLoaded
-                    ? "No agents are enabled: the supervisor will have nobody to delegate to."
-                    : ""
-                  : readyLine(enabled.map((agent) => agent.name))}
-                {firstLaunch && rosterLoaded && agents.length === 0 && space !== null && (
-                  <>
-                    {" "}
-                    <button type="button" className="link" disabled={seeding} onClick={() => void seed()}>
-                      Start from the starter roles
-                    </button>
-                  </>
-                )}
-                {firstLaunch && (
-                  <>
-                    {" "}
-                    <button type="button" className="link" onClick={onOpenAgents}>
-                      Manage agents
-                    </button>
-                  </>
-                )}
+
+          {/* The portfolio editor and the pipeline offer belong to the default
+              space's investment pipeline; other spaces use the general agent
+              tools (2026-10-13). */}
+          {space?.is_default === true && <PortfolioEditor key={space.id} spaceId={space.id} reloadNonce={portfolioNonce} running={now.some((run) => run.space_id === space.id && unfinished({ ...run, status: statusOf(run) }))} onSaved={() => {
+            onWorkspaceChanged();
+            onPortfolioSaved?.();
+          }} />}
+
+          <section className="home__section home__automations" data-testid="home-automations">
+            {pipelineNotice !== null && (
+              <p className="settings__saved" role="status">
+                {pipelineNotice}
               </p>
             )}
-            <div className="new-run__actions">
-              {onAutomate !== undefined && (
+            {space?.is_default === true && (
+              <PipelineOffer
+                spaceId={space.id}
+                // Only this space's rows: a list still loading after a switch
+                // must not turn on another space's schedules.
+                schedules={schedules.data.filter((row) => row.space_id === space.id)}
+                runCapMicros={runCapMicros}
+                onTurnedOn={(result) => {
+                  setPipelineNotice(noticeFor(result));
+                  setPortfolioNonce((current) => current + 1);
+                  schedules.reload();
+                  onSchedulesChanged?.();
+                }}
+              />
+            )}
+            <AutomationsLine
+              schedules={schedules.data}
+              loaded={!schedules.loading}
+              spaceName={space?.name ?? "this space"}
+              onOpenAutomations={onOpenAutomations}
+              onAutomate={onAutomate}
+            />
+          </section>
+
+          <MarketAlerts
+            alerts={alerts}
+            fresh={freshAlerts}
+            onOpenNote={
+              onOpenNote === undefined
+                ? undefined
+                : (path) => {
+                    onOpenNote(path, null);
+                  }
+            }
+            onOpenRun={onOpenRun}
+            onOpenAutomations={onOpenAutomations}
+          />
+
+          <form
+            className="new-run"
+            data-testid="new-run"
+            onSubmit={(submitted) => {
+              submitted.preventDefault();
+              void start();
+            }}
+          >
+            <h2 className="new-run__title">Run once</h2>
+            <label className="new-run__label" htmlFor="goal">
+              {firstLaunch
+                ? `What should ${space?.name ?? "this space"} work on first?`
+                : `What should ${space?.name ?? "this space"} work on?`}
+            </label>
+            <textarea
+              id="goal"
+              className="new-run__goal"
+              rows={firstLaunch ? 4 : 3}
+              value={goal}
+              placeholder="Describe what you want done, in plain words. For example: Summarise the notes in this space into one page."
+              onChange={(changed) => {
+                setGoal(changed.target.value);
+                setRetrieval(null);
+                setExcludedCitations([]);
+              }}
+              onKeyDown={(pressed) => {
+                // Enter submits; Shift+Enter adds line.
+                if (pressed.key === "Enter" && !pressed.shiftKey) {
+                  pressed.preventDefault();
+                  void start();
+                }
+              }}
+              data-testid="goal-input"
+              data-tour="goal"
+            />
+            {retrieval !== null && (
+              <fieldset className="new-run__retrieval" data-testid="retrieval-preview">
+                <legend>Notes it will read</legend>
+                <p>
+                  {retrieval.length > 0 ? (
+                    <>
+                      {includedCount === 1 ? "This passage" : `These ${String(includedCount)} passages`} from this
+                      space&apos;s notes
+                      will be sent along with your task to <strong>{modelLabel ?? "the model"}</strong> (about{" "}
+                      {includedTokens} tokens). Untick anything you would rather keep out.
+                    </>
+                  ) : (
+                    "None of this space's notes or approved memories match this task, so it will start from your words alone."
+                  )}
+                </p>
+                {retrieval.map((hit) => (
+                  <label key={hit.citation}>
+                    <input
+                      type="checkbox"
+                      checked={!excludedCitations.includes(hit.citation)}
+                      onChange={(event) => {
+                        setExcludedCitations((current) =>
+                          event.target.checked
+                            ? current.filter((citation) => citation !== hit.citation)
+                            : [...current, hit.citation],
+                        );
+                      }}
+                    />
+                    <span>
+                      {onOpenNote === undefined ? (
+                        <code>{hit.citation}</code>
+                      ) : (
+                        <button
+                          type="button"
+                          className="citation"
+                          title="Open this note in Knowledge"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            onOpenNote(hit.path, hit.heading ?? null);
+                          }}
+                        >
+                          {hit.citation}
+                        </button>
+                      )}
+                      {hit.excerpt !== "" && (
+                        <Markdown source={hit.excerpt} className="md--compact new-run__excerpt" />
+                      )}
+                      <MetricBar value={hit.score} label={`Relevance for ${hit.citation}`} />
+                      <small>
+                        {Math.round(hit.score * 100)}% relevance · {hit.estimated_tokens ?? 0} tokens
+                        {(hit.matched_terms ?? []).length > 0 &&
+                          ` · matched ${(hit.matched_terms ?? []).join(", ")}`}
+                        {(hit.reasons ?? []).length > 0 && ` · ${(hit.reasons ?? []).join(" · ")}`}
+                      </small>
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+            )}
+            <label
+              className="new-run__step"
+              title="The manual and debug path: every tool call waits for your answer, whatever the approval policy would do."
+            >
+              <input
+                type="checkbox"
+                checked={stepThrough}
+                onChange={(changed) => {
+                  setStepThrough(changed.target.checked);
+                }}
+                data-testid="step-through"
+              />
+              <span>Step through: ask me before every call</span>
+            </label>
+            <div className="new-run__row">
+              {startError !== null ? (
+                <p className="field-error" role="alert">
+                  {startError}
+                </p>
+              ) : (
+                <p className="new-run__hint">
+                  {enabled.length === 0
+                    ? rosterLoaded
+                      ? "No agents are enabled: the supervisor will have nobody to delegate to."
+                      : ""
+                    : readyLine(enabled.map((agent) => agent.name))}
+                  {firstLaunch && rosterLoaded && agents.length === 0 && space !== null && (
+                    <>
+                      {" "}
+                      <button type="button" className="link" disabled={seeding} onClick={() => void seed()}>
+                        Start from the starter roles
+                      </button>
+                    </>
+                  )}
+                  {firstLaunch && (
+                    <>
+                      {" "}
+                      <button type="button" className="link" onClick={onOpenAgents}>
+                        Manage agents
+                      </button>
+                    </>
+                  )}
+                </p>
+              )}
+              <div className="new-run__actions">
+                {onAutomate !== undefined && (
+                  <button
+                    type="button"
+                    className="button"
+                    disabled={goal.trim() === ""}
+                    title="Open Automations with a new schedule for this goal"
+                    onClick={() => {
+                      onAutomate(goal.trim());
+                    }}
+                    data-testid="make-recurring"
+                  >
+                    Make this recurring
+                  </button>
+                )}
                 <button
                   type="button"
                   className="button"
-                  disabled={goal.trim() === ""}
-                  title="Open Automations with a new schedule for this goal"
-                  onClick={() => {
-                    onAutomate(goal.trim());
-                  }}
-                  data-testid="make-recurring"
+                  disabled={retrieving || goal.trim() === "" || space === null}
+                  aria-busy={retrieving}
+                  title="See which of this space's notes will be sent along with your task"
+                  onClick={() => void previewRetrieval()}
                 >
-                  Make this recurring
+                  {retrieving ? "Looking…" : "Preview notes"}
                 </button>
-              )}
-              <button
-                type="button"
-                className="button"
-                disabled={retrieving || goal.trim() === "" || space === null}
-                aria-busy={retrieving}
-                title="See which of this space's notes will be sent along with your task"
-                onClick={() => void previewRetrieval()}
-              >
-                {retrieving ? "Looking…" : "Preview notes"}
-              </button>
-              <button
-                type="submit"
-                className="button button--primary"
-                disabled={starting || goal.trim() === "" || blocker !== null}
-                aria-busy={starting}
-                title={blocker ?? "Enter starts it too; Shift+Enter makes a new line"}
-              >
-                {starting ? "Starting…" : "Start run"}
-              </button>
-            </div>
-          </div>
-        </form>
-
-        {runsError !== null && (
-          <p className="field-error" role="alert">
-            {runsError}
-          </p>
-        )}
-
-        {now.length > 0 ? (
-          <section className="home__section" data-testid="home-now">
-            <header className="home__head">
-              <h2>Now</h2>
-            </header>
-            <NowOffice runs={now} statusOf={statusOf} waitingOn={waitingOn} onOpenRun={onOpenRun} />
-          </section>
-        ) : (
-          !firstLaunch &&
-          runsLoaded && (
-            <section className="home__section" aria-label="Now">
-              <RestingOffice
-                schedules={schedules.data.filter((row) => space === null || row.space_id === space.id)}
-                known={!schedules.loading && schedules.error === null && schedules.fetchedAt !== null}
-                readAt={schedules.fetchedAt ?? 0}
-              />
-            </section>
-          )
-        )}
-
-        {recent.length > 0 && (
-          <section className="home__section" data-testid="home-recent">
-            <header className="home__head">
-              <h2>Recent runs</h2>
-              <button type="button" className="button button--small" onClick={onOpenRuns}>
-                All runs
-              </button>
-            </header>
-            <div className="cards">
-              {recent.map((run) => (
-                <RunCard key={run.id} run={run} liveStatus={statusOf(run)} onOpen={onOpenRun} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {!firstLaunch && (
-          <section className="home__section" data-testid="home-roster">
-            <header className="home__head">
-              <h2>Agents</h2>
-              <button type="button" className="button button--small" onClick={onOpenAgents}>
-                Add an agent
-              </button>
-            </header>
-            {rosterError !== null && (
-              <p className="field-error" role="alert">
-                {rosterError}
-              </p>
-            )}
-            {rosterLoaded && agents.length === 0 && (
-              <p className="home__empty">
-                No agents are defined, so the supervisor would have nobody to delegate to.{" "}
-                {space !== null && (
-                  <button type="button" className="link" disabled={seeding} onClick={() => void seed()}>
-                    Start from the starter roles
-                  </button>
-                )}
-              </p>
-            )}
-            <ul className="roster-cards">
-              {agents.map((agent) => (
-                <li
-                  key={agent.id}
-                  className={`roster-card${agent.enabled === false ? " roster-card--off" : ""}`}
-                  data-testid={`home-agent-${agent.name}`}
+                <button
+                  type="submit"
+                  className="button button--primary"
+                  disabled={starting || goal.trim() === "" || blocker !== null}
+                  aria-busy={starting}
+                  title={blocker ?? "Enter starts it too; Shift+Enter makes a new line"}
                 >
-                  <span className="roster-card__name" title={`${agent.name}: ${agent.role}`}>
-                    <span className="roster-card__label">{agent.name}</span>
-                    {agent.is_builtin === true && <span className="tag">built-in</span>}
-                  </span>
-                  <span className="roster-card__role">{agent.role}</span>
-                  {/* It takes effect at once, so it is a switch; the word
-                      beside it says the state as well as the knob does. */}
-                  <span className="roster-card__switch">
-                    <Switch
-                      checked={agent.enabled ?? true}
-                      disabled={busyAgent === agent.id}
-                      label={`Available to the supervisor: ${agent.name}`}
-                      onChange={() => void toggle(agent)}
-                    />
-                    <span aria-hidden="true">{agent.enabled === false ? "Off" : "On"}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+                  {starting ? "Starting…" : "Start run"}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <div className="home__side">
+          {runsError !== null && (
+            <p className="field-error" role="alert">
+              {runsError}
+            </p>
+          )}
+
+          {now.length > 0 ? (
+            <section className="home__section" data-testid="home-now">
+              <header className="home__head">
+                <h2>Now</h2>
+              </header>
+              <NowOffice runs={now} statusOf={statusOf} waitingOn={waitingOn} onOpenRun={onOpenRun} />
+            </section>
+          ) : (
+            !firstLaunch &&
+            runsLoaded && (
+              <section className="home__section" aria-label="Now">
+                <RestingOffice
+                  schedules={schedules.data.filter((row) => space === null || row.space_id === space.id)}
+                  known={!schedules.loading && schedules.error === null && schedules.fetchedAt !== null}
+                  readAt={schedules.fetchedAt ?? 0}
+                />
+              </section>
+            )
+          )}
+
+          {recent.length > 0 && (
+            <section className="home__section" data-testid="home-recent">
+              <header className="home__head">
+                <h2>Recent runs</h2>
+                <button type="button" className="button button--small" onClick={onOpenRuns}>
+                  All runs
+                </button>
+              </header>
+              <div className="cards">
+                {recent.map((run) => (
+                  <RunCard key={run.id} run={run} liveStatus={statusOf(run)} onOpen={onOpenRun} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {!firstLaunch && (
+            <section className="home__section" data-testid="home-roster">
+              <header className="home__head">
+                <h2>Agents</h2>
+                <button type="button" className="button button--small" onClick={onOpenAgents}>
+                  Add an agent
+                </button>
+              </header>
+              {rosterError !== null && (
+                <p className="field-error" role="alert">
+                  {rosterError}
+                </p>
+              )}
+              {rosterLoaded && agents.length === 0 && (
+                <p className="home__empty">
+                  No agents are defined, so the supervisor would have nobody to delegate to.{" "}
+                  {space !== null && (
+                    <button type="button" className="link" disabled={seeding} onClick={() => void seed()}>
+                      Start from the starter roles
+                    </button>
+                  )}
+                </p>
+              )}
+              <ul className="roster-cards">
+                {agents.map((agent) => (
+                  <li
+                    key={agent.id}
+                    className={`roster-card${agent.enabled === false ? " roster-card--off" : ""}`}
+                    data-testid={`home-agent-${agent.name}`}
+                  >
+                    <span className="roster-card__name" title={`${agent.name}: ${agent.role}`}>
+                      <span className="roster-card__label">{agent.name}</span>
+                      {agent.is_builtin === true && <span className="tag">built-in</span>}
+                    </span>
+                    <span className="roster-card__role">{agent.role}</span>
+                    {/* It takes effect at once, so it is a switch; the word
+                        beside it says the state as well as the knob does. */}
+                    <span className="roster-card__switch">
+                      <Switch
+                        checked={agent.enabled ?? true}
+                        disabled={busyAgent === agent.id}
+                        label={`Available to the supervisor: ${agent.name}`}
+                        onChange={() => void toggle(agent)}
+                      />
+                      <span aria-hidden="true">{agent.enabled === false ? "Off" : "On"}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
       </div>
     </div>
   );

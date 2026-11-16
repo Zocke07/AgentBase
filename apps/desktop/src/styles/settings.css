@@ -14,6 +14,15 @@
   padding: 1.5rem 2rem 3rem;
 }
 
+/* The settings themselves, after the section list: the same column, the
+   same gap, so Save's sticky bar is held by the whole page of them. */
+.settings__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
 /* A form inside the settings column: the column already sets width and padding. */
 .settings__stack {
   display: flex;

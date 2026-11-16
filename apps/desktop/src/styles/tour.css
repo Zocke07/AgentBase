@@ -37,6 +37,9 @@
   background: var(--elevated);
   box-shadow: var(--elevation-floating);
   pointer-events: auto;
+  /* Never taller than the window; long words scroll inside the card. */
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
 }
 
 .tour__card--centred {

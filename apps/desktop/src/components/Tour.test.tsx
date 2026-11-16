@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -56,6 +56,15 @@ describe("Tour", () => {
     expect(screen.queryByRole("button", { name: "Next" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Finish" }));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("holds the window's section cross-fades while it is open, which would draw over its card", async () => {
+    const { rerender } = render(<Tour open section="home" onSection={vi.fn()} onClose={vi.fn()} />);
+    expect(document.documentElement.dataset.viewTransitions).toBe("off");
+    rerender(<Tour open={false} section="home" onSection={vi.fn()} onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(document.documentElement.dataset.viewTransitions).toBeUndefined();
+    });
   });
 
   it("can be skipped from any step, with Escape as well as the button", async () => {

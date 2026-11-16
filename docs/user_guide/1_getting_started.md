@@ -100,6 +100,10 @@ click elsewhere closes it; hover the figure for the ledger's exact amounts. Whil
 setup is unfinished, **Finish setup** opens Settings. Switching spaces changes
 what you see; it does not stop runs already in progress.
 
+On a wide window Home is two columns: what you start and set up on the
+left, and beside it what is going on (**Now**, **Recent runs** and the
+agents); in a narrower one they are one column in the same order.
+
 The magnifying glass at the header's right end, or Ctrl+K (⌘K on a Mac),
 opens **Find anything**: type part of a section, an action (**Run once**,
 **Make a schedule**, **New space**, the appearance, the tour), another
@@ -120,8 +124,10 @@ A fresh install has no cloud key. **Home** says so in **One step before
 your first run** and offers **Open settings**. **Try a demo run** in that
 notice shows a scripted run without calling a model or using a key.
 
-Settings is a single page. Its top buttons (**Provider**, **Keys**, **Budget**,
-**Limits**, **Chat**, **Appearance**, **About**) jump to each section, and
+Settings is a single page. Its section buttons (**Provider**, **Keys**,
+**Budget**, **Limits**, **Chat**, **Appearance**, **About**) jump to each
+section; on a wide window they stand in a list at the left, in view as you
+scroll, and
 **Save settings** remains at the bottom of the window. The first group, **Get
 started**, holds the two things a new install needs: the provider new spaces
 start on, and its key.

@@ -4,6 +4,63 @@ Updated 2026-11-14. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
+## Home and Settings use a wide window, 2026-11-17
+
+At the maintainer's request ("Can the window content dynamically adjust
+based on the app's screen size?"). Home is two columns at 76rem of its own
+width: the notice, portfolio, automations, market alerts and Run once in
+a main column, and Now (or the room at rest), Recent runs and the agents
+beside it; narrower, or before the runs have arrived, or on a first
+launch, one column in the same order. A high-effort review found ten
+issues, all fixed: Save had stopped staying in view in the wide Settings
+(the settings are now one body beside the list, so the sticky bar is held
+by all of them), group headings had lost their spacing, the first launch
+had lost its tighter gap, an empty side column took a gap, the columns sat
+off centre, and the layout jumped as the runs arrived. Settings shows its
+section links as a sticky list at the left at 72rem; Space settings has
+none and is unchanged. Prose keeps its reading measure. `just ui-shots`
+gains 1,920 by 1,080; at all four sizes both checks pass (176 captures),
+and Home and Settings were looked at in both themes at 1,440 and 1,920.
+Desktop tests: 994 passed.
+
+## The tour's card no longer drawn behind the page, 2026-11-17
+
+The maintainer: in the tour the card showed behind the page first and only
+came to the front after a while. Each step that changes section started a
+section cross-fade (stage 20.3's view transition), whose snapshot of the
+arriving section is drawn over the whole window, the tour's card
+included, until the fade ends. While the tour is open it marks `<html>`
+(`data-view-transitions="off"`) and `lib/viewTransition.ts` changes
+sections without a fade. `just ui-shots` now counts the cross-fades the
+tour starts in Chromium and fails on any: 6 with the fix taken out, 0
+with it. Unit tests cover the mark and the hold; `just ci` passed
+(desktop 994 in 90 files).
+
+## The title bar seen, the tour fixed, Home balanced, 2026-11-17
+
+- **The macOS title bar, seen by the maintainer** in a build: the
+  overlay works, and the window's buttons sat about 5 pt above the
+  toolbar's middle (centres about 1 pt below the configured y).
+  `trafficLightPosition` y is now 25, which should centre them; not yet
+  seen in a new build. The workbench's stand-ins already sat there.
+- **The tour** (the maintainer: "the instruction window is not properly
+  shown"). Step 5 switched to Settings, whose scroller eases, and
+  measured the Keys target mid-scroll, so the card was placed below the
+  window, Next and all. The tour now scrolls its target at once,
+  follows any scroll, and places the card wholly inside the window by
+  its own height (`place` in `lib/tour.ts`, with tests); the card scrolls
+  inside itself if a window is shorter than it. `just ui-shots` now
+  replays the tour from Settings and captures every step; all eight
+  were looked at, at 800, 1,100 and 1,440 px.
+- **Home's layout** (the maintainer: "the layout can be improved"). The
+  pipeline offer's four facts were three across with the fourth alone;
+  they are two by two (one column in a narrow card), its paragraph keeps
+  a reading measure, and Home's cards are one gap apart (the portfolio
+  card had a margin of its own). The user guide's Home picture follows.
+- **Checks.** `just ci` passed: backend 1,455 and 8 skipped (the built
+  sidecar's tests now run), desktop 992 in 90 files; `just test-visual`
+  194 passed; `just ui-shots` passed both checks.
+
 ## Release builds unblocked: Tauri's packages matched, 2026-11-17
 
 `just build-installer` stopped at Tauri's version check: the Rust crate

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { Section } from "../lib/sections";
-import { TOUR_STEPS } from "../lib/tour";
+import { CARD_WIDTH, place, TOUR_STEPS, type Box } from "../lib/tour";
 import { usePresence } from "../state/usePresence";
 
 /**
@@ -22,47 +22,29 @@ export interface TourProps {
   onDemo?: (() => Promise<void>) | undefined;
 }
 
-interface Box {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-}
-
-/** Room around the spotlight, and the card's distance from it. */
+/** Room around the spotlight. */
 const RING = 6;
-const GAP = 12;
-const CARD_WIDTH = 340;
 
 function measure(target: string | null): Box | null {
   if (target === null) return null;
   const element = document.querySelector(`[data-tour="${target}"]`);
   if (!(element instanceof HTMLElement)) return null;
   if (element.closest("[hidden]") !== null) return null;
-  // Center deep scroll targets before spotlighting.
-  if (typeof element.scrollIntoView === "function") element.scrollIntoView({ block: "center" });
+  // Center deep scroll targets before spotlighting, at once: a scroller
+  // that eases (Settings does) would be measured halfway, and the card
+  // placed where the target was, off the window.
+  if (typeof element.scrollIntoView === "function") element.scrollIntoView({ block: "center", behavior: "instant" });
   const rect = element.getBoundingClientRect();
   if (rect.width === 0 && rect.height === 0) return null;
   return { top: rect.top - RING, left: rect.left - RING, width: rect.width + RING * 2, height: rect.height + RING * 2 };
 }
 
-/** Place card beside spotlight when possible, otherwise beneath, always visible. */
-function place(box: Box | null, viewport: { width: number; height: number }): { top: number; left: number } | null {
-  if (box === null) return null;
-  const width = Math.min(CARD_WIDTH, viewport.width - 32);
-  let left = box.left + box.width + GAP;
-  let top = box.top;
-  if (left + width > viewport.width - 16) {
-    left = Math.max(16, Math.min(box.left, viewport.width - width - 16));
-    top = box.top + box.height + GAP;
-  }
-  if (top > viewport.height - 200) top = Math.max(16, box.top - 200 - GAP);
-  return { top, left };
-}
-
 export function Tour({ open, section, onSection, onClose, onDemo }: TourProps) {
   const [index, setIndex] = useState(0);
   const [box, setBox] = useState<Box | null>(null);
+  // The card's height as drawn, so it is placed wholly inside the window.
+  const [cardHeight, setCardHeight] = useState(240);
+  const card = useRef<HTMLDivElement>(null);
   const [demoBusy, setDemoBusy] = useState(false);
   const [demoError, setDemoError] = useState<string | null>(null);
   const nextButton = useRef<HTMLButtonElement>(null);
@@ -85,19 +67,48 @@ export function Tour({ open, section, onSection, onClose, onDemo }: TourProps) {
         setBox(measure(step.target));
       });
     });
+    // A resize, or a scroll anywhere, moves the target: follow it.
     const onResize = () => {
       setBox(measure(step.target));
     };
     window.addEventListener("resize", onResize);
+    document.addEventListener("scroll", onResize, { capture: true, passive: true });
     return () => {
       cancelAnimationFrame(frame);
       window.removeEventListener("resize", onResize);
+      document.removeEventListener("scroll", onResize, { capture: true });
     };
   }, [open, step, section, onSection]);
 
   useEffect(() => {
     if (open) nextButton.current?.focus();
   }, [open, index]);
+
+  // The tour moves the window between sections; a section's cross-fade
+  // would draw over its card (lib/viewTransition.ts), so there is none.
+  useEffect(() => {
+    if (!mounted) return undefined;
+    const root = document.documentElement;
+    root.dataset.viewTransitions = "off";
+    return () => {
+      delete root.dataset.viewTransitions;
+    };
+  }, [mounted]);
+
+  // Measure the card once drawn; a step's words change its height.
+  useLayoutEffect(() => {
+    const element = card.current;
+    if (element === null) return undefined;
+    const read = () => {
+      setCardHeight(element.offsetHeight);
+    };
+    read();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(read);
+    observer?.observe(element);
+    return () => {
+      observer?.disconnect();
+    };
+  }, [mounted, index]);
 
   const close = useCallback(() => {
     onClose();
@@ -126,7 +137,7 @@ export function Tour({ open, section, onSection, onClose, onDemo }: TourProps) {
   if (!mounted || step === undefined) return null;
 
   const viewport = { width: window.innerWidth, height: window.innerHeight };
-  const position = place(box, viewport);
+  const position = place(box, viewport, cardHeight);
 
   const demo = async () => {
     if (onDemo === undefined) return;
@@ -154,6 +165,7 @@ export function Tour({ open, section, onSection, onClose, onDemo }: TourProps) {
         <div className="tour__veil" aria-hidden="true" />
       )}
       <div
+        ref={card}
         className={`tour__card${position === null ? " tour__card--centred" : ""}`}
         style={position === null ? undefined : { top: position.top, left: position.left, width: Math.min(CARD_WIDTH, viewport.width - 32) }}
         role="dialog"

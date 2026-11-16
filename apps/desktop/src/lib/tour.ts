@@ -85,3 +85,38 @@ export const TOUR_STEPS: readonly TourStep[] = [
     section: "home",
   },
 ];
+
+/** Where a step's target is on screen, with room around it. */
+export interface Box {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}
+
+/** The card's distance from the spotlight, and its widest. */
+const GAP = 12;
+export const CARD_WIDTH = 340;
+
+/**
+ * Place the card beside the spotlight when there is room, otherwise beneath
+ * it, else above it; and whatever the spot, wholly inside the window, by the
+ * card's own height.
+ */
+export function place(
+  box: Box | null,
+  viewport: { width: number; height: number },
+  cardHeight: number,
+): { top: number; left: number } | null {
+  if (box === null) return null;
+  const width = Math.min(CARD_WIDTH, viewport.width - 32);
+  let left = box.left + box.width + GAP;
+  let top = box.top;
+  if (left + width > viewport.width - 16) {
+    left = Math.max(16, Math.min(box.left, viewport.width - width - 16));
+    top = box.top + box.height + GAP;
+    if (top + cardHeight > viewport.height - 16) top = box.top - cardHeight - GAP;
+  }
+  return { top: Math.max(16, Math.min(top, viewport.height - cardHeight - 16)), left };
+}
+
