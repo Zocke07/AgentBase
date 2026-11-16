@@ -4,6 +4,17 @@ Updated 2026-11-14. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
+## Release builds unblocked: Tauri's packages matched, 2026-11-17
+
+`just build-installer` stopped at Tauri's version check: the Rust crate
+`tauri` had been 2.12.2 since the Phase 18 commit (`e37e1bb`, on `main`
+too) while `@tauri-apps/api` was 2.11.1. `tauri dev` only warns; `tauri
+build` refuses. `@tauri-apps/api` is now 2.12.4 (2.12.5 was a day old).
+`just ci` passed (backend 1,451 and 12 skipped; desktop 988);
+`just build-installer` built `AgentBase.app` and
+`AgentBase_0.4.8_aarch64.dmg`; `just verify-build` passed (18, 4 skipped:
+the Windows installer's). The built app has not been opened here.
+
 ## Phase 20, stage 20.6: the look accepted, Home's switches, pictures, 2026-11-17
 
 - **Maintainer decisions.** "I accept the new look." "Full width for

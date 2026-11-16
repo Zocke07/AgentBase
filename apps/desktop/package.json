@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "@agentbase/schemas": "file:../../packages/schemas",
-    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/api": "^2.12.4",
     "@xyflow/react": "^12.11.6",
     "mermaid": "^11.17.2",
     "react": "^19.2.0",
