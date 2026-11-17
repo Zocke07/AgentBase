@@ -4,16 +4,16 @@
 
 ## Install and open AgentBase
 
-Version 0.4.8 ships a Windows x64 installer and a macOS Apple Silicon disk
+Version 0.5.0 ships a Windows x64 installer and a macOS Apple Silicon disk
 image. Installed users need neither Python, Node, nor Rust. Use the
-[0.4.8 release](https://github.com/Zocke07/AgentBase/releases/tag/v0.4.8) or the
+[0.5.0 release](https://github.com/Zocke07/AgentBase/releases/tag/v0.5.0) or the
 matching artifact from a successful
 [build run](https://github.com/Zocke07/AgentBase/actions/workflows/build.yml).
-See the [release notes](../releases/0.4.8.md) for status and limitations.
+See the [release notes](../releases/0.5.0.md) for status and limitations.
 
 ### Windows
 
-1. Download `AgentBase_0.4.8_x64-setup.exe` for an x64 Windows PC.
+1. Download `AgentBase_0.5.0_x64-setup.exe` for an x64 Windows PC.
 2. Run the installer. The build is unsigned; if SmartScreen shows **Windows
    protected your PC**, choose **More info → Run anyway** to proceed with the
    downloaded build you trust. A new installer or your machine's security
@@ -24,7 +24,7 @@ See the [release notes](../releases/0.4.8.md) for status and limitations.
 
 ### macOS
 
-1. Download `AgentBase_0.4.8_aarch64.dmg` for an Apple Silicon Mac. This
+1. Download `AgentBase_0.5.0_aarch64.dmg` for an Apple Silicon Mac. This
    image is not an Intel or universal build.
 2. Open the disk image, drag **AgentBase** onto the **Applications** link, and
    eject the image. Installing it there makes it appear in Spotlight. macOS

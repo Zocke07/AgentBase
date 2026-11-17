@@ -114,7 +114,7 @@ future changes do not relocate users' data or disconnect their stored keys.
   `dataviz` skill (`components/UsageCharts.tsx`) on re-stepped, validated
   `--viz-*` series colours; settings keep check boxes (they save with a
   button); the developer guide gained "Design system" and "The office";
-  release notes are drafted in `docs/releases/next.md`. On 2026-11-17 the
+  release notes were drafted and published as `docs/releases/0.5.0.md`. On 2026-11-17 the
   maintainer accepted the look and kept the full reading width; Home's
   agent switches were fixed (a label had borrowed the primitive's `switch`
   class; a design rule now forbids that), and the user guide has pictures
@@ -251,7 +251,7 @@ future changes do not relocate users' data or disconnect their stored keys.
   transition; current AgentBase values take precedence.
 - Phases 0 through 9 and the spaces redesign are implemented. Do not restart
   Phase 0 or replace completed work from an earlier phase.
-- **Phase 17 is implemented on `main`** (2026-10-01). The shipped investment
+- **Phase 17 is implemented and released in 0.5.0** (2026-10-01). The shipped investment
   pipeline now has Claude Sonnet 5.5 and migration 020, deterministic
   `read_prices`, `compute_portfolio`, `check_limits`, and
   `score_predictions` tools, migrations 021 to 027, nine starter files, and its
@@ -265,26 +265,7 @@ future changes do not relocate users' data or disconnect their stored keys.
   before starting downstream stages.
   The standalone roster design (`agentspace-investment-agents.md`) was folded
   into BUILD_SPEC Phase 17 and the user guide, then removed.
-- **Unreleased on `main` since 0.4.8**, as recorded in `docs/verification.md`:
-  - Phase 16.
-  - Phase 17's end-to-end investment pipeline, migrations 020 and 021, four
-    deterministic tools, starter inputs, and stable dashboard.
-  - ChatGPT plan models: the account's model list bounds the pickers, defaults
-    and mappings; a space and the strong shipped `decision` role on GPT-6 Sol
-    are offered GPT-5.6 Sol.
-  - Run review and navigation: a distinct Usage icon; Notes, Data files, and
-    Saved context taxonomy; responsive text; a wider Markdown preview; a
-    denser Runs view; a real network logo; automatic saved-context
-    management; and distinct **Run now** provenance.
-  - Charts handle settings objects, readable axes, repeated categories, and
-    the pipeline dashboard. Usage has a slot for every day, follows the
-    header meter, and scales a visible Y axis from actual usage.
-  - Knowledge's Journal reads every dated report as one page, and the
-    Visualize section is folded into Knowledge (2026-10-08): a data file in
-    Agent files draws as a chart, and saved charts, dashboards and diagrams
-    open drawn.
-- **Autonomy first** (BUILD_SPEC Phase 16, 2026-09-29, merged to `main`, not
-  yet released): autonomous workflows are the primary
+- **Autonomy first** (BUILD_SPEC Phase 16, 2026-09-29, released in 0.5.0): autonomous workflows are the primary
   way a space runs. Fresh installs answer low and medium risk by policy;
   migration 018 pins upgraded installs to the answers they had. High risk
   (`run_shell`) is never answered by policy nor kept as a yes for the run
@@ -297,7 +278,11 @@ future changes do not relocate users' data or disconnect their stored keys.
   through** (`supervised`). Generated saved context defaults to conservative
   model-assisted management, the seeded pipeline ships switched off (019),
   and there is still no tray or service mode.
-- The current release line is **0.4.8**: a steady run canvas, a folding event
+- The current release line is **0.5.0** (2026-11-17): the Phase 20
+  redesign (a run drawn as an office, the shell, every section redrawn;
+  checked on macOS, not yet on Windows), autonomy first (Phase 16), the
+  investment pipeline (Phase 17), the market watch (Phase 18) and the
+  repairs since, over 0.4.8's steady run canvas, a folding event
   log, named start-up stages, a spending breakdown in the header, and spaces
   that own their provider with tier-mapped model switches and Opus 5.5 and
   GPT-6 in the catalog (migration 016), over 0.4.7's complete bounded RSS and

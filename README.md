@@ -63,8 +63,8 @@ artefact fails instead of skipping.
 
 ## Installing
 
-Download `AgentBase_0.4.8_x64-setup.exe` for Windows x64 or
-`AgentBase_0.4.8_aarch64.dmg` for Apple Silicon macOS from the
+Download `AgentBase_0.5.0_x64-setup.exe` for Windows x64 or
+`AgentBase_0.5.0_aarch64.dmg` for Apple Silicon macOS from the
 [latest release](https://github.com/Zocke07/AgentBase/releases/latest) or a green
 [build run](https://github.com/Zocke07/AgentBase/actions/workflows/build.yml).
 See the [User Guide](docs/user_guide/1_getting_started.md) for both installation

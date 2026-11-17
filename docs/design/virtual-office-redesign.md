@@ -1365,7 +1365,8 @@ Built on 2026-11-15:
 - **The developer guide's chapters** "Design system" and "The office"
   (`docs/developer_guide/7_design_system.md`, `8_the_office.md`), which
   carry this brief's lasting parts.
-- **Draft release notes**, `docs/releases/next.md`, named so that no tag
+- **Draft release notes**, `docs/releases/next.md` (published as
+  `docs/releases/0.5.0.md` on 2026-11-17), named so that no tag
   publishes them.
 
 Decided on 2026-11-15:

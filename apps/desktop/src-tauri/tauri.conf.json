@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "productName": "AgentBase",
-  "version": "0.4.8",
+  "version": "0.5.0",
   "identifier": "dev.agentbase.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",

@@ -4,6 +4,20 @@ Updated 2026-11-14. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
+## Release 0.5.0, 2026-11-17
+
+At the maintainer's word ("it's fine to release it even though it has only
+been tested on macOS"). The redesign branch's 51 commits were squashed
+into eleven, one per stage or topic, with the tree unchanged (an empty
+diff against a backup), and fast-forwarded onto `main`. Everything
+unreleased since 0.4.8 ships: Phases 16 to 20 and the repairs between.
+The version is 0.5.0 in every manifest and lockfile, the schemas were
+regenerated, and `docs/releases/0.5.0.md` replaces the draft. The notes
+say the redesign has not been seen on Windows. Pushing `main` and the tag
+`v0.5.0` starts the release workflow, which builds both installers and
+publishes only once build verification and the Windows install smoke
+test pass.
+
 ## Home and Settings use a wide window, 2026-11-17
 
 At the maintainer's request ("Can the window content dynamically adjust
