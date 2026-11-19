@@ -4,6 +4,33 @@ Updated 2026-11-14. This is the current record; [history](history/README.md)
 holds earlier evidence and superseded gaps under original identifiers. Results
 cover only work actually executed.
 
+## Release 0.5.0 published, after three Windows fixes, 2026-11-18
+
+The first `v0.5.0` build failed its Windows tests. Three fixes were folded
+into the history on this Mac, `main` was force-pushed and the tag moved to
+`eb3e71c`; that build passed all six jobs (tests on both platforms, both
+installer builds, the Windows install with no Python, and publishing), and
+the release was published at 2026-11-18 14:06 UTC with
+`AgentBase_0.5.0_x64-setup.exe` and `AgentBase_0.5.0_aarch64.dmg`.
+
+- **The sidecar could not start on Windows.** `orchestrator/monitor.py`
+  (Phase 18) builds `ZoneInfo("America/New_York")` at import, and Windows
+  has no time-zone database, so the import failed and the engine never
+  started. That was so for every build since Phase 18; 0.4.8 predates it.
+  `tzdata` (2026.6) is now a backend dependency; `zoneinfo` reads the
+  system's database first (`/usr/share/zoneinfo` on macOS, unchanged) and
+  `tzdata` only where there is none, and PyInstaller freezes it into the
+  sidecar. The Windows install smoke test proves the frozen sidecar starts.
+- **Paths agents and payloads see** (`Sandbox.relative`) are written with
+  forward slashes on every platform, as `list_dir` already wrote them.
+  Unchanged on macOS; Windows resolves either form.
+- **Two slow office tests** (`OfficeScene`'s no-clock pass and the replay
+  identity pass) get 20 and 30 seconds; Windows runners were slower than
+  the 5 second default.
+
+The release notes on GitHub were published before this entry and do not
+mention the Windows engine fix; `docs/releases/0.5.0.md` now does.
+
 ## Release 0.5.0, 2026-11-17
 
 At the maintainer's word ("it's fine to release it even though it has only
